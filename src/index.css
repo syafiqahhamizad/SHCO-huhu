@@ -1,0 +1,224 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --ink: #16223A;
+    --ink-soft: #1F2E4D;
+    --paper: #F6F4EE;
+    --card: #FFFFFF;
+    --brass: #A9814A;
+    --brass-soft: #E8DCC4;
+    --slate: #5B6478;
+    --line: #E1DCCF;
+    --success: #2F6F4E;
+    --success-bg: #E6EFE9;
+    --alert: #B23A2E;
+    --alert-bg: #FBE9E7;
+    --amber: #9C7A25;
+    --amber-bg: #FBF3DD;
+    --blue: #2C5A8C;
+    --blue-bg: #E7EEF7;
+    --purple: #6B3D8C;
+    --purple-bg: #EFE6F5;
+  }
+
+  html.dark,
+  [data-theme="dark"] {
+    --ink: #F8FAFC;
+    --ink-soft: #CBD5E1;
+    --paper: #0F172A;
+    --card: #1E293B;
+    --brass: #D4AF37;
+    --brass-soft: #2D2817;
+    --slate: #94A3B8;
+    --line: #334155;
+    --success: #34D399;
+    --success-bg: #064E3B;
+    --alert: #F87171;
+    --alert-bg: #7F1D1D;
+    --amber: #FBBF24;
+    --amber-bg: #451A03;
+    --blue: #60A5FA;
+    --blue-bg: #1E3A8A;
+    --purple: #C084FC;
+    --purple-bg: #4C1D95;
+    color-scheme: dark;
+  }
+
+  body {
+    margin: 0;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: var(--paper);
+    color: var(--ink);
+    font-size: 13.5px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  html.dark body {
+    background-color: #0F172A;
+    color: #F8FAFC;
+  }
+
+  html.dark input,
+  html.dark select,
+  html.dark textarea {
+    background-color: #0F172A !important;
+    color: #F8FAFC !important;
+    border-color: #334155 !important;
+  }
+
+  html.dark .bg-white {
+    background-color: #1E293B !important;
+    color: #F8FAFC;
+  }
+
+  html.dark .bg-\[\#F6F4EE\] {
+    background-color: #0F172A !important;
+  }
+
+  html.dark .bg-\[\#FAF8F2\],
+  html.dark .bg-\[\#FCFBF7\] {
+    background-color: #1E293B !important;
+  }
+
+  html.dark .border-\[\#E1DCCF\] {
+    border-color: #334155 !important;
+  }
+
+  html.dark .text-\[\#16223A\] {
+    color: #F8FAFC !important;
+  }
+
+  html.dark .text-slate-800,
+  html.dark .text-slate-700 {
+    color: #E2E8F0 !important;
+  }
+
+  html.dark .text-slate-600,
+  html.dark .text-slate-500 {
+    color: #CBD5E1 !important;
+  }
+
+  /* Custom scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #D8D2C2;
+    border-radius: 6px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #B0A894;
+  }
+}
+
+.mono {
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.serif {
+  font-family: 'Source Serif 4', Georgia, Cambria, 'Times New Roman', Times, serif;
+}
+
+.font-roxborough {
+  font-family: 'Roxborough CF', 'RoxboroughCF', 'Cinzel', 'Playfair Display', Georgia, serif;
+}
+
+.font-termes {
+  font-family: 'TeX Gyre Termes', 'TeXGyreTermes', 'EB Garamond', 'Source Serif 4', 'Times New Roman', Times, Georgia, serif;
+}
+
+.ref-seal {
+  display: inline-flex;
+  align-items: center;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  border: 1px solid var(--brass);
+  color: var(--brass);
+  background: var(--brass-soft);
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.mockup-tag {
+  display: inline-block;
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--brass);
+  border: 1px solid var(--brass);
+  background: var(--brass-soft);
+  padding: 2px 8px;
+  border-radius: 20px;
+  margin-bottom: 10px;
+  font-weight: 700;
+}
+
+/* Custom form elements */
+input, select, textarea {
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  padding: 6px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background-color: #FCFBF7;
+  color: var(--ink);
+  transition: all 0.15s ease;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid var(--brass);
+  outline-offset: 0;
+  border-color: var(--brass);
+}
+
+.diary-entry {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 11px 13px;
+  margin-bottom: 9px;
+  font-size: 11.5px;
+  background-color: #FCFBF7;
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+}
+
+.cal-cell {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  min-height: 64px;
+  padding: 5px;
+  font-size: 10px;
+  background: var(--card);
+}
+
+/* Print CSS Styles for Legal File Covers & Memos */
+@media print {
+  body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt !important;
+  }
+
+  /* Hide navigation, sidebars, buttons, and modal overlays during print */
+  header,
+  aside,
+  nav,
+  button,
+  .no-print {
+    display: none !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 1.5cm;
+  }
+}
+

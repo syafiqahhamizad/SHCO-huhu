@@ -1,0 +1,6 @@
+{
+  "name": "SHCO Practice System",
+  "description": "Malaysian Legal Practice Management System for Syafiqah Hamizad & Co with Solicitors' Account Rules 1990 trust compliance, SRO 2023 scale fee calculator, Court Diary, and Google Workspace integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
