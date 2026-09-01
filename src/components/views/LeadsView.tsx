@@ -586,13 +586,13 @@ export const LeadsView: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Top Banner Bar */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-[#16223A] border border-[#16223A] p-4 rounded-xl shadow-lg">
         <div>
-          <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-            <UserCheck className="w-5 h-5 text-[#A9814A]" />
+          <h2 className="font-serif text-lg font-bold text-white flex items-center gap-2">
+            <UserCheck className="w-5 h-5 text-amber-300" />
             Leads &amp; Client Intake Register
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-300 mt-0.5">
             Automatic conflict screening against existing firm matters and opposing parties under Malaysian Bar rules.
           </p>
         </div>
@@ -610,14 +610,14 @@ export const LeadsView: React.FC = () => {
           <button
             type="button"
             onClick={handleExportLeads}
-            className="border border-[#E1DCCF] hover:bg-slate-50 text-slate-800 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+            className="border border-white/20 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
           >
             <Download className="w-3.5 h-3.5 text-[#A9814A]" />
             <span>Export Excel</span>
           </button>
           <button
             onClick={() => setIsNewModalOpen(true)}
-            className="bg-[#16223A] hover:bg-[#1F2E4D] text-[#F6F4EE] text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs whitespace-nowrap"
+            className="bg-[#A9814A] hover:bg-[#8E6B3B] text-white text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs whitespace-nowrap"
           >
             <Plus className="w-4 h-4" />
             <span>New Lead</span>
@@ -780,7 +780,7 @@ export const LeadsView: React.FC = () => {
       <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
-            <tr className="bg-[#F6F4EE] border-b border-[#E1DCCF] text-[10px] uppercase tracking-wider text-slate-600">
+            <tr className="bg-[#16223A] border-b border-[#304362] text-[10px] uppercase tracking-wider text-white">
               <th className="p-3 font-bold">ID</th>
               <th className="p-3 font-bold">Name &amp; Contacts</th>
               <th className="p-3 font-bold">Warmth Level (1-3)</th>

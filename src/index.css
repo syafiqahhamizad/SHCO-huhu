@@ -4,12 +4,12 @@
   :root {
     --ink: #16223A;
     --ink-soft: #1F2E4D;
-    --paper: #F6F4EE;
+    --paper: #FFFFFF;
     --card: #FFFFFF;
     --brass: #A9814A;
-    --brass-soft: #E8DCC4;
+    --brass-soft: #F5F5F5;
     --slate: #5B6478;
-    --line: #E1DCCF;
+    --line: #E2E5E9;
     --success: #2F6F4E;
     --success-bg: #E6EFE9;
     --alert: #B23A2E;
@@ -24,24 +24,24 @@
 
   html.dark,
   [data-theme="dark"] {
-    --ink: #F8FAFC;
-    --ink-soft: #CBD5E1;
-    --paper: #0F172A;
-    --card: #1E293B;
-    --brass: #D4AF37;
-    --brass-soft: #2D2817;
-    --slate: #94A3B8;
-    --line: #334155;
-    --success: #34D399;
-    --success-bg: #064E3B;
-    --alert: #F87171;
-    --alert-bg: #7F1D1D;
-    --amber: #FBBF24;
-    --amber-bg: #451A03;
-    --blue: #60A5FA;
-    --blue-bg: #1E3A8A;
-    --purple: #C084FC;
-    --purple-bg: #4C1D95;
+    --ink: #E8ECFF;
+    --ink-soft: #B8BFDB;
+    --paper: #0A0E1A;
+    --card: #1A1F35;
+    --brass: #FFD700;
+    --brass-soft: #2A2410;
+    --slate: #9BA3BF;
+    --line: #2D3748;
+    --success: #48D597;
+    --success-bg: #083D2E;
+    --alert: #FF6B6B;
+    --alert-bg: #5F1D1D;
+    --amber: #FFD93D;
+    --amber-bg: #3A2410;
+    --blue: #66B2FF;
+    --blue-bg: #1A3F5C;
+    --purple: #DA70D6;
+    --purple-bg: #3D1A5C;
     color-scheme: dark;
   }
 
@@ -54,49 +54,170 @@
     -webkit-font-smoothing: antialiased;
   }
 
+  html:not(.dark) .bg-\[\#F6F4EE\],
+  html:not(.dark) .bg-\[\#FAF8F2\],
+  html:not(.dark) .bg-\[\#FCFBF7\] {
+    background-color: #FFFFFF !important;
+  }
+
+  html:not(.dark) .border-\[\#E1DCCF\] {
+    border-color: #E2E5E9 !important;
+  }
+
+  html:not(.dark) tr.bg-\[\#F6F4EE\] {
+    background-color: #16223A !important;
+    color: #FFFFFF !important;
+    border-color: #304362 !important;
+  }
+
+  html:not(.dark) tr.bg-\[\#F6F4EE\] th {
+    color: #FFFFFF !important;
+  }
+
   html.dark body {
-    background-color: #0F172A;
-    color: #F8FAFC;
+    background-color: #0A0E1A;
+    color: #E8ECFF;
   }
 
   html.dark input,
   html.dark select,
   html.dark textarea {
-    background-color: #0F172A !important;
-    color: #F8FAFC !important;
-    border-color: #334155 !important;
+    background-color: #15192A !important;
+    color: #E8ECFF !important;
+    border-color: #2D3748 !important;
   }
 
   html.dark .bg-white {
-    background-color: #1E293B !important;
-    color: #F8FAFC;
+    background-color: #1A1F35 !important;
+    color: #E8ECFF;
   }
 
   html.dark .bg-\[\#F6F4EE\] {
-    background-color: #0F172A !important;
+    background-color: #0A0E1A !important;
   }
 
   html.dark .bg-\[\#FAF8F2\],
   html.dark .bg-\[\#FCFBF7\] {
-    background-color: #1E293B !important;
+    background-color: #1A1F35 !important;
   }
 
   html.dark .border-\[\#E1DCCF\] {
-    border-color: #334155 !important;
+    border-color: #2D3748 !important;
   }
 
   html.dark .text-\[\#16223A\] {
-    color: #F8FAFC !important;
+    color: #E8ECFF !important;
   }
 
   html.dark .text-slate-800,
   html.dark .text-slate-700 {
-    color: #E2E8F0 !important;
+    color: #D0D8F0 !important;
   }
 
   html.dark .text-slate-600,
   html.dark .text-slate-500 {
-    color: #CBD5E1 !important;
+    color: #A8B0D8 !important;
+  }
+
+  /* Dark mode card and section backgrounds */
+  html.dark .rounded-xl,
+  html.dark .rounded-2xl,
+  html.dark .rounded-lg {
+    background-color: #1A1F35 !important;
+  }
+
+  /* Dark mode table styling */
+  html.dark table {
+    background-color: #0A0E1A !important;
+    color: #E8ECFF !important;
+  }
+
+  html.dark tbody tr {
+    border-color: #2D3748 !important;
+  }
+
+  html.dark thead {
+    background-color: #15192A !important;
+    color: #E8ECFF !important;
+  }
+
+  html.dark tbody tr:hover {
+    background-color: #15192A !important;
+  }
+
+  /* Dark mode sidebar adjustments */
+  html.dark .bg-\\[\\#16223A\\] {
+    background-color: #0A0E1A !important;
+  }
+
+  /* Dark mode form elements */
+  html.dark input[type="text"],
+  html.dark input[type="email"],
+  html.dark input[type="password"],
+  html.dark input[type="search"],
+  html.dark input[type="number"],
+  html.dark input[type="date"],
+  html.dark select,
+  html.dark textarea {
+    background-color: #15192A !important;
+    color: #E8ECFF !important;
+    border-color: #2D3748 !important;
+  }
+
+  html.dark input[type="text"]:focus,
+  html.dark input[type="email"]:focus,
+  html.dark input[type="password"]:focus,
+  html.dark input[type="search"]:focus,
+  html.dark input[type="number"]:focus,
+  html.dark input[type="date"]:focus,
+  html.dark select:focus,
+  html.dark textarea:focus {
+    background-color: #1A1F35 !important;
+    border-color: #FFD700 !important;
+    box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.1) !important;
+  }
+
+  /* Dark mode placeholder text */
+  html.dark input::placeholder,
+  html.dark textarea::placeholder {
+    color: #6B7280 !important;
+  }
+
+  /* Dark mode links and buttons */
+  html.dark a {
+    color: #66B2FF;
+  }
+
+  html.dark a:hover {
+    color: #FFD700;
+  }
+
+  html.dark button:not([class*="bg-"]) {
+    background-color: #1A1F35 !important;
+    color: #E8ECFF !important;
+    border-color: #2D3748 !important;
+  }
+
+  html.dark button:hover:not([class*="bg-"]) {
+    background-color: #252D45 !important;
+  }
+
+  /* Dark mode dialogs and modals */
+  html.dark .fixed.inset-0 .bg-white,
+  html.dark [role="dialog"],
+  html.dark [role="alertdialog"] {
+    background-color: #15192A !important;
+    color: #E8ECFF !important;
+  }
+
+  /* Dark mode badges and tags */
+  html.dark .badge,
+  html.dark .tag,
+  html.dark [class*="badge"],
+  html.dark [class*="tag"] {
+    background-color: #1A1F35 !important;
+    color: #E8ECFF !important;
+    border-color: #2D3748 !important;
   }
 
   /* Custom scrollbar styling */
@@ -105,11 +226,25 @@
     height: 6px;
   }
   ::-webkit-scrollbar-thumb {
-    background: #D8D2C2;
+    background: #CBD1D8;
     border-radius: 6px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #B0A894;
+    background: #9AA3AE;
+  }
+
+  html.dark ::-webkit-scrollbar-thumb {
+    background: #3D4556;
+    border-radius: 6px;
+  }
+
+  html.dark ::-webkit-scrollbar-thumb:hover {
+    background: #4D5666;
+    border-radius: 6px;
+  }
+
+  html.dark ::-webkit-scrollbar-track {
+    background: #0A0E1A;
   }
 }
 
@@ -164,15 +299,28 @@ input, select, textarea {
   padding: 6px 9px;
   border-radius: 6px;
   border: 1px solid var(--line);
-  background-color: #FCFBF7;
+  background-color: #F1F3F5;
   color: var(--ink);
   transition: all 0.15s ease;
 }
 
 input:focus, select:focus, textarea:focus {
-  outline: 2px solid var(--brass);
+  outline: 2px solid var(--ink);
   outline-offset: 0;
-  border-color: var(--brass);
+  border-color: var(--ink);
+}
+
+form input,
+form select,
+form textarea {
+  background-color: #F1F3F5;
+  border-color: #CBD5E1;
+}
+
+form input:focus,
+form select:focus,
+form textarea:focus {
+  background-color: #FFFFFF;
 }
 
 .diary-entry {
@@ -181,7 +329,7 @@ input:focus, select:focus, textarea:focus {
   padding: 11px 13px;
   margin-bottom: 9px;
   font-size: 11.5px;
-  background-color: #FCFBF7;
+  background-color: #FFFFFF;
 }
 
 .cal-grid {
@@ -197,6 +345,206 @@ input:focus, select:focus, textarea:focus {
   padding: 5px;
   font-size: 10px;
   background: var(--card);
+}
+
+/* Enhanced animations and transitions for better UX */
+@layer components {
+  /* Smooth page transitions */
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Smooth slide-in for modals */
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Scale animation for popovers */
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  /* Pulse animation for alerts */
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.7;
+    }
+  }
+
+  /* Improved button transitions */
+  button:not(:disabled) {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Focus styles for better accessibility */
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  a:focus-visible {
+    outline: 2px solid var(--brass);
+    outline-offset: 2px;
+  }
+
+  /* Enhanced dark mode scrollbar */
+  html.dark ::-webkit-scrollbar-thumb {
+    background: #475569;
+  }
+
+  html.dark ::-webkit-scrollbar-thumb:hover {
+    background: #64748B;
+  }
+
+  /* Better text selection for dark mode */
+  html.dark ::selection {
+    background-color: #A9814A;
+    color: #FFFFFF;
+  }
+
+  /* Improved loading state */
+  .animate-spin {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* Smooth height transitions for collapsible content */
+  .collapse-enter {
+    overflow: hidden;
+    transition: all 0.3s ease;
+  }
+
+  /* Improved link hover effects */
+  a {
+    transition: color 0.2s ease;
+  }
+
+  a:hover {
+    text-decoration: underline;
+  }
+
+  /* Enhanced input focus effects */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  select,
+  textarea {
+    transition: all 0.15s ease;
+  }
+
+  input[type="text"]:focus,
+  input[type="email"]:focus,
+  input[type="password"]:focus,
+  input[type="search"]:focus,
+  select:focus,
+  textarea:focus {
+    box-shadow: 0 0 0 3px rgba(169, 129, 74, 0.1);
+  }
+
+  /* Smooth badge animations */
+  .badge-enter {
+    animation: slideDown 0.2s ease-out;
+  }
+
+  /* Improved checkbox and radio styling */
+  input[type="checkbox"],
+  input[type="radio"] {
+    transition: all 0.15s ease;
+    cursor: pointer;
+  }
+
+  input[type="checkbox"]:hover,
+  input[type="radio"]:hover {
+    transform: scale(1.05);
+  }
+
+  /* Better card hover effects */
+  .card-hover {
+    transition: all 0.3s ease;
+  }
+
+  .card-hover:hover {
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+  }
+
+  /* Tooltip styling */
+  .tooltip {
+    position: relative;
+  }
+
+  .tooltip::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--ink);
+    color: var(--paper);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  .tooltip:hover::after {
+    opacity: 1;
+  }
+
+  /* Improved error state styling */
+  .input-error {
+    border-color: var(--alert) !important;
+    background-color: rgba(242, 112, 156, 0.05) !important;
+  }
+
+  .input-error:focus {
+    box-shadow: 0 0 0 3px rgba(242, 112, 156, 0.1) !important;
+  }
+
+  /* Smooth transition for disabled states */
+  button:disabled,
+  input:disabled,
+  select:disabled,
+  textarea:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transition: all 0.15s ease;
+  }
 }
 
 /* Print CSS Styles for Legal File Covers & Memos */
@@ -221,4 +569,16 @@ input:focus, select:focus, textarea:focus {
     margin: 1.5cm;
   }
 }
+
+/* Mobile responsive improvements */
+@media (max-width: 768px) {
+  body {
+    font-size: 12px;
+  }
+
+  input, select, textarea {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+}
+
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Role, PartnerCode } from '../types';
 import {
@@ -38,6 +38,10 @@ import {
   User,
   Sparkles,
   Palette,
+  Home,
+  Menu,
+  X,
+  ChevronDown,
 } from 'lucide-react';
 
 interface NavItem {
@@ -71,11 +75,33 @@ export const Sidebar: React.FC = () => {
 
   const isPartner = currentRole === 'Partner' || isAdmin || currentUser.role === 'Partner' || currentUser.isSuperAdmin;
   const isClient = currentRole === 'Client' || currentUser.role === 'Client';
+  
+  // Mobile and accessibility state
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['General', 'Practice']));
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const toggleGroupExpanded = (groupName: string) => {
+    const newExpanded = new Set(expandedGroups);
+    if (newExpanded.has(groupName)) {
+      newExpanded.delete(groupName);
+    } else {
+      newExpanded.add(groupName);
+    }
+    setExpandedGroups(newExpanded);
+  };
+
+  const handleNavItemClick = (itemId: string) => {
+    setCurrentView(itemId);
+    setCurrentCaseId(null);
+    setIsMobileSidebarOpen(false);
+  };
 
   const NAV_GROUPS: NavGroup[] = [
     {
       group: 'General',
       items: [
+        { id: 'firmStartCentre', label: 'Firm Start Centre', icon: <Home className="w-3.5 h-3.5 text-amber-300" /> },
         { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-3.5 h-3.5" /> },
         { id: 'partnerDashboard', label: 'Partner Dashboard', icon: <BarChart3 className="w-3.5 h-3.5" />, partnerOnly: true },
         { id: 'clientPortal', label: 'Client Access Portal', icon: <UserCheck className="w-3.5 h-3.5 text-amber-300" /> },
@@ -106,6 +132,7 @@ export const Sidebar: React.FC = () => {
     {
       group: 'Billing',
       items: [
+        { id: 'accountingCentre', label: 'Accounting Centre', icon: <BarChart3 className="w-3.5 h-3.5 text-amber-300" /> },
         { id: 'quotations', label: 'Quotations', icon: <FileText className="w-3.5 h-3.5" /> },
         { id: 'time', label: 'Time Entries', icon: <Timer className="w-3.5 h-3.5" /> },
         { id: 'invoices', label: 'Invoices', icon: <FileSpreadsheet className="w-3.5 h-3.5" /> },
@@ -152,154 +179,222 @@ export const Sidebar: React.FC = () => {
   ];
 
   return (
-    <aside className="w-[242px] shrink-0 bg-[#16223A] text-[#EDE9DD] p-5 sticky top-0 h-screen overflow-y-auto flex flex-col justify-between border-r border-amber-900/20 shadow-xl select-none">
-      <div>
-        {/* Brand Header */}
-        <div className="flex items-center gap-2.5 mb-3 pb-3 border-b border-white/10">
-          <div className="w-8 h-8 rounded-full border-[1.5px] border-[#A9814A] flex items-center justify-center font-serif font-bold text-xs text-[#A9814A] bg-[#A9814A]/10 shrink-0 shadow-inner">
-            SH
-          </div>
-          <div>
-            <div className="font-roxborough text-[13px] font-bold leading-tight text-white tracking-wide uppercase">
-              SYAFIQAH HAMIZAD &amp; CO
+    <>
+      {/* Mobile Menu Toggle Button - Visible only on small screens */}
+      <button
+        onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+        className="hidden sm:hidden md:hidden lg:hidden fixed top-4 left-4 z-50 p-2 bg-[#A9814A] text-white rounded-lg hover:bg-[#C29A5A] transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#A9814A]"
+        aria-label={isMobileSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
+        aria-expanded={isMobileSidebarOpen}
+        aria-controls="sidebar-nav"
+      >
+        {isMobileSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+      </button>
+
+      {/* Sidebar - Hidden on mobile by default, visible on desktop */}
+      <aside
+        id="sidebar-nav"
+        className={`fixed sm:fixed md:relative lg:relative xl:relative w-[242px] shrink-0 bg-[#16223A] dark:bg-[#0A0E1A] text-[#EDE9DD] dark:text-[#E8ECFF] p-5 h-screen overflow-y-auto flex flex-col justify-between border-r border-amber-900/20 dark:border-[#2D3748] shadow-xl select-none transition-all duration-300 ease-in-out ${
+          isMobileSidebarOpen
+            ? 'translate-x-0 z-40'
+            : '-translate-x-full sm:translate-x-0 md:translate-x-0 lg:translate-x-0'
+        }`}
+        role="navigation"
+        aria-label="Main navigation"
+      >
+        <div>
+          {/* Brand Header */}
+          <div className="flex items-center gap-2.5 mb-3 pb-3 border-b border-white/10 dark:border-[#2D3748] group">
+            <div className="w-8 h-8 rounded-full border-[1.5px] border-[#A9814A] dark:border-[#FFD700] flex items-center justify-center font-serif font-bold text-xs text-[#A9814A] dark:text-[#FFD700] bg-[#A9814A]/10 dark:bg-[#FFD700]/10 shrink-0 shadow-inner group-hover:shadow-md group-hover:border-[#D4AF37] dark:group-hover:border-[#FFED4E] transition-all">
+              SH
             </div>
-            <div className="font-termes text-[10px] text-[#ffd29e] tracking-tight font-medium italic flex items-center gap-1 mt-0.5">
-              Advocates &amp; Solicitors | Syarie Counsel
+            <div>
+              <div className="font-roxborough text-[13px] font-bold leading-tight text-white dark:text-[#E8ECFF] tracking-wide uppercase">
+                SYAFIQAH HAMIZAD &amp; CO
+              </div>
+              <div className="font-termes text-[10px] text-[#ffd29e] dark:text-[#FFD93D] tracking-tight font-medium italic flex items-center gap-1 mt-0.5">
+                Advocates &amp; Solicitors | Syarie Counsel
+              </div>
             </div>
           </div>
+
+          {/* Search Bar */}
+          <div className="mb-4 px-2">
+            <input
+              type="text"
+              placeholder="Search navigation..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value.toLowerCase())}
+              className="w-full px-3 py-1.5 text-xs bg-white/10 dark:bg-[#15192A] border border-white/20 dark:border-[#2D3748] text-white dark:text-[#E8ECFF] placeholder:text-slate-400 dark:placeholder:text-[#6B7280] rounded-md focus:outline-none focus:border-[#A9814A] dark:focus:border-[#FFD700] focus:ring-1 focus:ring-[#A9814A]/50 dark:focus:ring-[#FFD700]/50 transition-all"
+              aria-label="Search navigation menu"
+            />
+          </div>
+
+          {/* Navigation Items */}
+          <nav className="space-y-2" role="menubar">
+            {NAV_GROUPS.map((group) => {
+              const visibleItems = group.items.filter((item) => {
+                if (item.partnerOnly && !isPartner) return false;
+                if (item.systemOnly && !isAdmin) return false;
+                if (searchQuery && !item.label.toLowerCase().includes(searchQuery)) return false;
+                return canViewModule(item.id);
+              });
+
+              if (visibleItems.length === 0) return null;
+
+              const isGroupExpanded = expandedGroups.has(group.group);
+
+              return (
+                <div key={group.group}>
+                  <button
+                    onClick={() => toggleGroupExpanded(group.group)}
+                    className="w-full flex items-center justify-between text-[9.5px] uppercase tracking-widest text-[#7A8296] dark:text-[#6B7280] px-2 py-2 mb-1 font-bold hover:text-[#A9814A] dark:hover:text-[#FFD700] focus:outline-none focus:text-[#A9814A] dark:focus:text-[#FFD700] transition-colors rounded-md"
+                    aria-expanded={isGroupExpanded}
+                    aria-controls={`group-${group.group}`}
+                    role="menuitem"
+                  >
+                    <span>{group.group}</span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                        isGroupExpanded ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+                  <div
+                    id={`group-${group.group}`}
+                    className={`space-y-0.5 overflow-hidden transition-all duration-200 ${
+                      isGroupExpanded ? 'max-h-96' : 'max-h-0'
+                    }`}
+                  >
+                    {visibleItems.map((item) => {
+                      const isActive = currentView === item.id;
+
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => handleNavItemClick(item.id)}
+                          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[12px] font-medium transition-all duration-150 text-left focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#A9814A] dark:focus:ring-[#FFD700] focus:ring-offset-[#16223A] dark:focus:ring-offset-[#0A0E1A] ${
+                            isActive
+                              ? 'bg-[#A9814A] dark:bg-[#FFD700] text-[#1A1204] dark:text-[#0A0E1A] font-semibold shadow-md'
+                              : 'text-[#C7CCDC] dark:text-[#A8B0D8] hover:bg-white/10 dark:hover:bg-[#1A1F35] hover:text-white dark:hover:text-[#E8ECFF] focus:text-white dark:focus:text-[#E8ECFF]'
+                          }`}
+                          role="menuitem"
+                          aria-current={isActive ? 'page' : undefined}
+                          title={item.label}
+                        >
+                          <span className="shrink-0">{item.icon}</span>
+                          <span className="truncate">{item.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </nav>
         </div>
 
-
-        {/* Navigation Items */}
-        <nav className="space-y-4">
-          {NAV_GROUPS.map((group) => {
-            const visibleItems = group.items.filter((item) => {
-              if (item.partnerOnly && !isPartner) return false;
-              if (item.systemOnly && !isAdmin) return false;
-              return canViewModule(item.id);
-            });
-
-            if (visibleItems.length === 0) return null;
-
-            return (
-              <div key={group.group}>
-                <div className="text-[9.5px] uppercase tracking-widest text-[#7A8296] px-2 mb-1.5 font-bold">
-                  {group.group}
-                </div>
-                <div className="space-y-0.5">
-                  {visibleItems.map((item) => {
-                    const isActive = currentView === item.id;
-
-                    return (
-                      <button
-                        key={item.id}
-                        onClick={() => {
-                          setCurrentView(item.id);
-                          setCurrentCaseId(null);
-                        }}
-                        className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium transition-all duration-150 text-left ${
-                          isActive
-                            ? 'bg-[#A9814A] text-[#1A1204] font-semibold shadow-sm'
-                            : 'text-[#C7CCDC] hover:bg-white/5 hover:text-white'
-                        }`}
-                      >
-                        <span className="shrink-0">{item.icon}</span>
-                        <span className="truncate">{item.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+        {/* Role & Access Switcher Panel */}
+        <div className="mt-6 pt-3 border-t border-white/12 space-y-2.5 text-xs">
+          {isClient ? (
+            <div className="p-3 bg-amber-500/10 border border-amber-400/30 rounded-xl text-xs space-y-2 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-amber-300 uppercase tracking-wider text-[10px]">
+                  Client Portal Session
+                </span>
+                <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 rounded text-[9px] font-bold">
+                  ACTIVE
+                </span>
               </div>
-            );
-          })}
-        </nav>
-      </div>
-
-      {/* Role & Access Switcher Panel */}
-      <div className="mt-6 pt-3 border-t border-white/12 space-y-2.5 text-xs">
-        {isClient ? (
-          <div className="p-3 bg-amber-500/10 border border-amber-400/30 rounded-xl text-xs space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-amber-300 uppercase tracking-wider text-[10px]">
-                Client Portal Session
-              </span>
-              <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 rounded text-[9px] font-bold">
-                ACTIVE
-              </span>
-            </div>
-            <div className="text-[11px] text-slate-200">
-              Logged in as <strong className="text-white">{currentUser.name}</strong>
-            </div>
-            <button
-              onClick={() => {
-                setCurrentRole('Partner');
-                setCurrentView('dashboard');
-                logoutUser();
-              }}
-              className="w-full py-1.5 bg-amber-400 hover:bg-amber-300 text-[#16223A] font-extrabold rounded-lg text-[11px] transition-all cursor-pointer shadow-xs"
-            >
-              Sign Out / Exit Portal
-            </button>
-          </div>
-        ) : (
-          <>
-            <div>
-              <label className="text-[9.5px] uppercase tracking-wider text-[#8B93A8] block mb-1 font-semibold">
-                Viewing as Role
-              </label>
-              <select
-                value={currentRole}
-                disabled={!isAdmin && !currentUser.isSuperAdmin}
-                onChange={(e) => {
-                  const newRole = e.target.value as Role;
-                  setCurrentRole(newRole);
-                  if (newRole === 'Client') {
-                    setCurrentView('clientPortal');
-                  } else if (currentView === 'clientPortal') {
-                    setCurrentView('dashboard');
-                  }
+              <div className="text-[11px] text-slate-200">
+                Logged in as <strong className="text-white">{currentUser.name}</strong>
+              </div>
+              <button
+                onClick={() => {
+                  setCurrentRole('Partner');
+                  setCurrentView('dashboard');
+                  logoutUser();
                 }}
-                className="w-full bg-white/8 text-white border border-white/20 rounded-md px-2 py-1 text-[11.5px] focus:outline-none focus:border-[#A9814A] disabled:opacity-70 disabled:cursor-not-allowed"
+                className="w-full py-1.5 bg-amber-400 hover:bg-amber-300 text-[#16223A] font-extrabold rounded-lg text-[11px] transition-all cursor-pointer shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-400 focus:ring-offset-[#16223A]"
+                title="Sign out from client portal"
               >
-                <option value="Partner" className="bg-[#16223A]">Partner (Full Firm Oversight)</option>
-                <option value="Lawyer" className="bg-[#16223A]">Lawyer (Matters & Practice Only)</option>
-                <option value="Assistant" className="bg-[#16223A]">Assistant (Support & Intake)</option>
-                <option value="Reviewer" className="bg-[#16223A]">Reviewer (External/Auditor)</option>
-                <option value="Client" className="bg-[#16223A]">Client (Read-Only Portal)</option>
-              </select>
+                Sign Out / Exit Portal
+              </button>
             </div>
+          ) : (
+            <>
+              <div>
+                <label htmlFor="role-select" className="text-[9.5px] uppercase tracking-wider text-[#8B93A8] block mb-1 font-semibold">
+                  Viewing as Role
+                </label>
+                <select
+                  id="role-select"
+                  value={currentRole}
+                  disabled={!isAdmin && !currentUser.isSuperAdmin}
+                  onChange={(e) => {
+                    const newRole = e.target.value as Role;
+                    setCurrentRole(newRole);
+                    if (newRole === 'Client') {
+                      setCurrentView('clientPortal');
+                    } else if (currentView === 'clientPortal') {
+                      setCurrentView('dashboard');
+                    }
+                  }}
+                  className="w-full bg-white/8 text-white border border-white/20 rounded-md px-2 py-1 text-[11.5px] focus:outline-none focus:border-[#A9814A] focus:ring-1 focus:ring-[#A9814A]/50 disabled:opacity-70 disabled:cursor-not-allowed transition-all"
+                  aria-label="Select your viewing role"
+                >
+                  <option value="Partner" className="bg-[#16223A]">Partner (Full Firm Oversight)</option>
+                  <option value="Lawyer" className="bg-[#16223A]">Lawyer (Matters & Practice Only)</option>
+                  <option value="Assistant" className="bg-[#16223A]">Assistant (Support & Intake)</option>
+                  <option value="Reviewer" className="bg-[#16223A]">Reviewer (External/Auditor)</option>
+                  <option value="Client" className="bg-[#16223A]">Client (Read-Only Portal)</option>
+                </select>
+              </div>
 
-            <label className="flex items-center gap-2 text-[11px] text-[#C7CCDC] cursor-pointer hover:text-white">
-              <input
-                type="checkbox"
-                checked={isAdmin}
-                onChange={(e) => setIsAdmin(e.target.checked)}
-                className="rounded border-white/20 text-[#A9814A] focus:ring-0 accent-[#A9814A]"
-              />
-              <span>Also has Admin overlay access</span>
-            </label>
-
-            <div>
-              <label className="text-[9.5px] uppercase tracking-wider text-[#8B93A8] block mb-1 font-semibold">
-                Partner Identity ("My Cases")
+              <label className="flex items-center gap-2 text-[11px] text-[#C7CCDC] cursor-pointer hover:text-white transition-colors focus-within:text-white">
+                <input
+                  type="checkbox"
+                  checked={isAdmin}
+                  onChange={(e) => setIsAdmin(e.target.checked)}
+                  className="rounded border-white/20 text-[#A9814A] focus:ring-1 focus:ring-[#A9814A]/50 accent-[#A9814A] cursor-pointer"
+                  aria-label="Enable admin overlay access"
+                />
+                <span>Also has Admin overlay access</span>
               </label>
-              <select
-                value={currentPartnerCode}
-                onChange={(e) => setCurrentPartnerCode(e.target.value as PartnerCode)}
-                className="w-full bg-white/8 text-white border border-white/20 rounded-md px-2 py-1 text-[11.5px] focus:outline-none focus:border-[#A9814A]"
-              >
-                <option value="SH" className="bg-[#16223A]">SH — Syafiqah Hamizad</option>
-                <option value="AH" className="bg-[#16223A]">AH — Amer Haiqal</option>
-                <option value="ZA" className="bg-[#16223A]">ZA — Zulaikha Afendi</option>
-              </select>
-            </div>
 
-            <div className="text-[9.5px] text-[#7A8296] leading-snug pt-1">
-              Malaysian Law compliant. Admin overlay reveals firm-wide cases & system views. Reviewer = read-only auditor view.
-            </div>
-          </>
-        )}
-      </div>
-    </aside>
+              <div>
+                <label htmlFor="partner-select" className="text-[9.5px] uppercase tracking-wider text-[#8B93A8] block mb-1 font-semibold">
+                  Partner Identity ("My Cases")
+                </label>
+                <select
+                  id="partner-select"
+                  value={currentPartnerCode}
+                  onChange={(e) => setCurrentPartnerCode(e.target.value as PartnerCode)}
+                  className="w-full bg-white/8 text-white border border-white/20 rounded-md px-2 py-1 text-[11.5px] focus:outline-none focus:border-[#A9814A] focus:ring-1 focus:ring-[#A9814A]/50 transition-all"
+                  aria-label="Select your partner identity"
+                >
+                  <option value="SH" className="bg-[#16223A]">SH — Syafiqah Hamizad</option>
+                  <option value="AH" className="bg-[#16223A]">AH — Amer Haiqal</option>
+                  <option value="ZA" className="bg-[#16223A]">ZA — Zulaikha Afendi</option>
+                </select>
+              </div>
+
+              <div className="text-[9.5px] text-[#7A8296] leading-snug pt-1">
+                Malaysian Law compliant. Admin overlay reveals firm-wide cases & system views. Reviewer = read-only auditor view.
+              </div>
+            </>
+          )}
+        </div>
+      </aside>
+
+      {/* Mobile Overlay - Click to close sidebar on mobile */}
+      {isMobileSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-30 sm:hidden md:hidden lg:hidden"
+          onClick={() => setIsMobileSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+    </>
   );
 };

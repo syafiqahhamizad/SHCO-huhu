@@ -101,7 +101,9 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
   if (type === 'quotation') {
     const q = quotations.find((x) => x.id === docId);
     if (!q) return null;
-    docTitle = 'QUOTATION';
+    docTitle = q.subtype === 'Consultation'
+      ? (q.documentType === 'Proforma' ? 'CONSULTATION PROFORMA' : 'CONSULTATION QUOTATION')
+      : q.documentType === 'Proforma' ? 'PROFORMA QUOTATION' : 'QUOTATION';
     docNo = q.id;
     recipientName = q.clientName;
 
@@ -274,7 +276,7 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
     docNo = inv.id.startsWith('INV') ? inv.id : `INV-${inv.id}`;
     const client = clients.find((c) => c.id === inv.clientId);
     const caseObj = cases.find((c) => c.id === inv.caseId);
-    recipientName = client ? client.name : 'Client';
+    recipientName = client ? client.name : inv.partyName || 'Prospect / Client';
 
     const ourRef = caseObj ? caseObj.ref : (inv.fileRef || `SHC/FIN/INV${inv.id.replace(/\D/g, '') || '001'}/2026`);
     const subjectText = caseObj ? caseObj.title : `LEGAL SERVICES — ${inv.caseId || 'MATTER BILLING'}`;
@@ -286,7 +288,7 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
           <div className="space-y-1">
             <div><span className="font-bold text-slate-700">Your Ref:</span> Kindly Advised</div>
             <div><span className="font-bold text-slate-700">Our Ref:</span> <span className="font-mono font-semibold text-[#16223A]">{ourRef}</span></div>
-            <div><span className="font-bold text-slate-700">Client:</span> <span className="font-semibold uppercase">{recipientName}</span></div>
+            <div><span className="font-bold text-slate-700">{inv.partyType === 'Prospect' ? 'Prospect' : 'Client'}:</span> <span className="font-semibold uppercase">{recipientName}</span></div>
             {client?.address && <div className="text-slate-600 text-[10px] pl-11">{client.address}</div>}
           </div>
           <div className="space-y-1 text-right">

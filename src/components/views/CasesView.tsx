@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Case, PartnerCode, Hearing, Task, CourtDiaryEntry, ServiceRecord, MeetingNote, InternalNote, OpposingSolicitorRecord, PartyRecord, CaseActivityLog } from '../../types';
 import { scanClientConflicts } from '../../lib/conflictUtils';
+import { exportToWordDoc } from '../../lib/exportUtils';
 import { useConfirmation } from '../../hooks/useConfirmation';
 import { getPracticeSettings } from '../../services/templateService';
 import { CourtMemoModal } from '../modals/CourtMemoModal';
@@ -17,14 +18,11 @@ import {
   CheckSquare,
   Building,
   Send,
-  Users,
   FileText,
-  Clock,
-  AlertTriangle,
-  MessageSquare,
   Mail,
-  Upload,
+  MessageSquare,
   Printer,
+  Users,
   RefreshCw,
   Briefcase,
   History,
@@ -165,6 +163,27 @@ export const CasesView: React.FC = () => {
       { id: 'USR-003', name: 'Amer Haiqal', role: 'Partner' },
     ];
   }, [users]);
+
+  const registeredStaff = React.useMemo(
+    () => (users || []).filter((user) => user.status === 'Active' && user.role !== 'Client'),
+    [users]
+  );
+  const isSuperAdmin = Boolean(currentUser?.isSuperAdmin);
+
+  const exportMatterDocument = (filename: string, title: string, body: string) => {
+    const safeBody = body.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br />');
+    exportToWordDoc(filename, `<div class="header-title">${title}</div><div class="firm-sub">${selectedCase?.ref || ''} | ${selectedCase?.title || ''}</div><div>${safeBody}</div>`);
+  };
+
+  const printMatterDocument = (title: string, body: string) => {
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
+    if (!printWindow) return;
+    const safeBody = body.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br />');
+    printWindow.document.write(`<html><head><title>${title}</title><style>body{font-family:Georgia,serif;color:#16223A;padding:48px;line-height:1.6}h1{font-size:24px;border-bottom:2px solid #A9814A;padding-bottom:12px}.meta{color:#64748B;font:12px Arial,sans-serif;margin-bottom:28px}</style></head><body><h1>${title}</h1><div class="meta">${selectedCase?.ref || ''} | ${selectedCase?.title || ''}</div><div>${safeBody}</div></body></html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
 
   const parseAnyDate = (val?: any): Date | null => {
     if (!val) return null;
@@ -488,6 +507,7 @@ export const CasesView: React.FC = () => {
   // Meeting note form
   const [mnDate, setMnDate] = useState(new Date().toISOString().slice(0, 10));
   const [mnOurLawyers, setMnOurLawyers] = useState('');
+  const [mnLawyerSearch, setMnLawyerSearch] = useState('');
   const [mnClientAttendees, setMnClientAttendees] = useState('');
   const [mnNotes, setMnNotes] = useState('');
   const [mnDecisions, setMnDecisions] = useState('');
@@ -1784,6 +1804,10 @@ export const CasesView: React.FC = () => {
 
     updateCase(selectedCase.id, { meetingNotes: [...(selectedCase.meetingNotes || []), newM] });
     setIsAddMeetingModalOpen(false);
+    setMnOurLawyers('');
+    setMnLawyerSearch('');
+    setMnNotes('');
+    setMnDecisions('');
   };
 
   const handleSaveInternal = (e: React.FormEvent) => {
@@ -1920,7 +1944,7 @@ export const CasesView: React.FC = () => {
     ];
 
     return (
-      <div className="space-y-4">
+      <div className="w-full space-y-4">
         {/* Back Button */}
         <button
           onClick={() => setCurrentCaseId(null)}
@@ -3011,14 +3035,18 @@ export const CasesView: React.FC = () => {
                     Comprehensive chronological record of case updates, document submissions, milestones, and compliance checks for regulatory oversight.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setIsAddActivityModalOpen(true)}
-                  className="bg-[#16223A] hover:bg-[#1F2E4D] text-amber-300 text-xs font-bold px-3 py-1.5 rounded-md flex items-center gap-1.5 shadow-xs cursor-pointer shrink-0"
-                >
-                  <Plus className="w-3.5 h-3.5 text-amber-300" />
-                  <span>Log Compliance / Activity</span>
-                </button>
+                {isSuperAdmin ? (
+                  <button
+                    type="button"
+                    onClick={() => setIsAddActivityModalOpen(true)}
+                    className="bg-[#16223A] hover:bg-[#1F2E4D] text-amber-300 text-xs font-bold px-3 py-1.5 rounded-md flex items-center gap-1.5 shadow-xs cursor-pointer shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Log Compliance / Activity</span>
+                  </button>
+                ) : (
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 border border-slate-200 bg-slate-50 px-3 py-1.5 rounded-md">Audit feed is view-only</span>
+                )}
               </div>
 
               <div className="space-y-3 relative before:absolute before:inset-0 before:left-3 before:w-0.5 before:bg-slate-200">
@@ -3315,14 +3343,9 @@ export const CasesView: React.FC = () => {
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setIsAddCashbookModalOpen(true)}
-                className="bg-[#16223A] hover:bg-[#1F2E4D] text-white font-bold px-3.5 py-2 rounded-md flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Record Cashbook Entry</span>
-              </button>
+              <span className="px-3 py-1.5 rounded-md border border-slate-200 bg-slate-50 text-slate-500 font-bold text-[10px] uppercase tracking-wider shrink-0">
+                View-only ledger
+              </span>
             </div>
 
             {/* Account Balances Overview Banner */}
@@ -3616,6 +3639,8 @@ export const CasesView: React.FC = () => {
                           <span>Google Drive Doc</span>
                         </a>
                       )}
+                      <button type="button" onClick={() => printMatterDocument(`Meeting Minutes - ${m.date}`, `SHCO Lawyers Present: ${m.ourLawyers}\nClient Attendees: ${m.clientAttendees}\n\nMeeting Notes:\n${m.meetingNotes}\n\nDecisions & Next Steps:\n${m.decisions}`)} className="px-2.5 py-1 border border-slate-200 rounded text-[11px] font-bold text-slate-600 cursor-pointer">PDF</button>
+                      <button type="button" onClick={() => exportMatterDocument(`Meeting-${m.id}`, `Meeting Minutes - ${m.date}`, `SHCO Lawyers Present: ${m.ourLawyers}\nClient Attendees: ${m.clientAttendees}\n\nMeeting Notes:\n${m.meetingNotes}\n\nDecisions & Next Steps:\n${m.decisions}`)} className="px-2.5 py-1 border border-slate-200 rounded text-[11px] font-bold text-slate-600 cursor-pointer">Word</button>
                     </div>
                   </div>
                 ))
@@ -3637,14 +3662,14 @@ export const CasesView: React.FC = () => {
                   Store legal research notes, ratio decidendi, and link downloaded Lexis/CLJ judgments in the firm's Central Research Library on Google Drive.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsAddResearchModalOpen(true)}
-                className="bg-[#16223A] hover:bg-[#1F2E4D] text-white font-bold px-3 py-1.5 rounded flex items-center gap-1.5 cursor-pointer shadow-xs"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add Research Note</span>
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <a href={selectedCase.gdriveFolderUrl || 'https://drive.google.com/drive/my-drive'} target="_blank" rel="noopener noreferrer" className="px-2.5 py-1.5 bg-amber-50 text-amber-900 border border-amber-200 rounded flex items-center gap-1.5 font-bold">
+                  <ExternalLink className="w-3.5 h-3.5" /> Library
+                </a>
+                <button type="button" onClick={() => setIsAddResearchModalOpen(true)} className="bg-[#16223A] hover:bg-[#1F2E4D] text-white font-bold px-3 py-1.5 rounded flex items-center gap-1.5 cursor-pointer shadow-xs">
+                  <Plus className="w-3.5 h-3.5" /> Add Research Note
+                </button>
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -3659,6 +3684,10 @@ export const CasesView: React.FC = () => {
                       <div>
                         <h4 className="font-bold text-sm text-[#16223A]">{res.title}</h4>
                         <div className="text-[11px] text-slate-500 font-mono">Date: {res.date} • Prepared by {res.preparedBy}</div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button type="button" onClick={() => printMatterDocument(res.title, `Legal Issues:\n${res.issues}\n\nFindings / Ratio:\n${res.findingsAndRatio}\n\nApplication:\n${res.applicationToCase}`)} className="px-2 py-1 border border-slate-200 rounded text-[10px] font-bold text-slate-600 hover:bg-slate-50 cursor-pointer">PDF</button>
+                        <button type="button" onClick={() => exportMatterDocument(`Research-${res.id}`, res.title, `Legal Issues:\n${res.issues}\n\nFindings / Ratio:\n${res.findingsAndRatio}\n\nApplication:\n${res.applicationToCase}`)} className="px-2 py-1 border border-slate-200 rounded text-[10px] font-bold text-slate-600 hover:bg-slate-50 cursor-pointer">Word</button>
                       </div>
                       {res.fullCaseDownloadUrl && (
                         <a
@@ -3724,9 +3753,9 @@ export const CasesView: React.FC = () => {
               ) : (
                 (selectedCase.internalNotes || []).map((n) => (
                   <div key={n.id} className="p-3 bg-[#FAF8F2] border border-[#E1DCCF] rounded-lg">
-                    <div className="flex justify-between items-center mb-1">
+                    <div className="flex justify-between items-center mb-1 gap-2">
                       <span className="font-bold text-[#16223A]">{n.noteType}</span>
-                      <span className="text-[10px] text-slate-500 font-mono">{n.date}</span>
+                      <div className="flex items-center gap-1.5"><span className="text-[10px] text-slate-500 font-mono">{n.date}</span><button type="button" onClick={() => printMatterDocument(`Internal Note - ${n.noteType}`, n.content)} className="px-2 py-1 border border-slate-200 rounded text-[10px] font-bold text-slate-600 cursor-pointer">PDF</button><button type="button" onClick={() => exportMatterDocument(`Internal-${n.id}`, `Internal Note - ${n.noteType}`, n.content)} className="px-2 py-1 border border-slate-200 rounded text-[10px] font-bold text-slate-600 cursor-pointer">Word</button></div>
                     </div>
                     <p className="text-slate-800 leading-relaxed">{n.content}</p>
                   </div>
@@ -4821,7 +4850,7 @@ export const CasesView: React.FC = () => {
         />
       )}
 
-      {selectedCase && (isAddResearchModalOpen || isAddInternalModalOpen || isAddCashbookModalOpen) && (
+      {selectedCase && (isAddResearchModalOpen || isAddInternalModalOpen) && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl max-w-lg w-full p-5 shadow-2xl space-y-4">
             <div className="flex justify-between items-center border-b border-slate-200 pb-3">
@@ -4830,7 +4859,6 @@ export const CasesView: React.FC = () => {
             </div>
             {isAddResearchModalOpen && <form onSubmit={handleSaveResearchNote} className="space-y-3 text-xs"><input required value={resTitle} onChange={(e) => setResTitle(e.target.value)} placeholder="Research title" className="w-full" /><textarea value={resIssues} onChange={(e) => setResIssues(e.target.value)} placeholder="Issues" className="w-full" rows={2} /><textarea required value={resFindingsAndRatio} onChange={(e) => setResFindingsAndRatio(e.target.value)} placeholder="Findings / ratio" className="w-full" rows={4} /><textarea value={resApplicationToCase} onChange={(e) => setResApplicationToCase(e.target.value)} placeholder="Application to this case" className="w-full" rows={3} /><button type="submit" className="w-full bg-[#16223A] text-white p-2 rounded font-bold cursor-pointer">Save Research</button></form>}
             {isAddInternalModalOpen && <form onSubmit={handleSaveInternal} className="space-y-3 text-xs"><select value={inType} onChange={(e) => setInType(e.target.value)} className="w-full"><option>Research</option><option>Strategy</option><option>Directive</option><option>Confidential</option></select><textarea required value={inContent} onChange={(e) => setInContent(e.target.value)} placeholder="Internal note" className="w-full" rows={6} /><button type="submit" className="w-full bg-[#16223A] text-white p-2 rounded font-bold cursor-pointer">Save Internal Note</button></form>}
-            {isAddCashbookModalOpen && <form onSubmit={handleSaveCashbook} className="space-y-3 text-xs"><select value={cbType} onChange={(e) => setCbType(e.target.value as 'Office' | 'Client')} className="w-full"><option value="Office">Office Cashbook</option><option value="Client">Client Trust</option></select><select value={cbDirection} onChange={(e) => setCbDirection(e.target.value as 'Debit' | 'Credit')} className="w-full"><option value="Debit">Debit / Outflow</option><option value="Credit">Credit / Inflow</option></select><input value={cbRef} onChange={(e) => setCbRef(e.target.value)} placeholder="Reference" className="w-full" /><input required type="number" min="0.01" step="0.01" value={cbAmount} onChange={(e) => setCbAmount(e.target.value)} placeholder="Amount (RM)" className="w-full" /><input required value={cbDesc} onChange={(e) => setCbDesc(e.target.value)} placeholder="Description" className="w-full" /><button type="submit" className="w-full bg-[#16223A] text-white p-2 rounded font-bold cursor-pointer">Save Transaction</button></form>}
           </div>
         </div>
       )}
@@ -4890,7 +4918,21 @@ export const CasesView: React.FC = () => {
             <form onSubmit={handleSaveMeeting} className="space-y-3 text-xs">
               <div>
                 <label className="font-bold text-slate-700 block mb-1">SHCO Lawyers Present</label>
-                <input value={mnOurLawyers} onChange={(e) => setMnOurLawyers(e.target.value)} placeholder="e.g. Syafiqah Hamizad" className="w-full p-2 border border-[#E1DCCF] rounded-lg" />
+                <div className="rounded-lg border border-[#E1DCCF] p-2 space-y-2">
+                  <div className="flex flex-wrap gap-1.5">
+                    {mnOurLawyers.split(',').map((name) => name.trim()).filter(Boolean).map((name) => (
+                      <button key={name} type="button" onClick={() => setMnOurLawyers(mnOurLawyers.split(',').map((item) => item.trim()).filter((item) => item && item !== name).join(', '))} className="bg-[#16223A] text-amber-200 px-2 py-1 rounded text-[10px] font-bold cursor-pointer">{name} x</button>
+                    ))}
+                  </div>
+                  <input value={mnLawyerSearch} onChange={(e) => setMnLawyerSearch(e.target.value)} placeholder="Search registered SHCO lawyers..." className="w-full p-2 border border-[#E1DCCF] rounded-lg" />
+                  {mnLawyerSearch.trim() && (
+                    <div className="max-h-28 overflow-y-auto border-t border-slate-100 pt-1">
+                      {registeredStaff.filter((user) => user.name.toLowerCase().includes(mnLawyerSearch.toLowerCase())).map((user) => (
+                        <button key={user.id} type="button" onClick={() => { setMnOurLawyers(Array.from(new Set([...mnOurLawyers.split(',').map((item) => item.trim()).filter(Boolean), user.name])).join(', ')); setMnLawyerSearch(''); }} className="block w-full text-left px-2 py-1.5 hover:bg-amber-50 text-xs cursor-pointer">{user.name} <span className="text-slate-400">({user.role})</span></button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Client Attendees</label>
@@ -4933,7 +4975,7 @@ export const CasesView: React.FC = () => {
       {ConfirmationModal}
 
       {/* Add Compliance / Activity Log Modal */}
-      {isAddActivityModalOpen && selectedCase && (
+      {isSuperAdmin && isAddActivityModalOpen && selectedCase && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#E1DCCF] space-y-4">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">

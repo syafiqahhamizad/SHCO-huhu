@@ -7,18 +7,24 @@ import {
   setDoc,
   type Unsubscribe,
 } from 'firebase/firestore';
+import { initializeFirebaseAppCheck } from './firebaseAppCheckService';
 
 const firebaseConfig = {
-  apiKey: 'AIzaSyBtgzS5KcwtlMygfSmo4kmEV08-y8QEINc',
-  authDomain: 'gen-lang-client-0565207218.firebaseapp.com',
-  projectId: 'gen-lang-client-0565207218',
-  storageBucket: 'gen-lang-client-0565207218.firebasestorage.app',
-  messagingSenderId: '560462370115',
-  appId: '1:560462370115:web:602e0f3e9110f6a8eb4bf6',
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
 };
 
 const app = getApps().length > 0 ? getApps()[0] : initializeApp(firebaseConfig);
 const db = getFirestore(app);
+initializeFirebaseAppCheck(app);
+
+if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+  console.warn('Firebase Firestore config is missing. Add VITE_FIREBASE_* values to your .env file to enable cloud sync.');
+}
 const stateRef = doc(db, 'practiceSystem', 'sharedState');
 
 export type CloudState = Record<string, unknown>;

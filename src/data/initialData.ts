@@ -25,6 +25,7 @@ import {
   Payment,
   Retainer,
   User,
+  FirmAnnouncement,
   ActivityLog,
   RolePermissionsMatrix,
   BankAccount,
@@ -762,6 +763,10 @@ export const INITIAL_USERS: User[] = [
   { id: 'U1', name: 'Syafiqah Hamizad', username: 'syafiqahhamizad', email: 'syafiqahhamizad@shcolaw.com', role: 'Partner', isAdmin: true, isSuperAdmin: true, status: 'Active' },
   { id: 'U2', name: 'Amer Haiqal', username: 'amerhaiqal', email: 'amerhaiqal@shcolaw.com', role: 'Partner', isAdmin: false, isSuperAdmin: false, status: 'Active' },
   { id: 'U3', name: 'Zulaikha Afendi', username: 'zulaikhaafendi', email: 'zulaikha@shcolaw.com', role: 'Partner', isAdmin: false, isSuperAdmin: false, status: 'Active' },
+];
+
+export const INITIAL_FIRM_ANNOUNCEMENTS: FirmAnnouncement[] = [
+  { id: 'ANN-001', title: 'Welcome to the Firm Start Centre', body: 'Your daily workspace for matters, deadlines, tasks and connected Google Workspace tools.', category: 'Announcement', createdAt: '2026-08-25T08:00:00.000Z', createdBy: 'System', published: true, internalOnly: true },
 ];
 
 export const INITIAL_LOGS: ActivityLog[] = [

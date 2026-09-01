@@ -8,6 +8,20 @@ export type Role = 'Partner' | 'Lawyer' | 'Assistant' | 'Reviewer' | 'Client' | 
 export type PartnerCode = 'SH' | 'AH' | 'ZA';
 export type ThemePreference = 'light' | 'dark' | 'system';
 
+export type FirmAnnouncementCategory = 'Announcement' | 'Birthday' | 'Call to the Bar' | 'Work Anniversary' | 'Firm Anniversary' | 'Holiday' | 'Policy' | 'Alert';
+
+export interface FirmAnnouncement {
+  id: string;
+  title: string;
+  body: string;
+  category: FirmAnnouncementCategory;
+  eventDate?: string;
+  createdAt: string;
+  createdBy: string;
+  published: boolean;
+  internalOnly: boolean;
+}
+
 export interface ConflictCheck {
   status: 'Not Started' | 'Clear' | 'Flagged';
   notes: string;
@@ -398,6 +412,17 @@ export interface QuotationLineItem {
 
 export interface Quotation {
   id: string;
+  documentType?: 'Quotation' | 'Proforma';
+  sourceQuotationId?: string;
+  partyType?: 'Client' | 'Prospect';
+  partyId?: string;
+  formatMode?: 'Standard' | 'General';
+  notes?: string;
+  paymentTerms?: string;
+  validityDays?: number;
+  consultationDate?: string;
+  consultationType?: 'Initial Consultation' | 'Follow-up Consultation' | 'Urgent Consultation' | 'Document Review' | 'Video Consultation';
+  consultationDurationMinutes?: number;
   date: string;
   practiceArea: string;
   fileRef: string;
@@ -525,6 +550,8 @@ export interface Invoice {
   caseId: string;
   fileRef?: string;
   quotationId?: string;
+  partyType?: 'Client' | 'Prospect';
+  partyName?: string;
   amount: number;
   discount: number;
   tax: number;
@@ -716,6 +743,9 @@ export interface StaffProfile {
   employmentType: 'Permanent' | 'Contract' | 'Freelance' | 'Intern';
   officeLocation: string;
   bio: string;
+  birthday?: string;
+  callToBarDate?: string;
+  celebrationOptOut?: boolean;
 }
 
 export interface AttendanceRecord {

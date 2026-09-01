@@ -46,6 +46,7 @@ import {
   AuditLogEntry,
   AttendanceRecord,
   LeaveApplication,
+  FirmAnnouncement,
 } from '../types';
 import {
   getFirebaseAuthErrorMessage,
@@ -87,6 +88,7 @@ import {
   INITIAL_TRUST_AUDIT_LOGS,
   INITIAL_INVENTORY_ITEMS,
   INITIAL_BANK_RECONCILIATION_ENTRIES,
+  INITIAL_FIRM_ANNOUNCEMENTS,
 } from '../data/initialData';
 
 interface AppContextType {
@@ -198,6 +200,8 @@ interface AppContextType {
   markNotificationAsRead: (id: string) => void;
   markAllNotificationsAsRead: () => void;
   addNotification: (notif: Omit<NotificationItem, 'id' | 'timestamp' | 'read'>) => void;
+  announcements: FirmAnnouncement[];
+  addAnnouncement: (announcement: Omit<FirmAnnouncement, 'id' | 'createdAt' | 'createdBy'>) => boolean;
 
   isNewCaseModalOpen: boolean;
   setIsNewCaseModalOpen: (open: boolean) => void;
@@ -233,6 +237,7 @@ interface AppContextType {
   updateLawFirmRegistryEntry: (id: string, updates: Partial<LawFirmRegistryEntry>) => void;
   deleteLawFirmRegistryEntry: (id: string) => void;
   addQuotation: (q: Quotation) => void;
+  updateQuotation: (id: string, updates: Partial<Quotation>) => void;
   addReferralPartner: (rp: ReferralPartner) => void;
   addTravelClaim: (tc: TravelClaim) => void;
   updateTravelClaim: (id: string, updates: Partial<TravelClaim>) => void;
@@ -242,6 +247,7 @@ interface AppContextType {
   approvePaymentVoucher: (id: string, approvedBy: string) => void;
   addRetainer: (r: Retainer) => void;
   addInvoice: (inv: Invoice) => void;
+  updateInvoice: (id: string, updates: Partial<Invoice>) => void;
   addPayment: (p: Payment) => void;
   addTimeEntry: (te: TimeEntry) => void;
   updateTimeEntry: (id: string, updates: Partial<TimeEntry>) => void;
@@ -264,11 +270,27 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'SHCO_PRACTICE_SYSTEM_DATA_V1';
+const SESSION_STORAGE_KEY = 'SHCO_PRACTICE_SYSTEM_SESSION_V1';
+
+function sanitizeClientPasswordsForStorage<T extends { role?: string; clientPassword?: string }>(items: T[]): T[] {
+  return items.map((item) => {
+    if (item.role === 'Client') {
+      const { clientPassword: _clientPassword, ...rest } = item as T & { clientPassword?: string };
+      return rest as T;
+    }
+    return item;
+  });
+}
 
 function readStored<T>(key: string, fallback: T): T {
   try {
     const saved = localStorage.getItem(key);
-    return saved ? (JSON.parse(saved) as T) : fallback;
+    if (!saved) return fallback;
+    const parsed = JSON.parse(saved) as T;
+    if (Array.isArray(parsed)) {
+      return sanitizeClientPasswordsForStorage(parsed as Array<{ role?: string; clientPassword?: string }>) as unknown as T;
+    }
+    return parsed;
   } catch (error) {
     console.warn(`Ignoring invalid stored data for ${key}.`, error);
     return fallback;
@@ -279,11 +301,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     const loginPreviewRequested = new URLSearchParams(window.location.search).get('login') === '1';
     if (loginPreviewRequested) {
-      localStorage.removeItem(STORAGE_KEY + '_session');
+      sessionStorage.removeItem(SESSION_STORAGE_KEY);
       return false;
     }
 
-    const savedSession = localStorage.getItem(STORAGE_KEY + '_session');
+    const savedSession = sessionStorage.getItem(SESSION_STORAGE_KEY);
     if (savedSession) {
       try {
         const parsed = JSON.parse(savedSession);
@@ -297,7 +319,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Session Persistence Layer (Restores staff and client sessions across browser refreshes)
   const [currentUser, setCurrentUser] = useState<User>(() => {
-    const savedSession = localStorage.getItem(STORAGE_KEY + '_session');
+    const savedSession = sessionStorage.getItem(SESSION_STORAGE_KEY);
     if (savedSession) {
       try {
         const parsed = JSON.parse(savedSession);
@@ -312,7 +334,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [currentRole, setCurrentRole] = useState<Role>(() => {
-    const savedSession = localStorage.getItem(STORAGE_KEY + '_session');
+    const savedSession = sessionStorage.getItem(SESSION_STORAGE_KEY);
     if (savedSession) {
       try {
         const parsed = JSON.parse(savedSession);
@@ -323,7 +345,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [currentPartnerCode, setCurrentPartnerCode] = useState<PartnerCode>(() => {
-    const savedSession = localStorage.getItem(STORAGE_KEY + '_session');
+    const savedSession = sessionStorage.getItem(SESSION_STORAGE_KEY);
     if (savedSession) {
       try {
         const parsed = JSON.parse(savedSession);
@@ -334,7 +356,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [isAdmin, setIsAdmin] = useState<boolean>(() => {
-    const savedSession = localStorage.getItem(STORAGE_KEY + '_session');
+    const savedSession = sessionStorage.getItem(SESSION_STORAGE_KEY);
     if (savedSession) {
       try {
         const parsed = JSON.parse(savedSession);
@@ -390,7 +412,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [theme]);
 
   const [currentView, setCurrentView] = useState<string>(() => {
-    const savedSession = localStorage.getItem(STORAGE_KEY + '_session');
+    const savedSession = sessionStorage.getItem(SESSION_STORAGE_KEY);
     if (savedSession) {
       try {
         const parsed = JSON.parse(savedSession);
@@ -441,11 +463,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       currentView,
       savedAt: new Date().toISOString(),
     };
-    localStorage.setItem(STORAGE_KEY + '_session', JSON.stringify(sessionData));
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessionData));
   }, [isAuthenticated, currentUser, currentRole, currentPartnerCode, isAdmin, currentView]);
 
   const [users, setUsers] = useState<User[]>(() => {
-    return readStored(STORAGE_KEY + '_users', INITIAL_USERS);
+    const storedUsers = readStored<User[]>(STORAGE_KEY + '_users', INITIAL_USERS);
+    const usedStaffIds = new Set<string>();
+    let nextStaffNumber = 1;
+    return storedUsers.map((user) => {
+      if (user.role === 'Client') return user;
+      let staffId = user.staffProfile?.staffId;
+      if (!staffId || usedStaffIds.has(staffId)) {
+        do {
+          staffId = `SHCO-ST-${String(nextStaffNumber).padStart(4, '0')}`;
+          nextStaffNumber += 1;
+        } while (usedStaffIds.has(staffId));
+      }
+      usedStaffIds.add(staffId);
+      return {
+        ...user,
+        staffProfile: user.staffProfile || {
+          staffId,
+          designation: user.role,
+          department: 'Legal Practice',
+          phone: '',
+          emergencyContact: '',
+          joinDate: '',
+          employmentType: 'Permanent',
+          officeLocation: 'Kuala Lumpur Office',
+          bio: '',
+        },
+      };
+    });
   });
 
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(() =>
@@ -475,7 +524,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentRole(signedInUser.role);
       setIsAdmin(Boolean(signedInUser.isAdmin));
       setIsAuthenticated(true);
-      setCurrentView(signedInUser.role === 'Partner' ? 'partnerDashboard' : 'dashboard');
+      setCurrentView('firmStartCentre');
       showToast(`Welcome back, ${signedInUser.name}.`);
       return { success: true };
     } catch (error) {
@@ -486,7 +535,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentRole(partnerUser.role);
       setIsAdmin(Boolean(partnerUser.isAdmin));
       setIsAuthenticated(true);
-      setCurrentView('partnerDashboard');
+      setCurrentView('firmStartCentre');
       showToast(`Welcome back, ${partnerUser.name} (${partnerUser.role}).`);
       return { success: true };
     }
@@ -574,13 +623,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentRole(approvedUser.role);
     setIsAdmin(false);
     setIsAuthenticated(true);
-    setCurrentView('dashboard');
+    setCurrentView('firmStartCentre');
     showToast(`Welcome, ${approvedUser.name}.`);
     return { success: true };
   };
 
   const logoutUser = async () => {
     await signOutFromFirebase().catch(() => undefined);
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
     localStorage.removeItem(STORAGE_KEY + '_session');
     setIsAuthenticated(false);
     setCurrentUser(INITIAL_USERS[0]);
@@ -592,6 +642,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('login') === '1') {
+      sessionStorage.removeItem(SESSION_STORAGE_KEY);
       localStorage.removeItem(STORAGE_KEY + '_session');
       setIsAuthenticated(false);
     }
@@ -618,7 +669,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentRole(userMatch.role);
       setIsAdmin(userMatch.isAdmin);
       setIsAuthenticated(true);
-      setCurrentView(userMatch.role === 'Client' ? 'clientPortal' : 'dashboard');
+      setCurrentView(userMatch.role === 'Client' ? 'clientPortal' : 'firmStartCentre');
       showToast(`Invitation redeemed! Welcome, ${userMatch.name}.`);
       return { success: true, message: `Welcome ${userMatch.name}! Your account password has been activated.` };
     }
@@ -689,8 +740,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return false;
     }
 
-    setUsers((prev) => [...prev, newUser]);
-    showToast(`User ${newUser.name} added to practice system.`);
+    setUsers((prev) => {
+      const staffUsers = prev.filter((user) => user.role !== 'Client');
+      const usedStaffIds = new Set(staffUsers.map((user) => user.staffProfile?.staffId).filter(Boolean));
+      let nextNumber = staffUsers.length + 1;
+      let staffId = `SHCO-ST-${String(nextNumber).padStart(4, '0')}`;
+      while (usedStaffIds.has(staffId)) {
+        nextNumber += 1;
+        staffId = `SHCO-ST-${String(nextNumber).padStart(4, '0')}`;
+      }
+      const staffProfile = newUser.role === 'Client'
+        ? newUser.staffProfile
+        : {
+            staffId,
+            designation: newUser.staffProfile?.designation || newUser.role,
+            department: newUser.staffProfile?.department || 'Legal Practice',
+            phone: newUser.staffProfile?.phone || '',
+            emergencyContact: newUser.staffProfile?.emergencyContact || '',
+            joinDate: newUser.staffProfile?.joinDate || new Date().toISOString().slice(0, 10),
+            employmentType: newUser.staffProfile?.employmentType || 'Permanent',
+            officeLocation: newUser.staffProfile?.officeLocation || 'Kuala Lumpur Office',
+            bio: newUser.staffProfile?.bio || '',
+            birthday: newUser.staffProfile?.birthday,
+            callToBarDate: newUser.staffProfile?.callToBarDate,
+            celebrationOptOut: newUser.staffProfile?.celebrationOptOut,
+          };
+      return [...prev, { ...newUser, staffProfile }];
+    });
+    showToast(`User ${newUser.name} added to practice system with a unique staff ID.`);
     return true;
   };
 
@@ -830,6 +907,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const unreadNotificationsCount = notifications.filter((n) => !n.read).length;
 
+  const [announcements, setAnnouncements] = useState<FirmAnnouncement[]>(() =>
+    readStored(STORAGE_KEY + '_firmAnnouncements', INITIAL_FIRM_ANNOUNCEMENTS)
+  );
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY + '_firmAnnouncements', JSON.stringify(announcements));
+  }, [announcements]);
+
   // Global Database Collection Audit Log State
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(() => {
     try {
@@ -896,6 +981,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       changes,
     };
     setAuditLogs((prev) => [newEntry, ...prev]);
+  };
+
+  const addAnnouncement = (announcement: Omit<FirmAnnouncement, 'id' | 'createdAt' | 'createdBy'>) => {
+    const canPublish = currentUser.isSuperAdmin || currentUser.isAdmin || currentRole === 'Partner';
+    if (!canPublish) {
+      showToast('Only Partners and Super Admin can publish firm announcements.');
+      return false;
+    }
+    const created: FirmAnnouncement = {
+      ...announcement,
+      id: `ANN-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      createdBy: currentUser.name,
+      internalOnly: true,
+    };
+    setAnnouncements((previous) => [created, ...previous]);
+    logAuditEvent('CREATE', 'SYSTEM', created.id, created.title, `Firm announcement published by ${currentUser.name}.`);
+    showToast('Firm announcement published.');
+    return true;
   };
 
   // Recycle Bin / Deleted Items Archive State
@@ -1283,6 +1387,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const VIEW_TO_MODULE_MAP: Record<string, string> = {
+    firmStartCentre: 'dashboard',
     dashboard: 'dashboard',
     partnerDashboard: 'dashboard',
     clientPortal: 'clientPortal',
@@ -1301,6 +1406,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     predispute: 'predispute',
     counselRegistry: 'counselRegistry',
     templates: 'templates',
+    accountingCentre: 'finance',
     quotations: 'finance',
     time: 'finance',
     expenses: 'finance',
@@ -1415,9 +1521,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`Updated user explicit navigation override.`);
   };
 
+  const isSensitiveAdminModule = (moduleKey: string): boolean => {
+    return ['finance', 'retainers', 'officeFinance', 'settings', 'users', 'logs'].includes(moduleKey);
+  };
+
   const canViewModule = (viewId: string): boolean => {
     // Effective active role perspective
     const effectiveRole: Role = currentRole || currentUser.role || 'Partner';
+    const moduleKey = VIEW_TO_MODULE_MAP[viewId] || 'dashboard';
 
     // Client role is strictly restricted to clientPortal
     if (effectiveRole === 'Client') {
@@ -1426,6 +1537,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (viewId === 'staffPortal' || viewId === 'staff-portal') {
       return true;
+    }
+
+    if (isSensitiveAdminModule(moduleKey)) {
+      const isAuthorizedAdmin = Boolean(currentUser.isSuperAdmin || currentUser.isAdmin || currentRole === 'Partner' || currentUser.role === 'Partner');
+      if (!isAuthorizedAdmin) return false;
     }
 
     // If logged in user is Super Admin / Admin AND current active role perspective is Partner, allow full firm access
@@ -1445,13 +1561,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // 3. Fallback to mapped category key
-    const moduleKey = VIEW_TO_MODULE_MAP[viewId] || 'dashboard';
     if (!roleMatrix) return false;
 
     const modulePerm = roleMatrix[moduleKey];
     if (!modulePerm) return false;
 
     return modulePerm.v === 1;
+  };
+
+  const hasModulePermission = (moduleKey: string, action: 'v' | 'a' | 'e'): boolean => {
+    const effectiveRole: Role = currentRole || currentUser.role || 'Partner';
+    const roleMatrix = rolesMatrix[effectiveRole] || {};
+
+    if (effectiveRole === 'Client') {
+      return moduleKey === 'clientPortal' && action === 'v';
+    }
+
+    if (isSensitiveAdminModule(moduleKey)) {
+      const isAuthorizedAdmin = Boolean(currentUser.isSuperAdmin || currentUser.isAdmin || currentRole === 'Partner' || currentUser.role === 'Partner');
+      if (!isAuthorizedAdmin) return false;
+    }
+
+    if ((currentUser.isSuperAdmin || currentUser.isAdmin) && effectiveRole === 'Partner') {
+      return true;
+    }
+
+    const modulePerm = roleMatrix[moduleKey] || { v: 0, a: 0, e: 0 };
+    const permissionValue = modulePerm[action];
+    return permissionValue === 1;
   };
 
   const [lawFirmRegistry, setLawFirmRegistry] = useState<LawFirmRegistryEntry[]>(() => {
@@ -1464,7 +1601,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [leads]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY + '_users', JSON.stringify(users));
+    const safeUsers = sanitizeClientPasswordsForStorage(users);
+    localStorage.setItem(STORAGE_KEY + '_users', JSON.stringify(safeUsers));
   }, [users]);
 
   useEffect(() => {
@@ -1543,23 +1681,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let cancelled = false;
 
     const applyCloudState = (state: CloudState) => {
-      if (Array.isArray(state.leads)) setLeads(state.leads as Lead[]);
-      if (Array.isArray(state.clients)) setClients(state.clients as Client[]);
-      if (Array.isArray(state.cases)) setCases(state.cases as Case[]);
-      if (Array.isArray(state.quotations)) setQuotations(state.quotations as Quotation[]);
+      const cloudDeletedRecords = Array.isArray(state.deletedRecords) ? state.deletedRecords as DeletedRecord[] : [];
+      const deletedKeys = new Set([...deletedRecords, ...cloudDeletedRecords].map((record) => `${record.entityType}:${record.recordId}`));
+      const isActive = (entityType: DeletedRecord['entityType'], record: { id?: string }) => !deletedKeys.has(`${entityType}:${record.id}`);
+
+      if (cloudDeletedRecords.length > 0) {
+        setDeletedRecords((previous) => Array.from(new Map([...previous, ...cloudDeletedRecords].map((record) => [record.id, record])).values()));
+      }
+      if (Array.isArray(state.leads)) setLeads((state.leads as Lead[]).filter((lead) => isActive('Lead', lead)));
+      if (Array.isArray(state.clients)) setClients((state.clients as Client[]).filter((client) => isActive('Client', client)));
+      if (Array.isArray(state.cases)) setCases((state.cases as Case[]).filter((caseObj) => isActive('Case', caseObj)));
+      if (Array.isArray(state.quotations)) setQuotations((state.quotations as Quotation[]).filter((quotation) => isActive('Quotation', quotation)));
       if (Array.isArray(state.referralPartners)) setReferralPartners(state.referralPartners as ReferralPartner[]);
-      if (Array.isArray(state.paymentVouchers)) setPaymentVouchers(state.paymentVouchers as PaymentVoucher[]);
+      if (Array.isArray(state.paymentVouchers)) setPaymentVouchers((state.paymentVouchers as PaymentVoucher[]).filter((voucher) => isActive('Payment Voucher', voucher)));
       if (Array.isArray(state.travelClaims)) setTravelClaims(state.travelClaims as TravelClaim[]);
-      if (Array.isArray(state.receipts)) setReceipts(state.receipts as Receipt[]);
+      if (Array.isArray(state.receipts)) setReceipts((state.receipts as Receipt[]).filter((receipt) => isActive('Receipt', receipt)));
       if (Array.isArray(state.deadlines)) setDeadlines(state.deadlines as Deadline[]);
-      if (Array.isArray(state.invoices)) setInvoices(state.invoices as Invoice[]);
+      if (Array.isArray(state.invoices)) setInvoices((state.invoices as Invoice[]).filter((invoice) => isActive('Invoice', invoice)));
       if (Array.isArray(state.payments)) setPayments(state.payments as Payment[]);
       if (Array.isArray(state.retainers)) setRetainers(state.retainers as Retainer[]);
       if (Array.isArray(state.users)) setUsers(state.users as User[]);
       if (Array.isArray(state.attendanceRecords)) setAttendanceRecords(state.attendanceRecords as AttendanceRecord[]);
       if (Array.isArray(state.leaveApplications)) setLeaveApplications(state.leaveApplications as LeaveApplication[]);
       if (Array.isArray(state.notifications)) setNotifications(state.notifications as NotificationItem[]);
-      if (Array.isArray(state.lawFirmRegistry)) setLawFirmRegistry(state.lawFirmRegistry as LawFirmRegistryEntry[]);
+      if (Array.isArray(state.lawFirmRegistry)) setLawFirmRegistry((state.lawFirmRegistry as LawFirmRegistryEntry[]).filter((firm) => isActive('Law Firm', firm)));
       if (state.sequenceCounters && typeof state.sequenceCounters === 'object') setSequenceCounters(state.sequenceCounters as SequenceCounters);
     };
 
@@ -1574,7 +1719,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           await writeCloudState({
             leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims,
             receipts, deadlines, invoices, payments, retainers, users, attendanceRecords,
-            leaveApplications, notifications, lawFirmRegistry, sequenceCounters,
+            leaveApplications, notifications, lawFirmRegistry, sequenceCounters, deletedRecords,
           });
         }
 
@@ -1601,9 +1746,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     void writeCloudState({
       leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims,
       receipts, deadlines, invoices, payments, retainers, users, attendanceRecords,
-      leaveApplications, notifications, lawFirmRegistry, sequenceCounters,
+      leaveApplications, notifications, lawFirmRegistry, sequenceCounters, deletedRecords,
     }).catch((error) => console.warn('Cloud state save failed; local storage remains available.', error));
-  }, [cloudSyncReady, leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims, receipts, deadlines, invoices, payments, retainers, users, attendanceRecords, leaveApplications, notifications, lawFirmRegistry, sequenceCounters]);
+  }, [cloudSyncReady, leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims, receipts, deadlines, invoices, payments, retainers, users, attendanceRecords, leaveApplications, notifications, lawFirmRegistry, sequenceCounters, deletedRecords]);
 
   const addActivityLog = (action: string, details: string) => {
     const newLog: ActivityLog = {
@@ -1616,6 +1761,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addLead = (lead: Lead) => {
+    if (!hasModulePermission('leads', 'a')) {
+      showToast('Access denied: you do not have lead creation permission.');
+      return;
+    }
+
     setLeads((prev) => [lead, ...prev]);
     logAuditEvent('CREATE', 'LEADS', lead.id, lead.name, `New lead intake record logged for ${lead.name} (${lead.practiceArea}).`);
     addActivityLog('Lead Created', `${lead.name} (${lead.practiceArea})`);
@@ -1623,6 +1773,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateLead = (id: string, updates: Partial<Lead>) => {
+    if (!hasModulePermission('leads', 'e')) {
+      showToast('Access denied: you do not have lead edit permission.');
+      return;
+    }
+
     const target = leads.find((l) => l.id === id);
     setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, ...updates } : l)));
     logAuditEvent('UPDATE', 'LEADS', id, target?.name || id, `Updated lead details or status.`);
@@ -1631,6 +1786,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteLead = (id: string) => {
+    if (!hasModulePermission('leads', 'e')) {
+      showToast('Access denied: you do not have lead delete permission.');
+      return;
+    }
+
     const target = leads.find((l) => l.id === id);
     if (target) {
       trackDeletedRecord('Lead', target.name, `Lead Contact (${target.phone || target.email || 'No contact info'})`, target);
@@ -1642,6 +1802,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addClient = (client: Client) => {
+    if (!hasModulePermission('clients', 'a')) {
+      showToast('Access denied: you do not have client creation permission.');
+      return;
+    }
+
     const normalizedClient: Client = {
       ...client,
       name: normalizeClientName(client.name),
@@ -1654,6 +1819,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateClient = (id: string, updates: Partial<Client>) => {
+    if (!hasModulePermission('clients', 'e')) {
+      showToast('Access denied: you do not have client edit permission.');
+      return;
+    }
+
     const target = clients.find((c) => c.id === id);
     const normalizedUpdates: Partial<Client> = {
       ...updates,
@@ -1666,6 +1836,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteClient = (id: string) => {
+    if (!hasModulePermission('clients', 'e')) {
+      showToast('Access denied: you do not have client delete permission.');
+      return;
+    }
+
     const clientToDelete = clients.find((c) => c.id === id);
     if (!clientToDelete) return;
 
@@ -1687,7 +1862,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         )
     );
     setUsers(updatedUsers);
-    localStorage.setItem(STORAGE_KEY + '_users', JSON.stringify(updatedUsers));
+    localStorage.setItem(STORAGE_KEY + '_users', JSON.stringify(sanitizeClientPasswordsForStorage(updatedUsers)));
 
     // 3. Log audit trail
     addActivityLog('Client Deleted & Archived', `${clientToDelete.name} (${clientToDelete.id})`);
@@ -1733,6 +1908,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addCase = async (caseObj: Case) => {
+    if (!hasModulePermission('cases', 'a')) {
+      showToast('Access denied: you do not have matter creation permission.');
+      return;
+    }
+
     let category: 'Litigation' | 'Conveyancing' | 'Criminal' | 'Corporate' = 'Corporate';
     let parentFolder = 'SHCO Practice - Corporate & Advisory';
     const lowerArea = (caseObj.type || '').toLowerCase();
@@ -1814,6 +1994,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateCase = (id: string, updates: Partial<Case>) => {
+    if (!hasModulePermission('cases', 'e')) {
+      showToast('Access denied: you do not have matter edit permission.');
+      return;
+    }
+
     const targetCase = cases.find((c) => c.id === id);
     setCases((prev) => {
       const updatedCases = prev.map((c) => {
@@ -1846,6 +2031,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteCase = (id: string) => {
+    if (!hasModulePermission('cases', 'e')) {
+      showToast('Access denied: you do not have matter delete permission.');
+      return;
+    }
+
     const caseToDelete = cases.find((c) => c.id === id);
     if (caseToDelete) {
       trackDeletedRecord('Case', `${caseToDelete.ref} — ${caseToDelete.title}`, `Practice Area: ${caseToDelete.type || 'N/A'} | Client: ${caseToDelete.clientName || 'N/A'}`, caseToDelete);
@@ -1916,6 +2106,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Quotation created');
   };
 
+  const updateQuotation = (id: string, updates: Partial<Quotation>) => {
+    setQuotations((prev) => prev.map((quotation) => (quotation.id === id ? { ...quotation, ...updates } : quotation)));
+    addActivityLog('Quotation Updated', `${id} — ${updates.documentType || 'Quotation'} status changed`);
+    showToast(`Quotation ${id} updated.`);
+  };
+
   const addReferralPartner = (rp: ReferralPartner) => {
     setReferralPartners((prev) => [rp, ...prev]);
     addActivityLog('Referral Registered', `${rp.name} (${rp.type})`);
@@ -1968,6 +2164,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setInvoices((prev) => [inv, ...prev]);
     addActivityLog('Invoice Created', `${inv.id} — RM ${inv.total}`);
     showToast('Invoice created');
+  };
+
+  const updateInvoice = (id: string, updates: Partial<Invoice>) => {
+    const target = invoices.find((invoice) => invoice.id === id);
+    if (!target || target.status === 'Paid' || target.status === 'Voided') {
+      showToast('Paid or voided invoices cannot be edited.');
+      return;
+    }
+    setInvoices((prev) => prev.map((invoice) => (invoice.id === id ? { ...invoice, ...updates } : invoice)));
+    addActivityLog('Invoice Updated', `${id} — ${updates.total ?? target.total}`);
+    showToast(`Invoice ${id} updated`);
   };
 
   const addPayment = (p: Payment) => {
@@ -2184,6 +2391,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         markNotificationAsRead,
         markAllNotificationsAsRead,
         addNotification,
+        announcements,
+        addAnnouncement,
         resetClientPassword,
         addBankAccount,
         updateBankAccount,
@@ -2207,6 +2416,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateLawFirmRegistryEntry,
         deleteLawFirmRegistryEntry,
         addQuotation,
+        updateQuotation,
         addReferralPartner,
         addTravelClaim,
         updateTravelClaim,
@@ -2216,6 +2426,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         approvePaymentVoucher,
         addRetainer,
         addInvoice,
+        updateInvoice,
         addPayment,
         addTimeEntry,
         updateTimeEntry,

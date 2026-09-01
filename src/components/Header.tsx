@@ -137,38 +137,42 @@ export const Header: React.FC = () => {
   const info = getViewInfo();
 
   return (
-    <header className="mb-6 pb-4 border-b border-[#E1DCCF] flex flex-col md:flex-row md:items-center justify-between gap-4">
-      <div>
-        <h1 className="font-serif text-2xl font-bold text-[#16223A] tracking-tight">{info.title}</h1>
-        <p className="text-xs text-[#5B6478] mt-0.5">{info.sub}</p>
+    <header className="mb-4 sm:mb-6 p-3 sm:p-5 bg-[#16223A] dark:bg-[#15192A] text-white rounded-lg sm:rounded-xl border border-[#2B4265] dark:border-[#2D3748] shadow-lg flex flex-col sm:flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
+      <div className="min-w-0">
+        <h1 className="font-serif text-lg sm:text-2xl font-bold text-white dark:text-[#E8ECFF] tracking-tight truncate">{info.title}</h1>
+        <p className="text-xs text-slate-300 dark:text-[#A8B0D8] mt-0.5 line-clamp-2">{info.sub}</p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
         {/* Global Search Bar */}
-        <div className="relative">
-          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+        <div className="relative group">
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#A9814A] transition-colors" />
           <input
             type="text"
             placeholder="Search matters, clients, docs..."
             value={globalSearch}
             onChange={(e) => setGlobalSearch(e.target.value)}
-            className="pl-8 pr-3 py-1.5 text-xs bg-white border border-[#E1DCCF] rounded-md w-48 md:w-60 focus:w-64 transition-all focus:outline-none focus:border-[#A9814A]"
+            className="pl-8 pr-3 py-1.5 text-xs bg-white/10 border border-white/20 text-white placeholder:text-slate-400 rounded-md w-48 md:w-60 focus:w-64 transition-all focus:outline-none focus:border-[#A9814A] focus:ring-1 focus:ring-[#A9814A]/50"
+            aria-label="Global search for matters, clients, documents"
           />
         </div>
 
         {/* Guided System Tour Button */}
         <button
           onClick={() => setIsTourOpen(true)}
-          className="px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-800 hover:bg-amber-500/20 transition-all font-bold text-xs cursor-pointer flex items-center gap-1.5 shadow-2xs"
+          className="px-2.5 py-1.5 rounded-lg bg-[#A9814A] border border-[#D4AF37] text-white hover:bg-[#C29A5A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#A9814A] focus:ring-offset-[#16223A] transition-all font-bold text-xs cursor-pointer flex items-center gap-1.5 shadow-sm"
+          aria-label="Start guided system tour"
+          title="Interactive onboarding tour of the application"
         >
-          <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+          <Sparkles className="w-3.5 h-3.5 text-amber-200" />
           <span className="hidden sm:inline">Guided Tour</span>
         </button>
 
         {/* Recycle Bin & Data Recovery Vault */}
         <button
           onClick={() => setIsRecycleBinOpen(true)}
-          className="p-2 rounded-lg bg-white border border-[#E1DCCF] text-slate-700 hover:text-[#16223A] hover:border-[#A9814A] transition-all relative shadow-2xs cursor-pointer flex items-center gap-1"
+          className="p-2 rounded-lg bg-white/10 border border-white/20 text-white hover:bg-white/20 hover:border-[#A9814A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#A9814A] focus:ring-offset-[#16223A] transition-all relative shadow-sm cursor-pointer flex items-center gap-1"
+          aria-label={`Data recovery vault with ${deletedRecords.length} deleted items`}
           title="Data Recovery Vault & Recycle Bin History Tracking"
         >
           <Archive className="w-4 h-4 text-[#A9814A]" />
@@ -183,10 +187,13 @@ export const Header: React.FC = () => {
         <div className="relative">
           <button
             onClick={() => setIsNotifOpen((prev) => !prev)}
-            className="p-2 rounded-lg bg-white border border-[#E1DCCF] text-slate-700 hover:text-[#16223A] hover:border-[#A9814A] transition-all relative shadow-2xs cursor-pointer"
+            className="p-2 rounded-lg bg-white/10 border border-white/20 text-white hover:bg-white/20 hover:border-[#A9814A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#A9814A] focus:ring-offset-[#16223A] transition-all relative shadow-sm cursor-pointer"
+            aria-label={`Notifications: ${unreadNotificationsCount} unread alerts`}
+            aria-expanded={isNotifOpen}
+            aria-controls="notifications-dropdown"
             title="Real-Time Hearing & Invoice Payment Alerts"
           >
-            <Bell className="w-4 h-4 text-[#16223A]" />
+            <Bell className="w-4 h-4 text-amber-200" />
             {unreadNotificationsCount > 0 && (
               <span className="absolute -top-1 -right-1 bg-rose-600 text-white font-bold text-[9px] w-4 h-4 rounded-full flex items-center justify-center animate-pulse border border-white shadow-sm">
                 {unreadNotificationsCount}
@@ -196,7 +203,7 @@ export const Header: React.FC = () => {
 
           {/* Dropdown Panel */}
           {isNotifOpen && (
-            <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white border border-[#E1DCCF] rounded-xl shadow-2xl z-50 overflow-hidden animate-scale-in">
+            <div id="notifications-dropdown" className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white border border-[#E1DCCF] rounded-xl shadow-2xl z-50 overflow-hidden" role="region" aria-label="Notifications panel">
               <div className="bg-[#16223A] text-white p-3.5 flex items-center justify-between border-b border-amber-400/30">
                 <div className="flex items-center gap-2">
                   <Bell className="w-4 h-4 text-amber-300" />
@@ -322,9 +329,9 @@ export const Header: React.FC = () => {
         </div>
 
         {/* Role Perspective Selector */}
-        <div className="flex items-center gap-1.5 bg-white border border-[#E1DCCF] px-2.5 py-1 rounded-lg text-xs shadow-2xs">
+        <div className="flex items-center gap-1.5 bg-white border border-white px-2.5 py-1 rounded-lg text-xs shadow-2xs">
           <Shield className="w-3.5 h-3.5 text-[#A9814A] shrink-0" />
-          <span className="text-[11px] text-slate-500 font-bold hidden sm:inline">Active Role:</span>
+          <span className="text-[11px] text-[#16223A] font-bold hidden sm:inline">View as:</span>
           <select
             value={currentRole}
             disabled={!currentUser?.isSuperAdmin && currentUser?.email !== 'syafiqahhamizad@shcolaw.com'}
@@ -338,7 +345,7 @@ export const Header: React.FC = () => {
                 setCurrentView('dashboard');
               }
             }}
-            className="bg-slate-100 hover:bg-slate-200 border border-slate-300 font-bold text-[#16223A] rounded px-2 py-0.5 text-xs outline-none focus:ring-1 focus:ring-[#A9814A] cursor-pointer"
+            className="bg-white hover:bg-slate-50 border border-slate-300 font-bold text-[#16223A] rounded px-2 py-0.5 text-xs outline-none focus:ring-1 focus:ring-[#A9814A] cursor-pointer"
             title="Switch Active Role Perspective to test dynamic sidebar filtering & access policies"
           >
             <option value="Partner">Partner (Full Firm & CFO)</option>
@@ -359,25 +366,25 @@ export const Header: React.FC = () => {
             setTheme(nextTheme);
             showToast(`Theme preference set to: ${nextTheme === 'light' ? 'Parchment Light' : nextTheme === 'dark' ? 'Executive Dark' : 'System Default'}`);
           }}
-          className="flex items-center gap-1.5 bg-white hover:bg-slate-50 border border-[#E1DCCF] px-2.5 py-1.5 rounded-lg text-xs cursor-pointer shadow-2xs transition-colors"
+          className="flex items-center gap-1.5 bg-white hover:bg-slate-100 border border-white px-2.5 py-1.5 rounded-lg text-xs cursor-pointer shadow-2xs transition-colors"
           title={`Active Theme: ${theme.toUpperCase()} (Click to cycle Light / Dark / System)`}
           aria-label="Toggle dark/light theme preference"
         >
           {theme === 'dark' ? (
             <Moon className="w-4 h-4 text-amber-400" />
           ) : theme === 'light' ? (
-            <Sun className="w-4 h-4 text-amber-600" />
+            <Sun className="w-4 h-4 text-[#A9814A]" />
           ) : (
-            <Monitor className="w-4 h-4 text-blue-600" />
+            <Monitor className="w-4 h-4 text-blue-700" />
           )}
-          <span className="font-bold text-[11px] text-[#16223A] hidden md:inline capitalize">
-            {theme}
+          <span className="font-bold text-[11px] text-white hidden md:inline capitalize">
+            <span className="text-[#16223A]">{theme}</span>
           </span>
         </button>
 
         {/* Current User & Role Badge / SSO Login Trigger */}
         <div
-          className="flex items-center gap-2 bg-white border border-[#E1DCCF] px-3 py-1.5 rounded-lg text-xs shadow-2xs"
+          className="flex items-center gap-2 bg-white border border-white px-3 py-1.5 rounded-lg text-xs shadow-2xs"
           title="Current signed-in user"
         >
           <div className="w-5 h-5 rounded-full bg-[#16223A] text-white flex items-center justify-center font-bold text-[10px]">
@@ -392,7 +399,7 @@ export const Header: React.FC = () => {
                 </span>
               )}
             </div>
-            <div className="text-[10px] text-slate-500 font-mono">
+            <div className="text-[10px] text-slate-600 font-mono">
               {currentUser?.email}
             </div>
           </div>
@@ -401,7 +408,7 @@ export const Header: React.FC = () => {
         <button
           type="button"
           onClick={logoutUser}
-          className="flex items-center gap-1.5 bg-[#16223A] hover:bg-[#253653] text-white border border-[#A9814A]/50 px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer shadow-2xs transition-all"
+          className="flex items-center gap-1.5 bg-[#A9814A] hover:bg-[#C29A5A] text-white border border-[#D4AF37] px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer shadow-2xs transition-all"
           title="Sign out and return to the main portal"
         >
           <LogOut className="w-3.5 h-3.5 text-[#D4AF37]" />
@@ -414,7 +421,7 @@ export const Header: React.FC = () => {
           onClick={() => window.location.reload()}
           title="Reload latest saved data"
           aria-label="Reload latest saved data"
-          className="p-2 text-slate-500 hover:text-[#16223A] hover:bg-black/5 rounded-lg transition-colors cursor-pointer"
+          className="p-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
         >
           <RefreshCw className="w-3.5 h-3.5" />
         </button>

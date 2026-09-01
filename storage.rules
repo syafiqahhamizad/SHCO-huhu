@@ -1,0 +1,33 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isFirmStaff() {
+      return isAuthenticated() && request.auth.token.email != null &&
+        request.auth.token.email.matches('.*@shcolaw\\.com$');
+    }
+
+    function isClient() {
+      return isAuthenticated() && request.auth.token.email != null &&
+        request.auth.token.email.matches('.*@.*\\.com$') &&
+        !request.auth.token.email.matches('.*@shcolaw\\.com$');
+    }
+
+    match /confidential/{allPaths=**} {
+      allow read, write: if isFirmStaff();
+    }
+
+    match /clients/{clientId}/{allPaths=**} {
+      allow read, write: if isFirmStaff() || (isClient() && request.auth.token.email == resource.metadata.ownerEmail);
+    }
+
+    match /{allPaths=**} {
+      allow read: if false;
+      allow write: if false;
+    }
+  }
+}

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { CheckCircle2, X } from 'lucide-react';
 
 // Color palette for assignee badges
@@ -29,26 +29,57 @@ export const AssigneeConfirmationModal: React.FC<AssigneeConfirmationModalProps>
   assignees,
   onClose,
 }) => {
+  // Handle Escape key to close modal
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen || assignees.length === 0) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-2xl max-w-sm p-6 space-y-4 border border-emerald-200">
+    <div
+      className="fixed inset-0 bg-black/20 flex items-center justify-center z-50"
+      role="presentation"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        className="bg-white rounded-xl shadow-2xl max-w-sm p-6 space-y-4 border border-emerald-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+        role="alertdialog"
+        aria-labelledby="assignee-modal-title"
+        aria-describedby="assignee-modal-description"
+        tabIndex={-1}
+      >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-            <h3 className="font-bold text-base text-[#16223A]">Assignment Confirmed</h3>
+            <CheckCircle2 className="w-5 h-5 text-emerald-500" aria-hidden="true" />
+            <h3 id="assignee-modal-title" className="font-bold text-base text-[#16223A]">
+              Assignment Confirmed
+            </h3>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 transition"
+            className="text-slate-400 hover:text-slate-600 transition focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded-md p-1"
+            aria-label="Close confirmation modal"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         <div className="space-y-2">
-          <p className="text-sm text-slate-600">
+          <p id="assignee-modal-description" className="text-sm text-slate-600">
             This task will be assigned to {assignees.length} {assignees.length === 1 ? 'person' : 'people'}:
           </p>
           <div className="flex flex-wrap gap-2">
@@ -56,6 +87,7 @@ export const AssigneeConfirmationModal: React.FC<AssigneeConfirmationModalProps>
               <span
                 key={`${assignee}-${index}`}
                 className={`${getColorForAssignee(assignee, index)} text-white px-3 py-1 rounded-full text-sm font-medium`}
+                role="status"
               >
                 {assignee}
               </span>
@@ -71,7 +103,8 @@ export const AssigneeConfirmationModal: React.FC<AssigneeConfirmationModalProps>
 
         <button
           onClick={onClose}
-          className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 rounded-lg transition"
+          className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 rounded-lg transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-700"
+          aria-label="Close confirmation and continue"
         >
           Got it
         </button>

@@ -255,6 +255,7 @@ export const UsersManagementView: React.FC = () => {
               <thead>
                 <tr className="bg-[#F6F4EE] border-b border-[#E1DCCF] text-[10px] uppercase text-slate-600">
                   <th className="p-3 font-bold">User Name</th>
+                  <th className="p-3 font-bold">Staff ID</th>
                   <th className="p-3 font-bold">Email / SSO Account</th>
                   <th className="p-3 font-bold">Domain Validation</th>
                   <th className="p-3 font-bold">Assigned Role</th>
@@ -282,6 +283,8 @@ export const UsersManagementView: React.FC = () => {
                       </td>
 
                       <td className="p-3 font-mono text-slate-700 text-[11px]">{u.email}</td>
+
+                      <td className="p-3 font-mono text-[#16223A] text-[11px] font-bold">{u.staffProfile?.staffId || (u.role === 'Client' ? 'Client account' : 'Pending')}</td>
 
                       <td className="p-3">
                         {isShcoEmail ? (
@@ -546,6 +549,9 @@ export const UsersManagementView: React.FC = () => {
             </div>
 
             <form onSubmit={handleAddUserSubmit} className="space-y-3 text-xs">
+              <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] text-blue-900">
+                Registering an internal user also creates a linked staff record and assigns the next unique Staff ID. Complete employment details and staff milestones later in Staff Portal.
+              </div>
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Full User Name *</label>
                 <input

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { TravelClaim, PaymentVoucher, Receipt, Retainer, Payment, TimeEntry, Expense } from '../../types';
+import { TravelClaim, PaymentVoucher, Receipt, Retainer, Payment, TimeEntry, Expense, Invoice, QuotationLineItem } from '../../types';
 import { DocPreviewModal } from '../modals/DocPreviewModal';
 import { ReimbursementsClaimsView } from './ReimbursementsView';
+import { LineItemsEditor } from '../LineItemsEditor';
 import {
   sendFinancePvNotificationEmail,
   getEmailAuditLogs,
@@ -1925,11 +1926,15 @@ export const InvoicesView: React.FC = () => {
     updateExpense,
     travelClaims,
     updateTravelClaim,
+    updateInvoice,
     showToast,
   } = useApp();
 
   const [docPreviewId, setDocPreviewId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  const [editingInvoiceItems, setEditingInvoiceItems] = useState<QuotationLineItem[]>([]);
+  const [editingInvoiceTax, setEditingInvoiceTax] = useState(false);
 
   const [clientId, setClientId] = useState(clients[0]?.id || '');
   const [caseId, setCaseId] = useState(cases[0]?.id || '');
@@ -1940,6 +1945,10 @@ export const InvoicesView: React.FC = () => {
 
   const [feesAmount, setFeesAmount] = useState('1500');
   const [disbursementsAmount, setDisbursementsAmount] = useState('350');
+  const [invoiceLineItems, setInvoiceLineItems] = useState<QuotationLineItem[]>([
+    { description: 'Professional Fees for Legal Services Rendered', category: 'Fee - Fixed', amount: 1500 },
+    { description: 'Disbursements', category: 'Disbursement', amount: 350 },
+  ]);
   const [applyTax, setApplyTax] = useState(false); // Default false (Excl Tax 0%)
 
   // Centralized Billing Engine Selected Unbilled Items State
@@ -1965,6 +1974,14 @@ export const InvoicesView: React.FC = () => {
     (tc) => (tc.fileRef === selectedCaseRef || tc.fileRef === caseId) && tc.purposeType === 'Client Matter' && tc.billed !== 'Y'
   );
 
+  const updateInvoiceCategoryAmount = (category: QuotationLineItem['category'], amount: number) => {
+    setInvoiceLineItems((items) => {
+      const existingIndex = items.findIndex((item) => item.category === category);
+      if (existingIndex < 0) return [...items, { description: category === 'Disbursement' ? 'Disbursements' : 'Professional Fees for Legal Services Rendered', category, amount }];
+      return items.map((item, index) => index === existingIndex ? { ...item, amount } : item);
+    });
+  };
+
   // Auto-fill amounts when unbilled selection changes
   const handleToggleTimeItem = (id: string, amount: number) => {
     setSelectedTimeIds((prev) => {
@@ -1973,6 +1990,7 @@ export const InvoicesView: React.FC = () => {
         .filter((t) => next.includes(t.id))
         .reduce((acc, t) => acc + (t.hours * t.rate), 0);
       setFeesAmount(sum > 0 ? sum.toString() : '1500');
+      updateInvoiceCategoryAmount('Fee - Fixed', sum > 0 ? sum : 1500);
       return next;
     });
   };
@@ -1986,6 +2004,7 @@ export const InvoicesView: React.FC = () => {
         return acc + clientBillableTotal;
       }, 0);
       setDisbursementsAmount((sumExp + sumTc) > 0 ? (sumExp + sumTc).toFixed(2) : '350');
+      updateInvoiceCategoryAmount('Disbursement', (sumExp + sumTc) > 0 ? sumExp + sumTc : 350);
       return next;
     });
   };
@@ -1999,12 +2018,13 @@ export const InvoicesView: React.FC = () => {
         return acc + clientBillableTotal;
       }, 0);
       setDisbursementsAmount((sumExp + sumTc) > 0 ? (sumExp + sumTc).toFixed(2) : '350');
+      updateInvoiceCategoryAmount('Disbursement', (sumExp + sumTc) > 0 ? sumExp + sumTc : 350);
       return next;
     });
   };
 
-  const parsedFees = parseFloat(feesAmount) || 0;
-  const parsedDisbursements = parseFloat(disbursementsAmount) || 0;
+  const parsedFees = invoiceLineItems.filter((item) => item.category === 'Fee - Fixed' || item.category === 'Fee - SRO').reduce((total, item) => total + item.amount, 0);
+  const parsedDisbursements = invoiceLineItems.filter((item) => item.category === 'Disbursement' || item.category === 'Reimbursement').reduce((total, item) => total + item.amount, 0);
   const tax = applyTax ? parsedFees * 0.08 : 0;
   const total = parsedFees + parsedDisbursements + tax;
 
@@ -2027,8 +2047,7 @@ export const InvoicesView: React.FC = () => {
       dueDate,
       status: 'Unpaid',
       lineItems: [
-        { description: 'Professional Fees for Legal Services Rendered', category: 'Fee - Fixed', amount: parsedFees },
-        { description: 'Reimbursable Out-of-pocket Disbursements & Travel Claims', category: 'Disbursement', amount: parsedDisbursements },
+        ...invoiceLineItems,
         ...(applyTax ? [{ description: 'SST Service Tax (8%)', category: 'Tax', amount: tax }] : []),
       ],
     });
@@ -2043,6 +2062,29 @@ export const InvoicesView: React.FC = () => {
     setSelectedExpIds([]);
     setSelectedTcIds([]);
     showToast(`Invoice ${invId} issued! Billed items updated in Centralized Billing Engine.`);
+  };
+
+  const handleOpenInvoiceEdit = (invoice: Invoice) => {
+    if (invoice.status === 'Paid' || invoice.status === 'Voided') {
+      showToast('Paid or voided invoices cannot be edited.');
+      return;
+    }
+    setEditingInvoice(invoice);
+    setEditingInvoiceItems((invoice.lineItems || []).filter((item) => item.category !== ('Tax' as QuotationLineItem['category'])));
+    setEditingInvoiceTax((invoice.tax || 0) > 0);
+  };
+
+  const handleSaveInvoiceEdit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!editingInvoice || editingInvoiceItems.length === 0 || editingInvoiceItems.some((item) => !item.description.trim())) {
+      showToast('Add at least one complete billing line before saving.');
+      return;
+    }
+    const subtotal = editingInvoiceItems.reduce((total, item) => total + item.amount, 0);
+    const taxAmount = editingInvoiceTax ? editingInvoiceItems.filter((item) => item.category === 'Fee - Fixed' || item.category === 'Fee - SRO').reduce((total, item) => total + item.amount, 0) * 0.08 : 0;
+    updateInvoice(editingInvoice.id, { amount: subtotal, tax: taxAmount, total: subtotal + taxAmount, remaining: Math.max(0, subtotal + taxAmount - editingInvoice.billedSoFar), lineItems: [...editingInvoiceItems, ...(editingInvoiceTax ? [{ description: 'SST Service Tax (8%)', category: 'Tax' as QuotationLineItem['category'], amount: taxAmount }] : [])] });
+    setEditingInvoice(null);
+    showToast(`Invoice ${editingInvoice.id} saved with updated billing lines.`);
   };
 
   const handleExportCsv = () => {
@@ -2135,13 +2177,10 @@ export const InvoicesView: React.FC = () => {
                     </span>
                   </td>
                   <td className="p-3 text-right">
-                    <button
-                      onClick={() => setDocPreviewId(i.id)}
-                      className="px-2.5 py-1 text-[11px] border border-[#E1DCCF] text-slate-800 hover:bg-slate-100 rounded-md font-semibold cursor-pointer flex items-center gap-1 ml-auto"
-                    >
-                      <Eye className="w-3.5 h-3.5 text-slate-500" />
-                      <span>View Invoice</span>
-                    </button>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button onClick={() => setDocPreviewId(i.id)} className="px-2.5 py-1 text-[11px] border border-[#E1DCCF] text-slate-800 hover:bg-slate-100 rounded-md font-semibold cursor-pointer flex items-center gap-1" title="View invoice"><Eye className="w-3.5 h-3.5 text-slate-500" /><span>View</span></button>
+                      <button onClick={() => handleOpenInvoiceEdit(i)} disabled={i.status === 'Paid' || i.status === 'Voided'} className="px-2.5 py-1 text-[11px] border border-[#A9814A] text-[#7b5b2e] hover:bg-amber-50 rounded-md font-semibold cursor-pointer disabled:cursor-not-allowed disabled:opacity-40" title="Edit unpaid invoice line items">Edit</button>
+                    </div>
                   </td>
                 </tr>
               );
@@ -2152,6 +2191,20 @@ export const InvoicesView: React.FC = () => {
 
       {docPreviewId && (
         <DocPreviewModal type="invoice" docId={docPreviewId} onClose={() => setDocPreviewId(null)} />
+      )}
+
+      {editingInvoice && (
+        <div className="fixed inset-0 bg-[#16223A]/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 border border-[#E2E5E9] max-h-[90vh] overflow-y-auto">
+            <h3 className="font-serif text-lg font-bold text-[#16223A] mb-1">Edit Invoice {editingInvoice.id}</h3>
+            <p className="text-xs text-slate-500 mb-4">Update billing lines before payment. Paid and voided invoices are locked.</p>
+            <form onSubmit={handleSaveInvoiceEdit} className="space-y-4">
+              <LineItemsEditor items={editingInvoiceItems} onChange={setEditingInvoiceItems} />
+              <label className="flex items-center gap-2 text-xs font-bold text-slate-700"><input type="checkbox" checked={editingInvoiceTax} onChange={(event) => setEditingInvoiceTax(event.target.checked)} /> Charge SST Tax (8%)</label>
+              <div className="flex justify-end gap-2"><button type="button" onClick={() => setEditingInvoice(null)} className="rounded-md border border-slate-300 px-4 py-2 font-semibold text-slate-700 cursor-pointer">Cancel</button><button type="submit" className="rounded-md bg-[#16223A] px-4 py-2 font-semibold text-white cursor-pointer">Save Invoice</button></div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* Key In Invoice Modal */}
@@ -2345,30 +2398,7 @@ export const InvoicesView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-slate-700 block uppercase mb-1">Professional Fees (RM)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={feesAmount}
-                    onChange={(e) => setFeesAmount(e.target.value)}
-                    className="w-full font-mono font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block uppercase mb-1">Disbursements (RM)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={disbursementsAmount}
-                    onChange={(e) => setDisbursementsAmount(e.target.value)}
-                    className="w-full font-mono font-bold"
-                  />
-                </div>
-              </div>
+              <LineItemsEditor items={invoiceLineItems} onChange={setInvoiceLineItems} />
 
               {/* Tax Checkbox / Option */}
               <div className="p-2.5 bg-amber-50/70 border border-amber-200 rounded flex items-center justify-between">

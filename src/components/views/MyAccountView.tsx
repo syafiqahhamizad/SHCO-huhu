@@ -26,6 +26,7 @@ export const MyAccountView: React.FC = () => {
           </div>
         </section>
 
+
         <section className="bg-white border border-[#E1DCCF] rounded-xl p-5 shadow-xs space-y-4">
           <h3 className="font-serif font-bold text-base text-[#16223A] flex items-center gap-2">
             <Palette className="w-4 h-4 text-[#A9814A]" /> Appearance

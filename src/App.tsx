@@ -65,6 +65,8 @@ import { StaffPortalView } from './components/views/StaffPortalView';
 import { MyAccountView } from './components/views/MyAccountView';
 import { AboutAppView } from './components/views/AboutAppView';
 import { ActivityLogsView } from './components/views/ActivityLogsView';
+import { FirmStartCentreView } from './components/views/FirmStartCentreView';
+import { AccountingCentreView } from './components/views/AccountingCentreView';
 
 const MainContent: React.FC = () => {
   const {
@@ -91,29 +93,28 @@ const MainContent: React.FC = () => {
   const renderView = () => {
     if (!canViewModule(currentView)) {
       return (
-        <div className="bg-white border border-rose-200 rounded-2xl p-8 max-w-2xl mx-auto my-12 text-center shadow-lg space-y-4">
+        <div className="bg-white border border-rose-200 rounded-lg sm:rounded-2xl p-6 sm:p-8 max-w-2xl mx-auto my-6 sm:my-12 text-center shadow-lg space-y-4">
           <div className="w-12 h-12 rounded-full bg-rose-100 border border-rose-300 text-rose-700 flex items-center justify-center mx-auto">
             <ShieldAlert className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="font-serif font-bold text-xl text-[#16223A]">
-              Access Restricted — Insufficient Role Privileges
+            <h2 className="font-serif font-bold text-lg sm:text-xl text-[#16223A]">
+              Access Restricted
             </h2>
-            <p className="text-xs text-slate-600 mt-1 max-w-md mx-auto leading-relaxed">
-              Your assigned user role (<strong>{currentUser.role}</strong>) does not have permission to view or access the <strong>{currentView}</strong> module.
+            <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-md mx-auto leading-relaxed">
+              Your assigned user role (<strong>{currentUser.role}</strong>) does not have permission to view the <strong>{currentView}</strong> module.
             </p>
           </div>
 
-          <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-left text-xs space-y-1 font-mono">
-            <div className="font-bold text-amber-900 font-sans">Role Policy Enforcement:</div>
-            <div className="text-[#16223A]">• Current User: <strong>{currentUser.name}</strong> ({currentUser.email})</div>
-            <div className="text-[#16223A]">• Access Control Authority: <strong>Super Admin Syafiqah Hamizad</strong> (syafiqahhamizad@shcolaw.com)</div>
+          <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-lg text-left text-xs space-y-1 font-mono overflow-x-auto">
+            <div className="font-bold text-amber-900 font-sans">Role Policy:</div>
+            <div className="text-[#16223A] break-words">User: <strong>{currentUser.name}</strong></div>
           </div>
 
           <div className="pt-2">
             <button
               onClick={() => setCurrentView('dashboard')}
-              className="px-5 py-2.5 bg-[#16223A] hover:bg-[#1F2E4D] text-white font-bold rounded-xl text-xs cursor-pointer shadow-sm"
+              className="px-4 sm:px-5 py-2 sm:py-2.5 bg-[#16223A] hover:bg-[#1F2E4D] text-white font-bold rounded-lg text-xs transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#16223A]"
             >
               Return to Dashboard
             </button>
@@ -124,6 +125,8 @@ const MainContent: React.FC = () => {
 
     switch (currentView) {
       // Core Practice
+      case 'firmStartCentre':
+        return <FirmStartCentreView />;
       case 'dashboard':
         return <DashboardView />;
       case 'partnerDashboard':
@@ -167,6 +170,9 @@ const MainContent: React.FC = () => {
         return <FileClosingView />;
 
       // Accounting & Finance
+      case 'accountingCentre':
+      case 'accounting-centre':
+        return <AccountingCentreView />;
       case 'bankAccounts':
       case 'bank-accounts':
         return <BankAccountsView />;
@@ -259,12 +265,14 @@ const MainContent: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F6F4EE] text-slate-800 font-sans antialiased">
+    <div className="flex min-h-screen bg-[#F6F4EE] dark:bg-[#0A0E1A] text-slate-800 dark:text-[#E8ECFF] font-sans antialiased">
       <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0">
-        <main className="flex-1 p-6 overflow-y-auto">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#F6F4EE] dark:bg-[#0A0E1A]">
+        <main className="flex-1 p-4 sm:p-6 overflow-y-auto bg-[#F6F4EE] dark:bg-[#0A0E1A]">
           <Header />
-          {renderView()}
+          <div className="mt-4 sm:mt-6">
+            {renderView()}
+          </div>
         </main>
       </div>
       <NewCaseModal

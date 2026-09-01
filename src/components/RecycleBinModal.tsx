@@ -154,7 +154,7 @@ export const RecycleBinModal: React.FC<RecycleBinModalProps> = ({ isOpen, onClos
         </div>
 
         {/* Filter and Search Bar */}
-        <div className="p-4 bg-[#FAF8F2] border-b border-[#E1DCCF] flex flex-wrap items-center justify-between gap-3">
+        <div className="p-4 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
           <div className="relative flex-1 min-w-[240px]">
             <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
             <input
@@ -167,7 +167,7 @@ export const RecycleBinModal: React.FC<RecycleBinModalProps> = ({ isOpen, onClos
           </div>
 
           {/* Entity Filter Tabs */}
-          <div className="flex items-center gap-1 bg-slate-200/80 p-1 rounded-lg text-xs overflow-x-auto">
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs overflow-x-auto">
             {['ALL', 'CASE', 'CLIENT', 'LEAD', 'INVOICE', 'OTHER'].map((entity) => (
               <button
                 key={entity}
@@ -175,7 +175,7 @@ export const RecycleBinModal: React.FC<RecycleBinModalProps> = ({ isOpen, onClos
                 className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
                   selectedEntity === entity
                     ? 'bg-[#16223A] text-amber-300 shadow-2xs'
-                    : 'text-slate-600 hover:bg-slate-300/60'
+                    : 'text-slate-700 hover:bg-slate-200'
                 }`}
               >
                 {entity}
@@ -185,7 +185,7 @@ export const RecycleBinModal: React.FC<RecycleBinModalProps> = ({ isOpen, onClos
         </div>
 
         {/* Content List */}
-        <div className="p-4 overflow-y-auto flex-1 space-y-3 bg-slate-50">
+        <div className="p-4 overflow-y-auto flex-1 space-y-3 bg-slate-100">
           {filtered.length === 0 ? (
             <div className="text-center py-12 text-slate-400 space-y-2">
               <CheckCircle2 className="w-10 h-10 mx-auto text-emerald-500 opacity-80" />
@@ -250,7 +250,7 @@ export const RecycleBinModal: React.FC<RecycleBinModalProps> = ({ isOpen, onClos
                       className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer border ${
                         purgingId === item.id
                           ? 'bg-red-700 text-white border-red-800 animate-pulse'
-                          : 'border-rose-200 hover:bg-rose-100 text-rose-700'
+                          : 'border-rose-400 bg-rose-50 hover:bg-rose-100 text-rose-800'
                       }`}
                       title={purgingId === item.id ? 'Click again to permanently erase' : 'Permanently remove from disk'}
                     >
@@ -265,7 +265,7 @@ export const RecycleBinModal: React.FC<RecycleBinModalProps> = ({ isOpen, onClos
         </div>
 
         {/* Footer */}
-        <div className="p-3 bg-[#FAF8F2] border-t border-[#E1DCCF] text-slate-500 text-[11px] flex items-center justify-between">
+        <div className="p-3 bg-white border-t border-slate-200 text-slate-600 text-[11px] flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <ShieldAlert className="w-4 h-4 text-[#A9814A]" />
             <span>Audit History Active • All data modifications tracked under Bar Council Compliance</span>

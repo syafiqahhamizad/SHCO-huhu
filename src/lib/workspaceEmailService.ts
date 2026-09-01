@@ -12,14 +12,30 @@ export interface EmailLogEntry {
 }
 
 const STORAGE_KEY_EMAIL_LOGS = 'shco_workspace_email_logs';
-const STORAGE_KEY_GMAIL_TOKEN = 'shco_gmail_access_token';
+const STORAGE_KEY_GMAIL_TOKEN = 'shco_gmail_access_token_session';
 
 export function getGmailAccessToken(): string | null {
-  return localStorage.getItem(STORAGE_KEY_GMAIL_TOKEN);
+  try {
+    return sessionStorage.getItem(STORAGE_KEY_GMAIL_TOKEN);
+  } catch {
+    return null;
+  }
 }
 
 export function setGmailAccessToken(token: string): void {
-  localStorage.setItem(STORAGE_KEY_GMAIL_TOKEN, token);
+  try {
+    sessionStorage.setItem(STORAGE_KEY_GMAIL_TOKEN, token);
+  } catch (err) {
+    console.warn('Unable to persist Gmail token in session storage.', err);
+  }
+}
+
+export function clearGmailAccessToken(): void {
+  try {
+    sessionStorage.removeItem(STORAGE_KEY_GMAIL_TOKEN);
+  } catch {
+    // no-op when sessionStorage is unavailable
+  }
 }
 
 export function getEmailAuditLogs(): EmailLogEntry[] {
