@@ -1,0 +1,14 @@
+{
+  "name": "shco-functions",
+  "description": "Cloud Functions for SHCO portal AI features",
+  "engines": {
+    "node": "20"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "@google/genai": "^2.4.0",
+    "firebase-functions": "^6.3.2",
+    "firebase-admin": "^12.7.0"
+  },
+  "private": true
+}

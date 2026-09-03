@@ -8,10 +8,20 @@
     ],
     "rewrites": [
       {
+        "source": "/api/ai/draft-billing-items",
+        "function": {
+          "functionId": "draftBillingItems",
+          "region": "asia-southeast1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
     ]
+  },
+  "functions": {
+    "source": "functions"
   },
   "firestore": {
     "rules": "firestore.rules"
