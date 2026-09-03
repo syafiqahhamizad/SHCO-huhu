@@ -148,6 +148,27 @@
     color: #EEF3FF !important;
   }
 
+  /* Light panels nested inside dark navy surfaces (header user chip, dropdowns) keep their dark ink. */
+  html:not(.dark) :is(.bg-\[\#16223A\], .bg-\[\#0A0E1A\], .bg-\[\#15192A\], .bg-\[\#1A1F35\], .bg-\[\#1B2330\], .bg-slate-950, .bg-slate-900, .bg-slate-800, .bg-slate-700) :is(.bg-white, .bg-\[\#FAF8F2\], .bg-\[\#FCFBF7\]) {
+    color: #2C241F !important;
+  }
+
+  html:not(.dark) :is(.bg-\[\#16223A\], .bg-\[\#0A0E1A\], .bg-\[\#15192A\], .bg-\[\#1A1F35\], .bg-\[\#1B2330\], .bg-slate-950, .bg-slate-900, .bg-slate-800, .bg-slate-700) :is(.bg-white, .bg-\[\#FAF8F2\], .bg-\[\#FCFBF7\]) :is(.text-\[\#16223A\], .text-\[\#2C241F\], .text-slate-950, .text-slate-900) {
+    color: #16223A !important;
+  }
+
+  html:not(.dark) :is(.bg-\[\#16223A\], .bg-\[\#0A0E1A\], .bg-\[\#15192A\], .bg-\[\#1A1F35\], .bg-\[\#1B2330\], .bg-slate-950, .bg-slate-900, .bg-slate-800, .bg-slate-700) :is(.bg-white, .bg-\[\#FAF8F2\], .bg-\[\#FCFBF7\]) :is(.text-slate-800, .text-slate-700, .text-\[\#4A3931\]) {
+    color: #334155 !important;
+  }
+
+  html:not(.dark) :is(.bg-\[\#16223A\], .bg-\[\#0A0E1A\], .bg-\[\#15192A\], .bg-\[\#1A1F35\], .bg-\[\#1B2330\], .bg-slate-950, .bg-slate-900, .bg-slate-800, .bg-slate-700) :is(.bg-white, .bg-\[\#FAF8F2\], .bg-\[\#FCFBF7\]) :is(.text-slate-600, .text-\[\#5B6478\]) {
+    color: #475569 !important;
+  }
+
+  html:not(.dark) :is(.bg-\[\#16223A\], .bg-\[\#0A0E1A\], .bg-\[\#15192A\], .bg-\[\#1A1F35\], .bg-\[\#1B2330\], .bg-slate-950, .bg-slate-900, .bg-slate-800, .bg-slate-700) :is(.bg-white, .bg-\[\#FAF8F2\], .bg-\[\#FCFBF7\]) :is(.text-slate-500, .text-slate-400, .text-\[\#8B6A58\]) {
+    color: #64748B !important;
+  }
+
   /* Global dark-theme text readability for dark surfaces and quick-link tiles. */
   html.dark .bg-\[\#16223A\],
   html.dark .bg-\[\#0A0E1A\],
@@ -294,17 +315,28 @@
   html.dark .text-indigo-900, html.dark .text-indigo-950 { color: #B7C2F5 !important; }
   html.dark .text-sky-900, html.dark .text-sky-950 { color: #A9D4F5 !important; }
 
+  /* Mid-tone icon/label hues (text-blue-700 etc.) stay light on darkened chips at night. */
+  html.dark .text-amber-700, html.dark .text-amber-800 { color: #F4C978 !important; }
+  html.dark .text-blue-700, html.dark .text-blue-800 { color: #9CC2F5 !important; }
+  html.dark .text-emerald-700, html.dark .text-emerald-800 { color: #7FE3B4 !important; }
+  html.dark .text-violet-700, html.dark .text-violet-800 { color: #C9B6F2 !important; }
+  html.dark .text-rose-700, html.dark .text-rose-800 { color: #F5A8A0 !important; }
+  html.dark .text-cyan-700, html.dark .text-cyan-800 { color: #9FE0EC !important; }
+  html.dark .text-sky-700, html.dark .text-sky-800 { color: #A9D4F5 !important; }
+  html.dark .text-indigo-700, html.dark .text-indigo-800 { color: #B7C2F5 !important; }
+  html.dark .text-purple-700, html.dark .text-purple-800 { color: #D3B3F0 !important; }
+
   /* Translucent pastel chips (e.g. bg-amber-50/60) turn muddy-dark over dark cards; force an opaque tint. */
-  html.dark [class*="bg-amber-50"], html.dark [class*="bg-amber-100"] { background-color: rgba(180, 131, 61, 0.22) !important; }
-  html.dark [class*="bg-blue-50"], html.dark [class*="bg-blue-100"] { background-color: rgba(70, 110, 170, 0.24) !important; }
-  html.dark [class*="bg-rose-50"], html.dark [class*="bg-rose-100"] { background-color: rgba(180, 80, 80, 0.22) !important; }
-  html.dark [class*="bg-purple-50"], html.dark [class*="bg-purple-100"] { background-color: rgba(130, 90, 170, 0.24) !important; }
-  html.dark [class*="bg-emerald-50"], html.dark [class*="bg-emerald-100"] { background-color: rgba(60, 140, 105, 0.22) !important; }
-  html.dark [class*="bg-cyan-50"], html.dark [class*="bg-cyan-100"] { background-color: rgba(50, 130, 150, 0.22) !important; }
-  html.dark [class*="bg-violet-50"], html.dark [class*="bg-violet-100"] { background-color: rgba(120, 100, 180, 0.24) !important; }
-  html.dark [class*="bg-indigo-50"], html.dark [class*="bg-indigo-100"] { background-color: rgba(90, 100, 180, 0.24) !important; }
-  html.dark [class*="bg-sky-50"], html.dark [class*="bg-sky-100"] { background-color: rgba(60, 120, 170, 0.22) !important; }
-  html.dark [class*="bg-slate-50"] { background-color: rgba(90, 100, 120, 0.22) !important; }
+  html.dark [class*="bg-amber-50"], html.dark [class*="bg-amber-100"], html.dark [class*="bg-amber-200"] { background-color: rgba(180, 131, 61, 0.22) !important; }
+  html.dark [class*="bg-blue-50"], html.dark [class*="bg-blue-100"], html.dark [class*="bg-blue-200"] { background-color: rgba(70, 110, 170, 0.24) !important; }
+  html.dark [class*="bg-rose-50"], html.dark [class*="bg-rose-100"], html.dark [class*="bg-rose-200"] { background-color: rgba(180, 80, 80, 0.22) !important; }
+  html.dark [class*="bg-purple-50"], html.dark [class*="bg-purple-100"], html.dark [class*="bg-purple-200"] { background-color: rgba(130, 90, 170, 0.24) !important; }
+  html.dark [class*="bg-emerald-50"], html.dark [class*="bg-emerald-100"], html.dark [class*="bg-emerald-200"] { background-color: rgba(60, 140, 105, 0.22) !important; }
+  html.dark [class*="bg-cyan-50"], html.dark [class*="bg-cyan-100"], html.dark [class*="bg-cyan-200"] { background-color: rgba(50, 130, 150, 0.22) !important; }
+  html.dark [class*="bg-violet-50"], html.dark [class*="bg-violet-100"], html.dark [class*="bg-violet-200"] { background-color: rgba(120, 100, 180, 0.24) !important; }
+  html.dark [class*="bg-indigo-50"], html.dark [class*="bg-indigo-100"], html.dark [class*="bg-indigo-200"] { background-color: rgba(90, 100, 180, 0.24) !important; }
+  html.dark [class*="bg-sky-50"], html.dark [class*="bg-sky-100"], html.dark [class*="bg-sky-200"] { background-color: rgba(60, 120, 170, 0.22) !important; }
+  html.dark [class*="bg-slate-50"], html.dark [class*="bg-slate-100"], html.dark [class*="bg-slate-200"] { background-color: rgba(90, 100, 120, 0.22) !important; }
 
   /* Stray light-only text (no own background) sitting inside a light-mode white/paper card. */
   html:not(.dark) .bg-white .text-white:not([class*="bg-"]),

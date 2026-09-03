@@ -77,12 +77,12 @@ export const FirmStartCentreView: React.FC = () => {
   }).filter((item) => item.date >= todayKey).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 4);
   const visibleAnnouncements = announcements.filter((announcement) => announcement.published && announcement.internalOnly).slice(0, 6);
   const workspaceApps = [
-    { label: 'Dashboard', detail: 'Firm overview and key signals', view: 'dashboard', icon: LayoutDashboard, tone: 'bg-blue-50 text-blue-700 border-blue-200' },
-    { label: 'Cases & Matters', detail: 'Open files and matter activity', view: 'cases', icon: FolderKanban, tone: 'bg-amber-50 text-amber-800 border-amber-200' },
-    { label: 'Clients', detail: 'Profiles, KYC and instructions', view: 'clients', icon: Users, tone: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-    { label: 'Calendar', detail: 'Hearings and compliance dates', view: 'calendar', icon: CalendarDays, tone: 'bg-violet-50 text-violet-700 border-violet-200' },
-    { label: 'Tasks', detail: 'Assignments and turnaround', view: 'tasks', icon: ListChecks, tone: 'bg-rose-50 text-rose-700 border-rose-200' },
-    { label: 'Documents', detail: 'Matter files and templates', view: 'documents', icon: FileText, tone: 'bg-cyan-50 text-cyan-700 border-cyan-200' },
+    { label: 'Dashboard', detail: 'Firm overview and key signals', view: 'dashboard', icon: LayoutDashboard, tone: 'bg-blue-100 text-blue-800 border-blue-300' },
+    { label: 'Cases & Matters', detail: 'Open files and matter activity', view: 'cases', icon: FolderKanban, tone: 'bg-amber-100 text-amber-900 border-amber-300' },
+    { label: 'Clients', detail: 'Profiles, KYC and instructions', view: 'clients', icon: Users, tone: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
+    { label: 'Calendar', detail: 'Hearings and compliance dates', view: 'calendar', icon: CalendarDays, tone: 'bg-violet-100 text-violet-800 border-violet-300' },
+    { label: 'Tasks', detail: 'Assignments and turnaround', view: 'tasks', icon: ListChecks, tone: 'bg-rose-100 text-rose-800 border-rose-300' },
+    { label: 'Documents', detail: 'Matter files and templates', view: 'documents', icon: FileText, tone: 'bg-cyan-100 text-cyan-800 border-cyan-300' },
   ];
   const quickLinkGroups: QuickLinkGroup[] = [
     { title: 'Due diligence', description: 'Company and insolvency searches', icon: ShieldCheck, tone: 'bg-rose-100 text-rose-700 border-rose-300', links: [
@@ -133,14 +133,6 @@ export const FirmStartCentreView: React.FC = () => {
       { label: 'Google Admin Console', url: 'https://admin.google.com/' },
       { label: 'Google Vault', url: 'https://ediscovery.google.com/' },
     ] },
-  ];
-
-  const featuredLinks = [
-    { label: 'EFS', url: 'https://efs.kehakiman.gov.my/EFSWeb/', accent: 'bg-violet-100 text-violet-700 border-violet-300' },
-    { label: 'Google Drive', url: 'https://drive.google.com/', accent: 'bg-blue-100 text-blue-700 border-blue-300' },
-    { label: 'SSM', url: 'https://www.ssm-einfo.my/', accent: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
-    { label: 'Legislation', url: 'https://lom.agc.gov.my/', accent: 'bg-amber-100 text-amber-800 border-amber-300' },
-    { label: 'Gmail', url: 'https://mail.google.com/', accent: 'bg-rose-100 text-rose-700 border-rose-300' },
   ];
 
   const publishAnnouncement = (event: React.FormEvent) => {
@@ -213,15 +205,6 @@ export const FirmStartCentreView: React.FC = () => {
           <div className="flex items-center gap-2 rounded-lg border border-[#E1DCCF] bg-white px-2.5 py-2 text-[10px] font-bold text-slate-600">
             <Globe2 className="h-3.5 w-3.5 text-[#A9814A]" /> 8 groups
           </div>
-        </div>
-
-        <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
-          {featuredLinks.map(({ label, url, accent }) => (
-            <a key={label} href={url} target="_blank" rel="noopener noreferrer" className={`featured-link flex items-center justify-between gap-2 rounded-xl border px-2.5 py-2 text-[11px] font-bold shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${accent}`}>
-              <span className="truncate">{label}</span>
-              <ExternalLink className="h-3 w-3 shrink-0" />
-            </a>
-          ))}
         </div>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
