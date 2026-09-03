@@ -106,17 +106,17 @@ export const RecycleBinModal: React.FC<RecycleBinModalProps> = ({ isOpen, onClos
   };
 
   return (
-    <div className="fixed inset-0 bg-[#16223A]/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full border border-[#E1DCCF] my-8 flex flex-col max-h-[90vh] overflow-hidden animate-fadeIn">
+    <div className="fixed inset-0 bg-[#16223A]/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 z-50 overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full border border-[#E1DCCF] my-2 sm:my-8 flex min-h-0 flex-col max-h-[calc(100dvh-1rem)] sm:max-h-[90vh] overflow-hidden animate-fadeIn">
         {/* Header */}
-        <div className="bg-[#16223A] p-5 text-white flex items-center justify-between border-b border-[#A9814A]/40">
-          <div className="flex items-center gap-3">
+        <div className="bg-[#16223A] p-3 sm:p-5 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-[#A9814A]/40">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="p-2.5 bg-rose-500/20 border border-rose-400/40 rounded-xl text-rose-300">
               <Archive className="w-6 h-6" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-serif font-bold text-lg text-amber-300">
+                <h3 className="font-serif font-bold text-base sm:text-lg text-amber-300">
                   Data Recovery Vault &amp; Audit Recycle Bin
                 </h3>
                 <span className="bg-amber-400/20 text-amber-300 border border-amber-400/40 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full">
@@ -129,7 +129,7 @@ export const RecycleBinModal: React.FC<RecycleBinModalProps> = ({ isOpen, onClos
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
             {deletedRecords.length > 0 && (
               <button
                 type="button"
@@ -154,8 +154,8 @@ export const RecycleBinModal: React.FC<RecycleBinModalProps> = ({ isOpen, onClos
         </div>
 
         {/* Filter and Search Bar */}
-        <div className="p-4 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
-          <div className="relative flex-1 min-w-[240px]">
+        <div className="p-3 sm:p-4 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+          <div className="relative flex-1 min-w-0 w-full sm:min-w-[240px]">
             <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
             <input
               type="text"
@@ -167,7 +167,7 @@ export const RecycleBinModal: React.FC<RecycleBinModalProps> = ({ isOpen, onClos
           </div>
 
           {/* Entity Filter Tabs */}
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs overflow-x-auto">
+          <div className="flex max-w-full flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs">
             {['ALL', 'CASE', 'CLIENT', 'LEAD', 'INVOICE', 'OTHER'].map((entity) => (
               <button
                 key={entity}
@@ -185,7 +185,7 @@ export const RecycleBinModal: React.FC<RecycleBinModalProps> = ({ isOpen, onClos
         </div>
 
         {/* Content List */}
-        <div className="p-4 overflow-y-auto flex-1 space-y-3 bg-slate-100">
+        <div className="p-3 sm:p-4 min-h-0 overflow-y-auto flex-1 space-y-3 bg-slate-100">
           {filtered.length === 0 ? (
             <div className="text-center py-12 text-slate-400 space-y-2">
               <CheckCircle2 className="w-10 h-10 mx-auto text-emerald-500 opacity-80" />
@@ -265,7 +265,7 @@ export const RecycleBinModal: React.FC<RecycleBinModalProps> = ({ isOpen, onClos
         </div>
 
         {/* Footer */}
-        <div className="p-3 bg-white border-t border-slate-200 text-slate-600 text-[11px] flex items-center justify-between">
+        <div className="p-3 bg-white border-t border-slate-200 text-slate-600 text-[11px] flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
             <ShieldAlert className="w-4 h-4 text-[#A9814A]" />
             <span>Audit History Active • All data modifications tracked under Bar Council Compliance</span>

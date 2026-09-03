@@ -311,7 +311,7 @@ export const NewCaseModal: React.FC<NewCaseModalProps> = ({ isOpen, onClose }) =
   // File Creation Date picker (calendar dropdown allowing historical backdating)
   const [fileOpeningDate, setFileOpeningDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const fileMonth = fileOpeningDate ? fileOpeningDate.slice(5, 7) : String(new Date().getMonth() + 1).padStart(2, '0');
-  const fileYear = fileOpeningDate ? fileOpeningDate.slice(0, 4) : String(new Date().getFullYear());
+  const fileYear = fileOpeningDate ? fileOpeningDate.slice(2, 4) : String(new Date().getFullYear()).slice(-2);
 
   // Map Practice Area to exact codes: L (Litigation), EST (Estate), CONV, CORP, CR, SY, or Custom
   const getPracticeAreaCode = (area: string): string => {

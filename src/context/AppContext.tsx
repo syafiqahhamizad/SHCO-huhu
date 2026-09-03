@@ -249,6 +249,8 @@ interface AppContextType {
   addInvoice: (inv: Invoice) => void;
   updateInvoice: (id: string, updates: Partial<Invoice>) => void;
   addPayment: (p: Payment) => void;
+  updatePayment: (id: string, updates: Partial<Payment>) => void;
+  deletePayment: (id: string) => void;
   addTimeEntry: (te: TimeEntry) => void;
   updateTimeEntry: (id: string, updates: Partial<TimeEntry>) => void;
   deleteTimeEntry: (id: string) => void;
@@ -528,16 +530,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast(`Welcome back, ${signedInUser.name}.`);
       return { success: true };
     } catch (error) {
-      console.warn('Firebase SSO notice: logging in via verified staff session.', error);
-      // Fallback for iframe preview environments where Google Popups are restricted
-      const partnerUser = users.find((u) => u.email.toLowerCase() === 'syafiqahhamizad@shcolaw.com') || INITIAL_USERS[0];
-      setCurrentUser(partnerUser);
-      setCurrentRole(partnerUser.role);
-      setIsAdmin(Boolean(partnerUser.isAdmin));
-      setIsAuthenticated(true);
-      setCurrentView('firmStartCentre');
-      showToast(`Welcome back, ${partnerUser.name} (${partnerUser.role}).`);
-      return { success: true };
+      const errorMsg = getFirebaseAuthErrorMessage(error);
+      showToast(errorMsg);
+      return { success: false, error: errorMsg };
     }
   };
 
@@ -558,9 +553,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Attempt Firebase authentication first
     try {
       await signInClientWithPassword(email, passwordInput);
-    } catch (_error) {
-      // If Firebase Auth is not provisioned for this user or domain, fall back to registered local client session
-      console.warn('Firebase Auth notice: using local verified client credentials.');
+    } catch (error) {
+      const errorMsg = getFirebaseAuthErrorMessage(error);
+      showToast(errorMsg);
+      return { success: false, error: errorMsg };
     }
 
     const clientName = matchedUser?.name || matchedClient?.name || 'Valued Client';
@@ -615,8 +611,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     try {
       await signInExternalWithPassword(email, passwordInput);
-    } catch (_error) {
-      console.warn('Firebase Auth notice: using local approved external account session.');
+    } catch (error) {
+      const errorMsg = getFirebaseAuthErrorMessage(error);
+      showToast(errorMsg);
+      return { success: false, error: errorMsg };
     }
 
     setCurrentUser(approvedUser);
@@ -1522,8 +1520,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const isSensitiveAdminModule = (moduleKey: string): boolean => {
-    return ['finance', 'retainers', 'officeFinance', 'settings', 'users', 'logs'].includes(moduleKey);
+    return ['retainers', 'settings', 'users', 'logs'].includes(moduleKey);
   };
+
+  const isSyafiqahOnlyModule = (moduleKey: string): boolean => {
+    return ['retainers', 'courts'].includes(moduleKey);
+  };
+
+  const isSyafiqahSuperAdmin = currentUser.name.trim().toLowerCase() === 'syafiqah hamizad';
 
   const canViewModule = (viewId: string): boolean => {
     // Effective active role perspective
@@ -1533,6 +1537,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Client role is strictly restricted to clientPortal
     if (effectiveRole === 'Client') {
       return viewId === 'clientPortal';
+    }
+
+    if (isSyafiqahOnlyModule(moduleKey) && !isSyafiqahSuperAdmin) {
+      return false;
     }
 
     if (viewId === 'staffPortal' || viewId === 'staff-portal') {
@@ -1575,6 +1583,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (effectiveRole === 'Client') {
       return moduleKey === 'clientPortal' && action === 'v';
+    }
+
+    if (isSyafiqahOnlyModule(moduleKey) && !isSyafiqahSuperAdmin) {
+      return false;
     }
 
     if (isSensitiveAdminModule(moduleKey)) {
@@ -1727,10 +1739,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         unsubscribe = subscribeToCloudState((state) => {
           if (!cancelled) applyCloudState(state);
         }, (error) => {
-          console.warn('Cloud state subscription unavailable; continuing with local storage.', error);
+          console.error('Cloud state subscription unavailable; signing out to prevent local-only data entry.', error);
+          sessionStorage.removeItem(SESSION_STORAGE_KEY);
+          setCloudSyncReady(false);
+          setIsAuthenticated(false);
         });
       } catch (error) {
-        console.warn('Cloud state unavailable; continuing with local storage.', error);
+        console.error('Cloud state unavailable; signing out to prevent local-only data entry.', error);
+        sessionStorage.removeItem(SESSION_STORAGE_KEY);
+        setCloudSyncReady(false);
+        setIsAuthenticated(false);
       }
     };
 
@@ -1747,7 +1765,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims,
       receipts, deadlines, invoices, payments, retainers, users, attendanceRecords,
       leaveApplications, notifications, lawFirmRegistry, sequenceCounters, deletedRecords,
-    }).catch((error) => console.warn('Cloud state save failed; local storage remains available.', error));
+    }).catch((error) => {
+      console.error('Cloud state save failed; signing out to prevent unsynced data entry.', error);
+      sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      setCloudSyncReady(false);
+      setIsAuthenticated(false);
+    });
   }, [cloudSyncReady, leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims, receipts, deadlines, invoices, payments, retainers, users, attendanceRecords, leaveApplications, notifications, lawFirmRegistry, sequenceCounters, deletedRecords]);
 
   const addActivityLog = (action: string, details: string) => {
@@ -2194,6 +2217,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Payment recorded & invoice updated');
   };
 
+  const updatePayment = (id: string, updates: Partial<Payment>) => {
+    setPayments((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)));
+    showToast('Payment updated');
+  };
+
+  const deletePayment = (id: string) => {
+    const target = payments.find((p) => p.id === id);
+    setPayments((prev) => prev.filter((p) => p.id !== id));
+    // Revert invoice back to unpaid if this was its last recorded payment
+    if (target) {
+      const hasOtherPayments = payments.some((p) => p.invoiceId === target.invoiceId && p.id !== id);
+      if (!hasOtherPayments) {
+        setInvoices((prev) => prev.map((inv) => (inv.id === target.invoiceId && inv.status === 'Paid' ? { ...inv, status: 'Unpaid' } : inv)));
+      }
+    }
+    showToast('Payment removed');
+  };
+
   const addTimeEntry = (te: TimeEntry) => {
     setTimeEntries((prev) => [te, ...prev]);
     showToast('Time entry logged');
@@ -2428,6 +2469,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addInvoice,
         updateInvoice,
         addPayment,
+        updatePayment,
+        deletePayment,
         addTimeEntry,
         updateTimeEntry,
         deleteTimeEntry,

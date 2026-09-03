@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Role } from '../types';
 import {
   Search,
   RefreshCw,
@@ -10,14 +9,12 @@ import {
   FolderOpen,
   User,
   Crown,
-  Shield,
   Bell,
   CheckCheck,
   Gavel,
   FileText,
   X,
   CheckCircle2,
-  Sparkles,
   Trash2,
   Sun,
   Moon,
@@ -26,14 +23,11 @@ import {
   LogOut,
 } from 'lucide-react';
 import { RecycleBinModal } from './RecycleBinModal';
-import { OnboardingTourModal } from './OnboardingTourModal';
 import { HelpCircle } from 'lucide-react';
 
 export const Header: React.FC = () => {
   const {
     currentView,
-    currentRole,
-    setCurrentRole,
     currentPartnerCode,
     isAdmin,
     globalSearch,
@@ -50,11 +44,9 @@ export const Header: React.FC = () => {
     markNotificationAsRead,
     markAllNotificationsAsRead,
     deletedRecords = [],
-    customRoles = [],
   } = useApp();
 
   const [isRecycleBinOpen, setIsRecycleBinOpen] = useState(false);
-  const [isTourOpen, setIsTourOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [notifFilter, setNotifFilter] = useState<'all' | 'hearing' | 'invoice'>('all');
 
@@ -137,43 +129,45 @@ export const Header: React.FC = () => {
   const info = getViewInfo();
 
   return (
-    <header className="mb-4 sm:mb-6 p-3 sm:p-5 bg-[#16223A] dark:bg-[#15192A] text-white rounded-lg sm:rounded-xl border border-[#2B4265] dark:border-[#2D3748] shadow-lg flex flex-col sm:flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
+    <header className="sticky top-0 z-20 mb-4 sm:mb-6 border-b border-[#304362] bg-[#16223A] px-4 sm:px-6 py-2.5 flex flex-col md:flex-row md:items-center justify-start gap-2.5 overflow-visible">
       <div className="min-w-0">
-        <h1 className="font-serif text-lg sm:text-2xl font-bold text-white dark:text-[#E8ECFF] tracking-tight truncate">{info.title}</h1>
-        <p className="text-xs text-slate-300 dark:text-[#A8B0D8] mt-0.5 line-clamp-2">{info.sub}</p>
+        <div className="flex items-center gap-2">
+          <h1 className="min-w-0 font-serif text-lg sm:text-xl font-bold text-white tracking-tight truncate">{info.title}</h1>
+        </div>
+        <p className="text-xs text-slate-300 mt-0.5 line-clamp-2">{info.sub}</p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
+      <div className="flex w-full min-w-0 flex-wrap items-center gap-1.5 sm:gap-2 md:ml-8 md:w-auto md:shrink-0">
         {/* Global Search Bar */}
-        <div className="relative group">
+        <div className="relative group w-full min-w-0 sm:flex-1 md:w-auto md:flex-none">
           <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#A9814A] transition-colors" />
           <input
             type="text"
             placeholder="Search matters, clients, docs..."
             value={globalSearch}
             onChange={(e) => setGlobalSearch(e.target.value)}
-            className="pl-8 pr-3 py-1.5 text-xs bg-white/10 border border-white/20 text-white placeholder:text-slate-400 rounded-md w-48 md:w-60 focus:w-64 transition-all focus:outline-none focus:border-[#A9814A] focus:ring-1 focus:ring-[#A9814A]/50"
+            className="w-full max-w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-[#E8D9CE] text-[#2C241F] placeholder:text-slate-400 rounded-md sm:w-48 md:w-60 md:focus:w-64 transition-all focus:outline-none focus:border-[#B86F4A] focus:ring-1 focus:ring-[#B86F4A]/30"
             aria-label="Global search for matters, clients, documents"
           />
         </div>
 
-        {/* Guided System Tour Button */}
+        {/* Reload latest saved data */}
         <button
-          onClick={() => setIsTourOpen(true)}
-          className="px-2.5 py-1.5 rounded-lg bg-[#A9814A] border border-[#D4AF37] text-white hover:bg-[#C29A5A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#A9814A] focus:ring-offset-[#16223A] transition-all font-bold text-xs cursor-pointer flex items-center gap-1.5 shadow-sm"
-          aria-label="Start guided system tour"
-          title="Interactive onboarding tour of the application"
+          type="button"
+          onClick={() => window.location.reload()}
+          title="Reload latest saved data"
+          aria-label="Reload latest saved data"
+          className="shrink-0 rounded p-1.5 text-slate-300 transition-colors hover:bg-[#304362] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#B86F4A] cursor-pointer"
         >
-          <Sparkles className="w-3.5 h-3.5 text-amber-200" />
-          <span className="hidden sm:inline">Guided Tour</span>
+          <RefreshCw className="h-4 w-4" />
         </button>
 
         {/* Recycle Bin & Data Recovery Vault */}
         <button
           onClick={() => setIsRecycleBinOpen(true)}
-          className="p-2 rounded-lg bg-white/10 border border-white/20 text-white hover:bg-white/20 hover:border-[#A9814A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#A9814A] focus:ring-offset-[#16223A] transition-all relative shadow-sm cursor-pointer flex items-center gap-1"
+          className="p-2 rounded-lg bg-white border border-[#E8D9CE] text-slate-700 hover:text-[#2C241F] hover:border-[#B86F4A] focus:outline-none focus:ring-2 focus:ring-[#B86F4A] transition-all relative shadow-2xs cursor-pointer flex items-center gap-1"
           aria-label={`Data recovery vault with ${deletedRecords.length} deleted items`}
-          title="Data Recovery Vault & Recycle Bin History Tracking"
+          title="Recycle Bin"
         >
           <Archive className="w-4 h-4 text-[#A9814A]" />
           {deletedRecords.length > 0 && (
@@ -187,11 +181,11 @@ export const Header: React.FC = () => {
         <div className="relative">
           <button
             onClick={() => setIsNotifOpen((prev) => !prev)}
-            className="p-2 rounded-lg bg-white/10 border border-white/20 text-white hover:bg-white/20 hover:border-[#A9814A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#A9814A] focus:ring-offset-[#16223A] transition-all relative shadow-sm cursor-pointer"
+            className="p-1.5 rounded-md bg-white border border-[#E8D9CE] text-slate-700 hover:text-[#2C241F] hover:border-[#B86F4A] focus:outline-none focus:ring-2 focus:ring-[#B86F4A] transition-all relative shadow-2xs cursor-pointer"
             aria-label={`Notifications: ${unreadNotificationsCount} unread alerts`}
             aria-expanded={isNotifOpen}
             aria-controls="notifications-dropdown"
-            title="Real-Time Hearing & Invoice Payment Alerts"
+            title="Notifications"
           >
             <Bell className="w-4 h-4 text-amber-200" />
             {unreadNotificationsCount > 0 && (
@@ -207,7 +201,7 @@ export const Header: React.FC = () => {
               <div className="bg-[#16223A] text-white p-3.5 flex items-center justify-between border-b border-amber-400/30">
                 <div className="flex items-center gap-2">
                   <Bell className="w-4 h-4 text-amber-300" />
-                  <span className="font-serif font-bold text-xs">Real-Time Firm Alerts</span>
+                  <span className="font-serif font-bold text-xs">Notifications</span>
                   {unreadNotificationsCount > 0 && (
                     <span className="bg-amber-400/20 text-amber-300 text-[9.5px] font-bold px-1.5 py-0.2 rounded border border-amber-400/40">
                       {unreadNotificationsCount} New
@@ -322,41 +316,10 @@ export const Header: React.FC = () => {
               </div>
 
               <div className="p-2 bg-[#FAF8F2] border-t border-[#E1DCCF] text-center text-[10px] text-slate-500">
-                Live push notifications enabled for Court Diary &amp; Accounts Ledger
+                Court and billing notifications
               </div>
             </div>
           )}
-        </div>
-
-        {/* Role Perspective Selector */}
-        <div className="flex items-center gap-1.5 bg-white border border-white px-2.5 py-1 rounded-lg text-xs shadow-2xs">
-          <Shield className="w-3.5 h-3.5 text-[#A9814A] shrink-0" />
-          <span className="text-[11px] text-[#16223A] font-bold hidden sm:inline">View as:</span>
-          <select
-            value={currentRole}
-            disabled={!currentUser?.isSuperAdmin && currentUser?.email !== 'syafiqahhamizad@shcolaw.com'}
-            onChange={(e) => {
-              const newRole = e.target.value as Role;
-              setCurrentRole(newRole);
-              showToast(`Switched active portal view perspective to: ${newRole}`);
-              if (newRole === 'Client') {
-                setCurrentView('clientPortal');
-              } else if (currentView === 'clientPortal') {
-                setCurrentView('dashboard');
-              }
-            }}
-            className="bg-white hover:bg-slate-50 border border-slate-300 font-bold text-[#16223A] rounded px-2 py-0.5 text-xs outline-none focus:ring-1 focus:ring-[#A9814A] cursor-pointer"
-            title="Switch Active Role Perspective to test dynamic sidebar filtering & access policies"
-          >
-            <option value="Partner">Partner (Full Firm & CFO)</option>
-            <option value="Lawyer">Lawyer (Practice & Matters Only)</option>
-            <option value="Assistant">Assistant (Intake & Support)</option>
-            <option value="Reviewer">Reviewer (Audit & Compliance)</option>
-            <option value="Client">Client (Client Portal Only)</option>
-            {customRoles.map((role) => (
-              <option key={role} value={role}>{role} (Custom Role)</option>
-            ))}
-          </select>
         </div>
 
         {/* Quick Theme Toggle Button */}
@@ -364,11 +327,11 @@ export const Header: React.FC = () => {
           onClick={() => {
             const nextTheme = theme === 'light' ? 'dark' : theme === 'dark' ? 'system' : 'light';
             setTheme(nextTheme);
-            showToast(`Theme preference set to: ${nextTheme === 'light' ? 'Parchment Light' : nextTheme === 'dark' ? 'Executive Dark' : 'System Default'}`);
+            showToast(`Theme set to ${nextTheme}`);
           }}
-          className="flex items-center gap-1.5 bg-white hover:bg-slate-100 border border-white px-2.5 py-1.5 rounded-lg text-xs cursor-pointer shadow-2xs transition-colors"
-          title={`Active Theme: ${theme.toUpperCase()} (Click to cycle Light / Dark / System)`}
-          aria-label="Toggle dark/light theme preference"
+          className="flex items-center gap-1 bg-white hover:bg-[#F5E9E1] border border-[#E8D9CE] px-2 py-1.5 rounded-md text-xs cursor-pointer shadow-2xs transition-colors"
+          title={`Theme: ${theme}`}
+          aria-label="Change theme"
         >
           {theme === 'dark' ? (
             <Moon className="w-4 h-4 text-amber-400" />
@@ -377,58 +340,45 @@ export const Header: React.FC = () => {
           ) : (
             <Monitor className="w-4 h-4 text-blue-700" />
           )}
-          <span className="font-bold text-[11px] text-white hidden md:inline capitalize">
-            <span className="text-[#16223A]">{theme}</span>
-          </span>
+          <span className="sr-only">{theme}</span>
         </button>
 
         {/* Current User & Role Badge / SSO Login Trigger */}
-        <div
-          className="flex items-center gap-2 bg-white border border-white px-3 py-1.5 rounded-lg text-xs shadow-2xs"
-          title="Current signed-in user"
-        >
-          <div className="w-5 h-5 rounded-full bg-[#16223A] text-white flex items-center justify-center font-bold text-[10px]">
-            {currentUser?.isSuperAdmin ? <Crown className="w-3 h-3 text-amber-400" /> : <User className="w-3 h-3 text-amber-300" />}
-          </div>
-          <div className="text-left leading-tight">
-            <div className="font-bold text-[#16223A] flex items-center gap-1">
-              <span>{currentUser?.name || 'User'}</span>
-              {currentUser?.isSuperAdmin && (
-                <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[8px] font-bold px-1 rounded">
-                  SUPER ADMIN
-                </span>
-              )}
+        <div className="flex min-w-0 max-w-full items-center gap-1.5">
+          <div
+            className="flex min-w-0 max-w-[15rem] items-center gap-1.5 bg-white border border-[#E8D9CE] px-2 py-1.5 rounded-md text-xs shadow-2xs"
+            title="Current signed-in user"
+          >
+            <div className="w-5 h-5 rounded-full bg-[#16223A] text-white flex items-center justify-center font-bold text-[10px]">
+              {currentUser?.isSuperAdmin ? <Crown className="w-3 h-3 text-amber-400" /> : <User className="w-3 h-3 text-amber-300" />}
             </div>
-            <div className="text-[10px] text-slate-600 font-mono">
-              {currentUser?.email}
+            <div className="text-left leading-tight min-w-0">
+              <div className="font-bold text-[#16223A] flex min-w-0 items-center gap-1">
+                <span className="whitespace-nowrap">{currentUser?.name || 'User'}</span>
+                {currentUser?.isSuperAdmin && (
+                  <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[8px] font-bold px-1 rounded shrink-0">
+                    SUPER ADMIN
+                  </span>
+                )}
+              </div>
+              <div className="hidden max-w-[12rem] truncate text-[10px] text-slate-600 font-mono sm:block">{currentUser?.email}</div>
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={logoutUser}
+            className="flex shrink-0 items-center gap-1 bg-[#A9814A] hover:bg-[#C29A5A] text-white border border-[#D4AF37] px-2.5 py-1.5 rounded-md text-xs font-bold cursor-pointer shadow-2xs transition-all"
+            title="Sign out"
+          >
+            <LogOut className="w-3.5 h-3.5 text-[#D4AF37]" />
+            <span className="hidden sm:inline">Sign Out</span>
+          </button>
         </div>
 
-        <button
-          type="button"
-          onClick={logoutUser}
-          className="flex items-center gap-1.5 bg-[#A9814A] hover:bg-[#C29A5A] text-white border border-[#D4AF37] px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer shadow-2xs transition-all"
-          title="Sign out and return to the main portal"
-        >
-          <LogOut className="w-3.5 h-3.5 text-[#D4AF37]" />
-          <span className="hidden sm:inline">Sign Out</span>
-        </button>
-
-        {/* Reload latest saved data without changing the session */}
-        <button
-          type="button"
-          onClick={() => window.location.reload()}
-          title="Reload latest saved data"
-          aria-label="Reload latest saved data"
-          className="p-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-        </button>
       </div>
 
       <RecycleBinModal isOpen={isRecycleBinOpen} onClose={() => setIsRecycleBinOpen(false)} />
-      <OnboardingTourModal isOpen={isTourOpen} onClose={() => setIsTourOpen(false)} />
     </header>
   );
 };

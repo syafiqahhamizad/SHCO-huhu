@@ -1361,7 +1361,7 @@ export const SecurityView: React.FC = () => {
 
 /* ================= 3. FIRM SETTINGS ================= */
 export const SettingsView: React.FC = () => {
-  const { partners = [], showToast, currentUser, currentView, theme = 'light', setTheme } = useApp() || {};
+  const { partners = [], showToast, currentUser, currentView, setCurrentView, theme = 'light', setTheme } = useApp() || {};
   const [activeTab, setActiveTab] = useState<'profile' | 'bank' | 'partners' | 'branding' | 'account'>(
     currentView === 'account' ? 'account' : 'branding'
   );
@@ -1473,6 +1473,34 @@ export const SettingsView: React.FC = () => {
             <User className="w-3.5 h-3.5 text-[#A9814A]" />
             My Account &amp; User Preferences
           </button>
+        </div>
+
+        <div className="border-t border-[#E1DCCF] pt-3">
+          <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            <Grid className="h-3.5 w-3.5 text-[#A9814A]" /> Quick Links
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              ['Dashboard', 'dashboard', Layout],
+              ['Cases & Matters', 'cases', Briefcase],
+              ['Clients', 'clients', Users],
+              ['Calendar', 'calendar', Calendar],
+              ['Workspace', 'workspace', Grid],
+              ['Deadlines', 'deadlines', CheckSquare],
+              ['Trust Account', 'retainers', ShieldCheck],
+              ['Firm Users', 'users', UserPlus],
+            ].map(([label, view, Icon]) => (
+              <button
+                key={label as string}
+                type="button"
+                onClick={() => setCurrentView?.(view as string)}
+                className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-[#FAF8F2] px-3 py-2 text-left text-[11px] font-bold text-[#16223A] transition hover:border-[#B86F4A] hover:bg-[#FBF3EE] cursor-pointer"
+              >
+                <Icon className="h-3.5 w-3.5 shrink-0 text-[#B86F4A]" />
+                <span className="truncate">{label as string}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

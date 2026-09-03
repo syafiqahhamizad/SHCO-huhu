@@ -30,25 +30,8 @@ import {
   FileClosingView,
 } from './components/views/PracticeViews';
 
-import { ReimbursementsClaimsView } from './components/views/ReimbursementsView';
-
-import {
-  TimeView,
-  InvoicesView,
-  PaymentsView,
-  ReceiptsView,
-  RetainersView,
-  StatementView,
-  OfficeAccountsView,
-  CoaView,
-  GLView,
-  TrialBalanceView,
-  BalanceSheetView,
-  CashFlowView,
-  BillingReportsView,
-  TrustReportsView,
-  OfficeReportsView,
-} from './components/views/AccountingViews';
+import { SimplifiedAccountingView } from './components/views/SimplifiedAccountingView';
+import { SimplifiedAccountingCentreView } from './components/views/SimplifiedAccountingCentreView';
 
 import {
   WorkspaceView,
@@ -57,8 +40,6 @@ import {
   UsersAndPermissionsView,
 } from './components/views/SystemViews';
 import { PracticeSettingsView } from './components/views/PracticeSettingsView';
-import { BankAccountsView } from './components/views/BankAccountsView';
-import { BankReconciliationView } from './components/views/BankReconciliationView';
 import { TrustAuditLogsView } from './components/views/TrustAuditLogsView';
 import { InventoryView } from './components/views/InventoryView';
 import { StaffPortalView } from './components/views/StaffPortalView';
@@ -66,7 +47,6 @@ import { MyAccountView } from './components/views/MyAccountView';
 import { AboutAppView } from './components/views/AboutAppView';
 import { ActivityLogsView } from './components/views/ActivityLogsView';
 import { FirmStartCentreView } from './components/views/FirmStartCentreView';
-import { AccountingCentreView } from './components/views/AccountingCentreView';
 
 const MainContent: React.FC = () => {
   const {
@@ -169,73 +149,53 @@ const MainContent: React.FC = () => {
       case 'file-closing':
         return <FileClosingView />;
 
-      // Accounting & Finance
+      // Accounting & Finance (Simplified)
       case 'accountingCentre':
       case 'accounting-centre':
-        return <AccountingCentreView />;
+      case 'accounting':
+        return <SimplifiedAccountingCentreView />;
       case 'bankAccounts':
       case 'bank-accounts':
-        return <BankAccountsView />;
       case 'bankReconciliation':
       case 'bank-reconciliation':
-        return <BankReconciliationView />;
+      case 'reimbursements':
+      case 'reimbursements-claims':
+      case 'claimsManagement':
+      case 'claims-management':
+      case 'travelClaims':
+      case 'travel-claims':
+      case 'expenses':
+      case 'paymentVouchers':
+      case 'pv':
+      case 'time':
+      case 'invoices':
+      case 'payments':
+      case 'receipts':
+      case 'retainers':
+      case 'statement':
+      case 'officeAccounts':
+      case 'office-accounts':
+      case 'coa':
+      case 'gl':
+      case 'tb':
+      case 'trialBalance':
+      case 'balanceSheet':
+      case 'balance-sheet':
+      case 'cashFlow':
+      case 'cashflow':
+      case 'billingReports':
+      case 'reports-billing':
+      case 'trustReports':
+      case 'reports-trust':
+      case 'officeReports':
+      case 'reports-office':
+        return <SimplifiedAccountingView />;
+      
       case 'trustAuditLogs':
       case 'trust-audit-logs':
         return <TrustAuditLogsView />;
       case 'inventory':
         return <InventoryView />;
-      case 'reimbursements':
-      case 'reimbursements-claims':
-      case 'claimsManagement':
-      case 'claims-management':
-        return <ReimbursementsClaimsView initialTab="OVERVIEW" />;
-      case 'travelClaims':
-      case 'travel-claims':
-        return <ReimbursementsClaimsView initialTab="TRAVEL" />;
-      case 'expenses':
-        return <ReimbursementsClaimsView initialTab="DISBURSEMENTS" />;
-      case 'paymentVouchers':
-      case 'pv':
-        return <ReimbursementsClaimsView initialTab="VOUCHERS" />;
-      case 'time':
-        return <TimeView />;
-      case 'invoices':
-        return <InvoicesView />;
-      case 'payments':
-        return <PaymentsView />;
-      case 'receipts':
-        return <ReceiptsView />;
-      case 'retainers':
-        return <RetainersView />;
-      case 'statement':
-        return <StatementView />;
-      case 'officeAccounts':
-      case 'office-accounts':
-        return <OfficeAccountsView />;
-      case 'coa':
-        return <CoaView />;
-      case 'gl':
-        return <GLView />;
-      case 'tb':
-      case 'trialBalance':
-        return <TrialBalanceView />;
-      case 'balanceSheet':
-      case 'balance-sheet':
-        return <BalanceSheetView />;
-      case 'cashFlow':
-      case 'cashflow':
-        return <CashFlowView />;
-
-      // Partner Reports
-      case 'billingReports':
-      case 'reports-billing':
-        return <BillingReportsView />;
-      case 'trustReports':
-      case 'reports-trust':
-        return <TrustReportsView />;
-      case 'officeReports':
-      case 'reports-office':
-        return <OfficeReportsView />;
 
       // System Integrations
       case 'workspace':
@@ -268,7 +228,7 @@ const MainContent: React.FC = () => {
     <div className="flex min-h-screen bg-[#F6F4EE] dark:bg-[#0A0E1A] text-slate-800 dark:text-[#E8ECFF] font-sans antialiased">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#F6F4EE] dark:bg-[#0A0E1A]">
-        <main className="flex-1 p-4 sm:p-6 overflow-y-auto bg-[#F6F4EE] dark:bg-[#0A0E1A]">
+        <main className="flex-1 p-4 pt-16 sm:p-6 sm:pt-6 overflow-y-auto bg-[#F6F4EE] dark:bg-[#0A0E1A]">
           <Header />
           <div className="mt-4 sm:mt-6">
             {renderView()}

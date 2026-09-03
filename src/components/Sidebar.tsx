@@ -41,7 +41,6 @@ import {
   Home,
   Menu,
   X,
-  ChevronDown,
 } from 'lucide-react';
 
 interface NavItem {
@@ -78,18 +77,7 @@ export const Sidebar: React.FC = () => {
   
   // Mobile and accessibility state
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['General', 'Practice']));
   const [searchQuery, setSearchQuery] = useState('');
-
-  const toggleGroupExpanded = (groupName: string) => {
-    const newExpanded = new Set(expandedGroups);
-    if (newExpanded.has(groupName)) {
-      newExpanded.delete(groupName);
-    } else {
-      newExpanded.add(groupName);
-    }
-    setExpandedGroups(newExpanded);
-  };
 
   const handleNavItemClick = (itemId: string) => {
     setCurrentView(itemId);
@@ -183,7 +171,7 @@ export const Sidebar: React.FC = () => {
       {/* Mobile Menu Toggle Button - Visible only on small screens */}
       <button
         onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
-        className="hidden sm:hidden md:hidden lg:hidden fixed top-4 left-4 z-50 p-2 bg-[#A9814A] text-white rounded-lg hover:bg-[#C29A5A] transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#A9814A]"
+        className="md:hidden fixed top-3 left-3 z-50 p-2.5 bg-[#A9814A] text-white rounded-lg hover:bg-[#C29A5A] transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#A9814A]"
         aria-label={isMobileSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
         aria-expanded={isMobileSidebarOpen}
         aria-controls="sidebar-nav"
@@ -191,13 +179,21 @@ export const Sidebar: React.FC = () => {
         {isMobileSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
       </button>
 
+      {isMobileSidebarOpen && (
+        <button
+          className="md:hidden fixed inset-0 z-30 bg-slate-950/45 backdrop-blur-[1px]"
+          onClick={() => setIsMobileSidebarOpen(false)}
+          aria-label="Close navigation menu"
+        />
+      )}
+
       {/* Sidebar - Hidden on mobile by default, visible on desktop */}
       <aside
         id="sidebar-nav"
-        className={`fixed sm:fixed md:relative lg:relative xl:relative w-[242px] shrink-0 bg-[#16223A] dark:bg-[#0A0E1A] text-[#EDE9DD] dark:text-[#E8ECFF] p-5 h-screen overflow-y-auto flex flex-col justify-between border-r border-amber-900/20 dark:border-[#2D3748] shadow-xl select-none transition-all duration-300 ease-in-out ${
+        className={`fixed md:relative w-[min(86vw,280px)] md:w-[242px] shrink-0 bg-[#16223A] dark:bg-[#16223A] text-[#EDE9DD] dark:text-[#E8ECFF] p-5 min-h-screen overflow-visible flex flex-col justify-between border-r border-amber-900/20 dark:border-[#2D3748] shadow-xl select-none transition-all duration-300 ease-in-out ${
           isMobileSidebarOpen
             ? 'translate-x-0 z-40'
-            : '-translate-x-full sm:translate-x-0 md:translate-x-0 lg:translate-x-0'
+            : '-translate-x-full md:translate-x-0'
         }`}
         role="navigation"
         aria-label="Main navigation"
@@ -205,14 +201,14 @@ export const Sidebar: React.FC = () => {
         <div>
           {/* Brand Header */}
           <div className="flex items-center gap-2.5 mb-3 pb-3 border-b border-white/10 dark:border-[#2D3748] group">
-            <div className="w-8 h-8 rounded-full border-[1.5px] border-[#A9814A] dark:border-[#FFD700] flex items-center justify-center font-serif font-bold text-xs text-[#A9814A] dark:text-[#FFD700] bg-[#A9814A]/10 dark:bg-[#FFD700]/10 shrink-0 shadow-inner group-hover:shadow-md group-hover:border-[#D4AF37] dark:group-hover:border-[#FFED4E] transition-all">
+            <div className="w-8 h-8 rounded-full border-[1.5px] border-[#A9814A] dark:border-[#B7925A] flex items-center justify-center font-serif font-bold text-xs text-[#A9814A] dark:text-[#D5B07A] bg-[#A9814A]/10 dark:bg-[#B7925A]/10 shrink-0 shadow-inner group-hover:shadow-md group-hover:border-[#D4AF37] dark:group-hover:border-[#C89A63] transition-all">
               SH
             </div>
             <div>
-              <div className="font-roxborough text-[13px] font-bold leading-tight text-white dark:text-[#E8ECFF] tracking-wide uppercase">
+              <div className="font-roxborough text-[13px] font-bold leading-tight text-white dark:text-[#EEF3FF] tracking-wide uppercase">
                 SYAFIQAH HAMIZAD &amp; CO
               </div>
-              <div className="font-termes text-[10px] text-[#ffd29e] dark:text-[#FFD93D] tracking-tight font-medium italic flex items-center gap-1 mt-0.5">
+              <div className="font-termes text-[10px] text-[#ffd29e] dark:text-[#C89A63] tracking-tight font-medium italic flex items-center gap-1 mt-0.5">
                 Advocates &amp; Solicitors | Syarie Counsel
               </div>
             </div>
@@ -225,7 +221,7 @@ export const Sidebar: React.FC = () => {
               placeholder="Search navigation..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value.toLowerCase())}
-              className="w-full px-3 py-1.5 text-xs bg-white/10 dark:bg-[#15192A] border border-white/20 dark:border-[#2D3748] text-white dark:text-[#E8ECFF] placeholder:text-slate-400 dark:placeholder:text-[#6B7280] rounded-md focus:outline-none focus:border-[#A9814A] dark:focus:border-[#FFD700] focus:ring-1 focus:ring-[#A9814A]/50 dark:focus:ring-[#FFD700]/50 transition-all"
+              className="w-full px-3 py-1.5 text-xs bg-white/10 dark:bg-[#171E2A] border border-white/20 dark:border-[#2F3A4B] text-white dark:text-[#EEF3FF] placeholder:text-slate-400 dark:placeholder:text-[#7A86A1] rounded-md focus:outline-none focus:border-[#A9814A] dark:focus:border-[#B7925A] focus:ring-1 focus:ring-[#A9814A]/50 dark:focus:ring-[#B7925A]/50 transition-all"
               aria-label="Search navigation menu"
             />
           </div>
@@ -242,30 +238,12 @@ export const Sidebar: React.FC = () => {
 
               if (visibleItems.length === 0) return null;
 
-              const isGroupExpanded = expandedGroups.has(group.group);
-
               return (
                 <div key={group.group}>
-                  <button
-                    onClick={() => toggleGroupExpanded(group.group)}
-                    className="w-full flex items-center justify-between text-[9.5px] uppercase tracking-widest text-[#7A8296] dark:text-[#6B7280] px-2 py-2 mb-1 font-bold hover:text-[#A9814A] dark:hover:text-[#FFD700] focus:outline-none focus:text-[#A9814A] dark:focus:text-[#FFD700] transition-colors rounded-md"
-                    aria-expanded={isGroupExpanded}
-                    aria-controls={`group-${group.group}`}
-                    role="menuitem"
-                  >
+                  <div className="w-full flex items-center text-[9.5px] uppercase tracking-widest text-[#7A8296] dark:text-[#A3ADC3] px-2 py-2 mb-1 font-bold">
                     <span>{group.group}</span>
-                    <ChevronDown
-                      className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                        isGroupExpanded ? 'rotate-180' : ''
-                      }`}
-                    />
-                  </button>
-                  <div
-                    id={`group-${group.group}`}
-                    className={`space-y-0.5 overflow-hidden transition-all duration-200 ${
-                      isGroupExpanded ? 'max-h-96' : 'max-h-0'
-                    }`}
-                  >
+                  </div>
+                  <div id={`group-${group.group}`} className="space-y-0.5">
                     {visibleItems.map((item) => {
                       const isActive = currentView === item.id;
 
@@ -273,10 +251,10 @@ export const Sidebar: React.FC = () => {
                         <button
                           key={item.id}
                           onClick={() => handleNavItemClick(item.id)}
-                          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[12px] font-medium transition-all duration-150 text-left focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#A9814A] dark:focus:ring-[#FFD700] focus:ring-offset-[#16223A] dark:focus:ring-offset-[#0A0E1A] ${
+                          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[12px] font-medium transition-all duration-150 text-left focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#A9814A] dark:focus:ring-[#B7925A] focus:ring-offset-[#16223A] dark:focus:ring-offset-[#121821] ${
                             isActive
-                              ? 'bg-[#A9814A] dark:bg-[#FFD700] text-[#1A1204] dark:text-[#0A0E1A] font-semibold shadow-md'
-                              : 'text-[#C7CCDC] dark:text-[#A8B0D8] hover:bg-white/10 dark:hover:bg-[#1A1F35] hover:text-white dark:hover:text-[#E8ECFF] focus:text-white dark:focus:text-[#E8ECFF]'
+                              ? 'bg-[#A9814A] dark:bg-[#B7925A] text-[#1A1204] dark:text-[#121821] font-semibold shadow-md'
+                              : 'text-[#C7CCDC] dark:text-[#C3CDE3] hover:bg-white/10 dark:hover:bg-[#1B2330] hover:text-white dark:hover:text-[#EEF3FF] focus:text-white dark:focus:text-[#EEF3FF]'
                           }`}
                           role="menuitem"
                           aria-current={isActive ? 'page' : undefined}
@@ -321,7 +299,7 @@ export const Sidebar: React.FC = () => {
                 Sign Out / Exit Portal
               </button>
             </div>
-          ) : (
+          ) : currentUser.isSuperAdmin ? (
             <>
               <div>
                 <label htmlFor="role-select" className="text-[9.5px] uppercase tracking-wider text-[#8B93A8] block mb-1 font-semibold">
@@ -383,18 +361,10 @@ export const Sidebar: React.FC = () => {
                 Malaysian Law compliant. Admin overlay reveals firm-wide cases & system views. Reviewer = read-only auditor view.
               </div>
             </>
-          )}
+          ) : null}
         </div>
       </aside>
 
-      {/* Mobile Overlay - Click to close sidebar on mobile */}
-      {isMobileSidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-30 sm:hidden md:hidden lg:hidden"
-          onClick={() => setIsMobileSidebarOpen(false)}
-          aria-hidden="true"
-        />
-      )}
     </>
   );
 };

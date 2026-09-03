@@ -1,4 +1,4 @@
-import { initializeAppCheck, ReCaptchaV3Provider, type AppCheck } from 'firebase/app-check';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider, type AppCheck } from 'firebase/app-check';
 import { type FirebaseApp } from 'firebase/app';
 
 export function isTrustedAppHost(): boolean {
@@ -35,7 +35,7 @@ export function initializeFirebaseAppCheck(app: FirebaseApp): AppCheck | undefin
     if (cached) return cached;
 
     const appCheck = initializeAppCheck(app, {
-      provider: new ReCaptchaV3Provider(siteKey),
+      provider: new ReCaptchaEnterpriseProvider(siteKey),
       isTokenAutoRefreshEnabled: true,
     });
 

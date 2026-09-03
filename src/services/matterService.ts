@@ -19,7 +19,7 @@ export const generateNextMatterSequenceNumber = (
   cases.forEach((c) => {
     if (!c.ref) return;
     const segments = c.ref.split('/').map((segment) => segment.trim());
-    const dateIndex = segments.findIndex((segment) => /^\d{2}-\d{4}$/.test(segment));
+    const dateIndex = segments.findIndex((segment) => /^\d{2}-\d{2}(?:\d{2})?$/.test(segment));
 
     if (dateIndex > 0) {
       const runningNumber = Number(segments[dateIndex - 1]);
