@@ -18,14 +18,17 @@ import {
   XCircle,
   AlertCircle,
   Eye,
+  FileText,
 } from 'lucide-react';
 import { TimeEntry, Invoice, Payment, Expense, TravelClaim, PaymentVoucher, BankAccount } from '../../types';
+import { BillingPipelineView } from './BillingPipelineView';
 
-type Tab = 'invoices' | 'expenses' | 'payments' | 'time' | 'claims' | 'vouchers' | 'banking' | 'reports';
+type Tab = 'billing' | 'invoices' | 'expenses' | 'payments' | 'time' | 'claims' | 'vouchers' | 'banking' | 'reports';
 
 // Maps every sidebar/billing route id to the tab that should be shown when it is opened
 const VIEW_TO_TAB: Record<string, Tab> = {
-  accountingCentre: 'invoices',
+  accountingCentre: 'billing',
+  quotations: 'billing',
   invoices: 'invoices',
   billingReports: 'reports',
   'reports-billing': 'reports',
@@ -95,7 +98,7 @@ export const SimplifiedAccountingView: React.FC = () => {
     showToast,
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<Tab>('invoices');
+  const [activeTab, setActiveTab] = useState<Tab>('billing');
   const [searchTerm, setSearchTerm] = useState('');
 
   // =============== INVOICES TAB ===============
@@ -1274,6 +1277,7 @@ export const SimplifiedAccountingView: React.FC = () => {
       {/* Tabs */}
       <div className="flex gap-0 border-b border-slate-200 bg-white px-4 overflow-x-auto">
         {[
+          { id: 'billing' as const, label: 'Billing', icon: FileText },
           { id: 'invoices' as const, label: 'Invoices', icon: Receipt },
           { id: 'expenses' as const, label: 'Expenses', icon: DollarSign },
           { id: 'payments' as const, label: 'Payments', icon: CreditCard },
@@ -1303,6 +1307,7 @@ export const SimplifiedAccountingView: React.FC = () => {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4">
+        {activeTab === 'billing' && <BillingPipelineView />}
         {activeTab === 'invoices' && <InvoicesTab />}
         {activeTab === 'expenses' && <ExpensesTab />}
         {activeTab === 'payments' && <PaymentsTab />}
