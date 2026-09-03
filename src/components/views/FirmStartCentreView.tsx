@@ -1,22 +1,42 @@
 import React from 'react';
 import {
-  Activity,
-  ArrowRight,
   Bell,
-  Briefcase,
+  BookOpen,
+  BriefcaseBusiness,
   CalendarDays,
-  CheckCircle2,
+  ChevronRight,
   Clock3,
   ExternalLink,
   FileText,
+  FolderKanban,
   FolderOpen,
-  Link as LinkIcon,
+  Gavel,
+  Globe2,
+  HardDrive,
+  Landmark,
+  LayoutDashboard,
+  ListChecks,
   Plus,
+  Search,
   Scale,
+  ShieldCheck,
   Users,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { FirmAnnouncement } from '../../types';
+
+interface QuickLink {
+  label: string;
+  url: string;
+}
+
+interface QuickLinkGroup {
+  title: string;
+  description: string;
+  icon: React.ElementType;
+  tone: string;
+  links: QuickLink[];
+}
 
 const formatDate = (value?: string) => {
   if (!value) return 'No date';
@@ -29,19 +49,13 @@ const formatDate = (value?: string) => {
 
 export const FirmStartCentreView: React.FC = () => {
   const {
-    cases,
-    deadlines,
-    notifications,
     currentUser,
     currentRole,
-    isOAuthConnected,
     users,
     announcements,
     addAnnouncement,
     setCurrentView,
-    setCurrentCaseId,
     setIsNewCaseModalOpen,
-    setIsRegisterClientModalOpen,
   } = useApp();
   const [isAnnouncementFormOpen, setIsAnnouncementFormOpen] = React.useState(false);
   const [announcementTitle, setAnnouncementTitle] = React.useState('');
@@ -51,22 +65,6 @@ export const FirmStartCentreView: React.FC = () => {
 
   const today = new Date();
   const todayKey = today.toISOString().slice(0, 10);
-  const inThirtyDays = new Date(today.getTime() + 30 * 86400000).toISOString().slice(0, 10);
-  const activeCases = cases.filter((matter) => matter.status === 'Active');
-  const openDeadlines = deadlines
-    .filter((deadline) => deadline.status !== 'Completed' && deadline.dueDate <= inThirtyDays)
-    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  const openTasks = cases.flatMap((matter) =>
-    (matter.tasks || [])
-      .filter((task) => !['Completed', 'Done'].includes(task.status))
-      .map((task) => ({ ...task, caseId: matter.id, caseRef: matter.ref }))
-  ).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  const urgentNotifications = notifications.filter((notification) => !notification.read).slice(0, 5);
-  const upcomingHearings = activeCases.flatMap((matter) =>
-    (matter.hearings || [])
-      .filter((hearing) => hearing.date >= todayKey && hearing.date <= inThirtyDays)
-      .map((hearing) => ({ ...hearing, caseId: matter.id, caseRef: matter.ref, caseTitle: matter.title }))
-  ).sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)).slice(0, 5);
   const upcomingCelebrations = users.flatMap((user) => {
     if (user.staffProfile?.celebrationOptOut) return [];
     const items: { id: string; title: string; date: string; detail: string }[] = [];
@@ -78,6 +76,72 @@ export const FirmStartCentreView: React.FC = () => {
     return items;
   }).filter((item) => item.date >= todayKey).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 4);
   const visibleAnnouncements = announcements.filter((announcement) => announcement.published && announcement.internalOnly).slice(0, 6);
+  const workspaceApps = [
+    { label: 'Dashboard', detail: 'Firm overview and key signals', view: 'dashboard', icon: LayoutDashboard, tone: 'bg-blue-50 text-blue-700 border-blue-200' },
+    { label: 'Cases & Matters', detail: 'Open files and matter activity', view: 'cases', icon: FolderKanban, tone: 'bg-amber-50 text-amber-800 border-amber-200' },
+    { label: 'Clients', detail: 'Profiles, KYC and instructions', view: 'clients', icon: Users, tone: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    { label: 'Calendar', detail: 'Hearings and compliance dates', view: 'calendar', icon: CalendarDays, tone: 'bg-violet-50 text-violet-700 border-violet-200' },
+    { label: 'Tasks', detail: 'Assignments and turnaround', view: 'tasks', icon: ListChecks, tone: 'bg-rose-50 text-rose-700 border-rose-200' },
+    { label: 'Documents', detail: 'Matter files and templates', view: 'documents', icon: FileText, tone: 'bg-cyan-50 text-cyan-700 border-cyan-200' },
+  ];
+  const quickLinkGroups: QuickLinkGroup[] = [
+    { title: 'Due diligence', description: 'Company and insolvency searches', icon: ShieldCheck, tone: 'bg-rose-100 text-rose-700 border-rose-300', links: [
+      { label: 'eInsolvency', url: 'https://e-insolvensi.mdi.gov.my/' },
+      { label: 'SSM e-Info', url: 'https://www.ssm-einfo.my/' },
+    ] },
+    { title: 'Bar', description: 'Professional body member portals', icon: Users, tone: 'bg-emerald-100 text-emerald-700 border-emerald-300', links: [
+      { label: 'Malaysian Bar', url: 'https://login.malaysianbar.org.my/' },
+      { label: 'Selangor Bar', url: 'https://member.selangorbar.org/login' },
+    ] },
+    { title: 'Litigation', description: 'Court systems and litigation workspaces', icon: Gavel, tone: 'bg-violet-100 text-violet-700 border-violet-300', links: [
+      { label: 'EFS', url: 'https://efs.kehakiman.gov.my/EFSWeb/' },
+      { label: 'Malaysian Judiciary', url: 'https://www.kehakiman.gov.my/' },
+    ] },
+    { title: 'Case files', description: 'Shared Google Drive matter folders', icon: FolderOpen, tone: 'bg-blue-100 text-blue-700 border-blue-300', links: [
+      { label: 'Litigation', url: 'https://drive.google.com/drive/folders/1sY6K_OtFRoWCkBNd5ArDOoKtSZHiYN3h?usp=drive_link' },
+      { label: 'Conveyancing', url: 'https://drive.google.com/drive/folders/1duXHdC0jqZABBWXKI2z0omu-VuDx8eiO?usp=drive_link' },
+      { label: 'Corporate', url: 'https://drive.google.com/drive/folders/13sZXUs4X0yoMEk8pBMEwwwZZAsjHHDey?usp=drive_link' },
+      { label: 'Probate & Administration', url: 'https://drive.google.com/drive/folders/1cp39TLlUvvm0M3-2BDh7d6kq8s7_EhJV?usp=drive_link' },
+      { label: 'Criminal', url: 'https://drive.google.com/drive/folders/1ysK_PbGNmfi8VxdM535CykjNUB4gxUwN?usp=drive_link' },
+      { label: 'YBGK', url: 'https://drive.google.com/drive/folders/1cZTgUZZUQ2nNl4SwKcgFr61kfSh0C4l9?usp=drive_link' },
+    ] },
+    { title: 'Library', description: 'Research, legislation and legal databases', icon: BookOpen, tone: 'bg-amber-100 text-amber-800 border-amber-300', links: [
+      { label: 'Practice Directions', url: 'https://intranet.kehakiman.gov.my/EAA/search.php?lang=en' },
+      { label: 'Legislation (AGC)', url: 'https://lom.agc.gov.my/' },
+      { label: 'eLaw', url: 'https://www.elaw.my/Default.aspx?returnUrl=https://www.elaw.my/elawquicksearch.aspx' },
+      { label: 'Lexis Nexis & eBook', url: 'https://member.selangorbar.org/login' },
+      { label: 'CLJ', url: 'https://www.cljlaw.com/' },
+    ] },
+    { title: 'Conveyancing', description: 'Land, remuneration and state portals', icon: Landmark, tone: 'bg-cyan-100 text-cyan-700 border-cyan-300', links: [
+      { label: 'SRO 2023', url: 'https://www.malaysianbar.org.my/cms/upload_files/document/Solicitors%20Remuneration%20Order%202023.pdf' },
+      { label: 'E-Tanah Selangor', url: 'https://etanah.selangor.gov.my/etanah-awam/AwamLoginForm.xhtml?isLogout=true' },
+      { label: 'Smartbox Selangor', url: 'https://smartbox.selangor.gov.my/' },
+      { label: 'PTG Kuala Lumpur', url: 'https://www.ptgwp.gov.my/portal/ms/' },
+    ] },
+    { title: 'Google Workspace', description: 'Everyday firm collaboration tools', icon: HardDrive, tone: 'bg-sky-100 text-sky-700 border-sky-300', links: [
+      { label: 'Gmail', url: 'https://mail.google.com/' },
+      { label: 'Google Calendar', url: 'https://calendar.google.com/' },
+      { label: 'Google Drive', url: 'https://drive.google.com/' },
+      { label: 'Google Docs', url: 'https://docs.google.com/' },
+      { label: 'Google Sheets', url: 'https://sheets.google.com/' },
+      { label: 'Google Meet', url: 'https://meet.google.com/' },
+      { label: 'Google Forms', url: 'https://forms.google.com/' },
+    ] },
+    { title: 'More resources', description: 'Useful regulatory and professional sites', icon: Globe2, tone: 'bg-slate-200 text-slate-700 border-slate-300', links: [
+      { label: 'Attorney General’s Chambers', url: 'https://www.agc.gov.my/' },
+      { label: 'Malaysian Bar Council', url: 'https://www.malaysianbar.org.my/' },
+      { label: 'Google Admin Console', url: 'https://admin.google.com/' },
+      { label: 'Google Vault', url: 'https://ediscovery.google.com/' },
+    ] },
+  ];
+
+  const featuredLinks = [
+    { label: 'EFS', url: 'https://efs.kehakiman.gov.my/EFSWeb/', accent: 'bg-violet-100 text-violet-700 border-violet-300' },
+    { label: 'Google Drive', url: 'https://drive.google.com/', accent: 'bg-blue-100 text-blue-700 border-blue-300' },
+    { label: 'SSM', url: 'https://www.ssm-einfo.my/', accent: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
+    { label: 'Legislation', url: 'https://lom.agc.gov.my/', accent: 'bg-amber-100 text-amber-800 border-amber-300' },
+    { label: 'Gmail', url: 'https://mail.google.com/', accent: 'bg-rose-100 text-rose-700 border-rose-300' },
+  ];
 
   const publishAnnouncement = (event: React.FormEvent) => {
     event.preventDefault();
@@ -90,55 +154,36 @@ export const FirmStartCentreView: React.FC = () => {
     }
   };
 
-  const openMatter = (caseId: string) => {
-    setCurrentCaseId(caseId);
-    setCurrentView('cases');
-  };
-
   return (
     <div className="w-full space-y-5 pb-8 text-xs">
-      <section className="relative overflow-hidden rounded-2xl border border-[#304362] bg-[#16223A] p-6 text-white shadow-xl">
-        <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-[#A9814A]/20 to-transparent" />
-        <div className="relative flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
-          <div className="max-w-2xl space-y-2">
-            <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300">
-              <Scale className="h-4 w-4" /> Firm Start Centre
-              <span className="rounded-full border border-white/20 px-2 py-0.5 text-[9px] tracking-wider text-slate-300">{currentRole}</span>
+      <section className="relative overflow-hidden rounded-2xl border border-[#304362] bg-[#16223A] p-6 text-white shadow-xl sm:p-8">
+        <div className="absolute inset-y-0 right-0 hidden w-2/5 bg-gradient-to-l from-[#A9814A]/25 to-transparent sm:block" />
+        <div className="relative flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+          <div className="max-w-2xl space-y-3">
+            <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300"><Scale className="h-4 w-4" /> Firm Start Centre <span className="rounded-full border border-white/20 px-2 py-0.5 text-[9px] tracking-wider text-slate-300">{currentRole}</span></div>
+            <h1 className="font-serif text-3xl font-bold tracking-normal sm:text-4xl">{today.getHours() < 12 ? 'Good morning' : today.getHours() < 18 ? 'Good afternoon' : 'Good evening'}, {currentUser.name.split(' ')[0]}</h1>
+            <p className="max-w-xl leading-relaxed text-slate-300">Everything your firm needs for today, in one connected workspace.</p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <button type="button" onClick={() => setIsNewCaseModalOpen(true)} className="flex items-center gap-1.5 rounded-lg bg-[#A9814A] px-3 py-2 font-bold text-white shadow-sm transition hover:bg-[#C29A5A] cursor-pointer"><Plus className="h-3.5 w-3.5" /> New matter</button>
+              <button type="button" onClick={() => setCurrentView('cases')} className="flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-2 font-bold text-white transition hover:bg-white/20 cursor-pointer"><Search className="h-3.5 w-3.5" /> Find a record</button>
             </div>
-            <h1 className="font-serif text-3xl font-bold tracking-normal">{today.getHours() < 12 ? 'Good morning' : today.getHours() < 18 ? 'Good afternoon' : 'Good evening'}, {currentUser.name.split(' ')[0]}</h1>
-            <p className="max-w-xl leading-relaxed text-slate-300">Your daily operating desk for matters, deadlines, tasks and the firm’s connected Workspace.</p>
           </div>
-          <div className="rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-right backdrop-blur-sm">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-amber-200">Today</div>
+          <div className="rounded-xl border border-white/15 bg-white/10 px-4 py-3 lg:min-w-44 lg:text-right">
+            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-amber-200 lg:justify-end"><Clock3 className="h-3.5 w-3.5" /> Today</div>
             <div className="mt-1 font-serif text-xl font-bold">{today.toLocaleDateString('en-MY', { weekday: 'long' })}</div>
             <div className="font-mono text-xs text-slate-300">{formatDate(todayKey)}</div>
           </div>
         </div>
       </section>
 
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          { label: 'Active matters', value: activeCases.length, icon: Briefcase, tone: 'text-blue-700 bg-blue-50 border-blue-200', view: 'cases' },
-          { label: 'Open tasks', value: openTasks.length, icon: CheckCircle2, tone: 'text-emerald-700 bg-emerald-50 border-emerald-200', view: 'caseStatus' },
-          { label: 'Due in 30 days', value: openDeadlines.length, icon: Clock3, tone: 'text-amber-700 bg-amber-50 border-amber-200', view: 'deadlines' },
-          { label: 'Unread alerts', value: notifications.filter((notification) => !notification.read).length, icon: Bell, tone: 'text-rose-700 bg-rose-50 border-rose-200', view: 'logs' },
-        ].map((metric) => (
-          <button key={metric.label} type="button" onClick={() => setCurrentView(metric.view)} className="flex items-center justify-between rounded-xl border border-[#E1DCCF] bg-white p-4 text-left shadow-xs transition hover:-translate-y-0.5 hover:shadow-md cursor-pointer">
-            <div><div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{metric.label}</div><div className="mt-1 font-mono text-2xl font-bold text-[#16223A]">{metric.value}</div></div>
-            <span className={`rounded-lg border p-2 ${metric.tone}`}><metric.icon className="h-4 w-4" /></span>
-          </button>
-        ))}
+      <section>
+        <div className="mb-3 flex items-end justify-between gap-3"><div><h2 className="font-serif text-xl font-bold text-[#16223A]">Your workspace</h2><p className="mt-1 text-slate-500">Jump into the places you use most.</p></div><BriefcaseBusiness className="h-5 w-5 text-[#A9814A]" /></div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {workspaceApps.map(({ label, detail, view, icon: Icon, tone }) => <button key={view} type="button" onClick={() => setCurrentView(view)} className="group flex items-center gap-3 rounded-xl border border-[#E1DCCF] bg-white p-4 text-left shadow-xs transition hover:-translate-y-0.5 hover:border-[#A9814A] hover:shadow-md cursor-pointer"><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${tone}`}><Icon className="h-5 w-5" /></span><span className="min-w-0 flex-1"><strong className="block text-sm text-[#16223A]">{label}</strong><span className="mt-0.5 block text-[11px] leading-relaxed text-slate-500">{detail}</span></span><ChevronRight className="h-4 w-4 shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-[#A9814A]" /></button>)}
+        </div>
       </section>
 
-      <section className="flex flex-wrap gap-2 rounded-xl border border-[#E1DCCF] bg-[#FAF8F2] p-3">
-        <span className="mr-1 self-center text-[10px] font-bold uppercase tracking-wider text-slate-500">Quick actions</span>
-        <button type="button" onClick={() => setIsNewCaseModalOpen(true)} className="flex items-center gap-1.5 rounded-lg bg-[#16223A] px-3 py-2 font-bold text-white cursor-pointer"><Plus className="h-3.5 w-3.5 text-amber-300" /> New matter</button>
-        <button type="button" onClick={() => setIsRegisterClientModalOpen(true)} className="flex items-center gap-1.5 rounded-lg border border-[#E1DCCF] bg-white px-3 py-2 font-bold text-[#16223A] cursor-pointer"><Users className="h-3.5 w-3.5 text-[#A9814A]" /> New client</button>
-        <button type="button" onClick={() => setCurrentView('quotations')} className="flex items-center gap-1.5 rounded-lg border border-[#E1DCCF] bg-white px-3 py-2 font-bold text-[#16223A] cursor-pointer"><FileText className="h-3.5 w-3.5 text-[#A9814A]" /> New quotation</button>
-        <button type="button" onClick={() => setCurrentView('calendar')} className="flex items-center gap-1.5 rounded-lg border border-[#E1DCCF] bg-white px-3 py-2 font-bold text-[#16223A] cursor-pointer"><CalendarDays className="h-3.5 w-3.5 text-[#A9814A]" /> Open calendar</button>
-      </section>
-
-      <section className="rounded-xl border border-[#E1DCCF] bg-white p-5 shadow-xs">
+      <section className="firm-announcements rounded-xl border border-[#E1DCCF] bg-white p-5 shadow-xs">
         <div className="mb-4 flex flex-col gap-3 border-b border-slate-100 pb-3 sm:flex-row sm:items-start sm:justify-between">
           <div><h2 className="flex items-center gap-2 font-serif text-base font-bold text-[#16223A]"><Bell className="h-4 w-4 text-[#A9814A]" /> Firm announcements</h2><p className="mt-1 text-slate-500">Internal notices, celebrations and firm dates.</p></div>
           {canPublish && <button type="button" onClick={() => setIsAnnouncementFormOpen((open) => !open)} className="flex items-center gap-1.5 self-start rounded-lg bg-[#16223A] px-3 py-2 font-bold text-white cursor-pointer"><Plus className="h-3.5 w-3.5 text-amber-300" /> Publish announcement</button>}
@@ -156,36 +201,52 @@ export const FirmStartCentreView: React.FC = () => {
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-        <section className="rounded-xl border border-[#E1DCCF] bg-white p-5 shadow-xs">
-          <div className="mb-4 flex items-start justify-between border-b border-slate-100 pb-3"><div><h2 className="flex items-center gap-2 font-serif text-base font-bold text-[#16223A]"><CalendarDays className="h-4 w-4 text-[#A9814A]" /> Upcoming hearings</h2><p className="mt-1 text-slate-500">Next 30 days across active matters.</p></div><button type="button" onClick={() => setCurrentView('calendar')} className="text-[10px] font-bold text-blue-700 cursor-pointer">View calendar <ArrowRight className="inline h-3 w-3" /></button></div>
-          <div className="space-y-2">{upcomingHearings.length ? upcomingHearings.map((hearing) => <button key={`${hearing.caseId}-${hearing.id}`} type="button" onClick={() => openMatter(hearing.caseId)} className="flex w-full items-center justify-between gap-3 rounded-lg border border-slate-100 bg-[#FAF8F2] p-3 text-left hover:border-amber-300 cursor-pointer"><div><div className="font-bold text-[#16223A]">{hearing.purpose}</div><div className="mt-1 text-[10px] text-slate-500">{hearing.caseRef} · {hearing.caseTitle}</div></div><div className="shrink-0 text-right"><div className="font-mono font-bold text-amber-800">{formatDate(hearing.date)}</div><div className="text-[10px] text-slate-500">{hearing.time}</div></div></button>) : <div className="py-8 text-center text-slate-400">No upcoming hearings.</div>}</div>
-        </section>
-
-        <section className="rounded-xl border border-[#E1DCCF] bg-white p-5 shadow-xs">
-          <div className="mb-4 flex items-start justify-between border-b border-slate-100 pb-3"><div><h2 className="flex items-center gap-2 font-serif text-base font-bold text-[#16223A]"><Clock3 className="h-4 w-4 text-[#A9814A]" /> Deadlines and tasks</h2><p className="mt-1 text-slate-500">The next actions needing attention.</p></div><button type="button" onClick={() => setCurrentView('deadlines')} className="text-[10px] font-bold text-blue-700 cursor-pointer">View all <ArrowRight className="inline h-3 w-3" /></button></div>
-          <div className="space-y-2">{[...openDeadlines.slice(0, 3).map((deadline) => ({ id: `deadline-${deadline.id}`, title: deadline.title, detail: `Deadline · ${deadline.caseId || 'Firm-wide'}`, date: deadline.dueDate, action: () => setCurrentView('deadlines') })), ...openTasks.slice(0, 3).map((task) => ({ id: `task-${task.id}`, title: task.title, detail: `Task · ${task.caseRef}`, date: task.dueDate, action: () => openMatter(task.caseId) }))].slice(0, 5).map((item) => <button key={item.id} type="button" onClick={item.action} className="flex w-full items-center justify-between gap-3 rounded-lg border border-slate-100 p-3 text-left hover:border-amber-300 cursor-pointer"><div><div className="font-bold text-[#16223A]">{item.title}</div><div className="mt-1 text-[10px] text-slate-500">{item.detail}</div></div><span className="shrink-0 rounded border border-amber-200 bg-amber-50 px-2 py-1 font-mono text-[10px] font-bold text-amber-900">{formatDate(item.date)}</span></button>)}{!openDeadlines.length && !openTasks.length && <div className="py-8 text-center text-slate-400">No open deadlines or tasks.</div>}</div>
-        </section>
-
-        <section className="rounded-xl border border-[#E1DCCF] bg-white p-5 shadow-xs xl:col-span-2">
-          <div className="mb-4 flex flex-col gap-3 border-b border-slate-100 pb-3 sm:flex-row sm:items-start sm:justify-between"><div><h2 className="flex items-center gap-2 font-serif text-base font-bold text-[#16223A]"><LinkIcon className="h-4 w-4 text-[#A9814A]" /> Google Workspace launchpad</h2><p className="mt-1 text-slate-500">Open the firm’s connected tools from one place.</p></div><div className="flex items-center gap-3"><span className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider ${isOAuthConnected ? 'text-emerald-700' : 'text-amber-700'}`}><span className={`h-2 w-2 rounded-full ${isOAuthConnected ? 'bg-emerald-500' : 'bg-amber-500'}`} />{isOAuthConnected ? 'Workspace connected' : 'Connection required'}</span><button type="button" onClick={() => setCurrentView('workspace')} className="text-[10px] font-bold text-blue-700 cursor-pointer">Workspace settings <ArrowRight className="inline h-3 w-3" /></button></div></div>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4 lg:grid-cols-7">{[
-            ['Calendar', 'https://calendar.google.com', CalendarDays],
-            ['Drive', 'https://drive.google.com', FolderOpen],
-            ['Gmail', 'https://mail.google.com', Bell],
-            ['Docs', 'https://docs.google.com', FileText],
-            ['Sheets', 'https://sheets.google.com', Activity],
-            ['Meet', 'https://meet.google.com', Users],
-            ['Tasks', 'https://tasks.google.com', CheckCircle2],
-          ].map(([label, url, Icon]) => <a key={label as string} href={url as string} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-[#FAF8F2] px-3 py-3 font-bold text-[#16223A] hover:border-amber-300 hover:bg-amber-50"><span className="flex items-center gap-2"><Icon className="h-4 w-4 text-[#A9814A]" />{label as string}</span><ExternalLink className="h-3 w-3 text-slate-400" /></a>)}
+      <section className="firm-quick-links rounded-2xl border border-[#E1DCCF] bg-gradient-to-br from-[#fef3ee] via-[#fffdf8] to-[#eef7ff] p-5 shadow-sm">
+        <div className="mb-4 flex flex-col gap-3 border-b border-slate-200 pb-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[#E7D7BA] bg-[#fdf0d8] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[#7A5D34]">
+              <ExternalLink className="h-3.5 w-3.5" /> featured
+            </div>
+            <h2 className="font-serif text-xl font-bold text-[#16223A]">Firm quick links</h2>
+            <p className="mt-1 text-slate-500">Most-used legal portals, matter folders and daily Google Workspace tools.</p>
           </div>
-        </section>
+          <div className="flex items-center gap-2 rounded-lg border border-[#E1DCCF] bg-white px-2.5 py-2 text-[10px] font-bold text-slate-600">
+            <Globe2 className="h-3.5 w-3.5 text-[#A9814A]" /> 8 groups
+          </div>
+        </div>
 
-        <section className="rounded-xl border border-[#E1DCCF] bg-white p-5 shadow-xs xl:col-span-2">
-          <div className="mb-4 flex items-start justify-between border-b border-slate-100 pb-3"><div><h2 className="flex items-center gap-2 font-serif text-base font-bold text-[#16223A]"><Bell className="h-4 w-4 text-[#A9814A]" /> Notifications</h2><p className="mt-1 text-slate-500">Unread alerts from the existing firm notification stream.</p></div><button type="button" onClick={() => setCurrentView('logs')} className="text-[10px] font-bold text-blue-700 cursor-pointer">Open activity <ArrowRight className="inline h-3 w-3" /></button></div>
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">{urgentNotifications.length ? urgentNotifications.map((notification) => <button key={notification.id} type="button" onClick={() => notification.linkId ? openMatter(notification.linkId) : setCurrentView(notification.linkTab || 'logs')} className="rounded-lg border border-slate-100 bg-[#FAF8F2] p-3 text-left hover:border-amber-300 cursor-pointer"><div className="font-bold text-[#16223A]">{notification.title}</div><div className="mt-1 leading-relaxed text-slate-600">{notification.message}</div><div className="mt-2 font-mono text-[10px] text-slate-400">{new Date(notification.timestamp).toLocaleString('en-MY')}</div></button>) : <div className="py-6 text-slate-400">You are all caught up.</div>}</div>
-        </section>
-      </div>
+        <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+          {featuredLinks.map(({ label, url, accent }) => (
+            <a key={label} href={url} target="_blank" rel="noopener noreferrer" className={`featured-link flex items-center justify-between gap-2 rounded-xl border px-2.5 py-2 text-[11px] font-bold shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${accent}`}>
+              <span className="truncate">{label}</span>
+              <ExternalLink className="h-3 w-3 shrink-0" />
+            </a>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {quickLinkGroups.map(({ title, description, icon: Icon, tone, links }) => (
+            <div key={title} className="quick-link-card group rounded-2xl border border-[#E1DCCF] bg-gradient-to-br from-white via-[#fffdf8] to-[#f8f5ff] p-3 shadow-[0_2px_0_rgba(22,34,58,0.03)] transition duration-200 hover:-translate-y-0.5 hover:border-[#D7B77F] hover:shadow-md">
+              <div className="mb-3 flex items-start gap-2.5">
+                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${tone}`}><Icon className="h-4 w-4" /></span>
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-serif text-sm font-bold text-[#16223A]">{title}</h3>
+                  <p className="mt-0.5 text-[10px] leading-relaxed text-slate-500">{description}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-1.5">
+                {links.map((link) => (
+                  <a key={link.label} href={link.url} target="_blank" rel="noopener noreferrer" className="group/link flex min-w-0 items-center justify-between gap-2 rounded-lg border border-slate-200 bg-gradient-to-r from-white to-[#fffaf2] px-2.5 py-2 text-[11px] font-bold text-[#16223A] transition hover:border-[#A9814A] hover:from-[#fffaf2] hover:to-[#fdf1e7]">
+                    <span className="truncate">{link.label}</span>
+                    <ExternalLink className="h-3 w-3 shrink-0 text-slate-400 transition group-hover/link:text-[#A9814A]" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
     </div>
   );
 };
