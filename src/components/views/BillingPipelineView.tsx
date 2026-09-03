@@ -12,7 +12,7 @@ import {
 } from '../../lib/billingEngine';
 import {
   Plus, Search, ArrowRight, FileText, Receipt as ReceiptIcon, Trash2,
-  ChevronDown, ChevronUp, BadgeCheck, Calculator, Landmark, X, Printer,
+  ChevronDown, ChevronUp, BadgeCheck, Calculator, Landmark, X, Printer, Sparkles,
 } from 'lucide-react';
 
 const fmt = (n: number) => `RM ${n.toLocaleString('en-MY', { minimumFractionDigits: 2 })}`;
@@ -340,6 +340,7 @@ const NewDocumentModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [autoSource, setAutoSource] = useState<string>('');
   const [breakdown, setBreakdown] = useState<{ tier: string; rate: string; fee: number }[]>([]);
   const [showBreakdown, setShowBreakdown] = useState(false);
+  const [isAiDrafting, setIsAiDrafting] = useState(false);
 
   const [items, setItems] = useState<QuotationLineItem[]>([{ ...BLANK_ITEM }]);
   const totals = computeTotals(items);
@@ -360,6 +361,40 @@ const NewDocumentModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       setAutoSource(r.source === 'Template' ? 'Firm template (matched level + stage)' : `Fee matrix: ${courtLevel} × ${stage}`);
     } else {
       showToast('Manual entry — add your own line items below');
+    }
+  };
+
+  const aiDraft = async () => {
+    const client = clients.find((c) => c.id === clientId);
+    const linkedCase = cases.find((c) => c.id === caseId);
+    setIsAiDrafting(true);
+    try {
+      const res = await fetch('/api/ai/draft-billing-items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          practiceArea,
+          clientName: client?.name || '',
+          matterTitle: linkedCase?.title || '',
+          matterRef: linkedCase?.ref || '',
+          courtLevel: practiceArea === 'Civil Litigation' ? courtLevel : undefined,
+          stage: practiceArea === 'Civil Litigation' ? stage : undefined,
+          subtype: practiceArea === 'Conveyancing' ? convSubtype : undefined,
+          consideration: practiceArea === 'Conveyancing' ? consideration : undefined,
+          hint: notes || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'AI request failed');
+      if (!data.items?.length) throw new Error('AI returned no items');
+      setItems(data.items);
+      setBreakdown([]);
+      setAutoSource('Gemini AI draft — review & adjust before saving');
+      showToast('AI drafted line items — review amounts before saving');
+    } catch (err: any) {
+      showToast(err?.message?.includes('GEMINI_API_KEY') ? 'AI not configured — ask admin to set GEMINI_API_KEY' : 'AI drafting unavailable right now');
+    } finally {
+      setIsAiDrafting(false);
     }
   };
 
@@ -530,6 +565,13 @@ const NewDocumentModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
               <button onClick={autoFill} className="flex items-center gap-1.5 rounded-lg bg-[#A9814A] px-3 py-1.5 text-[11px] font-bold text-white hover:bg-[#8f6d3f] cursor-pointer">
                 <Calculator className="h-3.5 w-3.5" /> Auto-Fill
+              </button>
+              <button
+                onClick={aiDraft}
+                disabled={isAiDrafting}
+                className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 px-3 py-1.5 text-[11px] font-bold text-white hover:from-violet-700 hover:to-indigo-700 disabled:opacity-50 cursor-pointer"
+              >
+                <Sparkles className="h-3.5 w-3.5" /> {isAiDrafting ? 'Drafting…' : 'AI Draft'}
               </button>
             </div>
 

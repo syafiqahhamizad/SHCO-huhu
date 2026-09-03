@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
+import { GoogleGenAI } from '@google/genai';
 
 async function startServer() {
   const app = express();
@@ -80,6 +81,67 @@ async function startServer() {
       ],
       createdAt: new Date().toISOString(),
     });
+  });
+
+  // ================= Gemini AI — billing description drafter =================
+  // POST /api/ai/draft-billing-items
+  // Body: { practiceArea, clientName, matterTitle, matterRef, courtLevel?, stage?, subtype?, consideration?, hint? }
+  // Returns: { items: [{ description, category, amount }] }
+  app.post('/api/ai/draft-billing-items', async (req, res) => {
+    try {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        res.status(503).json({ error: 'GEMINI_API_KEY is not configured on the server.' });
+        return;
+      }
+      const { practiceArea, clientName, matterTitle, matterRef, courtLevel, stage, subtype, consideration, hint } = req.body || {};
+
+      const ai = new GoogleGenAI({ apiKey });
+      const prompt = `You are the billing clerk of a Malaysian law firm (Syafiqah Hamizad & Co).
+Draft professional billing line items for a ${practiceArea || 'legal'} matter.
+
+Context:
+- Client: ${clientName || 'Client'}
+- Matter: ${matterTitle || 'General matter'} ${matterRef ? `(ref ${matterRef})` : ''}
+${subtype ? `- Conveyancing type: ${subtype}\n` : ''}${courtLevel ? `- Court level: ${courtLevel}\n` : ''}${stage ? `- Stage: ${stage}\n` : ''}${consideration ? `- Consideration/loan amount: RM ${consideration}\n` : ''}${hint ? `- Partner instruction: ${hint}\n` : ''}
+Rules:
+- Produce 2 to 6 line items.
+- category must be exactly one of: "Fee - Fixed", "Fee - SRO", "Disbursement", "Reimbursement".
+- Professional fees go under "Fee - Fixed" or "Fee - SRO".
+- Court fees, stamp duty, search fees go under "Disbursement".
+- Photocopy/courier/travel go under "Reimbursement".
+- amount is a number in MYR, no currency symbols. Use 0 for amounts the firm will fill in manually.
+- Descriptions must sound like a real Malaysian legal bill (formal, specific).
+
+Respond with ONLY valid JSON in this exact shape, no markdown:
+{"items":[{"description":"...","category":"Fee - Fixed","amount":0}]}`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+      });
+
+      const text = (response.text || '').trim();
+      const jsonStart = text.indexOf('{');
+      const jsonEnd = text.lastIndexOf('}');
+      if (jsonStart === -1 || jsonEnd === -1) throw new Error('AI returned non-JSON');
+      const parsed = JSON.parse(text.slice(jsonStart, jsonEnd + 1));
+
+      const validCategories = ['Fee - Fixed', 'Fee - SRO', 'Disbursement', 'Reimbursement'];
+      const items = (parsed.items || [])
+        .filter((i: any) => i && typeof i.description === 'string')
+        .map((i: any) => ({
+          description: String(i.description).slice(0, 200),
+          category: validCategories.includes(i.category) ? i.category : 'Fee - Fixed',
+          amount: Number(i.amount) >= 0 ? Number(i.amount) : 0,
+        }))
+        .slice(0, 6);
+
+      res.json({ items });
+    } catch (err: any) {
+      console.error('AI draft error:', err);
+      res.status(500).json({ error: err?.message || 'AI drafting failed' });
+    }
   });
 
   // Disable aggressive caching so browser preview always loads fresh app state
