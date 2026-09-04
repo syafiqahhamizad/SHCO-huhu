@@ -1150,11 +1150,17 @@ export const SimplifiedAccountingView: React.FC = () => {
 
   // =============== REPORTS TAB ===============
   const ReportsTab = () => {
+    const officeExpenses = expenses.filter((expense) => expense.accountSet !== 'CLIENT');
+    const clientExpenses = expenses.filter((expense) => expense.accountSet === 'CLIENT');
     const totalSales = invoices.reduce((sum, i) => sum + i.total, 0);
-    const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+    const totalExpenses = officeExpenses.reduce((sum, e) => sum + e.amount, 0);
+    const totalClientDisbursements = clientExpenses.reduce((sum, e) => sum + e.amount, 0);
     const totalPayments = payments.reduce((sum, p) => sum + p.amount, 0);
-    const totalBankBalance = bankAccounts
-      .filter((a) => a.status === 'Active')
+    const officeBankBalance = bankAccounts
+      .filter((a) => a.status === 'Active' && a.type === 'Office')
+      .reduce((sum, a) => sum + a.currentBalance, 0);
+    const trustBankBalance = bankAccounts
+      .filter((a) => a.status === 'Active' && a.type === 'Trust')
       .reduce((sum, a) => sum + a.currentBalance, 0);
 
     const netProfit = totalSales - totalExpenses;
@@ -1168,22 +1174,22 @@ export const SimplifiedAccountingView: React.FC = () => {
       <div className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
-            <div className="text-xs font-semibold text-blue-600 uppercase">Total Income</div>
+            <div className="text-xs font-semibold text-blue-600 uppercase">Fee Income</div>
             <div className="font-mono text-2xl font-bold text-blue-900 mt-1">
               {formatCurrency(totalSales)}
             </div>
             <div className="text-slate-500 text-xs mt-2">
-              {invoices.length} invoices issued
+              {invoices.length} fee invoices issued
             </div>
           </div>
 
           <div className="rounded-lg bg-red-50 border border-red-200 p-4">
-            <div className="text-xs font-semibold text-red-600 uppercase">Total Expenses</div>
+            <div className="text-xs font-semibold text-red-600 uppercase">Office Operating Expenses</div>
             <div className="font-mono text-2xl font-bold text-red-900 mt-1">
               {formatCurrency(totalExpenses)}
             </div>
             <div className="text-slate-500 text-xs mt-2">
-              {expenses.length} expense entries
+              {officeExpenses.length} office expense entries
             </div>
           </div>
 
@@ -1195,7 +1201,7 @@ export const SimplifiedAccountingView: React.FC = () => {
             <div className={`text-xs font-semibold uppercase ${
               netProfit >= 0 ? 'text-emerald-600' : 'text-red-600'
             }`}>
-              Net Profit
+              Office Net Operating Result
             </div>
             <div className={`font-mono text-2xl font-bold mt-1 ${
               netProfit >= 0 ? 'text-emerald-900' : 'text-red-900'
@@ -1205,12 +1211,23 @@ export const SimplifiedAccountingView: React.FC = () => {
           </div>
 
           <div className="rounded-lg bg-slate-900 border border-slate-800 p-4 text-white">
-            <div className="text-xs font-semibold text-slate-300 uppercase">Bank Balance</div>
+            <div className="text-xs font-semibold text-slate-300 uppercase">Office Bank Balance</div>
             <div className="font-mono text-2xl font-bold text-white mt-1">
-              {formatCurrency(totalBankBalance)}
+              {formatCurrency(officeBankBalance)}
             </div>
             <div className="text-slate-400 text-xs mt-2">
-              {bankAccounts.filter((a) => a.status === 'Active').length} active accounts
+              {bankAccounts.filter((a) => a.status === 'Active' && a.type === 'Office').length} office accounts
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+          <div className="text-xs font-semibold uppercase text-emerald-800">Client Trust Control (SAR 1990)</div>
+          <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-xs text-emerald-900">Trust funds and client disbursements remain outside office income and profit reporting.</div>
+            <div className="font-mono text-sm font-bold text-emerald-900 sm:text-right">
+              {formatCurrency(trustBankBalance)} trust balance
+              <div className="font-sans text-[10px] font-normal">{formatCurrency(totalClientDisbursements)} client disbursements</div>
             </div>
           </div>
         </div>
