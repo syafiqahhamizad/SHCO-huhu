@@ -16,6 +16,7 @@ import { ClientsView } from './components/views/ClientsView';
 import { CasesView } from './components/views/CasesView';
 import { QuotationsView } from './components/views/QuotationsView';
 import { ClientPortalView } from './components/views/ClientPortalView';
+import { AIAgentView } from './components/views/AIAgentView';
 
 import {
   HearingsView,
@@ -214,6 +215,9 @@ const MainContent: React.FC = () => {
       case 'firm-settings':
       case 'settings':
         return <SettingsView />;
+      case 'aiAgent':
+      case 'ai-agent':
+        return <AIAgentView />;
       case 'about':
         return <AboutAppView />;
       case 'account':

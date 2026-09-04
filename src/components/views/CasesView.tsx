@@ -1719,32 +1719,52 @@ export const CasesView: React.FC = () => {
     showToast('Legal research note saved & archived to Central Research Library!');
   };
 
-  const handleGenerateAiMeetingNote = (e: React.FormEvent) => {
+  const handleGenerateAiMeetingNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCase || !rawMeetingTranscript.trim()) return;
 
     setIsGeneratingAiMeeting(true);
 
-    setTimeout(() => {
+    try {
+      const response = await fetch('/api/ai/meeting-summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transcript: rawMeetingTranscript,
+          caseTitle: selectedCase.title,
+          clientName: selectedCase.clientName || 'Client',
+          meetingDate: new Date().toISOString().slice(0, 10),
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'AI meeting summary failed.');
+      }
+
       const gdocUrl = `https://docs.google.com/document/d/ai-gen-${Date.now()}`;
       const newM: MeetingNote = {
         id: `MN-${Date.now()}`,
         date: new Date().toISOString().slice(0, 10),
         ourLawyers: 'Syafiqah Hamizad & Amer Haiqal',
         clientAttendees: selectedCase.clientName || 'Client',
-        meetingNotes: `[AI Summarized Transcript]\n${rawMeetingTranscript.slice(0, 300)}...\n\nDiscussion Points:\n1. Reviewed key evidence and pleadings for court filing.\n2. Addressed client questions regarding timeline and court directions.\n3. Confirmed legal strategy and affidavits preparation.`,
-        decisions: 'Agreed to file Affidavit in Reply by next Friday. Client approved draft settlement terms.',
+        meetingNotes: `[AI Summarized Transcript]\n${data.summary || 'No summary generated.'}\n\nKey Decisions:\n${data.decisions || 'No decisions recorded.'}\n\nNext Steps:\n${data.nextSteps || 'No next steps identified.'}\n\nRisks:\n${data.risks || 'No material risks identified.'}`,
+        decisions: data.decisions || 'No decisions recorded.',
         recordedBy: currentPartnerCode,
         gdriveDocUrl: gdocUrl,
         isAiGenerated: true,
       };
 
       updateCase(selectedCase.id, { meetingNotes: [newM, ...(selectedCase.meetingNotes || [])] });
-      setIsGeneratingAiMeeting(false);
       setIsAiMeetingModalOpen(false);
       setRawMeetingTranscript('');
-      showToast('AI Meeting Notes generated & saved to Google Drive folder!');
-    }, 800);
+      showToast('AI meeting summary generated and saved to the case timeline.');
+    } catch (error: any) {
+      console.error('Meeting summary generation failed:', error);
+      showToast(error?.message || 'AI meeting summary is unavailable right now.');
+    } finally {
+      setIsGeneratingAiMeeting(false);
+    }
   };
 
   const handleSaveService = (e: React.FormEvent) => {

@@ -144,6 +144,113 @@ Respond with ONLY valid JSON in this exact shape, no markdown:
     }
   });
 
+  // ================= Gemini AI — legal assistant and meeting summarizer =================
+  app.post('/api/ai/assistant', async (req, res) => {
+    try {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        res.status(503).json({ error: 'GEMINI_API_KEY is not configured on the server.' });
+        return;
+      }
+
+      const { prompt, mode = 'general', context = '' } = req.body || {};
+      const userInput = typeof prompt === 'string' ? prompt.trim() : '';
+      if (!userInput) {
+        res.status(400).json({ error: 'A prompt is required.' });
+        return;
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
+      const modeInstruction = {
+        general: 'You are a legal operations assistant for a Malaysian law firm. Help with summaries, drafting, task planning, and risk review in clear professional language.',
+        meeting: 'You are a legal meeting assistant. Turn raw meeting transcript notes into a concise meeting summary with key issues, decisions, risks, and next steps.',
+        task: 'You are a legal workflow planner. Break the request into practical tasks, owners, and sequencing.',
+        email: 'You are a legal communication assistant. Draft clear, professional client or internal emails. Keep tone formal and concise.',
+        review: 'You are a legal case review assistant. Highlight risks, missing items, and recommended next steps for the matter.',
+      }[mode as keyof typeof modeInstruction] || 'You are a legal operations assistant.';
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: `${modeInstruction}\n\nContext:\n${context || 'No extra context provided.'}\n\nUser request:\n${userInput}`,
+      });
+
+      const text = String(response.text || '').trim();
+      if (!text) {
+        throw new Error('AI returned no response text.');
+      }
+
+      res.json({
+        reply: text,
+        mode,
+        generatedAt: new Date().toISOString(),
+      });
+    } catch (err: any) {
+      console.error('AI assistant error:', err);
+      res.status(500).json({ error: err?.message || 'AI assistant failed' });
+    }
+  });
+
+  app.post('/api/ai/meeting-summary', async (req, res) => {
+    try {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        res.status(503).json({ error: 'GEMINI_API_KEY is not configured on the server.' });
+        return;
+      }
+
+      const { transcript, caseTitle, clientName, meetingDate } = req.body || {};
+      const rawTranscript = typeof transcript === 'string' ? transcript.trim() : '';
+      if (!rawTranscript) {
+        res.status(400).json({ error: 'Meeting transcript is required.' });
+        return;
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
+      const prompt = `You are a legal assistant for a Malaysian law firm. Summarize the meeting transcript into a formal internal meeting record.
+
+Matter: ${caseTitle || 'General matter'}
+Client: ${clientName || 'Client'}
+Meeting date: ${meetingDate || new Date().toISOString().slice(0, 10)}
+
+Transcript:
+${rawTranscript}
+
+Return valid JSON only in this exact schema:
+{
+  "summary": "Short, professional summary of the meeting",
+  "decisions": "Main decisions and agreed actions",
+  "nextSteps": "Ordered list of next steps as bullet points",
+  "risks": "Key legal or commercial risks, if any"
+}
+
+Do not add markdown fences or extra text.`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+      });
+
+      const text = String(response.text || '').trim();
+      const jsonStart = text.indexOf('{');
+      const jsonEnd = text.lastIndexOf('}');
+      if (jsonStart === -1 || jsonEnd === -1) {
+        throw new Error('AI returned a non-JSON response.');
+      }
+
+      const parsed = JSON.parse(text.slice(jsonStart, jsonEnd + 1));
+      res.json({
+        summary: parsed.summary || 'Summary not generated.',
+        decisions: parsed.decisions || 'No decisions recorded.',
+        nextSteps: parsed.nextSteps || 'No next steps identified.',
+        risks: parsed.risks || 'No material risks identified.',
+        generatedAt: new Date().toISOString(),
+      });
+    } catch (err: any) {
+      console.error('AI meeting summary error:', err);
+      res.status(500).json({ error: err?.message || 'Meeting summary generation failed' });
+    }
+  });
+
   // Disable aggressive caching so browser preview always loads fresh app state
   app.use((req, res, next) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');

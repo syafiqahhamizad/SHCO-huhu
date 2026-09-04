@@ -42,6 +42,33 @@ export async function signInStaffWithGoogle(): Promise<User> {
   return result.user;
 }
 
+export async function getCurrentFirebaseAccessClaims(firebaseUser: User): Promise<{
+  role: 'Partner' | 'Lawyer' | 'Assistant' | 'Reviewer' | 'Client';
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+  email: string;
+}> {
+  const tokenResult = await firebaseUser.getIdTokenResult();
+  const claims = (tokenResult.claims ?? {}) as Record<string, unknown>;
+  const roleClaim = String(claims.role ?? '').toLowerCase();
+
+  const mappedRole = (() => {
+    if (roleClaim === 'partner') return 'Partner';
+    if (roleClaim === 'lawyer') return 'Lawyer';
+    if (roleClaim === 'assistant') return 'Assistant';
+    if (roleClaim === 'reviewer') return 'Reviewer';
+    if (roleClaim === 'client') return 'Client';
+    return firebaseUser.email?.toLowerCase().endsWith('@shcolaw.com') ? 'Partner' : 'Client';
+  })();
+
+  return {
+    role: mappedRole,
+    isAdmin: Boolean(claims.admin) || Boolean(claims.superAdmin),
+    isSuperAdmin: Boolean(claims.superAdmin),
+    email: (firebaseUser.email || '').toLowerCase(),
+  };
+}
+
 export async function signInClientWithPassword(email: string, password: string): Promise<User> {
   const result = await signInWithEmailAndPassword(firebaseAuth, email.trim(), password);
   return result.user;
@@ -50,6 +77,19 @@ export async function signInClientWithPassword(email: string, password: string):
 export async function signInExternalWithPassword(email: string, password: string): Promise<User> {
   const result = await signInWithEmailAndPassword(firebaseAuth, email.trim(), password);
   return result.user;
+}
+
+export async function getCurrentFirebaseClaims(): Promise<Record<string, unknown>> {
+  const currentUser = firebaseAuth.currentUser;
+  if (!currentUser) return {};
+
+  try {
+    const tokenResult = await currentUser.getIdTokenResult();
+    return (tokenResult.claims ?? {}) as Record<string, unknown>;
+  } catch (error) {
+    console.warn('Unable to read Firebase custom claims for the current user.', error);
+    return {};
+  }
 }
 
 export async function signOutFromFirebase(): Promise<void> {

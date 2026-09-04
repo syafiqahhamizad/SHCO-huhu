@@ -21,7 +21,14 @@ export const SimplifiedAccountingCentreView: React.FC = () => {
     setCurrentView,
   } = useApp();
 
-  // Calculate key metrics
+  const trustBalance = bankAccounts
+    .filter((account) => account.type === 'Trust' && account.status === 'Active')
+    .reduce((sum, account) => sum + account.currentBalance, 0);
+
+  const officeBalance = bankAccounts
+    .filter((account) => account.type === 'Office' && account.status === 'Active')
+    .reduce((sum, account) => sum + account.currentBalance, 0);
+
   const totalInvoiced = invoices.reduce((sum, i) => sum + i.total, 0);
   const outstandingAmount = invoices
     .filter((i) => i.status !== 'Paid' && i.status !== 'Voided')
@@ -42,16 +49,15 @@ export const SimplifiedAccountingCentreView: React.FC = () => {
 
   return (
     <div className="space-y-5 text-xs animate-in fade-in duration-200 pb-4">
-      {/* Header */}
       <section className="rounded-2xl border border-[#E1DCCF] bg-[#16223A] p-6 text-white shadow-xl">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-amber-300">
-              <Building2 className="h-3.5 w-3.5" /> Simplified Finance
+              <Building2 className="h-3.5 w-3.5" /> SHCO Accounting Centre
             </div>
-            <h2 className="font-serif text-2xl font-bold">Accounting Dashboard</h2>
+            <h2 className="font-serif text-2xl font-bold">Client Trust, Office Accounts & Fee Control</h2>
             <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate-300">
-              Overview of invoices, expenses, payments, and bank accounts. Click any tab below to manage transactions.
+              SHCO law-firm accounting structure covering client trust balances, office operating accounts, fee collection, disbursement control, and compliance monitoring under SAR 1990 and internal controls.
             </p>
           </div>
           <button
@@ -59,39 +65,38 @@ export const SimplifiedAccountingCentreView: React.FC = () => {
             onClick={() => setCurrentView('invoices')}
             className="flex items-center gap-2 self-start rounded-lg bg-[#A9814A] px-3.5 py-2 font-bold text-white shadow-sm cursor-pointer md:self-auto hover:bg-[#B8925C] transition-colors"
           >
-            <DollarSign className="h-4 w-4" /> View Invoices <ArrowRight className="h-3.5 w-3.5" />
+            <DollarSign className="h-4 w-4" /> Open Invoices <ArrowRight className="h-3.5 w-3.5" />
           </button>
         </div>
       </section>
 
-      {/* Key Metrics Grid */}
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           {
-            label: 'Total Income',
-            value: formatCurrency(totalInvoiced),
-            detail: `${invoices.length} invoices`,
+            label: 'Client Trust Balance',
+            value: formatCurrency(trustBalance),
+            detail: `${bankAccounts.filter((a) => a.type === 'Trust' && a.status === 'Active').length} trust accounts`,
+            tone: 'text-emerald-800',
+            bg: 'bg-emerald-50',
+          },
+          {
+            label: 'Office Cash Position',
+            value: formatCurrency(officeBalance),
+            detail: `${bankAccounts.filter((a) => a.type === 'Office' && a.status === 'Active').length} office accounts`,
             tone: 'text-blue-800',
             bg: 'bg-blue-50',
           },
           {
-            label: 'Outstanding',
+            label: 'Outstanding Fees',
             value: formatCurrency(outstandingAmount),
-            detail: `${invoices.filter((i) => i.status !== 'Paid' && i.status !== 'Voided').length} open`,
+            detail: `${invoices.filter((i) => i.status !== 'Paid' && i.status !== 'Voided').length} open invoices`,
             tone: 'text-amber-800',
             bg: 'bg-amber-50',
           },
           {
-            label: 'Total Expenses',
-            value: formatCurrency(totalExpenses),
-            detail: `${expenses.length} entries`,
-            tone: 'text-red-800',
-            bg: 'bg-red-50',
-          },
-          {
-            label: 'Bank Balance',
+            label: 'Firm Cash Summary',
             value: formatCurrency(totalBankBalance),
-            detail: `${bankAccounts.filter((a) => a.status === 'Active').length} accounts`,
+            detail: `${bankAccounts.filter((a) => a.status === 'Active').length} active accounts`,
             tone: 'text-slate-800',
             bg: 'bg-slate-100',
           },
@@ -104,29 +109,25 @@ export const SimplifiedAccountingCentreView: React.FC = () => {
         ))}
       </section>
 
-      {/* Key Indicators */}
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* Performance Metrics */}
         <div className="rounded-xl border border-[#E1DCCF] bg-white p-5 shadow-xs">
           <h3 className="font-serif text-lg font-bold text-[#16223A] mb-4 flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-[#A9814A]" />
-            Performance Metrics
+            SHCO Finance Performance
           </h3>
           <div className="space-y-3">
             <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-              <span className="text-xs font-semibold text-slate-700">Net Profit</span>
+              <span className="text-xs font-semibold text-slate-700">Total Fees Billed</span>
+              <span className="font-mono font-bold text-blue-600">{formatCurrency(totalInvoiced)}</span>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+              <span className="text-xs font-semibold text-slate-700">Collections Rate</span>
+              <span className="font-mono font-bold text-emerald-600">{collectionRate.toFixed(1)}%</span>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+              <span className="text-xs font-semibold text-slate-700">Net Operating Result</span>
               <span className={`font-mono font-bold ${netProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                 {formatCurrency(netProfit)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-              <span className="text-xs font-semibold text-slate-700">Collection Rate</span>
-              <span className="font-mono font-bold text-blue-600">{collectionRate.toFixed(1)}%</span>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-              <span className="text-xs font-semibold text-slate-700">Expense Ratio</span>
-              <span className="font-mono font-bold text-orange-600">
-                {totalInvoiced > 0 ? ((totalExpenses / totalInvoiced) * 100).toFixed(1) : '0'}%
               </span>
             </div>
             <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
@@ -136,17 +137,16 @@ export const SimplifiedAccountingCentreView: React.FC = () => {
           </div>
         </div>
 
-        {/* Quick Access */}
         <div className="rounded-xl border border-[#E1DCCF] bg-[#FAF8F2] p-5 shadow-xs">
-          <h3 className="font-serif text-lg font-bold text-[#16223A] mb-4">Quick Access</h3>
+          <h3 className="font-serif text-lg font-bold text-[#16223A] mb-4">Core SHCO Accounting Actions</h3>
           <div className="space-y-2">
             {[
-              { label: 'Manage Invoices', icon: '📄', action: 'invoices' },
-              { label: 'Record Expenses', icon: '💰', action: 'expenses' },
-              { label: 'Log Time Entry', icon: '⏱️', action: 'time' },
-              { label: 'View Bank Accounts', icon: '🏦', action: 'banking' },
-              { label: 'Financial Reports', icon: '📊', action: 'reports' },
-              { label: 'Travel Claims', icon: '✈️', action: 'claims' },
+              { label: 'Client Trust Accounts (SAR 1990)', icon: '🏦', action: 'retainers' },
+              { label: 'Office Bank Accounts', icon: '💼', action: 'bankAccounts' },
+              { label: 'Fee Invoices', icon: '🧾', action: 'invoices' },
+              { label: 'Payments Received', icon: '💳', action: 'payments' },
+              { label: 'Claims & Reimbursements', icon: '✈️', action: 'reimbursements' },
+              { label: 'Accounting Reports', icon: '📊', action: 'reports' },
             ].map((item) => (
               <button
                 key={item.action}
@@ -162,11 +162,10 @@ export const SimplifiedAccountingCentreView: React.FC = () => {
         </div>
       </section>
 
-      {/* Status Summary */}
       <section className="rounded-xl border border-[#E1DCCF] bg-white p-5 shadow-xs">
         <div className="flex items-center gap-2 mb-4">
           <AlertCircle className="h-5 w-5 text-amber-500" />
-          <h3 className="font-serif text-lg font-bold text-[#16223A]">Current Status</h3>
+          <h3 className="font-serif text-lg font-bold text-[#16223A]">Current SHCO Finance Status</h3>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {[
@@ -177,17 +176,17 @@ export const SimplifiedAccountingCentreView: React.FC = () => {
             },
             {
               count: expenses.filter((e) => e.status === 'Pending').length,
-              label: 'Pending Expenses',
+              label: 'Pending Disbursements',
               color: 'bg-orange-50 text-orange-700 border-orange-200',
             },
             {
               count: timeEntries.filter((t) => !t.billed).length,
-              label: 'Unbilled Time Entries',
+              label: 'Unbilled Time',
               color: 'bg-purple-50 text-purple-700 border-purple-200',
             },
             {
               count: bankAccounts.filter((a) => a.status === 'Active').length,
-              label: 'Active Bank Accounts',
+              label: 'Active Accounts',
               color: 'bg-blue-50 text-blue-700 border-blue-200',
             },
           ].map((stat) => (

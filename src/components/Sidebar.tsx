@@ -157,6 +157,7 @@ export const Sidebar: React.FC = () => {
       group: 'System',
       items: [
         { id: 'users', label: 'Users & Permissions', icon: <UserCog className="w-3.5 h-3.5" />, systemOnly: true },
+        { id: 'aiAgent', label: 'AI Agent', icon: <Sparkles className="w-3.5 h-3.5 text-amber-300" /> },
         { id: 'practiceSettings', label: 'Practice Settings (SRO 2023)', icon: <Palette className="w-3.5 h-3.5" /> },
         { id: 'firmSettings', label: 'Firm Settings & Accounts', icon: <Settings className="w-3.5 h-3.5" /> },
         { id: 'logs', label: 'Activity Logs', icon: <History className="w-3.5 h-3.5" /> },

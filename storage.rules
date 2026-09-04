@@ -6,15 +6,33 @@ service firebase.storage {
       return request.auth != null;
     }
 
+    function isApprovedIdentity() {
+      return isAuthenticated() && request.auth.token.email != null &&
+        (
+          request.auth.token.email == 'syafiqahhamizad@shcolaw.com'
+        );
+    }
+
     function isFirmStaff() {
       return isAuthenticated() && request.auth.token.email != null &&
-        request.auth.token.email.matches('.*@shcolaw\\.com$');
+        request.auth.token.email.matches('.*@shcolaw\\.com$') &&
+        (
+          request.auth.token.role == 'partner' ||
+          request.auth.token.role == 'lawyer' ||
+          request.auth.token.role == 'assistant' ||
+          request.auth.token.role == 'reviewer'
+        );
+    }
+
+    function isCompanyAdmin() {
+      return isFirmStaff() && request.auth.token.approvedIdentity == true && (
+        request.auth.token.admin == true ||
+        request.auth.token.superAdmin == true
+      );
     }
 
     function isClient() {
-      return isAuthenticated() && request.auth.token.email != null &&
-        request.auth.token.email.matches('.*@.*\\.com$') &&
-        !request.auth.token.email.matches('.*@shcolaw\\.com$');
+      return isAuthenticated() && request.auth.token.role == 'client' && request.auth.token.email != null;
     }
 
     match /confidential/{allPaths=**} {
@@ -22,7 +40,8 @@ service firebase.storage {
     }
 
     match /clients/{clientId}/{allPaths=**} {
-      allow read, write: if isFirmStaff() || (isClient() && request.auth.token.email == resource.metadata.ownerEmail);
+      allow read: if isFirmStaff() || (isClient() && request.auth.token.email == resource.metadata.ownerEmail);
+      allow write: if isCompanyAdmin() || (isClient() && request.auth.uid == clientId && request.auth.token.email == request.resource.metadata.ownerEmail);
     }
 
     match /{allPaths=**} {

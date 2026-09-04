@@ -49,6 +49,8 @@ import {
   FirmAnnouncement,
 } from '../types';
 import {
+  getCurrentFirebaseAccessClaims,
+  getCurrentFirebaseClaims,
   getFirebaseAuthErrorMessage,
   signInClientWithPassword,
   signInExternalWithPassword,
@@ -299,6 +301,25 @@ function readStored<T>(key: string, fallback: T): T {
   }
 }
 
+function normalizeRoleClaim(roleValue?: string): Role {
+  const value = roleValue?.trim();
+  if (!value) return 'Partner';
+
+  const normalized = value.toLowerCase();
+  if (normalized === 'partner') return 'Partner';
+  if (normalized === 'lawyer') return 'Lawyer';
+  if (normalized === 'assistant') return 'Assistant';
+  if (normalized === 'reviewer') return 'Reviewer';
+  if (normalized === 'client') return 'Client';
+
+  return value as Role;
+}
+
+function normalizeClaimEmailList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === 'string').map((item) => item.trim().toLowerCase()).filter(Boolean);
+}
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     const loginPreviewRequested = new URLSearchParams(window.location.search).get('login') === '1';
@@ -510,17 +531,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const loginWithGoogleSSO = async (): Promise<{ success: boolean; error?: string }> => {
     try {
       const firebaseUser = await signInStaffWithGoogle();
-      const email = firebaseUser.email?.toLowerCase() || '';
+      const access = await getCurrentFirebaseAccessClaims(firebaseUser);
+      const email = access.email || firebaseUser.email?.toLowerCase() || '';
+      const claimRole = normalizeRoleClaim(String(access.role || 'Partner'));
       const existingUser = users.find((u) => u.email.toLowerCase() === email);
-      const signedInUser: User = existingUser || {
-        id: firebaseUser.uid,
-        name: firebaseUser.displayName || email.split('@')[0].replace('.', ' '),
+      const signedInUser: User = {
+        ...(existingUser || {
+          id: firebaseUser.uid,
+          name: firebaseUser.displayName || email.split('@')[0].replace('.', ' '),
+          email,
+          status: 'Active',
+        }),
+        id: existingUser?.id || firebaseUser.uid,
+        name: existingUser?.name || firebaseUser.displayName || email.split('@')[0].replace('.', ' '),
         email,
-        role: 'Partner',
-        isAdmin: true,
-        isSuperAdmin: true,
+        role: existingUser?.role || claimRole,
+        isAdmin: Boolean(existingUser ? existingUser.isAdmin || access.isAdmin : access.isAdmin),
+        isSuperAdmin: Boolean(existingUser ? existingUser.isSuperAdmin || access.isSuperAdmin : access.isSuperAdmin),
         status: 'Active',
       };
+
       if (!existingUser) setUsers((prev) => [...prev, signedInUser]);
       setCurrentUser(signedInUser);
       setCurrentRole(signedInUser.role);
@@ -550,51 +580,56 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, error: errorMsg };
     }
 
-    // Attempt Firebase authentication first
     try {
-      await signInClientWithPassword(email, passwordInput);
+      const firebaseUser = await signInClientWithPassword(email, passwordInput);
+      const access = await getCurrentFirebaseAccessClaims(firebaseUser);
+      const claimRole = normalizeRoleClaim(String(access.role || 'Client'));
+
+      if (claimRole !== 'Client') {
+        throw new Error('This account is not configured for client portal access.');
+      }
+
+      const clientName = matchedUser?.name || matchedClient?.name || 'Valued Client';
+      const clientEmail = matchedUser?.email || matchedClient?.email || email;
+      const nowStr = new Date().toISOString().slice(0, 16).replace('T', ' ');
+
+      if (matchedClient) {
+        setClients((prev) =>
+          prev.map((c) => {
+            if (c.id === matchedClient.id || c.email.toLowerCase() === email) {
+              return {
+                ...c,
+                lastLoginAt: nowStr,
+                portalAccessEnabled: true,
+              };
+            }
+            return c;
+          })
+        );
+      }
+
+      const clientSessionUser: User = matchedUser || {
+        id: matchedClient?.id || `U-client-${Date.now()}`,
+        name: clientName,
+        email: clientEmail,
+        role: 'Client',
+        isAdmin: false,
+        isSuperAdmin: false,
+        status: 'Active',
+      };
+
+      setCurrentUser(clientSessionUser);
+      setCurrentRole('Client');
+      setIsAdmin(false);
+      setIsAuthenticated(true);
+      setCurrentView('clientPortal');
+      showToast(`Welcome ${clientName}! Logged into Client Access Portal.`);
+      return { success: true };
     } catch (error) {
       const errorMsg = getFirebaseAuthErrorMessage(error);
       showToast(errorMsg);
       return { success: false, error: errorMsg };
     }
-
-    const clientName = matchedUser?.name || matchedClient?.name || 'Valued Client';
-    const clientEmail = matchedUser?.email || matchedClient?.email || email;
-    const nowStr = new Date().toISOString().slice(0, 16).replace('T', ' ');
-
-    if (matchedClient) {
-      setClients((prev) =>
-        prev.map((c) => {
-          if (c.id === matchedClient.id || c.email.toLowerCase() === email) {
-            return {
-              ...c,
-              lastLoginAt: nowStr,
-              portalAccessEnabled: true,
-            };
-          }
-          return c;
-        })
-      );
-    }
-
-    const clientSessionUser: User = matchedUser || {
-      id: matchedClient?.id || `U-client-${Date.now()}`,
-      name: clientName,
-      email: clientEmail,
-      role: 'Client',
-      isAdmin: false,
-      isSuperAdmin: false,
-      status: 'Active',
-    };
-
-    setCurrentUser(clientSessionUser);
-    setCurrentRole('Client');
-    setIsAdmin(false);
-    setIsAuthenticated(true);
-    setCurrentView('clientPortal');
-    showToast(`Welcome ${clientName}! Logged into Client Access Portal.`);
-    return { success: true };
   };
 
   const loginExternalUser = async (emailInput: string, passwordInput: string): Promise<{ success: boolean; error?: string }> => {
@@ -611,19 +646,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     try {
       await signInExternalWithPassword(email, passwordInput);
+      const claims = await getCurrentFirebaseClaims();
+      const approvedEmail = (approvedUser.email || '').toLowerCase();
+      const adminEmails = normalizeClaimEmailList(claims.adminEmails);
+      const superAdminEmails = normalizeClaimEmailList(claims.superAdminEmails);
+      const claimRole = normalizeRoleClaim(String(claims.role || approvedUser.role));
+      const effectiveUser = {
+        ...approvedUser,
+        role: claimRole,
+        isAdmin: Boolean(claims.admin || approvedUser.isAdmin) && (adminEmails.includes(approvedEmail) || superAdminEmails.includes(approvedEmail)),
+        isSuperAdmin: Boolean(claims.superAdmin || approvedUser.isSuperAdmin) && superAdminEmails.includes(approvedEmail),
+      };
+
+      setCurrentUser(effectiveUser);
+      setCurrentRole(effectiveUser.role);
+      setIsAdmin(Boolean(effectiveUser.isAdmin));
+      setIsAuthenticated(true);
+      setCurrentView('firmStartCentre');
+      showToast(`Welcome, ${effectiveUser.name}.`);
+      return { success: true };
     } catch (error) {
       const errorMsg = getFirebaseAuthErrorMessage(error);
       showToast(errorMsg);
       return { success: false, error: errorMsg };
     }
-
-    setCurrentUser(approvedUser);
-    setCurrentRole(approvedUser.role);
-    setIsAdmin(false);
-    setIsAuthenticated(true);
-    setCurrentView('firmStartCentre');
-    showToast(`Welcome, ${approvedUser.name}.`);
-    return { success: true };
   };
 
   const logoutUser = async () => {

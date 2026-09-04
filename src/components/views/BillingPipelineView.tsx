@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Quotation, QuotationLineItem, Invoice } from '../../types';
+import { GoogleGenAI } from '@google/genai';
 import {
   computeTotals,
   nextDocNumber,
@@ -369,30 +370,48 @@ const NewDocumentModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const linkedCase = cases.find((c) => c.id === caseId);
     setIsAiDrafting(true);
     try {
-      const res = await fetch('/api/ai/draft-billing-items', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          practiceArea,
-          clientName: client?.name || '',
-          matterTitle: linkedCase?.title || '',
-          matterRef: linkedCase?.ref || '',
-          courtLevel: practiceArea === 'Civil Litigation' ? courtLevel : undefined,
-          stage: practiceArea === 'Civil Litigation' ? stage : undefined,
-          subtype: practiceArea === 'Conveyancing' ? convSubtype : undefined,
-          consideration: practiceArea === 'Conveyancing' ? consideration : undefined,
-          hint: notes || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'AI request failed');
-      if (!data.items?.length) throw new Error('AI returned no items');
-      setItems(data.items);
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
+      if (!apiKey) throw new Error('GEMINI_API_KEY');
+
+      const ai = new GoogleGenAI({ apiKey });
+      const prompt = `You are the billing clerk of a Malaysian law firm (Syafiqah Hamizad & Co).
+Draft professional billing line items for a ${practiceArea || 'legal'} matter.
+
+Context:
+- Client: ${client?.name || 'Client'}
+- Matter: ${linkedCase?.title || 'General matter'} ${linkedCase?.ref ? `(ref ${linkedCase.ref})` : ''}
+${practiceArea === 'Conveyancing' ? `- Conveyancing type: ${convSubtype}\n- Consideration/loan amount: RM ${consideration}\n` : ''}${practiceArea === 'Civil Litigation' ? `- Court level: ${courtLevel}\n- Stage: ${stage}\n` : ''}${notes ? `- Partner instruction: ${notes}\n` : ''}
+Rules:
+- Produce 2 to 6 line items.
+- category must be exactly one of: "Fee - Fixed", "Fee - SRO", "Disbursement", "Reimbursement".
+- Professional fees go under "Fee - Fixed" or "Fee - SRO".
+- Court fees, stamp duty, search fees go under "Disbursement".
+- Photocopy/courier/travel go under "Reimbursement".
+- amount is a number in MYR, no currency symbols. Use 0 for amounts the firm will fill in manually.
+- Descriptions must sound like a real Malaysian legal bill (formal, specific).
+
+Respond with ONLY valid JSON in this exact shape, no markdown:
+{"items":[{"description":"...","category":"Fee - Fixed","amount":0}]}`;
+
+      const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
+      const text = (response.text || '').trim();
+      const parsed = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1));
+      const valid = ['Fee - Fixed', 'Fee - SRO', 'Disbursement', 'Reimbursement'];
+      const drafted: QuotationLineItem[] = (parsed.items || [])
+        .filter((i: any) => i?.description)
+        .map((i: any) => ({
+          description: String(i.description).slice(0, 200),
+          category: valid.includes(i.category) ? i.category : 'Fee - Fixed',
+          amount: Number(i.amount) >= 0 ? Number(i.amount) : 0,
+        }))
+        .slice(0, 6);
+      if (!drafted.length) throw new Error('AI returned no items');
+      setItems(drafted);
       setBreakdown([]);
       setAutoSource('Gemini AI draft — review & adjust before saving');
       showToast('AI drafted line items — review amounts before saving');
     } catch (err: any) {
-      showToast(err?.message?.includes('GEMINI_API_KEY') ? 'AI not configured — ask admin to set GEMINI_API_KEY' : 'AI drafting unavailable right now');
+      showToast(err?.message === 'GEMINI_API_KEY' ? 'AI not configured — set VITE_GEMINI_API_KEY' : 'AI drafting unavailable right now');
     } finally {
       setIsAiDrafting(false);
     }
