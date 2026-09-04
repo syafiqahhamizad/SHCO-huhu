@@ -20,9 +20,16 @@
       }
     ]
   },
-  "functions": {
-    "source": "functions"
-  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default"
+    },
+    {
+      "source": "functions-user",
+      "codebase": "user"
+    }
+  ],
   "firestore": {
     "rules": "firestore.rules"
   },
