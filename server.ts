@@ -44,7 +44,8 @@ async function startServer() {
 
       const caller = await auth.verifyIdToken(idToken);
       const callerEmail = String(caller.email || '').toLowerCase();
-      if (callerEmail !== SUPER_ADMIN_EMAIL || caller.superAdmin !== true || caller.approvedIdentity !== true) {
+      if (callerEmail !== SUPER_ADMIN_EMAIL || caller.email_verified !== true ||
+        (caller.superAdmin !== true && caller.approvedIdentity !== true)) {
         res.status(403).json({ error: 'Only the approved Super Admin can create user accounts.' });
         return;
       }

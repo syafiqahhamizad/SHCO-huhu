@@ -16,19 +16,24 @@ service cloud.firestore {
     function isFirmUser() {
       return isSignedIn() &&
         request.auth.token.email != null &&
+        request.auth.token.email_verified == true &&
         request.auth.token.email.matches('.*@shcolaw\\.com$') &&
-        (
+        (request.auth.token.email == 'syafiqahhamizad@shcolaw.com' || (
           request.auth.token.role == 'partner' ||
           request.auth.token.role == 'lawyer' ||
           request.auth.token.role == 'assistant' ||
           request.auth.token.role == 'reviewer'
-        );
+        ));
     }
 
     function isAdmin() {
-      return isFirmUser() && request.auth.token.approvedIdentity == true && (
+      return isFirmUser() && (
+        request.auth.token.email == 'syafiqahhamizad@shcolaw.com' ||
+        request.auth.token.approvedIdentity == true
+      ) && (
         request.auth.token.admin == true ||
-        request.auth.token.superAdmin == true
+        request.auth.token.superAdmin == true ||
+        request.auth.token.email == 'syafiqahhamizad@shcolaw.com'
       );
     }
 

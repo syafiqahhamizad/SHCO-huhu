@@ -32,6 +32,8 @@ googleProvider.setCustomParameters({
   prompt: 'select_account',
 });
 
+export const SHCO_SUPER_ADMIN_EMAIL = 'syafiqahhamizad@shcolaw.com';
+
 export async function signInStaffWithGoogle(): Promise<User> {
   const result = await signInWithPopup(firebaseAuth, googleProvider);
   const email = result.user.email?.toLowerCase() || '';
@@ -51,6 +53,7 @@ export async function getCurrentFirebaseAccessClaims(firebaseUser: User): Promis
   const tokenResult = await firebaseUser.getIdTokenResult();
   const claims = (tokenResult.claims ?? {}) as Record<string, unknown>;
   const roleClaim = String(claims.role ?? '').toLowerCase();
+  const isVerifiedOwner = firebaseUser.email?.toLowerCase() === SHCO_SUPER_ADMIN_EMAIL && firebaseUser.emailVerified;
 
   const mappedRole = (() => {
     if (roleClaim === 'partner') return 'Partner';
@@ -58,7 +61,7 @@ export async function getCurrentFirebaseAccessClaims(firebaseUser: User): Promis
     if (roleClaim === 'assistant') return 'Assistant';
     if (roleClaim === 'reviewer') return 'Reviewer';
     if (roleClaim === 'client') return 'Client';
-    return null;
+    return isVerifiedOwner ? 'Partner' : null;
   })();
 
   if (!mappedRole) {
@@ -67,8 +70,8 @@ export async function getCurrentFirebaseAccessClaims(firebaseUser: User): Promis
 
   return {
     role: mappedRole,
-    isAdmin: Boolean(claims.admin) || Boolean(claims.superAdmin),
-    isSuperAdmin: Boolean(claims.superAdmin),
+    isAdmin: isVerifiedOwner || Boolean(claims.admin) || Boolean(claims.superAdmin),
+    isSuperAdmin: isVerifiedOwner || Boolean(claims.superAdmin),
     email: (firebaseUser.email || '').toLowerCase(),
   };
 }
