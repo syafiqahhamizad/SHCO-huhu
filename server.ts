@@ -1,7 +1,21 @@
 import express from 'express';
 import path from 'path';
+import { randomUUID } from 'node:crypto';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
+import { cert, getApps, initializeApp } from 'firebase-admin/app';
+import { getAuth as getAdminAuth } from 'firebase-admin/auth';
+
+const SUPER_ADMIN_EMAIL = 'syafiqahhamizad@shcolaw.com';
+
+function getFirebaseAdminAuth() {
+  if (getApps().length === 0) {
+    const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
+    if (!serviceAccountJson) return null;
+    initializeApp({ credential: cert(JSON.parse(serviceAccountJson)) });
+  }
+  return getAdminAuth();
+}
 
 async function startServer() {
   const app = express();
@@ -12,6 +26,74 @@ async function startServer() {
   // Health check endpoint
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
+  app.post('/api/admin/users', async (req, res) => {
+    try {
+      const authorization = req.headers.authorization || '';
+      const idToken = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
+      const auth = getFirebaseAdminAuth();
+      if (!auth) {
+        res.status(503).json({ error: 'Firebase Admin is not configured on the server.' });
+        return;
+      }
+      if (!idToken) {
+        res.status(401).json({ error: 'Firebase authentication is required.' });
+        return;
+      }
+
+      const caller = await auth.verifyIdToken(idToken);
+      const callerEmail = String(caller.email || '').toLowerCase();
+      if (callerEmail !== SUPER_ADMIN_EMAIL || caller.superAdmin !== true || caller.approvedIdentity !== true) {
+        res.status(403).json({ error: 'Only the approved Super Admin can create user accounts.' });
+        return;
+      }
+
+      const { name, email, role, isAdmin = false, isSuperAdmin = false } = req.body || {};
+      const normalizedEmail = String(email || '').trim().toLowerCase();
+      const normalizedRole = String(role || '').trim().toLowerCase();
+      const allowedRoles = new Set(['partner', 'lawyer', 'assistant', 'reviewer', 'client']);
+      if (!String(name || '').trim() || !normalizedEmail || !allowedRoles.has(normalizedRole)) {
+        res.status(400).json({ error: 'Name, email, and a valid role are required.' });
+        return;
+      }
+      if (normalizedRole !== 'client' && !normalizedEmail.endsWith('@shcolaw.com')) {
+        res.status(400).json({ error: 'Firm staff accounts must use an @shcolaw.com email.' });
+        return;
+      }
+      if (Boolean(isSuperAdmin) && normalizedEmail !== SUPER_ADMIN_EMAIL) {
+        res.status(400).json({ error: 'Super Admin access is reserved for the approved identity.' });
+        return;
+      }
+
+      const temporaryPassword = `${randomUUID().replace(/-/g, '').slice(0, 12)}Aa!`;
+      const createdUser = await auth.createUser({
+        displayName: String(name).trim(),
+        email: normalizedEmail,
+        password: temporaryPassword,
+        disabled: false,
+      });
+      await auth.setCustomUserClaims(createdUser.uid, {
+        role: normalizedRole,
+        admin: Boolean(isAdmin) && normalizedEmail === SUPER_ADMIN_EMAIL,
+        superAdmin: Boolean(isSuperAdmin) && normalizedEmail === SUPER_ADMIN_EMAIL,
+        approvedIdentity: normalizedEmail === SUPER_ADMIN_EMAIL,
+        portalAccess: normalizedRole === 'client',
+      });
+
+      res.status(201).json({
+        id: createdUser.uid,
+        email: normalizedEmail,
+        temporaryPassword,
+      });
+    } catch (error: any) {
+      if (error?.code === 'auth/email-already-exists') {
+        res.status(409).json({ error: 'A Firebase account already exists for this email.' });
+        return;
+      }
+      console.error('User provisioning failed:', error);
+      res.status(500).json({ error: 'Unable to create the Firebase user account.' });
+    }
   });
 
   // Google Drive folder categorization map definition

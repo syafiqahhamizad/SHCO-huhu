@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Role } from '../../types';
 import { getPracticeSettings, DEFAULT_PRACTICE_SETTINGS } from '../../services/templateService';
+import { provisionFirebaseUser } from '../../services/firebaseAuthService';
 import {
   Share2,
   Shield,
@@ -122,7 +123,7 @@ export const UsersManagementView: React.FC = () => {
 
   const ALL_ROLES: Role[] = ['Partner', 'Lawyer', 'Assistant', 'Reviewer', 'Client', ...customRoles];
 
-  const handleAddUserSubmit = (e: React.FormEvent) => {
+  const handleAddUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim() || !newEmail.trim()) {
       showToast('Name and Email are required');
@@ -135,24 +136,36 @@ export const UsersManagementView: React.FC = () => {
       return;
     }
 
-    const newUser = {
-      id: `U-${Date.now()}`,
-      name: newName.trim(),
-      email: newEmail.trim().toLowerCase(),
-      role: newRole,
-      isAdmin: newIsAdmin,
-      isSuperAdmin: newIsSuperAdmin,
-      status: 'Active' as const,
-    };
+    try {
+      const provisioned = await provisionFirebaseUser({
+        name: newName.trim(),
+        email: newEmail.trim().toLowerCase(),
+        role: newRole,
+        isAdmin: newIsAdmin,
+        isSuperAdmin: newIsSuperAdmin,
+      });
+      const newUser = {
+        id: provisioned.id,
+        name: newName.trim(),
+        email: newEmail.trim().toLowerCase(),
+        role: newRole,
+        isAdmin: newIsAdmin,
+        isSuperAdmin: newIsSuperAdmin,
+        status: 'Active' as const,
+      };
 
-    const success = addUser(newUser);
-    if (success) {
-      setIsAddModalOpen(false);
-      setNewName('');
-      setNewEmail('');
-      setNewRole('Lawyer');
-      setNewIsAdmin(false);
-      setNewIsSuperAdmin(false);
+      const success = addUser(newUser);
+      if (success) {
+        setIsAddModalOpen(false);
+        setNewName('');
+        setNewEmail('');
+        setNewRole('Lawyer');
+        setNewIsAdmin(false);
+        setNewIsSuperAdmin(false);
+        window.alert(`Firebase account created.\n\nEmail: ${provisioned.email}\nTemporary password: ${provisioned.temporaryPassword}\n\nGive this password securely to the new user and ask them to change it after signing in.`);
+      }
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to create the Firebase user account.');
     }
   };
 

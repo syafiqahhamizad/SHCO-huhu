@@ -1,6 +1,5 @@
 {
   "hosting": {
-    "site": "gen-lang-client-0565207218",
     "public": "dist",
     "ignore": [
       "firebase.json",
@@ -12,20 +11,6 @@
         "source": "/api/ai/draft-billing-items",
         "function": {
           "functionId": "draftBillingItems",
-          "region": "asia-southeast1"
-        }
-      },
-      {
-        "source": "/api/ai/assistant",
-        "function": {
-          "functionId": "aiAssistant",
-          "region": "asia-southeast1"
-        }
-      },
-      {
-        "source": "/api/ai/meeting-summary",
-        "function": {
-          "functionId": "meetingSummary",
           "region": "asia-southeast1"
         }
       },

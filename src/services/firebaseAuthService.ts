@@ -58,8 +58,12 @@ export async function getCurrentFirebaseAccessClaims(firebaseUser: User): Promis
     if (roleClaim === 'assistant') return 'Assistant';
     if (roleClaim === 'reviewer') return 'Reviewer';
     if (roleClaim === 'client') return 'Client';
-    return firebaseUser.email?.toLowerCase().endsWith('@shcolaw.com') ? 'Partner' : 'Client';
+    return null;
   })();
+
+  if (!mappedRole) {
+    throw new Error('This Firebase account has no valid SHCO role. Ask the Super Admin to provision the account.');
+  }
 
   return {
     role: mappedRole,
@@ -72,6 +76,36 @@ export async function getCurrentFirebaseAccessClaims(firebaseUser: User): Promis
 export async function signInClientWithPassword(email: string, password: string): Promise<User> {
   const result = await signInWithEmailAndPassword(firebaseAuth, email.trim(), password);
   return result.user;
+}
+
+export async function provisionFirebaseUser(input: {
+  name: string;
+  email: string;
+  role: string;
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+}): Promise<{ id: string; email: string; temporaryPassword: string }> {
+  const currentUser = firebaseAuth.currentUser;
+  if (!currentUser) throw new Error('Please sign in as Super Admin before creating a user.');
+
+  const idToken = await currentUser.getIdToken();
+  const response = await fetch('/api/admin/users', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${idToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+  const result = await response.json() as { id?: string; email?: string; temporaryPassword?: string; error?: string };
+  if (!response.ok || !result.id || !result.email || !result.temporaryPassword) {
+    throw new Error(result.error || 'Unable to create the Firebase user account.');
+  }
+  return {
+    id: result.id,
+    email: result.email,
+    temporaryPassword: result.temporaryPassword,
+  };
 }
 
 export async function signInExternalWithPassword(email: string, password: string): Promise<User> {

@@ -533,7 +533,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const firebaseUser = await signInStaffWithGoogle();
       const access = await getCurrentFirebaseAccessClaims(firebaseUser);
       const email = access.email || firebaseUser.email?.toLowerCase() || '';
-      const claimRole = normalizeRoleClaim(String(access.role || 'Partner'));
+      const claimRole = normalizeRoleClaim(String(access.role || ''));
       const existingUser = users.find((u) => u.email.toLowerCase() === email);
       const signedInUser: User = {
         ...(existingUser || {
@@ -545,9 +545,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: existingUser?.id || firebaseUser.uid,
         name: existingUser?.name || firebaseUser.displayName || email.split('@')[0].replace('.', ' '),
         email,
-        role: existingUser?.role || claimRole,
-        isAdmin: Boolean(existingUser ? existingUser.isAdmin || access.isAdmin : access.isAdmin),
-        isSuperAdmin: Boolean(existingUser ? existingUser.isSuperAdmin || access.isSuperAdmin : access.isSuperAdmin),
+        role: claimRole,
+        isAdmin: access.isAdmin,
+        isSuperAdmin: access.isSuperAdmin,
         status: 'Active',
       };
 
@@ -650,12 +650,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const approvedEmail = (approvedUser.email || '').toLowerCase();
       const adminEmails = normalizeClaimEmailList(claims.adminEmails);
       const superAdminEmails = normalizeClaimEmailList(claims.superAdminEmails);
-      const claimRole = normalizeRoleClaim(String(claims.role || approvedUser.role));
+      const claimRole = normalizeRoleClaim(String(claims.role || ''));
+      if (claimRole !== approvedUser.role) {
+        throw new Error('This account role is not configured for the approved SHCO user profile.');
+      }
       const effectiveUser = {
         ...approvedUser,
         role: claimRole,
-        isAdmin: Boolean(claims.admin || approvedUser.isAdmin) && (adminEmails.includes(approvedEmail) || superAdminEmails.includes(approvedEmail)),
-        isSuperAdmin: Boolean(claims.superAdmin || approvedUser.isSuperAdmin) && superAdminEmails.includes(approvedEmail),
+        isAdmin: Boolean(claims.admin) && (adminEmails.includes(approvedEmail) || superAdminEmails.includes(approvedEmail)),
+        isSuperAdmin: Boolean(claims.superAdmin) && superAdminEmails.includes(approvedEmail),
       };
 
       setCurrentUser(effectiveUser);
