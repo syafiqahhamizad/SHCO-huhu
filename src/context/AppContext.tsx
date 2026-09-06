@@ -208,6 +208,7 @@ interface AppContextType {
   addNotification: (notif: Omit<NotificationItem, 'id' | 'timestamp' | 'read'>) => void;
   announcements: FirmAnnouncement[];
   addAnnouncement: (announcement: Omit<FirmAnnouncement, 'id' | 'createdAt' | 'createdBy'>) => boolean;
+  deleteAnnouncement: (announcementId: string) => boolean;
 
   firmStartCentrePages: FirmStartCentrePage[];
   canEditFirmStartCentre: boolean;
@@ -1045,9 +1046,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addAnnouncement = (announcement: Omit<FirmAnnouncement, 'id' | 'createdAt' | 'createdBy'>) => {
-    const canPublish = currentUser.isSuperAdmin || currentUser.isAdmin || currentRole === 'Partner';
+    const canPublish = currentUser.isSuperAdmin || currentUser.isAdmin;
     if (!canPublish) {
-      showToast('Only Partners and Super Admin can publish firm announcements.');
+      showToast('Only Admin and Super Admin can publish firm announcements.');
       return false;
     }
     const created: FirmAnnouncement = {
@@ -1063,6 +1064,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return true;
   };
 
+  const deleteAnnouncement = (announcementId: string) => {
+    const canPublish = currentUser.isSuperAdmin || currentUser.isAdmin;
+    if (!canPublish) {
+      showToast('Only Admin and Super Admin can delete firm announcements.');
+      return false;
+    }
+    const announcement = announcements.find((item) => item.id === announcementId);
+    if (!announcement) return false;
+    setAnnouncements((previous) => previous.filter((item) => item.id !== announcementId));
+    logAuditEvent('DELETE', 'SYSTEM', announcement.id, announcement.title, `Firm announcement deleted by ${currentUser.name}.`);
+    showToast('Firm announcement deleted.');
+    return true;
+  };
+
   const [firmStartCentrePages, setFirmStartCentrePages] = useState<FirmStartCentrePage[]>(() =>
     readStored(STORAGE_KEY + '_firmStartCentrePages', INITIAL_FIRM_START_CENTRE_PAGES)
   );
@@ -1072,15 +1087,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [firmStartCentrePages]);
 
   const canEditStartCentre = () => {
-    if (currentUser.isSuperAdmin || currentUser.isAdmin) return true;
-    const override = currentUser.navOverrides?.firmStartCentreEdit;
-    if (override) return override.e === 1;
-    const effectiveRole: Role = currentRole || currentUser.role || 'Partner';
-    return rolesMatrix[effectiveRole]?.firmStartCentreEdit?.e === 1;
+    return Boolean(currentUser.isSuperAdmin || currentUser.isAdmin);
   };
   const requireStartCentreEditAccess = () => {
     if (!canEditStartCentre()) {
-      showToast('You do not have edit access to the Firm Start Centre. Ask a Partner or Super Admin to grant it under Users & Permissions.');
+      showToast('You do not have edit access to the Firm Start Centre. Ask an Admin or Super Admin to grant it under Users & Permissions.');
       return false;
     }
     return true;
@@ -2599,6 +2610,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addNotification,
         announcements,
         addAnnouncement,
+        deleteAnnouncement,
         firmStartCentrePages,
         canEditFirmStartCentre: canEditStartCentre(),
         addStartCentrePage,

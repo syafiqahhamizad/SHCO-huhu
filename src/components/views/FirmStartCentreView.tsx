@@ -47,6 +47,7 @@ import {
   Settings,
   ShieldCheck,
   Table,
+  Trash2,
   UserCheck,
   UserCog,
   UserPlus,
@@ -98,6 +99,7 @@ const START_CENTRE_ICONS: Record<string, React.ElementType> = {
   UserPlus, BookOpen, Network, ShieldCheck, ListChecks, GraduationCap, FolderOpen, Scale, Contact, Package, Building2,
 };
 const iconFor = (name: string) => START_CENTRE_ICONS[name] || BookOpen;
+const LinkIconFallback = FileText;
 
 const QUICK_LINK_GROUPS: QuickLinkGroup[] = [
   { title: 'Due diligence', icon: SearchCheck, links: [
@@ -186,6 +188,7 @@ export const FirmStartCentreView: React.FC = () => {
     users,
     announcements,
     addAnnouncement,
+    deleteAnnouncement,
     setCurrentView,
     setIsNewCaseModalOpen,
     canViewModule,
@@ -209,6 +212,31 @@ export const FirmStartCentreView: React.FC = () => {
   const [editingTabId, setEditingTabId] = React.useState<string | null>(null);
   const [tabLabelDraft, setTabLabelDraft] = React.useState('');
   const [cardDraft, setCardDraft] = React.useState<{ pageId: string; cardId: string | null; title: string; detail: string } | null>(null);
+  const [quickLinkGroups, setQuickLinkGroups] = React.useState<QuickLinkGroup[]>(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('shco_firm_start_quick_links') || 'null');
+      if (Array.isArray(stored)) return stored.map((group, index) => ({ ...group, icon: QUICK_LINK_GROUPS[index]?.icon || BookMarked, links: (group.links || []).map((link: QuickLink) => ({ ...link, icon: FileText })) }));
+    } catch { }
+    return QUICK_LINK_GROUPS;
+  });
+  const [launcherTiles, setLauncherTiles] = React.useState<LauncherTile[]>(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('shco_firm_start_modules') || 'null');
+      if (Array.isArray(stored)) return stored.map((tile, index) => ({ ...tile, icon: SMALL_TILES[index]?.icon || LayoutGrid }));
+    } catch { }
+    return SMALL_TILES;
+  });
+  const [shelves, setShelves] = React.useState(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('shco_firm_start_shelves') || 'null');
+      if (Array.isArray(stored)) return stored.map((shelf) => ({ ...shelf, icon: BookOpen }));
+    } catch { }
+    return SHELVES;
+  });
+
+  React.useEffect(() => { localStorage.setItem('shco_firm_start_quick_links', JSON.stringify(quickLinkGroups.map(({ title, links }) => ({ title, links: links.map(({ label, url }) => ({ label, url })) })))); }, [quickLinkGroups]);
+  React.useEffect(() => { localStorage.setItem('shco_firm_start_modules', JSON.stringify(launcherTiles.map(({ label, view, bg, module }) => ({ label, view, bg, module })))); }, [launcherTiles]);
+  React.useEffect(() => { localStorage.setItem('shco_firm_start_shelves', JSON.stringify(shelves.map(({ title, detail }) => ({ title, detail })))); }, [shelves]);
   const [announcementOpen, setAnnouncementOpen] = React.useState(false);
   const [announcementDraft, setAnnouncementDraft] = React.useState({
     title: '',
@@ -264,7 +292,7 @@ export const FirmStartCentreView: React.FC = () => {
 
   const initials = (name: string) => name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
   const canOpen = (module?: string) => !module || !canViewModule || canViewModule(module);
-  const tiles = SMALL_TILES.filter((tile) => canOpen(tile.module));
+  const tiles = launcherTiles.filter((tile) => canOpen(tile.module));
 
   return (
     <div className="w-full space-y-5 pb-8 text-xs">
@@ -447,7 +475,7 @@ export const FirmStartCentreView: React.FC = () => {
 
             {announcementOpen && (
               <form
-                className="mb-4 grid gap-2 rounded-xl border border-dashed border-[#C9A46B] bg-[#FDFBF7] p-3.5 sm:grid-cols-2"
+                className="mb-4 grid gap-3 rounded-xl border border-[#D8C5A5] bg-[#FDFBF7] p-4 shadow-sm sm:grid-cols-2"
                 onSubmit={(event) => {
                   event.preventDefault();
                   if (addAnnouncement({ ...announcementDraft, published: true, internalOnly: true })) {
@@ -456,13 +484,25 @@ export const FirmStartCentreView: React.FC = () => {
                   }
                 }}
               >
-                <input required value={announcementDraft.title} onChange={(event) => setAnnouncementDraft({ ...announcementDraft, title: event.target.value })} placeholder="Announcement title" className="rounded-lg border border-[#E8D9CE] bg-white px-3 py-2 text-xs" />
-                <select value={announcementDraft.category} onChange={(event) => setAnnouncementDraft({ ...announcementDraft, category: event.target.value as FirmAnnouncementCategory })} className="rounded-lg border border-[#E8D9CE] bg-white px-3 py-2 text-xs">
+                <div className="sm:col-span-2">
+                  <div className="font-serif text-sm font-bold text-[#16223A]">Publish a firm notice</div>
+                  <p className="mt-0.5 text-[11px] text-[#7A8296]">Use this for internal notices, policies, alerts, and office closure dates.</p>
+                </div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-[#7A8296]">Title<input required value={announcementDraft.title} onChange={(event) => setAnnouncementDraft({ ...announcementDraft, title: event.target.value })} placeholder="e.g. Updated file-closing checklist" className="mt-1 w-full rounded-lg border border-[#E8D9CE] bg-white px-3 py-2 text-xs normal-case tracking-normal text-[#2C241F]" /></label>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-[#7A8296]">Type<select value={announcementDraft.category} onChange={(event) => setAnnouncementDraft({ ...announcementDraft, category: event.target.value as FirmAnnouncementCategory })} className="mt-1 w-full rounded-lg border border-[#E8D9CE] bg-white px-3 py-2 text-xs normal-case tracking-normal text-[#2C241F]">
                   {['Announcement', 'Holiday', 'Policy', 'Alert', 'Birthday', 'Call to the Bar', 'Work Anniversary', 'Firm Anniversary'].map((category) => <option key={category}>{category}</option>)}
-                </select>
-                <textarea required value={announcementDraft.body} onChange={(event) => setAnnouncementDraft({ ...announcementDraft, body: event.target.value })} placeholder="Write the notice or celebration details" rows={3} className="rounded-lg border border-[#E8D9CE] bg-white px-3 py-2 text-xs sm:col-span-2" />
-                <label className="flex items-center gap-2 text-xs font-semibold text-[#5B6478]">Event date <input type="date" value={announcementDraft.eventDate} onChange={(event) => setAnnouncementDraft({ ...announcementDraft, eventDate: event.target.value })} className="rounded-lg border border-[#E8D9CE] bg-white px-3 py-1.5 text-xs" /></label>
-                <button type="submit" className="justify-self-start rounded-lg bg-[#16223A] px-3 py-2 text-xs font-bold text-white sm:justify-self-end">Publish</button>
+                </select></label>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-[#7A8296] sm:col-span-2">Details<textarea required value={announcementDraft.body} onChange={(event) => setAnnouncementDraft({ ...announcementDraft, body: event.target.value })} placeholder="Write the notice or closure details" rows={3} className="mt-1 w-full rounded-lg border border-[#E8D9CE] bg-white px-3 py-2 text-xs normal-case tracking-normal text-[#2C241F]" /></label>
+                <div className="flex flex-wrap items-end justify-between gap-3 sm:col-span-2">
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-[#7A8296]">Event date<input type="date" value={announcementDraft.eventDate} onChange={(event) => setAnnouncementDraft({ ...announcementDraft, eventDate: event.target.value })} className="mt-1 block rounded-lg border border-[#E8D9CE] bg-white px-3 py-1.5 text-xs normal-case tracking-normal text-[#2C241F]" /></label>
+                    <p className="mt-1 text-[10px] text-[#8A8578]">Birthdays and call-to-the-bar dates come from Staff Portal profiles.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setAnnouncementOpen(false)} className="rounded-lg border border-[#E8D9CE] bg-white px-3 py-2 text-xs font-semibold text-[#16223A]">Cancel</button>
+                    <button type="submit" className="rounded-lg bg-[#16223A] px-3 py-2 text-xs font-bold text-white shadow-sm">Publish notice</button>
+                  </div>
+                </div>
               </form>
             )}
 
@@ -489,14 +529,14 @@ export const FirmStartCentreView: React.FC = () => {
                             </span>
                           )}
                         </div>
-                        <h3 className="mt-1.5 font-serif text-base font-semibold -tracking-[0.01em]">{nextHoliday.title}</h3>
+                        <div className="flex items-start justify-between gap-2"><h3 className="mt-1.5 font-serif text-base font-semibold -tracking-[0.01em]">{nextHoliday.title}</h3>{canEditStartCentre && <button type="button" onClick={() => { if (window.confirm(`Delete “${nextHoliday.title}”?`)) deleteAnnouncement(nextHoliday.id); }} title="Delete closure" aria-label={`Delete ${nextHoliday.title}`} className="shrink-0 cursor-pointer rounded-md p-1 text-slate-300 transition hover:bg-white/10 hover:text-red-200"><Trash2 className="h-3.5 w-3.5" /></button>}</div>
                         <p className="mt-1 leading-relaxed text-slate-300">{nextHoliday.body}</p>
                       </div>
                       {laterHolidays.length > 0 && (
                         <div className="flex flex-col gap-2 border-t border-white/15 pt-2.5">
                           {laterHolidays.slice(0, 3).map((holiday) => (
                             <div key={holiday.id} className="flex items-baseline justify-between gap-2.5">
-                              <span className="truncate text-[#EDE9DD]">{holiday.title}</span>
+                              <span className="flex min-w-0 items-center gap-1.5"><span className="truncate text-[#EDE9DD]">{holiday.title}</span>{canEditStartCentre && <button type="button" onClick={() => { if (window.confirm(`Delete “${holiday.title}”?`)) deleteAnnouncement(holiday.id); }} title="Delete closure" aria-label={`Delete ${holiday.title}`} className="shrink-0 cursor-pointer text-slate-400 hover:text-red-200"><Trash2 className="h-3 w-3" /></button>}</span>
                               <span className="shrink-0 font-mono text-[11px] text-slate-400">{formatDay(dateOf(holiday))}</span>
                             </div>
                           ))}
@@ -525,7 +565,7 @@ export const FirmStartCentreView: React.FC = () => {
                               <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#7A5D34]">{notice.category}</span>
                               <span className="font-mono text-[10px] text-[#A6A091]">{formatDay(dateOf(notice))}</span>
                             </div>
-                            <h3 className="mt-0.5 font-serif text-[14.5px] font-semibold text-[#16223A]">{notice.title}</h3>
+                            <div className="flex items-start justify-between gap-2"><h3 className="mt-0.5 font-serif text-[14.5px] font-semibold text-[#16223A]">{notice.title}</h3>{canEditStartCentre && <button type="button" onClick={() => { if (window.confirm(`Delete “${notice.title}”?`)) deleteAnnouncement(notice.id); }} title="Delete announcement" aria-label={`Delete ${notice.title}`} className="shrink-0 cursor-pointer rounded-md p-1 text-[#A6A091] transition hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>}</div>
                             <p className="mt-0.5 leading-relaxed text-[#5B6478]">{notice.body}</p>
                           </div>
                         </React.Fragment>
@@ -608,6 +648,7 @@ export const FirmStartCentreView: React.FC = () => {
                 </h2>
                 <p className="mt-1 text-[#7A8296]">Every part of the practice, one click away.</p>
               </div>
+              {canEditStartCentre && <button type="button" onClick={() => { const label = window.prompt('Module name'); const view = label && window.prompt('App view ID, e.g. cases or calendar'); if (label?.trim() && view?.trim()) setLauncherTiles((items) => [...items, { label: label.trim(), view: view.trim(), icon: LayoutGrid, bg: TONE.ink }]); }} className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#16223A] px-3 py-2 text-xs font-bold text-white"><Plus className="h-3.5 w-3.5 text-[#E4C79A]" /> Add module</button>}
             </div>
             <div className="flex flex-wrap items-stretch gap-2.5">
               <button
@@ -625,18 +666,13 @@ export const FirmStartCentreView: React.FC = () => {
               </button>
               <div className="grid min-w-0 flex-1 basis-[300px] grid-cols-[repeat(auto-fill,minmax(112px,1fr))] content-start gap-2">
                 {tiles.map(({ label, view, icon: Icon, bg }) => (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={() => setCurrentView(view)}
-                    style={{ backgroundColor: bg }}
-                    className="flex min-h-[82px] cursor-pointer flex-col gap-2 rounded-xl p-3 text-left text-white transition hover:-translate-y-0.5 hover:shadow-lg"
-                  >
-                    <span className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-white/20">
-                      <Icon className="h-3.5 w-3.5" />
-                    </span>
-                    <strong className="text-xs font-bold leading-tight text-white">{label}</strong>
-                  </button>
+                  <div key={label} className="relative">
+                    <button type="button" onClick={() => setCurrentView(view)} style={{ backgroundColor: bg }} className="flex min-h-[82px] w-full cursor-pointer flex-col gap-2 rounded-xl p-3 text-left text-white transition hover:-translate-y-0.5 hover:shadow-lg">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-white/20"><Icon className="h-3.5 w-3.5" /></span>
+                      <strong className="text-xs font-bold leading-tight text-white">{label}</strong>
+                    </button>
+                    {canEditStartCentre && <div className="absolute right-1 top-1 flex gap-1"><button type="button" onClick={() => { const nextLabel = window.prompt('Module name', label); const nextView = nextLabel && window.prompt('App view ID', view); if (nextLabel?.trim() && nextView?.trim()) setLauncherTiles((items) => items.map((item) => item.label === label ? { ...item, label: nextLabel.trim(), view: nextView.trim() } : item)); }} className="rounded bg-white/90 px-1 text-[9px] font-bold text-[#16223A]">Edit</button><button type="button" onClick={() => { if (window.confirm(`Delete module “${label}”?`)) setLauncherTiles((items) => items.filter((item) => item.label !== label)); }} className="rounded bg-white/90 px-1 text-[9px] font-bold text-red-700">Delete</button></div>}
+                  </div>
                 ))}
               </div>
             </div>
@@ -651,6 +687,7 @@ export const FirmStartCentreView: React.FC = () => {
                 </h2>
                 <p className="mt-1 text-[#7A8296]">Six shelves. Open one to browse every document inside it.</p>
               </div>
+              {canEditStartCentre && <button type="button" onClick={() => { const title = window.prompt('Shelf name'); const detail = title && window.prompt('Shelf description'); if (title?.trim() && detail?.trim()) setShelves((items) => [...items, { icon: BookOpen, title: title.trim(), detail: detail.trim() }]); }} className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#16223A] px-3 py-2 text-xs font-bold text-white"><Plus className="h-3.5 w-3.5 text-[#E4C79A]" /> Add shelf</button>}
               <div className="relative flex min-w-0 flex-1 basis-[260px] items-center">
                 <Search className="absolute left-2.5 h-3.5 w-3.5 text-[#A6A091]" />
                 <input
@@ -661,18 +698,15 @@ export const FirmStartCentreView: React.FC = () => {
               </div>
             </div>
             <div className="mt-3.5 grid grid-cols-[repeat(auto-fill,minmax(178px,1fr))] items-stretch gap-2.5">
-              {SHELVES.map(({ icon: Icon, title, detail }) => (
-                <button
-                  key={title}
-                  type="button"
-                  className="flex cursor-pointer flex-col gap-2.5 rounded-xl border border-[#E8D9CE] bg-white p-3.5 text-left transition hover:-translate-y-0.5 hover:border-[#C9A46B] hover:shadow-lg"
-                >
-                  <span className="flex h-[30px] w-[30px] items-center justify-center rounded-[9px] bg-[#F1E8DA] text-[#8A6534]">
-                    <Icon className="h-[15px] w-[15px]" />
-                  </span>
-                  <strong className="font-serif text-sm font-bold leading-tight text-[#16223A]">{title}</strong>
-                  <span className="text-[11px] leading-relaxed text-[#5B6478]">{detail}</span>
-                </button>
+              {shelves.map(({ icon: Icon, title, detail }, shelfIndex) => (
+                <div key={title} className="relative">
+                  <button type="button" className="flex min-h-full w-full cursor-pointer flex-col gap-2.5 rounded-xl border border-[#E8D9CE] bg-white p-3.5 text-left transition hover:-translate-y-0.5 hover:border-[#C9A46B] hover:shadow-lg">
+                    <span className="flex h-[30px] w-[30px] items-center justify-center rounded-[9px] bg-[#F1E8DA] text-[#8A6534]"><Icon className="h-[15px] w-[15px]" /></span>
+                    <strong className="font-serif text-sm font-bold leading-tight text-[#16223A]">{title}</strong>
+                    <span className="text-[11px] leading-relaxed text-[#5B6478]">{detail}</span>
+                  </button>
+                  {canEditStartCentre && <div className="absolute right-2 top-2 flex gap-1"><button type="button" onClick={() => { const nextTitle = window.prompt('Shelf name', title); const nextDetail = nextTitle && window.prompt('Shelf description', detail); if (nextTitle?.trim() && nextDetail?.trim()) setShelves((items) => items.map((item, itemIndex) => itemIndex === shelfIndex ? { ...item, title: nextTitle.trim(), detail: nextDetail.trim() } : item)); }} className="rounded bg-white px-1 text-[9px] font-bold text-[#16223A] shadow">Edit</button><button type="button" onClick={() => { if (window.confirm(`Delete shelf “${title}”?`)) setShelves((items) => items.filter((_, itemIndex) => itemIndex !== shelfIndex)); }} className="rounded bg-white px-1 text-[9px] font-bold text-red-700 shadow">Delete</button></div>}
+                </div>
               ))}
             </div>
           </section>
@@ -847,10 +881,13 @@ export const FirmStartCentreView: React.FC = () => {
               <h2 className="font-serif text-[15px] font-bold text-[#16223A]">Quick links</h2>
               <p className="mt-0.5 text-[10.5px] text-[#7A8296]">Portals, folders and Workspace</p>
             </div>
-            <Globe2 className="h-4 w-4 shrink-0 text-[#A9814A]" />
+            <div className="flex items-center gap-2">
+              {canEditStartCentre && <button type="button" onClick={() => { const title = window.prompt('New quick-link group name'); if (title?.trim()) setQuickLinkGroups((groups) => [...groups, { title: title.trim(), icon: BookMarked, links: [] }]); }} className="rounded-md p-1 text-[#8A6534] hover:bg-[#F1E8DA]" title="Add quick-link group" aria-label="Add quick-link group"><Plus className="h-3.5 w-3.5" /></button>}
+              <Globe2 className="h-4 w-4 shrink-0 text-[#A9814A]" />
+            </div>
           </div>
           <div className="flex flex-col gap-0.5 px-2.5 pb-3 pt-2">
-            {QUICK_LINK_GROUPS.map((group, index) => {
+            {quickLinkGroups.map((group, index) => {
               const isOpen = index === openGroup;
               const GroupIcon = group.icon;
               return (
@@ -865,22 +902,24 @@ export const FirmStartCentreView: React.FC = () => {
                     <span className={`shrink-0 text-[9.5px] font-bold ${isOpen ? 'text-[#D8AE6E]' : 'text-[#B4AB9A]'}`}>{group.links.length}</span>
                     <ChevronRight className={`h-3 w-3 shrink-0 opacity-70 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
                   </button>
+                  {canEditStartCentre && (
+                    <div className="flex items-center justify-end gap-1 px-2.5 pb-1">
+                      <button type="button" onClick={() => { const title = window.prompt('Rename quick-link group', group.title); if (title?.trim()) setQuickLinkGroups((groups) => groups.map((item, itemIndex) => itemIndex === index ? { ...item, title: title.trim() } : item)); }} className="text-[9px] font-semibold text-[#8A6534] hover:underline">Edit group</button>
+                      <button type="button" onClick={() => { if (window.confirm(`Delete quick-link group “${group.title}”?`)) setQuickLinkGroups((groups) => groups.filter((_, itemIndex) => itemIndex !== index)); }} className="text-[9px] font-semibold text-red-600 hover:underline">Delete</button>
+                      <button type="button" onClick={() => { const label = window.prompt('Link name'); const url = label && window.prompt('Link URL'); if (label?.trim() && url?.trim()) setQuickLinkGroups((groups) => groups.map((item, itemIndex) => itemIndex === index ? { ...item, links: [...item.links, { label: label.trim(), url: url.trim(), icon: LinkIconFallback }] } : item)); }} className="text-[9px] font-semibold text-[#8A6534] hover:underline">Add link</button>
+                    </div>
+                  )}
                   {isOpen && (
                     <div className="mb-2 ml-2.5 mt-1 flex flex-col gap-px border-l-2 border-[#E3D3BC] pl-[11px]">
-                      {group.links.map(({ label, url, icon: LinkIcon }) => (
-                        <a
-                          key={label}
-                          href={url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-[#2C241F] no-underline transition hover:bg-[#F4EEE4] hover:text-[#16223A]"
-                        >
-                          <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[7px] bg-[#F1E8DA] text-[#8A6534]">
-                            <LinkIcon className="h-3 w-3" />
-                          </span>
-                          <span className="min-w-0 flex-1 truncate text-[11.5px] font-medium">{label}</span>
-                          <ArrowUpRight className="h-3 w-3 shrink-0 text-[#C0B7A6]" />
-                        </a>
+                      {group.links.map(({ label, url, icon: LinkIcon }, linkIndex) => (
+                        <div key={label} className="flex items-center gap-1">
+                          <a href={url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-1.5 text-[#2C241F] no-underline transition hover:bg-[#F4EEE4] hover:text-[#16223A]">
+                            <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[7px] bg-[#F1E8DA] text-[#8A6534]"><LinkIcon className="h-3 w-3" /></span>
+                            <span className="min-w-0 flex-1 truncate text-[11.5px] font-medium">{label}</span>
+                            <ArrowUpRight className="h-3 w-3 shrink-0 text-[#C0B7A6]" />
+                          </a>
+                          {canEditStartCentre && <><button type="button" onClick={() => { const nextLabel = window.prompt('Rename link', label); const nextUrl = nextLabel && window.prompt('Link URL', url); if (nextLabel?.trim() && nextUrl?.trim()) setQuickLinkGroups((groups) => groups.map((item, itemIndex) => itemIndex === index ? { ...item, links: item.links.map((link, currentIndex) => currentIndex === linkIndex ? { ...link, label: nextLabel.trim(), url: nextUrl.trim() } : link) } : item)); }} className="text-[9px] font-semibold text-[#8A6534]">Edit</button><button type="button" onClick={() => setQuickLinkGroups((groups) => groups.map((item, itemIndex) => itemIndex === index ? { ...item, links: item.links.filter((_, currentIndex) => currentIndex !== linkIndex) } : item))} className="text-[9px] font-semibold text-red-600">Delete</button></>}
+                        </div>
                       ))}
                     </div>
                   )}
