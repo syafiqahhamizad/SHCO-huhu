@@ -193,6 +193,7 @@ export const FirmStartCentreView: React.FC = () => {
     canViewModule,
     firmStartCentrePages,
     canEditFirmStartCentre,
+    firmStartCentreEditMode,
     addStartCentrePage,
     updateStartCentrePageLabel,
     deleteStartCentrePage,
@@ -204,7 +205,6 @@ export const FirmStartCentreView: React.FC = () => {
   const [openGroup, setOpenGroup] = React.useState<number>(3);
   const [directoryOpen, setDirectoryOpen] = React.useState(false);
   const [page, setPage] = React.useState<string>('home');
-  const [editMode, setEditMode] = React.useState(false);
   const [newTabLabel, setNewTabLabel] = React.useState('');
   const [editingTabId, setEditingTabId] = React.useState<string | null>(null);
   const [tabLabelDraft, setTabLabelDraft] = React.useState('');
@@ -232,6 +232,7 @@ export const FirmStartCentreView: React.FC = () => {
   });
 
   const viewer = currentUser;
+  const editMode = firmStartCentreEditMode;
   const canEditStartCentre = canEditFirmStartCentre;
 
   React.useEffect(() => { localStorage.setItem('shco_firm_start_quick_links', JSON.stringify(quickLinkGroups.map(({ title, links }) => ({ title, links: links.map(({ label, url }) => ({ label, url })) })))); }, [quickLinkGroups]);
@@ -371,17 +372,6 @@ export const FirmStartCentreView: React.FC = () => {
                 </button>
               );
             })}
-            {canEditStartCentre && (
-              <button
-                type="button"
-                onClick={() => setEditMode((v) => !v)}
-                className={`ml-auto flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-[11px] font-semibold transition ${
-                  editMode ? 'border-white bg-white text-[#16223A]' : 'border-[#304362] bg-transparent text-white/70'
-                }`}
-              >
-                {editMode ? 'Done editing' : 'Edit tabs & content'}
-              </button>
-            )}
           </nav>
 
           {editMode && (

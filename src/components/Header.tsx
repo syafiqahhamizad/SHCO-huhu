@@ -49,6 +49,9 @@ export const Header: React.FC = () => {
     previewUserId,
     startUserPreview,
     exitUserPreview,
+    canEditFirmStartCentre,
+    firmStartCentreEditMode,
+    setFirmStartCentreEditMode,
   } = useApp();
 
   const [isRecycleBinOpen, setIsRecycleBinOpen] = useState(false);
@@ -144,6 +147,16 @@ export const Header: React.FC = () => {
       </div>
 
       <div className={`flex w-full min-w-0 flex-wrap items-center gap-1.5 sm:gap-2 ${isPrivilegedHeader ? 'order-2 border-t border-white/10 pt-2' : 'md:ml-8 md:w-auto md:shrink-0'}`}>
+        {canEditFirmStartCentre && (
+          <button
+            type="button"
+            onClick={() => setFirmStartCentreEditMode((enabled) => !enabled)}
+            className={`order-last flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-bold cursor-pointer transition ${firmStartCentreEditMode ? 'border-[#E4C79A] bg-[#E4C79A] text-[#16223A]' : 'border-white/20 bg-white/10 text-[#F6F1E9] hover:bg-white/20'}`}
+            title="Toggle Firm Start Centre content editing"
+          >
+            {firmStartCentreEditMode ? 'Done editing' : 'Edit content'}
+          </button>
+        )}
         {/* Global Search Bar */}
         <div className="relative group w-full min-w-0 sm:flex-1 md:w-auto md:flex-none">
           <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#A9814A] transition-colors" />

@@ -104,6 +104,8 @@ interface AppContextType {
   previewUserId: string | null;
   startUserPreview: (userId: string) => boolean;
   exitUserPreview: () => void;
+  firmStartCentreEditMode: boolean;
+  setFirmStartCentreEditMode: (enabled: boolean) => void;
   isAuthenticated: boolean;
   setIsAuthenticated: (auth: boolean) => void;
   currentRole: Role;
@@ -376,6 +378,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const previewOrigin = React.useRef<{ user: User; role: Role; partnerCode: PartnerCode; isAdmin: boolean } | null>(null);
   const [previewUserId, setPreviewUserId] = useState<string | null>(null);
+  const [firmStartCentreEditMode, setFirmStartCentreEditMode] = useState(false);
 
   const [currentRole, setCurrentRole] = useState<Role>(() => {
     const savedSession = sessionStorage.getItem(SESSION_STORAGE_KEY);
@@ -2548,6 +2551,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         previewUserId,
         startUserPreview,
         exitUserPreview,
+        firmStartCentreEditMode,
+        setFirmStartCentreEditMode,
         isAuthenticated,
         setIsAuthenticated,
         currentRole,
