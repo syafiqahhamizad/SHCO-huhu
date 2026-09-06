@@ -108,10 +108,11 @@ export const Sidebar: React.FC = () => {
       ],
     },
     {
-      group: 'Claims & Billing',
+      group: 'Finance & Accounting',
       items: [
         { id: 'reimbursements', label: 'Claims', icon: <Receipt className="w-3.5 h-3.5 text-amber-300 font-bold" /> },
-        { id: 'billing', label: 'Billing', icon: <FileText className="w-3.5 h-3.5 text-amber-300" /> },
+        { id: 'accountingCentre', label: 'Accounting Centre', icon: <BarChart3 className="w-3.5 h-3.5 text-amber-300" /> },
+        { id: 'billing', label: 'Finance & Billing', icon: <FileText className="w-3.5 h-3.5 text-amber-300" /> },
       ],
     },
     {

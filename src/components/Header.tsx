@@ -66,6 +66,8 @@ export const Header: React.FC = () => {
         return { title: 'My Dashboard', sub: 'Your tasks, court dates, approvals and unbilled work' };
       case 'dashboard':
         return { title: 'My Dashboard', sub: 'Your tasks, court dates, approvals and unbilled work' };
+      case 'firmDashboard':
+        return { title: 'Firm-Wide Dashboard', sub: 'Firm-wide operational and financial snapshot' };
       case 'leads':
         return { title: 'Leads / Intake', sub: 'Conflict of interest check starts here before conversion' };
       case 'clients':

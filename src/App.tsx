@@ -10,6 +10,7 @@ import { ShieldAlert } from 'lucide-react';
 
 // Views
 import { PartnerDashboardView } from './components/views/PartnerDashboardView';
+import { ComprehensiveDashboardView } from './components/views/ComprehensiveDashboardView';
 import { LeadsView } from './components/views/LeadsView';
 import { ClientsView } from './components/views/ClientsView';
 import { CasesView } from './components/views/CasesView';
@@ -111,6 +112,8 @@ const MainContent: React.FC = () => {
         return <MyDashboardView />;
       case 'dashboard':
         return <MyDashboardView />;
+      case 'firmDashboard':
+        return <ComprehensiveDashboardView />;
       case 'partnerDashboard':
       case 'partner-dashboard':
         return <PartnerDashboardView />;
