@@ -10,9 +10,13 @@ import {
   Clock,
   FileSignature,
   FolderOpen,
+  Flag,
   Gavel,
+  Inbox,
+  LayoutDashboard,
   Plus,
   Receipt,
+  RefreshCw,
   ShieldCheck,
   Timer,
   X,
@@ -411,50 +415,84 @@ export const MyDashboardView: React.FC = () => {
 
   const overdueCount = grouped.overdue.length;
   const todayCount = grouped.today.length;
+  const waitingCount = rows.filter((row) => row.stream === 'approval' || row.stream === 'signature').length;
+  const unbilledRows = rows.filter((row) => row.stream === 'unbilled');
+  const renderRows = (list: Row[], emptyLabel: string) => (
+    list.length === 0 ? (
+      <p className="px-4 py-6 text-center text-[11px] text-slate-400">{emptyLabel}</p>
+    ) : (
+      <div className="divide-y divide-[#F1EDE4]">
+        {list.slice(0, 6).map((row) => {
+          const meta = STREAM_META[row.stream];
+          return (
+            <div key={row.id} className="flex flex-wrap items-center gap-2.5 px-4 py-2.5">
+              {row.task && (
+                <button type="button" onClick={() => completeTask(row)} title="Mark complete" className="grid h-5 w-5 shrink-0 place-items-center rounded border border-slate-300 text-slate-400 hover:border-emerald-600 hover:text-emerald-700">
+                  <CheckCircle2 className="h-3 w-3" />
+                </button>
+              )}
+              <div className="min-w-[160px] flex-1">
+                <p className="text-[12px] font-semibold leading-snug text-[#16223A]">{row.title}</p>
+                <p className="mt-0.5 flex flex-wrap gap-1.5 text-[10.5px] text-[#5B6478]">
+                  <span className="font-semibold" style={{ color: meta.color }}>{meta.label}</span>
+                  {row.matterRef && <span className="font-mono font-semibold">{row.matterRef}</span>}
+                  {row.matterTitle && <span className="truncate">{row.matterTitle}</span>}
+                </p>
+              </div>
+              <span className="shrink-0 text-[10.5px] font-semibold text-[#5B6478]">{row.dueDate || 'Undated'}</span>
+              <button type="button" onClick={() => openMatter(row)} className="shrink-0 text-[10.5px] font-bold text-[#8A6534] hover:underline">Open</button>
+            </div>
+          );
+        })}
+      </div>
+    )
+  );
 
   return (
-    <div className="space-y-5 pb-10">
-      {/* Hero */}
-      <div
-        className="rounded-2xl px-6 py-5 text-white flex flex-wrap items-center justify-between gap-4"
-        style={{ backgroundColor: TONE.navy }}
-      >
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: TONE.brass }}>
-            My Dashboard
-          </p>
-          <h1 className="font-serif text-2xl font-bold leading-tight">
-            {currentUser?.name ? `Good day, ${String(currentUser.name).split(' ')[0]}` : 'Your work queue'}
-          </h1>
-          <p className="mt-1 text-[12.5px] text-slate-300">
-            Everything waiting on you — court dates, deadlines, sign-offs and unbilled work.
-          </p>
+    <div className="space-y-[18px] pb-8 text-[12px]">
+      <div className="flex flex-col gap-2.5 overflow-hidden rounded-2xl border border-[#304362] bg-[#16223A] px-[18px] py-3.5 text-white shadow-lg">
+        <div className="min-w-0">
+          <h1 className="truncate font-serif text-[19px] font-bold">My Dashboard</h1>
+          <p className="mt-0.5 text-[11.5px] text-slate-300">Your week at a glance - to-do, deadlines, hearings and matters</p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-center">
-            <p className="text-xl font-extrabold" style={{ color: overdueCount ? '#E4A08A' : '#9FBFAB' }}>
-              {overdueCount}
-            </p>
-            <p className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-300">Overdue</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="min-w-[160px] max-w-[240px] flex-1 rounded-md border border-[#E8D9CE] bg-[#F1F3F5] px-3 py-1.5 text-slate-500">Search matters, clients, docs...</div>
+          <button type="button" title="Refresh" className="p-1.5 text-slate-300"><RefreshCw className="h-4 w-4" /></button>
+          <button type="button" title="Notifications" className="rounded-md border border-white/20 bg-white/10 p-1.5 text-[#C98D70]"><AlertTriangle className="h-4 w-4" /></button>
+          <div className="ml-auto flex min-w-0 items-center gap-2 rounded-md border border-white/20 bg-white/10 px-2 py-1.5">
+            <div className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/15"><ShieldCheck className="h-3 w-3 text-[#B97755]" /></div>
+            <span className="truncate text-[11px] font-bold">{currentUser?.name || 'Team member'}</span>
           </div>
-          <div className="rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-center">
-            <p className="text-xl font-extrabold text-white">{todayCount}</p>
-            <p className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-300">Today</p>
-          </div>
-          <button
-            onClick={() => setComposing((v) => !v)}
-            className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-[12.5px] font-bold text-white transition-colors hover:brightness-110"
-            style={{ backgroundColor: TONE.brass }}
-          >
-            <Plus className="h-4 w-4" />
-            <span>Add task</span>
-          </button>
         </div>
       </div>
 
-      {/* Task composer */}
+      <section className="flex flex-wrap items-center gap-2 rounded-xl border border-[#E1DCCF] bg-white p-2 shadow-sm">
+        {['todo', 'partner', 'firm'].map((tab) => (
+          <button key={tab} type="button" className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] font-semibold ${tab === 'todo' ? 'bg-[#A9814A] text-[#1A1204]' : 'text-[#5B6478] hover:bg-[#F9F7F2]'}`}>
+            {tab === 'todo' ? <FolderOpen className="h-3.5 w-3.5" /> : <LayoutDashboard className="h-3.5 w-3.5" />}
+            {tab === 'todo' ? 'My Dashboard' : tab === 'partner' ? 'Partner Dashboard' : 'Firm-Wide Dashboard'}
+            {tab === 'todo' && <span className="rounded bg-white/30 px-1.5">{rows.length}</span>}
+          </button>
+        ))}
+        <span className="ml-auto flex items-center gap-1.5 pr-1 text-[10.5px] text-[#5B6478]"><RefreshCw className="h-3 w-3 text-[#0E4C55]" /> Google Tasks synced just now</span>
+      </section>
+
+      <section className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-6">
+        {[
+          ['My active matters', myCases.filter((c) => c.status === 'Active').length, 'assigned', FolderOpen, '#16223A'],
+          ['Deadlines this week', grouped.overdue.length + grouped.today.length + grouped.week.length, `${overdueCount} overdue`, Flag, '#9B1C1C'],
+          ['My hearings', rows.filter((r) => r.stream === 'hearing').length, 'this week', Gavel, '#4A2B5C'],
+          ['To-do open', rows.filter((r) => r.stream === 'task').length, 'tasks', CheckCircle2, '#0E4C55'],
+          ['Waiting on you', waitingCount, 'approvals', Inbox, '#8A5A20'],
+          ['Unbilled time', unbilledRows.length, 'matters', Timer, '#14532D'],
+        ].map(([label, value, note, Icon, color]) => {
+          const MetricIcon = Icon as React.ElementType;
+          return <div key={String(label)} className="flex min-h-[128px] flex-col gap-2 rounded-xl p-3.5 text-white shadow-md" style={{ backgroundColor: String(color) }}><span className="flex items-center gap-2"><span className="grid h-[26px] w-[26px] place-items-center rounded-md bg-white/15"><MetricIcon className="h-3.5 w-3.5" /></span><span className="text-[9px] font-bold uppercase tracking-[0.12em] text-white/80">{String(label)}</span></span><span className="flex items-baseline gap-1.5 font-serif text-[27px] font-bold leading-none">{String(value)} <small className="font-sans text-[10.5px] font-normal text-white/70">{String(note)}</small></span><span className="text-[10.5px] leading-relaxed text-white/75">{label === 'My active matters' ? 'Assigned to your current practice queue' : label === 'Unbilled time' ? 'Billable write-ups awaiting billing' : 'Requires your attention this week'}</span></div>;
+        })}
+      </section>
+
       {composing && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+        <div className="border-b border-[#E8E2D5] bg-[#F6F4EF] p-3.5">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="font-serif text-sm font-bold" style={{ color: TONE.navy }}>
               New task
@@ -508,124 +546,17 @@ export const MyDashboardView: React.FC = () => {
         </div>
       )}
 
-      {/* Buckets */}
-      {(Object.keys(BUCKET_META) as Bucket[]).map((bucket) => {
-        const meta = BUCKET_META[bucket];
-        const list = grouped[bucket];
-        return (
-          <section key={bucket} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-            <button
-              onClick={() => setOpen((o) => ({ ...o, [bucket]: !o[bucket] }))}
-              className="flex w-full items-center justify-between gap-3 px-5 py-3.5 text-left transition-colors hover:bg-slate-50"
-              style={{ borderLeft: `4px solid ${meta.accent}` }}
-            >
-              <div className="flex items-center gap-3">
-                {open[bucket] ? (
-                  <ChevronDown className="h-4 w-4 text-slate-400" />
-                ) : (
-                  <ChevronRight className="h-4 w-4 text-slate-400" />
-                )}
-                <h2 className="font-serif text-[15px] font-bold" style={{ color: meta.accent }}>
-                  {meta.label}
-                </h2>
-                <span
-                  className="rounded-full px-2 py-0.5 text-[11px] font-extrabold text-white"
-                  style={{ backgroundColor: meta.accent }}
-                >
-                  {list.length}
-                </span>
-              </div>
-              <span className="text-[11.5px] font-medium text-slate-500">{meta.note}</span>
-            </button>
+      <section className="grid gap-3.5 xl:grid-cols-2">
+        {[['Matter to-do', grouped.overdue.concat(grouped.today, grouped.week), TONE.navy, 'All matter tasks'], ['Private to-do', grouped.later, '#0E4C55', 'Open in Google Tasks']].map(([title, list, color, link]) => (
+          <div key={String(title)} className="overflow-hidden rounded-xl border border-[#D9D3C4] bg-white shadow-sm"><div className="flex items-center gap-2.5 px-3.5 py-3 text-white" style={{ backgroundColor: String(color) }}><FolderOpen className="h-4 w-4 text-[#E4C79A]" /><div><strong className="block font-serif text-[14.5px]">{String(title)}</strong><span className="text-[10.5px] text-white/70">Tied to your work queue · Google Tasks</span></div><button type="button" onClick={() => setComposing((v) => !v)} className="ml-auto flex items-center gap-1 rounded-md bg-[#A9814A] px-2.5 py-1.5 text-[11px] font-bold"><Plus className="h-3 w-3" /> Add</button></div>{title === 'Matter to-do' && composing ? null : renderRows(list as Row[], 'Nothing here.')}<div className="flex items-center gap-2 border-t border-[#E8E2D5] bg-[#F9F7F2] px-3.5 py-2.5 text-[10.5px] text-[#5B6478]"><CheckCircle2 className="h-3.5 w-3.5 text-[#14532D]" /><span>{list.length} open items</span><button type="button" onClick={() => setCurrentView('tasks')} className="ml-auto font-bold text-[#8A6534]">{String(link)} -&gt;</button></div></div>
+        ))}
+      </section>
 
-            {open[bucket] && (
-              <div className="border-t border-slate-100">
-                {list.length === 0 ? (
-                  <p className="flex items-center gap-2 px-6 py-5 text-[12.5px] text-slate-400">
-                    <CheckCircle2 className="h-4 w-4" style={{ color: TONE.forest }} />
-                    Nothing here.
-                  </p>
-                ) : (
-                  <ul className="divide-y divide-slate-100">
-                    {list.map((r) => {
-                      const sm = STREAM_META[r.stream];
-                      const Icon = sm.icon;
-                      return (
-                        <li
-                          key={r.id}
-                          className="flex flex-wrap items-center gap-3 px-5 py-3 transition-colors hover:bg-slate-50"
-                        >
-                          <span
-                            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg"
-                            style={{ backgroundColor: `${sm.color}1A`, color: sm.color }}
-                            title={sm.label}
-                          >
-                            <Icon className="h-4 w-4" />
-                          </span>
+      <section className="grid gap-3.5 xl:grid-cols-2">
+        {[['Deadlines this week', grouped.overdue.concat(grouped.today, grouped.week), '#9B1C1C', Flag], ['My hearings', rows.filter((r) => r.stream === 'hearing'), '#4A2B5C', Gavel]].map(([title, list, color, Icon]) => { const PanelIcon = Icon as React.ElementType; return <div key={String(title)} className="overflow-hidden rounded-xl border border-[#D9D3C4] bg-white shadow-sm"><div className="flex items-center gap-2.5 px-3.5 py-2.5 text-white" style={{ backgroundColor: String(color) }}><PanelIcon className="h-4 w-4" /><strong className="font-serif text-[14px]">{String(title)}</strong><button type="button" onClick={() => setCurrentView(String(title).startsWith('Deadlines') ? 'deadlines' : 'hearings')} className="ml-auto text-[10.5px] font-bold text-white/80">Open -&gt;</button></div>{renderRows(list as Row[], 'No items scheduled.')}</div>; })}
+      </section>
 
-                          <div className="min-w-[220px] flex-1">
-                            <p className="text-[13.5px] font-bold leading-snug" style={{ color: TONE.navy }}>
-                              {r.title}
-                            </p>
-                            <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11.5px] text-slate-500">
-                              <span className="font-semibold uppercase tracking-wide" style={{ color: sm.color }}>
-                                {sm.label}
-                              </span>
-                              {r.matterRef && <span className="font-mono font-bold">{r.matterRef}</span>}
-                              {r.matterTitle && <span className="truncate">{r.matterTitle}</span>}
-                            </p>
-                          </div>
-
-                          <span className="flex items-center gap-1.5 text-[11.5px] font-semibold text-slate-500">
-                            {r.dueDate ? (
-                              <>
-                                <CalendarClock className="h-3.5 w-3.5" />
-                                {r.dueDate}
-                              </>
-                            ) : (
-                              <>
-                                <Timer className="h-3.5 w-3.5" />
-                                Undated
-                              </>
-                            )}
-                          </span>
-
-                          <span
-                            className="rounded-full border px-2.5 py-0.5 text-[11px] font-bold"
-                            style={{ borderColor: `${sm.color}55`, color: sm.color, backgroundColor: `${sm.color}0F` }}
-                          >
-                            {r.status}
-                          </span>
-
-                          <div className="flex items-center gap-1.5">
-                            {r.task && (
-                              <button
-                                onClick={() => completeTask(r)}
-                                title="Mark complete"
-                                className="rounded-lg border border-slate-200 p-1.5 text-slate-400 transition-colors hover:border-emerald-300 hover:text-emerald-600"
-                              >
-                                <CheckCircle2 className="h-4 w-4" />
-                              </button>
-                            )}
-                            <button
-                              onClick={() => openMatter(r)}
-                              className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11.5px] font-bold transition-colors hover:bg-slate-100"
-                              style={{ color: TONE.brass }}
-                            >
-                              <span>Open</span>
-                              <ArrowRight className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </div>
-            )}
-          </section>
-        );
-      })}
+      <section className="overflow-hidden rounded-xl border border-[#D9D3C4] bg-white shadow-sm"><div className="flex items-center gap-2.5 border-b border-[#E8E2D5] bg-[#F9F7F2] px-3.5 py-2.5"><Clock className="h-4 w-4 text-[#8A6534]" /><strong className="font-serif text-[14px] text-[#16223A]">Recently accessed matters</strong><button type="button" onClick={() => setCurrentView('cases')} className="ml-auto text-[10.5px] font-bold text-[#8A6534]">My matters -&gt;</button></div>{renderRows(myCases.filter((c) => c.lastAccessed).slice(0, 5).map((c) => ({ id: c.id, stream: 'matter', title: c.title, matterRef: c.ref, matterTitle: c.practiceArea || c.stage, caseId: c.id, dueDate: '', status: c.status, view: 'cases' })), 'No recently accessed matters.')}</section>
 
       {rows.length === 0 && (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
