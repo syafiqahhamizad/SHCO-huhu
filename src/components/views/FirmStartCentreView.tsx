@@ -184,7 +184,6 @@ const STATUS_TONE: Record<string, string> = {
 export const FirmStartCentreView: React.FC = () => {
   const {
     currentUser,
-    currentRole,
     users,
     announcements,
     addAnnouncement,
@@ -201,8 +200,6 @@ export const FirmStartCentreView: React.FC = () => {
     updateStartCentreCard,
     deleteStartCentreCard,
   } = useApp() as ReturnType<typeof useApp> & { canViewModule?: (module: string) => boolean };
-
-  const canEditStartCentre = canEditFirmStartCentre;
 
   const [openGroup, setOpenGroup] = React.useState<number>(3);
   const [directoryOpen, setDirectoryOpen] = React.useState(false);
@@ -233,6 +230,9 @@ export const FirmStartCentreView: React.FC = () => {
     } catch { }
     return SHELVES;
   });
+
+  const viewer = currentUser;
+  const canEditStartCentre = canEditFirmStartCentre;
 
   React.useEffect(() => { localStorage.setItem('shco_firm_start_quick_links', JSON.stringify(quickLinkGroups.map(({ title, links }) => ({ title, links: links.map(({ label, url }) => ({ label, url })) })))); }, [quickLinkGroups]);
   React.useEffect(() => { localStorage.setItem('shco_firm_start_modules', JSON.stringify(launcherTiles.map(({ label, view, bg, module }) => ({ label, view, bg, module })))); }, [launcherTiles]);
@@ -303,9 +303,9 @@ export const FirmStartCentreView: React.FC = () => {
           <div className="flex max-w-2xl flex-col gap-[7px]">
             <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#B97755]">
               <Scale className="h-4 w-4" /> Firm Start Centre
-              <span className="rounded-full border border-white/20 px-2 py-0.5 text-[9px] tracking-wider text-slate-300">{currentRole}</span>
+              <span className="rounded-full border border-white/20 px-2 py-0.5 text-[9px] tracking-wider text-slate-300">{viewer.role}</span>
             </div>
-            <h1 className="font-serif text-xl font-bold -tracking-[0.02em] text-[#F6F1E9]">{greeting}, {currentUser.name.split(' ')[0]}</h1>
+            <h1 className="font-serif text-xl font-bold -tracking-[0.02em] text-[#F6F1E9]">{greeting}, {viewer.name.split(' ')[0]}</h1>
             <p className="max-w-[56ch] text-[11.5px] leading-normal text-slate-300">
               Notices, people, policies and portals. Your own matters and tasks are on{' '}
               <button type="button" onClick={() => setCurrentView('dashboard')} className="cursor-pointer font-semibold text-[#E4C79A]">
@@ -666,8 +666,8 @@ export const FirmStartCentreView: React.FC = () => {
               </button>
               <div className="grid min-w-0 flex-1 basis-[300px] grid-cols-[repeat(auto-fill,minmax(112px,1fr))] content-start gap-2">
                 {tiles.map(({ label, view, icon: Icon, bg }) => (
-                  <div key={label} className="relative">
-                    <button type="button" onClick={() => setCurrentView(view)} style={{ backgroundColor: bg }} className="flex min-h-[82px] w-full cursor-pointer flex-col gap-2 rounded-xl p-3 text-left text-white transition hover:-translate-y-0.5 hover:shadow-lg">
+                  <div key={label} className="relative" title={`Opens app view: ${view}`}>
+                    <button type="button" onClick={() => setCurrentView(view)} style={{ backgroundColor: bg }} className="!text-white flex min-h-[82px] w-full cursor-pointer flex-col gap-2 rounded-xl p-3 text-left text-white transition hover:-translate-y-0.5 hover:shadow-lg">
                       <span className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-white/20"><Icon className="h-3.5 w-3.5" /></span>
                       <strong className="text-xs font-bold leading-tight text-white">{label}</strong>
                     </button>
@@ -912,7 +912,7 @@ export const FirmStartCentreView: React.FC = () => {
                   {isOpen && (
                     <div className="mb-2 ml-2.5 mt-1 flex flex-col gap-px border-l-2 border-[#E3D3BC] pl-[11px]">
                       {group.links.map(({ label, url, icon: LinkIcon }, linkIndex) => (
-                        <div key={label} className="flex items-center gap-1">
+                        <div key={label} className="flex items-center gap-1" title={canEditStartCentre ? url : undefined}>
                           <a href={url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-1.5 text-[#2C241F] no-underline transition hover:bg-[#F4EEE4] hover:text-[#16223A]">
                             <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[7px] bg-[#F1E8DA] text-[#8A6534]"><LinkIcon className="h-3 w-3" /></span>
                             <span className="min-w-0 flex-1 truncate text-[11.5px] font-medium">{label}</span>

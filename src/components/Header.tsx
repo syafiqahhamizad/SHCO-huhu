@@ -44,6 +44,11 @@ export const Header: React.FC = () => {
     markNotificationAsRead,
     markAllNotificationsAsRead,
     deletedRecords = [],
+    users,
+    isUserPreview,
+    previewUserId,
+    startUserPreview,
+    exitUserPreview,
   } = useApp();
 
   const [isRecycleBinOpen, setIsRecycleBinOpen] = useState(false);
@@ -345,6 +350,19 @@ export const Header: React.FC = () => {
 
         {/* Current User & Role Badge / SSO Login Trigger */}
         <div className="flex min-w-0 max-w-full items-center gap-1.5">
+          {isUserPreview ? (
+            <button type="button" onClick={exitUserPreview} className="rounded-md border border-amber-300 bg-[#16223A] px-2 py-1.5 text-[10px] font-bold text-[#E4C79A] shadow-2xs cursor-pointer" title="Exit full-system user preview">
+              Exit preview
+            </button>
+          ) : (currentUser?.isAdmin || currentUser?.isSuperAdmin) ? (
+            <label className="flex items-center gap-1 rounded-md border border-white/20 bg-white/10 px-2 py-1.5 text-[10px] font-semibold text-[#F6F1E9]">
+              <span>View as</span>
+              <select value={previewUserId || ''} onChange={(event) => { if (event.target.value) startUserPreview(event.target.value); }} className="max-w-[120px] cursor-pointer bg-transparent text-[10px] font-bold text-white outline-none">
+                <option value="" className="text-[#16223A]">My view</option>
+                {users.map((user) => <option key={user.id} value={user.id} className="text-[#16223A]">{user.name}</option>)}
+              </select>
+            </label>
+          ) : null}
           <div
             className="flex min-w-0 max-w-[15rem] items-center gap-1.5 bg-white border border-[#E8D9CE] px-2 py-1.5 rounded-md text-xs shadow-2xs"
             title="Current signed-in user"
@@ -354,9 +372,9 @@ export const Header: React.FC = () => {
             </div>
             <div className="text-left leading-tight min-w-0">
               <div className="font-bold text-[#16223A] flex min-w-0 items-center gap-1">
-                <span className="whitespace-nowrap">{currentUser?.name || 'User'}</span>
+                <span className="whitespace-nowrap text-[#16223A]">{currentUser?.name || 'User'}</span>
                 {currentUser?.isSuperAdmin && (
-                  <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[8px] font-bold px-1 rounded shrink-0">
+                  <span className="bg-[#16223A] text-[#E4C79A] border border-[#A9814A] text-[8px] font-bold px-1 rounded shrink-0">
                     SUPER ADMIN
                   </span>
                 )}

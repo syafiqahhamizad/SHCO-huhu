@@ -100,6 +100,10 @@ import {
 interface AppContextType {
   currentUser: User;
   setCurrentUser: (user: User) => void;
+  isUserPreview: boolean;
+  previewUserId: string | null;
+  startUserPreview: (userId: string) => boolean;
+  exitUserPreview: () => void;
   isAuthenticated: boolean;
   setIsAuthenticated: (auth: boolean) => void;
   currentRole: Role;
@@ -370,6 +374,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     return INITIAL_USERS[0]; // Default seeded staff account (Syafiqah Hamizad)
   });
+  const previewOrigin = React.useRef<{ user: User; role: Role; partnerCode: PartnerCode; isAdmin: boolean } | null>(null);
+  const [previewUserId, setPreviewUserId] = useState<string | null>(null);
 
   const [currentRole, setCurrentRole] = useState<Role>(() => {
     const savedSession = sessionStorage.getItem(SESSION_STORAGE_KEY);
@@ -494,7 +500,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const sessionData = {
       isAuthenticated,
-      currentUser,
+      currentUser: previewOrigin.current?.user || currentUser,
       currentRole,
       currentPartnerCode,
       isAdmin,
@@ -534,6 +540,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     });
   });
+
+  const startUserPreview = (userId: string) => {
+    const target = users.find((user) => user.id === userId);
+    if (!target || (!currentUser.isAdmin && !currentUser.isSuperAdmin) || previewOrigin.current) return false;
+    previewOrigin.current = { user: currentUser, role: currentRole, partnerCode: currentPartnerCode, isAdmin };
+    setCurrentUser(target);
+    setCurrentRole(target.role);
+    setCurrentPartnerCode((target.staffProfile?.staffId as PartnerCode) || currentPartnerCode);
+    setIsAdmin(Boolean(target.isAdmin || target.isSuperAdmin));
+    setPreviewUserId(target.id);
+    return true;
+  };
+
+  const exitUserPreview = () => {
+    const origin = previewOrigin.current;
+    if (!origin) return;
+    setCurrentUser(origin.user);
+    setCurrentRole(origin.role);
+    setCurrentPartnerCode(origin.partnerCode);
+    setIsAdmin(origin.isAdmin);
+    previewOrigin.current = null;
+    setPreviewUserId(null);
+  };
 
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(() =>
     readStored(STORAGE_KEY + '_attendance', [])
@@ -2515,6 +2544,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         currentUser,
         setCurrentUser,
+        isUserPreview: Boolean(previewOrigin.current),
+        previewUserId,
+        startUserPreview,
+        exitUserPreview,
         isAuthenticated,
         setIsAuthenticated,
         currentRole,
