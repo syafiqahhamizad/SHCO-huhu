@@ -129,12 +129,12 @@ export const Header: React.FC = () => {
   const info = getViewInfo();
 
   return (
-    <header className="sticky top-0 z-20 mb-4 sm:mb-6 border-b border-[#E1DCCF] bg-[#FAF8F2] text-[#2C241F] px-4 sm:px-6 py-2.5 flex flex-col md:flex-row md:items-center justify-start gap-2.5 overflow-visible">
+    <header className="sticky top-0 z-20 mb-4 sm:mb-6 mx-3 sm:mx-5 rounded-2xl border border-[#304362] bg-[#16223A] text-[#F6F1E9] px-4 sm:px-6 py-3 flex flex-col md:flex-row md:items-center justify-start gap-2.5 overflow-visible shadow-[0_12px_24px_-16px_rgba(22,34,58,.8)]">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <h1 className="min-w-0 font-serif text-lg sm:text-xl font-bold text-[#16223A] tracking-tight truncate">{info.title}</h1>
+          <h1 className="min-w-0 font-serif text-lg sm:text-xl font-bold text-[#F6F1E9] tracking-tight truncate">{info.title}</h1>
         </div>
-        <p className="text-xs text-slate-600 mt-0.5 line-clamp-2">{info.sub}</p>
+        <p className="text-xs text-[#C7D0DF] mt-0.5 line-clamp-2">{info.sub}</p>
       </div>
 
       <div className="flex w-full min-w-0 flex-wrap items-center gap-1.5 sm:gap-2 md:ml-8 md:w-auto md:shrink-0">
@@ -146,7 +146,7 @@ export const Header: React.FC = () => {
             placeholder="Search matters, clients, docs..."
             value={globalSearch}
             onChange={(e) => setGlobalSearch(e.target.value)}
-            className="w-full max-w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-[#E8D9CE] text-[#2C241F] placeholder:text-slate-400 rounded-md sm:w-48 md:w-60 md:focus:w-64 transition-all focus:outline-none focus:border-[#B86F4A] focus:ring-1 focus:ring-[#B86F4A]/30"
+            className="w-full max-w-full pl-8 pr-3 py-1.5 text-xs bg-white/95 border border-white/20 text-[#2C241F] placeholder:text-slate-400 rounded-md sm:w-48 md:w-60 md:focus:w-64 transition-all focus:outline-none focus:border-[#E4C79A] focus:ring-1 focus:ring-[#E4C79A]/30"
             aria-label="Global search for matters, clients, documents"
           />
         </div>
@@ -157,7 +157,7 @@ export const Header: React.FC = () => {
           onClick={() => window.location.reload()}
           title="Reload latest saved data"
           aria-label="Reload latest saved data"
-          className="shrink-0 rounded p-1.5 text-slate-500 transition-colors hover:bg-[#F5E9E1] hover:text-[#16223A] focus:outline-none focus:ring-2 focus:ring-[#B86F4A] cursor-pointer"
+            className="shrink-0 rounded p-1.5 text-[#C7D0DF] transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-[#E4C79A] cursor-pointer"
         >
           <RefreshCw className="h-4 w-4" />
         </button>

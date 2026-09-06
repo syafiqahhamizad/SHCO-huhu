@@ -54,7 +54,7 @@ import {
   Video,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { FirmAnnouncement } from '../../types';
+import { FirmAnnouncement, FirmAnnouncementCategory } from '../../types';
 
 interface QuickLink {
   label: string;
@@ -185,6 +185,7 @@ export const FirmStartCentreView: React.FC = () => {
     currentRole,
     users,
     announcements,
+    addAnnouncement,
     setCurrentView,
     setIsNewCaseModalOpen,
     canViewModule,
@@ -208,6 +209,13 @@ export const FirmStartCentreView: React.FC = () => {
   const [editingTabId, setEditingTabId] = React.useState<string | null>(null);
   const [tabLabelDraft, setTabLabelDraft] = React.useState('');
   const [cardDraft, setCardDraft] = React.useState<{ pageId: string; cardId: string | null; title: string; detail: string } | null>(null);
+  const [announcementOpen, setAnnouncementOpen] = React.useState(false);
+  const [announcementDraft, setAnnouncementDraft] = React.useState({
+    title: '',
+    body: '',
+    category: 'Announcement' as FirmAnnouncementCategory,
+    eventDate: '',
+  });
 
   const activePage = firmStartCentrePages.find((p) => p.id === page);
 
@@ -261,15 +269,15 @@ export const FirmStartCentreView: React.FC = () => {
   return (
     <div className="w-full space-y-5 pb-8 text-xs">
       {/* HERO */}
-      <section className="relative overflow-hidden rounded-2xl border border-[#304362] bg-[#16223A] px-[18px] py-3.5 text-white shadow-lg">
-        <div className="absolute inset-y-0 right-0 hidden w-2/5 bg-gradient-to-l from-[#A9814A]/25 to-transparent sm:block" />
+      <section className="relative overflow-hidden rounded-2xl border border-[#4D5870] bg-gradient-to-br from-[#16223A] via-[#1C2B48] to-[#263857] px-[18px] py-3.5 text-[#F6F1E9] shadow-[0_18px_35px_-20px_rgba(22,34,58,.9)]">
+        <div className="absolute inset-y-0 right-0 hidden w-2/5 bg-gradient-to-l from-[#C9A46B]/25 via-[#A9814A]/10 to-transparent sm:block" />
         <div className="relative flex flex-wrap items-end justify-between gap-3.5">
           <div className="flex max-w-2xl flex-col gap-[7px]">
             <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#B97755]">
               <Scale className="h-4 w-4" /> Firm Start Centre
               <span className="rounded-full border border-white/20 px-2 py-0.5 text-[9px] tracking-wider text-slate-300">{currentRole}</span>
             </div>
-            <h1 className="font-serif text-xl font-bold -tracking-[0.02em]">{greeting}, {currentUser.name.split(' ')[0]}</h1>
+            <h1 className="font-serif text-xl font-bold -tracking-[0.02em] text-[#F6F1E9]">{greeting}, {currentUser.name.split(' ')[0]}</h1>
             <p className="max-w-[56ch] text-[11.5px] leading-normal text-slate-300">
               Notices, people, policies and portals. Your own matters and tasks are on{' '}
               <button type="button" onClick={() => setCurrentView('dashboard')} className="cursor-pointer font-semibold text-[#E4C79A]">
@@ -280,7 +288,7 @@ export const FirmStartCentreView: React.FC = () => {
               <button type="button" onClick={() => setIsNewCaseModalOpen(true)} className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#A9814A] px-2.5 py-1.5 text-[11.5px] font-bold text-white transition hover:bg-[#C29A5A]">
                 <Plus className="h-3.5 w-3.5" /> New matter
               </button>
-              <button type="button" onClick={() => setDirectoryOpen(true)} className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-2.5 py-1.5 text-[11.5px] font-bold text-white transition hover:bg-white/20">
+              <button type="button" onClick={() => { setDirectoryOpen(true); document.getElementById('people')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-[#E4C79A]/40 bg-[#E4C79A]/15 px-2.5 py-1.5 text-[11.5px] font-bold text-[#F6F1E9] transition hover:bg-[#E4C79A]/25">
                 <Contact className="h-3.5 w-3.5" /> Staff directory
               </button>
             </div>
@@ -430,7 +438,33 @@ export const FirmStartCentreView: React.FC = () => {
                 </h2>
                 <p className="mt-1 text-slate-500">Internal notices, celebrations and firm dates.</p>
               </div>
+              {canEditStartCentre && (
+                <button type="button" onClick={() => setAnnouncementOpen((open) => !open)} className="flex cursor-pointer items-center gap-1.5 self-start rounded-lg bg-[#16223A] px-3 py-2 text-xs font-bold text-white">
+                  <Plus className="h-3.5 w-3.5 text-[#E4C79A]" /> {announcementOpen ? 'Close form' : 'Publish announcement'}
+                </button>
+              )}
             </div>
+
+            {announcementOpen && (
+              <form
+                className="mb-4 grid gap-2 rounded-xl border border-dashed border-[#C9A46B] bg-[#FDFBF7] p-3.5 sm:grid-cols-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (addAnnouncement({ ...announcementDraft, published: true, internalOnly: true })) {
+                    setAnnouncementDraft({ title: '', body: '', category: 'Announcement', eventDate: '' });
+                    setAnnouncementOpen(false);
+                  }
+                }}
+              >
+                <input required value={announcementDraft.title} onChange={(event) => setAnnouncementDraft({ ...announcementDraft, title: event.target.value })} placeholder="Announcement title" className="rounded-lg border border-[#E8D9CE] bg-white px-3 py-2 text-xs" />
+                <select value={announcementDraft.category} onChange={(event) => setAnnouncementDraft({ ...announcementDraft, category: event.target.value as FirmAnnouncementCategory })} className="rounded-lg border border-[#E8D9CE] bg-white px-3 py-2 text-xs">
+                  {['Announcement', 'Holiday', 'Policy', 'Alert', 'Birthday', 'Call to the Bar', 'Work Anniversary', 'Firm Anniversary'].map((category) => <option key={category}>{category}</option>)}
+                </select>
+                <textarea required value={announcementDraft.body} onChange={(event) => setAnnouncementDraft({ ...announcementDraft, body: event.target.value })} placeholder="Write the notice or celebration details" rows={3} className="rounded-lg border border-[#E8D9CE] bg-white px-3 py-2 text-xs sm:col-span-2" />
+                <label className="flex items-center gap-2 text-xs font-semibold text-[#5B6478]">Event date <input type="date" value={announcementDraft.eventDate} onChange={(event) => setAnnouncementDraft({ ...announcementDraft, eventDate: event.target.value })} className="rounded-lg border border-[#E8D9CE] bg-white px-3 py-1.5 text-xs" /></label>
+                <button type="submit" className="justify-self-start rounded-lg bg-[#16223A] px-3 py-2 text-xs font-bold text-white sm:justify-self-end">Publish</button>
+              </form>
+            )}
 
             <div className="flex flex-wrap items-stretch gap-3">
               {/* holidays — dominant, full height of the left half */}
@@ -533,7 +567,7 @@ export const FirmStartCentreView: React.FC = () => {
           </section>
 
           {/* TODAY AT THE FIRM */}
-          <section className="flex flex-col gap-2.5 rounded-xl border border-[#E8D9CE] bg-white px-4 py-3.5 shadow-xs">
+          <section id="people" className="flex flex-col gap-2.5 rounded-xl border border-[#E8D9CE] bg-white px-4 py-3.5 shadow-xs scroll-mt-6">
             <div className="flex flex-wrap items-center gap-2">
               <span className="flex items-center gap-[7px] text-[9.5px] font-bold uppercase tracking-[0.13em] text-[#8A8578]">
                 <UsersRound className="h-3.5 w-3.5 text-[#A9814A]" /> Today at the firm
@@ -543,7 +577,7 @@ export const FirmStartCentreView: React.FC = () => {
                 <span className="rounded-full bg-[#F1F4F9] px-[7px] py-0.5 text-[#33415C]">{count('In court')} court</span>
                 <span className="rounded-full bg-[#FFF4EE] px-[7px] py-0.5 text-[#8C3F1F]">{count('Leave')} leave</span>
               </span>
-              <button type="button" onClick={() => setDirectoryOpen(true)} className="ml-auto cursor-pointer text-[10.5px] font-bold text-[#8A6534]">
+              <button type="button" onClick={() => { setDirectoryOpen(true); document.getElementById('people')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} className="ml-auto cursor-pointer text-[10.5px] font-bold text-[#8A6534]">
                 All {presence.length} →
               </button>
             </div>
@@ -585,7 +619,7 @@ export const FirmStartCentreView: React.FC = () => {
                   <LayoutDashboard className="h-[22px] w-[22px]" />
                 </span>
                 <span className="block">
-                  <strong className="block font-serif text-[19px] font-bold leading-tight">My Dashboard</strong>
+                  <strong className="block font-serif text-[19px] font-bold leading-tight text-white">My Dashboard</strong>
                   <span className="mt-1 block text-[11.5px] leading-snug text-white/70">Your matters, tasks and deadlines for today</span>
                 </span>
               </button>
@@ -601,7 +635,7 @@ export const FirmStartCentreView: React.FC = () => {
                     <span className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-white/20">
                       <Icon className="h-3.5 w-3.5" />
                     </span>
-                    <strong className="text-xs font-bold leading-tight">{label}</strong>
+                    <strong className="text-xs font-bold leading-tight text-white">{label}</strong>
                   </button>
                 ))}
               </div>
