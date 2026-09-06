@@ -1,35 +1,71 @@
 import React from 'react';
 import {
   ArrowDown,
+  ArrowUpRight,
+  Book,
   BookMarked,
+  BookOpen,
+  BookOpenCheck,
   Building2,
+  Calendar,
   CalendarDays,
   CalendarX2,
+  ChevronRight,
+  Clipboard,
+  Contact,
+  FileSearch,
   FileSpreadsheet,
+  FileStack,
+  FileText,
+  Files,
+  Folder,
+  FolderOpen,
+  Gavel,
   Globe2,
+  GraduationCap,
+  HardDrive,
+  House,
+  Landmark,
   LayoutDashboard,
   LayoutGrid,
+  Library,
+  ListChecks,
+  Mail,
+  Map,
+  MapPin,
   Megaphone,
   Package,
-  Plus,
   PartyPopper,
+  Plus,
   Receipt,
   Scale,
+  ScrollText,
   Search,
+  SearchCheck,
+  Settings,
+  ShieldCheck,
+  Table,
   UserCheck,
   UserCog,
+  UserPlus,
+  UsersRound,
+  Video,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { FirmAnnouncement } from '../../types';
 
+interface QuickLink {
+  label: string;
+  url: string;
+  icon: React.ElementType;
+}
 interface QuickLinkGroup {
   title: string;
-  links: { label: string; url: string }[];
+  icon: React.ElementType;
+  links: QuickLink[];
 }
-
 interface LauncherTile {
   label: string;
-  detail: string;
   view: string;
   icon: React.ElementType;
   bg: string;
@@ -43,6 +79,7 @@ const TONE = {
   clay: '#8C4A32',
   forest: '#2F6F4E',
   teal: '#276E77',
+  deepTeal: '#1E5C5A',
   plum: '#5A3A55',
   olive: '#5E6B33',
   rust: '#A15A2B',
@@ -52,70 +89,92 @@ const TONE = {
 const formatDay = (value: string) =>
   new Date(`${value}T00:00:00`).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' });
 
+const ONBOARDING_LINKS = [
+  { label: 'Onboarding', url: '#' },
+  { label: 'Firm guide', url: '#' },
+  { label: 'Firm org chart', url: '#' },
+  { label: 'Policies', url: '#' },
+];
+
 const QUICK_LINK_GROUPS: QuickLinkGroup[] = [
-  { title: 'Due diligence', links: [
-    { label: 'eInsolvency', url: 'https://e-insolvensi.mdi.gov.my/' },
-    { label: 'SSM e-Info', url: 'https://www.ssm-einfo.my/' },
+  { title: 'Due diligence', icon: SearchCheck, links: [
+    { label: 'eInsolvency', icon: FileSearch, url: 'https://e-insolvensi.mdi.gov.my/' },
+    { label: 'SSM e-Info', icon: Building2, url: 'https://www.ssm-einfo.my/' },
   ] },
-  { title: 'Bar', links: [
-    { label: 'Malaysian Bar', url: 'https://login.malaysianbar.org.my/' },
-    { label: 'Selangor Bar', url: 'https://member.selangorbar.org/login' },
+  { title: 'Bar', icon: Scale, links: [
+    { label: 'Malaysian Bar', icon: Landmark, url: 'https://login.malaysianbar.org.my/' },
+    { label: 'Selangor Bar', icon: Landmark, url: 'https://member.selangorbar.org/login' },
   ] },
-  { title: 'Litigation', links: [
-    { label: 'EFS', url: 'https://efs.kehakiman.gov.my/EFSWeb/' },
-    { label: 'Malaysian Judiciary', url: 'https://www.kehakiman.gov.my/' },
+  { title: 'Litigation', icon: Gavel, links: [
+    { label: 'EFS', icon: FileStack, url: 'https://efs.kehakiman.gov.my/EFSWeb/' },
+    { label: 'Malaysian Judiciary', icon: Landmark, url: 'https://www.kehakiman.gov.my/' },
   ] },
-  { title: 'Case files', links: [
-    { label: 'Litigation', url: 'https://drive.google.com/drive/folders/1sY6K_OtFRoWCkBNd5ArDOoKtSZHiYN3h?usp=drive_link' },
-    { label: 'Conveyancing', url: 'https://drive.google.com/drive/folders/1duXHdC0jqZABBWXKI2z0omu-VuDx8eiO?usp=drive_link' },
-    { label: 'Corporate', url: 'https://drive.google.com/drive/folders/13sZXUs4X0yoMEk8pBMEwwwZZAsjHHDey?usp=drive_link' },
-    { label: 'Probate & Administration', url: 'https://drive.google.com/drive/folders/1cp39TLlUvvm0M3-2BDh7d6kq8s7_EhJV?usp=drive_link' },
-    { label: 'Criminal', url: 'https://drive.google.com/drive/folders/1ysK_PbGNmfi8VxdM535CykjNUB4gxUwN?usp=drive_link' },
-    { label: 'YBGK', url: 'https://drive.google.com/drive/folders/1cZTgUZZUQ2nNl4SwKcgFr61kfSh0C4l9?usp=drive_link' },
+  { title: 'Case files', icon: FolderOpen, links: [
+    { label: 'Litigation', icon: Folder, url: 'https://drive.google.com/drive/folders/1sY6K_OtFRoWCkBNd5ArDOoKtSZHiYN3h?usp=drive_link' },
+    { label: 'Conveyancing', icon: Folder, url: 'https://drive.google.com/drive/folders/1duXHdC0jqZABBWXKI2z0omu-VuDx8eiO?usp=drive_link' },
+    { label: 'Corporate', icon: Folder, url: 'https://drive.google.com/drive/folders/13sZXUs4X0yoMEk8pBMEwwwZZAsjHHDey?usp=drive_link' },
+    { label: 'Probate & Administration', icon: Folder, url: 'https://drive.google.com/drive/folders/1cp39TLlUvvm0M3-2BDh7d6kq8s7_EhJV?usp=drive_link' },
+    { label: 'Criminal', icon: Folder, url: 'https://drive.google.com/drive/folders/1ysK_PbGNmfi8VxdM535CykjNUB4gxUwN?usp=drive_link' },
+    { label: 'YBGK', icon: Folder, url: 'https://drive.google.com/drive/folders/1cZTgUZZUQ2nNl4SwKcgFr61kfSh0C4l9?usp=drive_link' },
   ] },
-  { title: 'Library', links: [
-    { label: 'Practice Directions', url: 'https://intranet.kehakiman.gov.my/EAA/search.php?lang=en' },
-    { label: 'Legislation (AGC)', url: 'https://lom.agc.gov.my/' },
-    { label: 'eLaw', url: 'https://www.elaw.my/Default.aspx?returnUrl=https://www.elaw.my/elawquicksearch.aspx' },
-    { label: 'Lexis Nexis & eBook', url: 'https://member.selangorbar.org/login' },
-    { label: 'CLJ', url: 'https://www.cljlaw.com/' },
+  { title: 'Library', icon: BookMarked, links: [
+    { label: 'Practice Directions', icon: ScrollText, url: 'https://intranet.kehakiman.gov.my/EAA/search.php?lang=en' },
+    { label: 'Legislation (AGC)', icon: Book, url: 'https://lom.agc.gov.my/' },
+    { label: 'eLaw', icon: Search, url: 'https://www.elaw.my/Default.aspx?returnUrl=https://www.elaw.my/elawquicksearch.aspx' },
+    { label: 'Lexis Nexis & eBook', icon: Library, url: 'https://member.selangorbar.org/login' },
+    { label: 'CLJ', icon: BookOpen, url: 'https://www.cljlaw.com/' },
   ] },
-  { title: 'Conveyancing', links: [
-    { label: 'SRO 2023', url: 'https://www.malaysianbar.org.my/cms/upload_files/document/Solicitors%20Remuneration%20Order%202023.pdf' },
-    { label: 'E-Tanah Selangor', url: 'https://etanah.selangor.gov.my/etanah-awam/AwamLoginForm.xhtml?isLogout=true' },
-    { label: 'Smartbox Selangor', url: 'https://smartbox.selangor.gov.my/' },
-    { label: 'PTG Kuala Lumpur', url: 'https://www.ptgwp.gov.my/portal/ms/' },
+  { title: 'Conveyancing', icon: House, links: [
+    { label: 'SRO 2023', icon: FileText, url: 'https://www.malaysianbar.org.my/cms/upload_files/document/Solicitors%20Remuneration%20Order%202023.pdf' },
+    { label: 'E-Tanah Selangor', icon: Map, url: 'https://etanah.selangor.gov.my/etanah-awam/AwamLoginForm.xhtml?isLogout=true' },
+    { label: 'Smartbox Selangor', icon: Package, url: 'https://smartbox.selangor.gov.my/' },
+    { label: 'PTG Kuala Lumpur', icon: MapPin, url: 'https://www.ptgwp.gov.my/portal/ms/' },
   ] },
-  { title: 'Google Workspace', links: [
-    { label: 'Gmail', url: 'https://mail.google.com/' },
-    { label: 'Google Calendar', url: 'https://calendar.google.com/' },
-    { label: 'Google Drive', url: 'https://drive.google.com/' },
-    { label: 'Google Docs', url: 'https://docs.google.com/' },
-    { label: 'Google Sheets', url: 'https://sheets.google.com/' },
-    { label: 'Google Meet', url: 'https://meet.google.com/' },
-    { label: 'Google Forms', url: 'https://forms.google.com/' },
+  { title: 'Google Workspace', icon: LayoutGrid, links: [
+    { label: 'Gmail', icon: Mail, url: 'https://mail.google.com/' },
+    { label: 'Google Calendar', icon: Calendar, url: 'https://calendar.google.com/' },
+    { label: 'Google Drive', icon: HardDrive, url: 'https://drive.google.com/' },
+    { label: 'Google Docs', icon: FileText, url: 'https://docs.google.com/' },
+    { label: 'Google Sheets', icon: Table, url: 'https://sheets.google.com/' },
+    { label: 'Google Meet', icon: Video, url: 'https://meet.google.com/' },
+    { label: 'Google Forms', icon: Clipboard, url: 'https://forms.google.com/' },
   ] },
-  { title: 'More resources', links: [
-    { label: 'Attorney General’s Chambers', url: 'https://www.agc.gov.my/' },
-    { label: 'Malaysian Bar Council', url: 'https://www.malaysianbar.org.my/' },
-    { label: 'Google Admin Console', url: 'https://admin.google.com/' },
-    { label: 'Google Vault', url: 'https://ediscovery.google.com/' },
+  { title: 'More resources', icon: BookMarked, links: [
+    { label: 'Attorney General’s Chambers', icon: Landmark, url: 'https://www.agc.gov.my/' },
+    { label: 'Malaysian Bar Council', icon: UsersRound, url: 'https://www.malaysianbar.org.my/' },
+    { label: 'Google Admin Console', icon: Settings, url: 'https://admin.google.com/' },
+    { label: 'Google Vault', icon: HardDrive, url: 'https://ediscovery.google.com/' },
   ] },
 ];
 
-const LAUNCHER_TILES: LauncherTile[] = [
-  { label: 'My Dashboard', detail: 'Matters and worklist', view: 'dashboard', icon: LayoutDashboard, bg: TONE.navy },
-  { label: 'Staff Portal', detail: 'Leave, claims, personnel', view: 'staff-portal', icon: UserCog, bg: TONE.teal, module: 'staffPortal' },
-  { label: 'Client Portal', detail: 'What clients see', view: 'client-portal', icon: UserCheck, bg: TONE.plum },
-  { label: 'Practice', detail: 'Cases, clients, hearings', view: 'cases', icon: Scale, bg: TONE.brass },
-  { label: 'Calendar', detail: 'Hearings and firm dates', view: 'calendar', icon: CalendarDays, bg: TONE.olive },
-  { label: 'Claims', detail: 'Disbursements', view: 'reimbursements', icon: Receipt, bg: TONE.rust, module: 'reimbursements' },
-  { label: 'Billing', detail: 'Quotations, invoices, receipts', view: 'invoices', icon: FileSpreadsheet, bg: TONE.clay, module: 'invoices' },
-  { label: 'Accounting', detail: 'Firm and client account', view: 'accountingCentre', icon: Building2, bg: TONE.forest, module: 'accountingCentre' },
-  { label: 'Firm Inventory', detail: 'Assets and office stock', view: 'inventory', icon: Package, bg: TONE.slate, module: 'inventory' },
+const SMALL_TILES: LauncherTile[] = [
+  { label: 'Practice', view: 'cases', icon: Scale, bg: TONE.brass },
+  { label: 'Calendar', view: 'calendar', icon: CalendarDays, bg: TONE.olive },
+  { label: 'Billing', view: 'invoices', icon: FileSpreadsheet, bg: TONE.clay, module: 'invoices' },
+  { label: 'Claims', view: 'reimbursements', icon: Receipt, bg: TONE.rust, module: 'reimbursements' },
+  { label: 'Accounting', view: 'accountingCentre', icon: Building2, bg: TONE.forest, module: 'accountingCentre' },
+  { label: 'Trust Account', view: 'clientAccount', icon: ShieldCheck, bg: TONE.deepTeal, module: 'clientAccount' },
+  { label: 'Staff Portal', view: 'staff-portal', icon: UserCog, bg: TONE.teal, module: 'staffPortal' },
+  { label: 'Client Portal', view: 'client-portal', icon: UserCheck, bg: TONE.plum },
+  { label: 'Firm Inventory', view: 'inventory', icon: Package, bg: TONE.slate, module: 'inventory' },
   // TODO: point Library at a dedicated view once one exists; it currently opens the Law Library tab of Inventory.
-  { label: 'Library', detail: 'Research and legislation', view: 'inventory', icon: BookMarked, bg: TONE.ink, module: 'inventory' },
+  { label: 'Library', view: 'inventory', icon: BookMarked, bg: TONE.ink, module: 'inventory' },
 ];
+
+const SHELVES = [
+  { icon: ShieldCheck, title: 'Firm policies', detail: 'Leave, conflicts, IT & data, AMLA obligations, client care.' },
+  { icon: ListChecks, title: 'Department SOPs', detail: 'Step-by-step for litigation, conveyancing, corporate, probate, criminal.' },
+  { icon: Files, title: 'Precedents & templates', detail: 'Pleadings, agreements, standard letters and engagement packs.' },
+  { icon: Scale, title: 'Compliance — SAR 1990 & AMLA', detail: 'Trust account rules, reporting duties, audit checklists.' },
+  { icon: UserPlus, title: 'HR & onboarding', detail: 'New joiner packs, pupillage guide, appraisal and claims forms.' },
+  { icon: GraduationCap, title: 'Training & CPD', detail: 'Recorded sessions, CPD tracking and Bar circular digests.' },
+];
+
+const STATUS_TONE: Record<string, string> = {
+  'In court': '#33415C',
+  'In office': '#2F6F4E',
+  Leave: '#8C3F1F',
+};
 
 export const FirmStartCentreView: React.FC = () => {
   const {
@@ -127,6 +186,9 @@ export const FirmStartCentreView: React.FC = () => {
     setIsNewCaseModalOpen,
     canViewModule,
   } = useApp() as ReturnType<typeof useApp> & { canViewModule?: (module: string) => boolean };
+
+  const [openGroup, setOpenGroup] = React.useState<number>(3);
+  const [directoryOpen, setDirectoryOpen] = React.useState(false);
 
   const today = new Date();
   const todayKey = today.toISOString().slice(0, 10);
@@ -160,43 +222,59 @@ export const FirmStartCentreView: React.FC = () => {
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 3);
 
+  // Presence: staffProfile.presence is expected to be 'In office' | 'In court' | 'Leave'.
+  const presence = users.map((user) => ({
+    id: user.id,
+    name: user.name,
+    role: user.staffProfile?.designation || user.role || '',
+    status: (user.staffProfile as { presence?: string } | undefined)?.presence || 'In office',
+    extension: (user.staffProfile as { extension?: string } | undefined)?.extension || '',
+    mobile: (user.staffProfile as { mobile?: string } | undefined)?.mobile || '',
+  }));
+  const count = (status: string) => presence.filter((p) => p.status === status).length;
+
   const initials = (name: string) => name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
   const canOpen = (module?: string) => !module || !canViewModule || canViewModule(module);
-  const tiles = LAUNCHER_TILES.filter((tile) => canOpen(tile.module));
+  const tiles = SMALL_TILES.filter((tile) => canOpen(tile.module));
 
   return (
-    <div className="w-full space-y-3.5 pb-8 text-xs">
+    <div className="w-full space-y-5 pb-8 text-xs">
       {/* HERO */}
-      <section className="relative overflow-hidden rounded-2xl border border-[#304362] bg-[#16223A] px-6 py-5 text-white shadow-lg">
+      <section className="relative overflow-hidden rounded-2xl border border-[#304362] bg-[#16223A] px-[18px] py-3.5 text-white shadow-lg">
         <div className="absolute inset-y-0 right-0 hidden w-2/5 bg-gradient-to-l from-[#A9814A]/25 to-transparent sm:block" />
-        <div className="relative flex flex-wrap items-end justify-between gap-6">
-          <div className="flex max-w-2xl flex-col gap-2.5">
+        <div className="relative flex flex-wrap items-end justify-between gap-3.5">
+          <div className="flex max-w-2xl flex-col gap-[7px]">
             <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#B97755]">
               <Scale className="h-4 w-4" /> Firm Start Centre
               <span className="rounded-full border border-white/20 px-2 py-0.5 text-[9px] tracking-wider text-slate-300">{currentRole}</span>
             </div>
-            <h1 className="font-serif text-[27px] font-bold -tracking-[0.02em]">{greeting}, {currentUser.name.split(' ')[0]}</h1>
-            <div className="flex flex-wrap gap-2 pt-0.5">
-              <button type="button" onClick={() => setIsNewCaseModalOpen(true)} className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#A9814A] px-3 py-2 font-bold text-white transition hover:bg-[#C29A5A]">
+            <h1 className="font-serif text-xl font-bold -tracking-[0.02em]">{greeting}, {currentUser.name.split(' ')[0]}</h1>
+            <p className="max-w-[56ch] text-[11.5px] leading-normal text-slate-300">
+              Notices, people, policies and portals. Your own matters and tasks are on{' '}
+              <button type="button" onClick={() => setCurrentView('dashboard')} className="cursor-pointer font-semibold text-[#E4C79A]">
+                My Dashboard →
+              </button>
+            </p>
+            <div className="flex flex-wrap gap-1.5 pt-px">
+              <button type="button" onClick={() => setIsNewCaseModalOpen(true)} className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#A9814A] px-2.5 py-1.5 text-[11.5px] font-bold text-white transition hover:bg-[#C29A5A]">
                 <Plus className="h-3.5 w-3.5" /> New matter
               </button>
-              <button type="button" onClick={() => setCurrentView('cases')} className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-2 font-bold text-white transition hover:bg-white/20">
-                <Search className="h-3.5 w-3.5" /> Find a record
+              <button type="button" onClick={() => setDirectoryOpen(true)} className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-2.5 py-1.5 text-[11.5px] font-bold text-white transition hover:bg-white/20">
+                <Contact className="h-3.5 w-3.5" /> Staff directory
               </button>
             </div>
           </div>
           <div className="flex items-baseline gap-2 text-right">
-            <span className="font-serif text-lg font-bold">{today.toLocaleDateString('en-MY', { weekday: 'long' })}</span>
-            <span className="font-mono text-xs text-slate-300">{today.toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+            <span className="font-serif text-sm font-bold">{today.toLocaleDateString('en-MY', { weekday: 'long' })}</span>
+            <span className="font-mono text-[11px] text-slate-300">{today.toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
           </div>
         </div>
 
-        {/* urgent strip */}
-        <div className="relative mt-3.5 flex flex-wrap items-center gap-x-[18px] gap-y-2 border-t border-white/15 pt-3">
+        <div className="relative mt-2.5 flex items-center gap-3 overflow-hidden border-t border-white/15 pt-[9px]">
           {nextHoliday && (
-            <span className="flex min-w-0 items-center gap-2">
+            <span className="flex shrink-0 items-center gap-2">
               <CalendarX2 className="h-3.5 w-3.5 shrink-0 text-[#C98D70]" />
-              <span className="text-xs text-white">
+              <span className="text-[11.5px] text-white">
                 <strong className="font-bold">Office closed {formatDay(dateOf(nextHoliday))}</strong>
                 <span className="text-slate-300"> — {nextHoliday.title}</span>
               </span>
@@ -204,9 +282,9 @@ export const FirmStartCentreView: React.FC = () => {
           )}
           {nextHoliday && notices.length > 0 && <span className="h-3.5 w-px bg-white/20" />}
           {notices[0] && (
-            <span className="flex min-w-0 items-center gap-2">
+            <span className="flex min-w-0 flex-1 items-center gap-2">
               <Megaphone className="h-3.5 w-3.5 shrink-0 text-[#C98D70]" />
-              <span className="truncate text-xs text-slate-300">{notices[0].title}</span>
+              <span className="truncate text-[11.5px] text-slate-300">{notices[0].title}</span>
             </span>
           )}
           <a href="#announcements" className="ml-auto flex shrink-0 items-center gap-1.5 text-[11px] font-bold text-[#E4C79A] no-underline">
@@ -215,174 +293,322 @@ export const FirmStartCentreView: React.FC = () => {
         </div>
       </section>
 
-      {/* ANNOUNCEMENTS — holidays / notices / celebrations */}
-      <section id="announcements" className="rounded-xl border border-[#E1DCCF] bg-white p-5 shadow-xs">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-3">
-          <div>
-            <h2 className="flex items-center gap-2 font-serif text-base font-bold text-[#16223A]">
-              <Megaphone className="h-4 w-4 text-[#A9814A]" /> Firm announcements
-            </h2>
-            <p className="mt-1 text-slate-500">Internal notices, celebrations and firm dates.</p>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_240px]">
+        <div className="flex min-w-0 flex-col gap-5">
+          {/* ONBOARDING STRIP */}
+          <section className="flex flex-wrap items-center gap-x-3.5 gap-y-2.5 rounded-xl border border-[#304362] bg-[#16223A] px-3.5 py-2.5">
+            {ONBOARDING_LINKS.map((link) => (
+              <a key={link.label} href={link.url} className="whitespace-nowrap text-[11px] font-semibold text-[#E4C79A] no-underline hover:text-white">
+                {link.label}
+              </a>
+            ))}
+          </section>
 
-        <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {/* holidays — dominant */}
-          <div className="flex flex-col gap-3 rounded-xl bg-[#16223A] p-4 text-white">
-            <div className="flex items-center gap-2 text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#C98D70]">
-              <CalendarX2 className="h-3.5 w-3.5" /> Holidays &amp; office closures
+          {/* ANNOUNCEMENTS */}
+          <section id="announcements" className="rounded-xl border border-[#E1DCCF] bg-white p-5 shadow-xs">
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-3">
+              <div>
+                <h2 className="flex items-center gap-2 font-serif text-base font-bold text-[#16223A]">
+                  <Megaphone className="h-4 w-4 text-[#A9814A]" /> Firm announcements
+                </h2>
+                <p className="mt-1 text-slate-500">Internal notices, celebrations and firm dates.</p>
+              </div>
             </div>
-            {nextHoliday ? (
-              <>
-                <div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-serif text-4xl font-bold leading-none tabular-nums">
-                      {new Date(`${dateOf(nextHoliday)}T00:00:00`).getDate()}
-                    </span>
-                    <span className="font-serif text-[17px] font-semibold text-[#E4D9C6]">
-                      {new Date(`${dateOf(nextHoliday)}T00:00:00`).toLocaleDateString('en-MY', { month: 'short' })}
-                    </span>
-                    {daysAway !== null && (
-                      <span className="ml-auto rounded-full border border-white/25 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-300">
-                        {daysAway === 0 ? 'today' : daysAway === 1 ? 'tomorrow' : `in ${daysAway} days`}
-                      </span>
-                    )}
+
+            <div className="flex flex-wrap items-stretch gap-3">
+              {/* holidays — dominant, full height of the left half */}
+              <div className="flex min-w-0 flex-1 basis-[150px]">
+                <div className="flex min-w-0 flex-1 flex-col gap-2.5 rounded-xl bg-[#16223A] p-4 text-white">
+                  <div className="flex items-center gap-2 text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#C98D70]">
+                    <CalendarX2 className="h-3.5 w-3.5" /> Holidays &amp; office closures
                   </div>
-                  <h3 className="mt-2 font-serif text-[17px] font-semibold -tracking-[0.01em]">{nextHoliday.title}</h3>
-                  <p className="mt-1 leading-relaxed text-slate-300">{nextHoliday.body}</p>
+                  {nextHoliday ? (
+                    <>
+                      <div>
+                        <div className="flex items-baseline gap-2">
+                          <span className="font-serif text-[32px] font-bold leading-none tabular-nums">
+                            {new Date(`${dateOf(nextHoliday)}T00:00:00`).getDate()}
+                          </span>
+                          <span className="font-serif text-[17px] font-semibold text-[#E4D9C6]">
+                            {new Date(`${dateOf(nextHoliday)}T00:00:00`).toLocaleDateString('en-MY', { month: 'short' })}
+                          </span>
+                          {daysAway !== null && (
+                            <span className="ml-auto rounded-full border border-white/25 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-300">
+                              {daysAway === 0 ? 'today' : daysAway === 1 ? 'tomorrow' : `in ${daysAway} days`}
+                            </span>
+                          )}
+                        </div>
+                        <h3 className="mt-1.5 font-serif text-base font-semibold -tracking-[0.01em]">{nextHoliday.title}</h3>
+                        <p className="mt-1 leading-relaxed text-slate-300">{nextHoliday.body}</p>
+                      </div>
+                      {laterHolidays.length > 0 && (
+                        <div className="flex flex-col gap-2 border-t border-white/15 pt-2.5">
+                          {laterHolidays.slice(0, 3).map((holiday) => (
+                            <div key={holiday.id} className="flex items-baseline justify-between gap-2.5">
+                              <span className="truncate text-[#EDE9DD]">{holiday.title}</span>
+                              <span className="shrink-0 font-mono text-[11px] text-slate-400">{formatDay(dateOf(holiday))}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-slate-300">No upcoming closures recorded.</p>
+                  )}
                 </div>
-                {laterHolidays.length > 0 && (
-                  <div className="flex flex-col gap-2 border-t border-white/15 pt-2.5">
-                    {laterHolidays.slice(0, 3).map((holiday) => (
-                      <div key={holiday.id} className="flex items-baseline justify-between gap-2.5">
-                        <span className="truncate text-[#EDE9DD]">{holiday.title}</span>
-                        <span className="shrink-0 font-mono text-[11px] text-slate-400">{formatDay(dateOf(holiday))}</span>
-                      </div>
-                    ))}
+              </div>
+
+              {/* notices + celebrations stacked in the right half */}
+              <div className="flex min-w-0 flex-1 basis-[150px] flex-col gap-3">
+                <div className="flex flex-col gap-3 rounded-xl border border-[#E8D9CE] bg-white p-4">
+                  <div className="flex items-center gap-2 text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#8A8578]">
+                    <Megaphone className="h-3.5 w-3.5 text-[#A9814A]" /> Firm notices
                   </div>
-                )}
-              </>
-            ) : (
-              <p className="text-slate-300">No upcoming closures recorded.</p>
-            )}
-          </div>
-
-          {/* firm notices */}
-          <div className="flex flex-col gap-3 rounded-xl border border-[#E8D9CE] bg-white p-4">
-            <div className="flex items-center gap-2 text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#8A8578]">
-              <Megaphone className="h-3.5 w-3.5 text-[#A9814A]" /> Firm notices
-            </div>
-            {notices.length ? (
-              <div className="flex flex-col gap-3">
-                {notices.map((notice, index) => (
-                  <React.Fragment key={notice.id}>
-                    {index > 0 && <div className="h-px bg-[#F1EBE0]" />}
-                    <div>
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#7A5D34]">{notice.category}</span>
-                        <span className="font-mono text-[10px] text-[#A6A091]">{formatDay(dateOf(notice))}</span>
-                      </div>
-                      <h3 className="mt-0.5 font-serif text-[14.5px] font-semibold text-[#16223A]">{notice.title}</h3>
-                      <p className="mt-0.5 leading-relaxed text-[#5B6478]">{notice.body}</p>
+                  {notices.length ? (
+                    <div className="flex flex-col gap-3">
+                      {notices.map((notice, index) => (
+                        <React.Fragment key={notice.id}>
+                          {index > 0 && <div className="h-px bg-[#F1EBE0]" />}
+                          <div>
+                            <div className="flex items-baseline justify-between gap-2">
+                              <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#7A5D34]">{notice.category}</span>
+                              <span className="font-mono text-[10px] text-[#A6A091]">{formatDay(dateOf(notice))}</span>
+                            </div>
+                            <h3 className="mt-0.5 font-serif text-[14.5px] font-semibold text-[#16223A]">{notice.title}</h3>
+                            <p className="mt-0.5 leading-relaxed text-[#5B6478]">{notice.body}</p>
+                          </div>
+                        </React.Fragment>
+                      ))}
                     </div>
-                  </React.Fragment>
-                ))}
-              </div>
-            ) : (
-              <p className="text-slate-400">No notices published.</p>
-            )}
-          </div>
+                  ) : (
+                    <p className="text-slate-400">No notices published.</p>
+                  )}
+                </div>
 
-          {/* celebrations */}
-          <div className="flex flex-col gap-3 rounded-xl border border-[#E8D9CE] bg-white p-4">
-            <div className="flex items-center gap-2 text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#8A8578]">
-              <PartyPopper className="h-3.5 w-3.5 text-[#A9814A]" /> Celebrations
-            </div>
-            {celebrations.length ? (
-              <div className="flex flex-col gap-2.5">
-                {celebrations.map((celebration, index) => (
-                  <React.Fragment key={celebration.id}>
-                    {index > 0 && <div className="h-px bg-[#F1EBE0]" />}
-                    <div className="flex items-center gap-2.5">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#E7D7BA] bg-[#F8F2E7] font-serif text-xs font-semibold text-[#7A5D34]">
-                        {initials(celebration.name)}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <strong className="block truncate text-[13px] font-semibold text-[#16223A]">{celebration.name}</strong>
-                        <span className="block text-[10.5px] text-[#7A8296]">{celebration.detail}</span>
-                      </span>
-                      <span className="shrink-0 font-mono text-[11px] font-semibold text-[#5B6478]">{formatDay(celebration.date)}</span>
+                <div className="flex flex-col gap-3 rounded-xl border border-[#E8D9CE] bg-white p-4">
+                  <div className="flex items-center gap-2 text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#8A8578]">
+                    <PartyPopper className="h-3.5 w-3.5 text-[#A9814A]" /> Celebrations
+                  </div>
+                  {celebrations.length ? (
+                    <div className="flex flex-col gap-2.5">
+                      {celebrations.map((celebration, index) => (
+                        <React.Fragment key={celebration.id}>
+                          {index > 0 && <div className="h-px bg-[#F1EBE0]" />}
+                          <div className="flex items-center gap-2.5">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#E7D7BA] bg-[#F8F2E7] font-serif text-xs font-semibold text-[#7A5D34]">
+                              {initials(celebration.name)}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <strong className="block truncate text-[13px] font-semibold text-[#16223A]">{celebration.name}</strong>
+                              <span className="block text-[10.5px] text-[#7A8296]">{celebration.detail}</span>
+                            </span>
+                            <span className="shrink-0 font-mono text-[11px] font-semibold text-[#5B6478]">{formatDay(celebration.date)}</span>
+                          </div>
+                        </React.Fragment>
+                      ))}
                     </div>
-                  </React.Fragment>
-                ))}
+                  ) : (
+                    <p className="text-slate-400">Nothing coming up.</p>
+                  )}
+                </div>
               </div>
-            ) : (
-              <p className="text-slate-400">Nothing coming up.</p>
-            )}
-          </div>
-        </div>
-      </section>
+            </div>
+          </section>
 
-      {/* LAUNCHER + QUICK LINKS RAIL */}
-      <div className="flex flex-wrap items-start gap-3.5">
-        <div className="min-w-0 flex-1 basis-[560px]">
+          {/* TODAY AT THE FIRM */}
+          <section className="flex flex-col gap-2.5 rounded-xl border border-[#E8D9CE] bg-white px-4 py-3.5 shadow-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="flex items-center gap-[7px] text-[9.5px] font-bold uppercase tracking-[0.13em] text-[#8A8578]">
+                <UsersRound className="h-3.5 w-3.5 text-[#A9814A]" /> Today at the firm
+              </span>
+              <span className="flex flex-wrap gap-1.5 text-[9.5px] font-bold">
+                <span className="rounded-full bg-[#EEF4EE] px-[7px] py-0.5 text-[#2F6F4E]">{count('In office')} in</span>
+                <span className="rounded-full bg-[#F1F4F9] px-[7px] py-0.5 text-[#33415C]">{count('In court')} court</span>
+                <span className="rounded-full bg-[#FFF4EE] px-[7px] py-0.5 text-[#8C3F1F]">{count('Leave')} leave</span>
+              </span>
+              <button type="button" onClick={() => setDirectoryOpen(true)} className="ml-auto cursor-pointer text-[10.5px] font-bold text-[#8A6534]">
+                All {presence.length} →
+              </button>
+            </div>
+            <div className="flex flex-col gap-[7px]">
+              {presence.slice(0, 5).map((person, index) => (
+                <React.Fragment key={person.id}>
+                  {index > 0 && <div className="h-px bg-[#F1EBE0]" />}
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#E7D7BA] bg-[#F8F2E7] font-serif text-[10px] font-semibold text-[#7A5D34]">
+                      {initials(person.name)}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-[11.5px] font-semibold text-[#16223A]">{person.name}</span>
+                    <span className="shrink-0 text-[10.5px] font-semibold" style={{ color: STATUS_TONE[person.status] || '#5B6478' }}>
+                      {person.status}
+                    </span>
+                  </div>
+                </React.Fragment>
+              ))}
+            </div>
+          </section>
+
+          {/* LAUNCHER */}
           <section>
             <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <h2 className="font-serif text-xl font-bold -tracking-[0.015em] text-[#16223A]">Everything in the firm</h2>
-                <p className="mt-1 text-[#7A8296]">Every module you can open, in one place.</p>
+              <div className="min-w-0">
+                <h2 className="flex items-center gap-2 font-serif text-xl font-bold -tracking-[0.015em] text-[#16223A]">
+                  <LayoutGrid className="h-[18px] w-[18px] text-[#A9814A]" /> Go to a module
+                </h2>
+                <p className="mt-1 text-[#7A8296]">Every part of the practice, one click away.</p>
               </div>
-              <LayoutGrid className="h-5 w-5 text-[#A9814A]" />
             </div>
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(196px,1fr))] gap-2.5">
-              {tiles.map(({ label, detail, view, icon: Icon, bg }) => (
+            <div className="flex flex-wrap items-stretch gap-2.5">
+              <button
+                type="button"
+                onClick={() => setCurrentView('dashboard')}
+                className="flex min-w-[180px] flex-1 basis-[200px] cursor-pointer flex-col justify-between gap-4 rounded-2xl bg-[#16223A] p-[18px] text-left text-white shadow-lg transition hover:-translate-y-0.5"
+              >
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15">
+                  <LayoutDashboard className="h-[22px] w-[22px]" />
+                </span>
+                <span className="block">
+                  <strong className="block font-serif text-[19px] font-bold leading-tight">My Dashboard</strong>
+                  <span className="mt-1 block text-[11.5px] leading-snug text-white/70">Your matters, tasks and deadlines for today</span>
+                </span>
+              </button>
+              <div className="grid min-w-0 flex-1 basis-[300px] grid-cols-[repeat(auto-fill,minmax(112px,1fr))] content-start gap-2">
+                {tiles.map(({ label, view, icon: Icon, bg }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => setCurrentView(view)}
+                    style={{ backgroundColor: bg }}
+                    className="flex min-h-[82px] cursor-pointer flex-col gap-2 rounded-xl p-3 text-left text-white transition hover:-translate-y-0.5 hover:shadow-lg"
+                  >
+                    <span className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-white/20">
+                      <Icon className="h-3.5 w-3.5" />
+                    </span>
+                    <strong className="text-xs font-bold leading-tight">{label}</strong>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* HOW THE FIRM WORKS */}
+          <section className="rounded-2xl border border-[#E1DCCF] bg-[#FDFBF7] p-[18px] pb-4 shadow-xs">
+            <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#EDE6DA] pb-3">
+              <div className="min-w-0">
+                <h2 className="flex items-center gap-2 font-serif text-xl font-bold -tracking-[0.015em] text-[#16223A]">
+                  <BookOpenCheck className="h-[18px] w-[18px] text-[#A9814A]" /> How the firm works
+                </h2>
+                <p className="mt-1 text-[#7A8296]">Six shelves. Open one to browse every document inside it.</p>
+              </div>
+              <div className="relative flex min-w-0 flex-1 basis-[260px] items-center">
+                <Search className="absolute left-2.5 h-3.5 w-3.5 text-[#A6A091]" />
+                <input
+                  type="text"
+                  placeholder="Search policies and SOPs..."
+                  className="w-full min-w-0 rounded-lg border border-[#E8D9CE] bg-white py-2 pl-8 pr-3 text-xs"
+                />
+              </div>
+            </div>
+            <div className="mt-3.5 grid grid-cols-[repeat(auto-fill,minmax(178px,1fr))] items-stretch gap-2.5">
+              {SHELVES.map(({ icon: Icon, title, detail }) => (
                 <button
-                  key={label}
+                  key={title}
                   type="button"
-                  onClick={() => setCurrentView(view)}
-                  style={{ backgroundColor: bg }}
-                  className="flex min-h-[104px] cursor-pointer items-center gap-3 rounded-2xl p-3.5 text-left text-white transition hover:-translate-y-0.5 hover:shadow-lg"
+                  className="flex cursor-pointer flex-col gap-2.5 rounded-xl border border-[#E8D9CE] bg-white p-3.5 text-left transition hover:-translate-y-0.5 hover:border-[#C9A46B] hover:shadow-lg"
                 >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15">
-                    <Icon className="h-5 w-5" />
+                  <span className="flex h-[30px] w-[30px] items-center justify-center rounded-[9px] bg-[#F1E8DA] text-[#8A6534]">
+                    <Icon className="h-[15px] w-[15px]" />
                   </span>
-                  <span className="min-w-0">
-                    <strong className="block text-[13px] font-bold leading-tight">{label}</strong>
-                    <span className="mt-0.5 block text-[10px] leading-snug text-white/70">{detail}</span>
-                  </span>
+                  <strong className="font-serif text-sm font-bold leading-tight text-[#16223A]">{title}</strong>
+                  <span className="text-[11px] leading-relaxed text-[#5B6478]">{detail}</span>
                 </button>
               ))}
             </div>
           </section>
+
+          {/* PEOPLE & THE PROFESSION */}
+          <section className="rounded-xl border border-[#E1DCCF] bg-white p-5 shadow-xs">
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-3">
+              <div>
+                <h2 className="flex items-center gap-2 font-serif text-base font-bold text-[#16223A]">
+                  <Contact className="h-4 w-4 text-[#A9814A]" /> People &amp; the profession
+                </h2>
+                <p className="mt-1 text-slate-500">Staff directory, roles and extensions.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDirectoryOpen((open) => !open)}
+                className="flex cursor-pointer items-center gap-1.5 self-start rounded-lg bg-[#16223A] px-3 py-2 text-xs font-bold text-white"
+              >
+                <Contact className="h-3.5 w-3.5 text-[#B97755]" /> Directory
+                <ChevronRight className={`h-3 w-3 text-[#B97755] transition-transform ${directoryOpen ? 'rotate-90' : ''}`} />
+              </button>
+            </div>
+            {directoryOpen && (
+              <div className="mt-4">
+                <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_54px_minmax(0,110px)] gap-2.5 px-2.5 pb-1.5 text-[8.5px] font-bold uppercase tracking-[0.11em] text-[#A6A091]">
+                  <span>Name</span><span>Role</span><span>Ext</span><span>Mobile</span>
+                </div>
+                {presence.map((person) => (
+                  <div key={person.id} className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_54px_minmax(0,110px)] items-center gap-2.5 rounded-lg px-2.5 py-2 transition hover:bg-[#FAF5ED]">
+                    <span className="min-w-0 truncate text-xs font-semibold text-[#16223A]">{person.name}</span>
+                    <span className="min-w-0 truncate text-[11px] text-[#7A8296]">{person.role}</span>
+                    <span className="font-mono text-[11.5px] font-bold text-[#8A6534]">{person.extension || '—'}</span>
+                    <span className="truncate font-mono text-[11px] text-[#5B6478]">{person.mobile || '—'}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
 
-        <aside className="flex min-w-[250px] basis-[296px] flex-col overflow-hidden rounded-2xl border border-[#E1DCCF] bg-[#FDFBF7]">
-          <div className="flex items-center justify-between gap-2.5 border-b border-[#EDE6DA] px-4 py-3.5">
+        {/* QUICK LINKS RAIL */}
+        <aside className="flex min-w-0 flex-col self-start overflow-hidden rounded-2xl border border-[#E1DCCF] bg-[#FDFBF7] xl:sticky xl:top-0">
+          <div className="flex items-center justify-between gap-2.5 border-b border-[#EDE6DA] bg-gradient-to-b from-[#FFFDF9] to-[#FAF5ED] px-4 py-3.5">
             <div>
               <h2 className="font-serif text-[15px] font-bold text-[#16223A]">Quick links</h2>
               <p className="mt-0.5 text-[10.5px] text-[#7A8296]">Portals, folders and Workspace</p>
             </div>
             <Globe2 className="h-4 w-4 shrink-0 text-[#A9814A]" />
           </div>
-          <div className="flex max-h-[560px] flex-col gap-3.5 overflow-y-auto px-4 py-3.5">
-            {QUICK_LINK_GROUPS.map((group) => (
-              <div key={group.title}>
-                <div className="mb-1.5 text-[9px] font-bold uppercase tracking-[0.13em] text-[#A6A091]">{group.title}</div>
-                <div className="flex flex-wrap gap-[5px]">
-                  {group.links.map((link) => (
-                    <a
-                      key={link.label}
-                      href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex max-w-full items-center gap-1 rounded-full border border-[#E8D9CE] bg-white px-2.5 py-1 text-[10.5px] font-semibold text-[#2C241F] no-underline transition hover:border-[#A9814A] hover:bg-[#F6F1E9] hover:text-[#16223A]"
-                    >
-                      <span className="truncate">{link.label}</span>
-                    </a>
-                  ))}
+          <div className="flex flex-col gap-0.5 px-2.5 pb-3 pt-2">
+            {QUICK_LINK_GROUPS.map((group, index) => {
+              const isOpen = index === openGroup;
+              const GroupIcon = group.icon;
+              return (
+                <div key={group.title}>
+                  <button
+                    type="button"
+                    onClick={() => setOpenGroup(isOpen ? -1 : index)}
+                    className={`flex w-full cursor-pointer items-center gap-2.5 rounded-[9px] px-2.5 py-2.5 text-left transition ${isOpen ? 'bg-[#16223A] text-[#F6F1E9]' : 'text-[#2C241F] hover:bg-[#F6F1E9]'}`}
+                  >
+                    <GroupIcon className="h-3.5 w-3.5 shrink-0 opacity-85" />
+                    <span className="min-w-0 flex-1 truncate text-[11.5px] font-semibold">{group.title}</span>
+                    <span className={`shrink-0 text-[9.5px] font-bold ${isOpen ? 'text-[#D8AE6E]' : 'text-[#B4AB9A]'}`}>{group.links.length}</span>
+                    <ChevronRight className={`h-3 w-3 shrink-0 opacity-70 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+                  </button>
+                  {isOpen && (
+                    <div className="mb-2 ml-2.5 mt-1 flex flex-col gap-px border-l-2 border-[#E3D3BC] pl-[11px]">
+                      {group.links.map(({ label, url, icon: LinkIcon }) => (
+                        <a
+                          key={label}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-[#2C241F] no-underline transition hover:bg-[#F4EEE4] hover:text-[#16223A]"
+                        >
+                          <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[7px] bg-[#F1E8DA] text-[#8A6534]">
+                            <LinkIcon className="h-3 w-3" />
+                          </span>
+                          <span className="min-w-0 flex-1 truncate text-[11.5px] font-medium">{label}</span>
+                          <ArrowUpRight className="h-3 w-3 shrink-0 text-[#C0B7A6]" />
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </aside>
       </div>

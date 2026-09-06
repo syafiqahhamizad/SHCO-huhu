@@ -47,6 +47,7 @@ import { MyAccountView } from './components/views/MyAccountView';
 import { AboutAppView } from './components/views/AboutAppView';
 import { ActivityLogsView } from './components/views/ActivityLogsView';
 import { FirmStartCentreView } from './components/views/FirmStartCentreView';
+import { MyDashboardView } from './components/views/MyDashboardView';
 
 const MainContent: React.FC = () => {
   const {
@@ -107,6 +108,8 @@ const MainContent: React.FC = () => {
       // Core Practice
       case 'firmStartCentre':
         return <FirmStartCentreView />;
+      case 'myDashboard':
+        return <MyDashboardView />;
       case 'dashboard':
         return <DashboardView />;
       case 'partnerDashboard':

@@ -52,6 +52,10 @@ export const Header: React.FC = () => {
 
   const getViewInfo = () => {
     switch (currentView) {
+      case 'firmStartCentre':
+        return { title: 'Firm Start Centre', sub: 'Announcements, workspaces and firm resources in one place' };
+      case 'myDashboard':
+        return { title: 'My Dashboard', sub: 'Your tasks, court dates, approvals and unbilled work' };
       case 'dashboard':
         return { title: 'Dashboard', sub: 'Firm-wide operational & financial snapshot' };
       case 'leads':
@@ -91,6 +95,7 @@ export const Header: React.FC = () => {
         return { title: 'Payment Vouchers (PV)', sub: 'Disbursements and firm expenses with partner sign-off' };
       case 'retainers':
         return { title: 'Client Account (Trust)', sub: "Solicitors' Account Rules 1990 Trust Ledger & 3-Way Reconciliation" };
+      case 'trialBalance':
         return { title: 'Trial Balance', sub: 'Debits vs Credits balancing ledger' };
       case 'balanceSheet':
         return { title: 'Balance Sheet', sub: 'Assets = Liabilities + Partner Equity' };
@@ -124,12 +129,12 @@ export const Header: React.FC = () => {
   const info = getViewInfo();
 
   return (
-    <header className="sticky top-0 z-20 mb-4 sm:mb-6 border-b border-[#304362] bg-[#16223A] text-white px-4 sm:px-6 py-2.5 flex flex-col md:flex-row md:items-center justify-start gap-2.5 overflow-visible">
+    <header className="sticky top-0 z-20 mb-4 sm:mb-6 border-b border-[#E1DCCF] bg-[#FAF8F2] text-[#2C241F] px-4 sm:px-6 py-2.5 flex flex-col md:flex-row md:items-center justify-start gap-2.5 overflow-visible">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <h1 className="min-w-0 font-serif text-lg sm:text-xl font-bold text-white tracking-tight truncate">{info.title}</h1>
+          <h1 className="min-w-0 font-serif text-lg sm:text-xl font-bold text-[#16223A] tracking-tight truncate">{info.title}</h1>
         </div>
-        <p className="text-xs text-slate-300 mt-0.5 line-clamp-2">{info.sub}</p>
+        <p className="text-xs text-slate-600 mt-0.5 line-clamp-2">{info.sub}</p>
       </div>
 
       <div className="flex w-full min-w-0 flex-wrap items-center gap-1.5 sm:gap-2 md:ml-8 md:w-auto md:shrink-0">
@@ -152,7 +157,7 @@ export const Header: React.FC = () => {
           onClick={() => window.location.reload()}
           title="Reload latest saved data"
           aria-label="Reload latest saved data"
-          className="shrink-0 rounded p-1.5 text-slate-300 transition-colors hover:bg-[#304362] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#B86F4A] cursor-pointer"
+          className="shrink-0 rounded p-1.5 text-slate-500 transition-colors hover:bg-[#F5E9E1] hover:text-[#16223A] focus:outline-none focus:ring-2 focus:ring-[#B86F4A] cursor-pointer"
         >
           <RefreshCw className="h-4 w-4" />
         </button>
