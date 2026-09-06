@@ -9,7 +9,7 @@ import { SignInPortal } from './components/SignInPortal';
 import { ShieldAlert } from 'lucide-react';
 
 // Views
-import { DashboardView } from './components/views/DashboardView';
+import { ComprehensiveDashboardView as DashboardView } from './components/views/ComprehensiveDashboardView';
 import { PartnerDashboardView } from './components/views/PartnerDashboardView';
 import { LeadsView } from './components/views/LeadsView';
 import { ClientsView } from './components/views/ClientsView';
