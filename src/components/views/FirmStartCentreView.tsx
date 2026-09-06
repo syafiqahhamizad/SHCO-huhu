@@ -466,14 +466,14 @@ export const FirmStartCentreView: React.FC = () => {
                 </h2>
                 <p className="mt-1 text-slate-500">Internal notices, celebrations and firm dates.</p>
               </div>
-              {canEditStartCentre && (
+              {canEditStartCentre && editMode && (
                 <button type="button" onClick={() => setAnnouncementOpen((open) => !open)} className="flex cursor-pointer items-center gap-1.5 self-start rounded-lg bg-[#16223A] px-3 py-2 text-xs font-bold text-white">
                   <Plus className="h-3.5 w-3.5 text-[#E4C79A]" /> {announcementOpen ? 'Close form' : 'Publish announcement'}
                 </button>
               )}
             </div>
 
-            {announcementOpen && (
+            {announcementOpen && editMode && (
               <form
                 className="mb-4 grid gap-3 rounded-xl border border-[#D8C5A5] bg-[#FDFBF7] p-4 shadow-sm sm:grid-cols-2"
                 onSubmit={(event) => {
@@ -529,14 +529,14 @@ export const FirmStartCentreView: React.FC = () => {
                             </span>
                           )}
                         </div>
-                        <div className="flex items-start justify-between gap-2"><h3 className="mt-1.5 font-serif text-base font-semibold -tracking-[0.01em]">{nextHoliday.title}</h3>{canEditStartCentre && <button type="button" onClick={() => { if (window.confirm(`Delete “${nextHoliday.title}”?`)) deleteAnnouncement(nextHoliday.id); }} title="Delete closure" aria-label={`Delete ${nextHoliday.title}`} className="shrink-0 cursor-pointer rounded-md p-1 text-slate-300 transition hover:bg-white/10 hover:text-red-200"><Trash2 className="h-3.5 w-3.5" /></button>}</div>
+                        <div className="flex items-start justify-between gap-2"><h3 className="mt-1.5 font-serif text-base font-semibold -tracking-[0.01em]">{nextHoliday.title}</h3>{canEditStartCentre && editMode && <button type="button" onClick={() => { if (window.confirm(`Delete “${nextHoliday.title}”?`)) deleteAnnouncement(nextHoliday.id); }} title="Delete closure" aria-label={`Delete ${nextHoliday.title}`} className="shrink-0 cursor-pointer rounded-md p-1 text-slate-300 transition hover:bg-white/10 hover:text-red-200"><Trash2 className="h-3.5 w-3.5" /></button>}</div>
                         <p className="mt-1 leading-relaxed text-slate-300">{nextHoliday.body}</p>
                       </div>
                       {laterHolidays.length > 0 && (
                         <div className="flex flex-col gap-2 border-t border-white/15 pt-2.5">
                           {laterHolidays.slice(0, 3).map((holiday) => (
                             <div key={holiday.id} className="flex items-baseline justify-between gap-2.5">
-                              <span className="flex min-w-0 items-center gap-1.5"><span className="truncate text-[#EDE9DD]">{holiday.title}</span>{canEditStartCentre && <button type="button" onClick={() => { if (window.confirm(`Delete “${holiday.title}”?`)) deleteAnnouncement(holiday.id); }} title="Delete closure" aria-label={`Delete ${holiday.title}`} className="shrink-0 cursor-pointer text-slate-400 hover:text-red-200"><Trash2 className="h-3 w-3" /></button>}</span>
+                              <span className="flex min-w-0 items-center gap-1.5"><span className="truncate text-[#EDE9DD]">{holiday.title}</span>{canEditStartCentre && editMode && <button type="button" onClick={() => { if (window.confirm(`Delete “${holiday.title}”?`)) deleteAnnouncement(holiday.id); }} title="Delete closure" aria-label={`Delete ${holiday.title}`} className="shrink-0 cursor-pointer text-slate-400 hover:text-red-200"><Trash2 className="h-3 w-3" /></button>}</span>
                               <span className="shrink-0 font-mono text-[11px] text-slate-400">{formatDay(dateOf(holiday))}</span>
                             </div>
                           ))}
@@ -565,7 +565,7 @@ export const FirmStartCentreView: React.FC = () => {
                               <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#7A5D34]">{notice.category}</span>
                               <span className="font-mono text-[10px] text-[#A6A091]">{formatDay(dateOf(notice))}</span>
                             </div>
-                            <div className="flex items-start justify-between gap-2"><h3 className="mt-0.5 font-serif text-[14.5px] font-semibold text-[#16223A]">{notice.title}</h3>{canEditStartCentre && <button type="button" onClick={() => { if (window.confirm(`Delete “${notice.title}”?`)) deleteAnnouncement(notice.id); }} title="Delete announcement" aria-label={`Delete ${notice.title}`} className="shrink-0 cursor-pointer rounded-md p-1 text-[#A6A091] transition hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>}</div>
+                            <div className="flex items-start justify-between gap-2"><h3 className="mt-0.5 font-serif text-[14.5px] font-semibold text-[#16223A]">{notice.title}</h3>{canEditStartCentre && editMode && <button type="button" onClick={() => { if (window.confirm(`Delete “${notice.title}”?`)) deleteAnnouncement(notice.id); }} title="Delete announcement" aria-label={`Delete ${notice.title}`} className="shrink-0 cursor-pointer rounded-md p-1 text-[#A6A091] transition hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>}</div>
                             <p className="mt-0.5 leading-relaxed text-[#5B6478]">{notice.body}</p>
                           </div>
                         </React.Fragment>
@@ -648,7 +648,7 @@ export const FirmStartCentreView: React.FC = () => {
                 </h2>
                 <p className="mt-1 text-[#7A8296]">Every part of the practice, one click away.</p>
               </div>
-              {canEditStartCentre && <button type="button" onClick={() => { const label = window.prompt('Module name'); const view = label && window.prompt('App view ID, e.g. cases or calendar'); if (label?.trim() && view?.trim()) setLauncherTiles((items) => [...items, { label: label.trim(), view: view.trim(), icon: LayoutGrid, bg: TONE.ink }]); }} className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#16223A] px-3 py-2 text-xs font-bold text-white"><Plus className="h-3.5 w-3.5 text-[#E4C79A]" /> Add module</button>}
+              {canEditStartCentre && editMode && <button type="button" onClick={() => { const label = window.prompt('Module name'); const view = label && window.prompt('App view ID, e.g. cases or calendar'); if (label?.trim() && view?.trim()) setLauncherTiles((items) => [...items, { label: label.trim(), view: view.trim(), icon: LayoutGrid, bg: TONE.ink }]); }} className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#16223A] px-3 py-2 text-xs font-bold text-white"><Plus className="h-3.5 w-3.5 text-[#E4C79A]" /> Add module</button>}
             </div>
             <div className="flex flex-wrap items-stretch gap-2.5">
               <button
@@ -659,9 +659,10 @@ export const FirmStartCentreView: React.FC = () => {
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15">
                   <LayoutDashboard className="h-[22px] w-[22px]" />
                 </span>
-                <span className="block">
-                  <strong className="block font-serif text-[19px] font-bold leading-tight text-white">My Dashboard</strong>
-                  <span className="mt-1 block text-[11.5px] leading-snug text-white/70">Your matters, tasks and deadlines for today</span>
+                  <span className="block text-white">
+                  <strong className="block font-serif text-[19px] font-bold leading-tight !text-white">My Dashboard</strong>
+                  <span className="mt-1 block text-[11.5px] leading-snug !text-white/70">Your matters, tasks and deadlines for today</span>
+                  {canEditStartCentre && editMode && <span className="mt-1 block text-[9px] font-semibold !text-[#E4C79A]">Target: dashboard</span>}
                 </span>
               </button>
               <div className="grid min-w-0 flex-1 basis-[300px] grid-cols-[repeat(auto-fill,minmax(112px,1fr))] content-start gap-2">
@@ -669,9 +670,10 @@ export const FirmStartCentreView: React.FC = () => {
                   <div key={label} className="relative" title={`Opens app view: ${view}`}>
                     <button type="button" onClick={() => setCurrentView(view)} style={{ backgroundColor: bg }} className="!text-white flex min-h-[82px] w-full cursor-pointer flex-col gap-2 rounded-xl p-3 text-left text-white transition hover:-translate-y-0.5 hover:shadow-lg">
                       <span className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-white/20"><Icon className="h-3.5 w-3.5" /></span>
-                      <strong className="text-xs font-bold leading-tight text-white">{label}</strong>
+                      <strong className="text-xs font-bold leading-tight !text-white">{label}</strong>
+                      {canEditStartCentre && editMode && <span className="text-[9px] font-semibold !text-white/80">Target: {view}</span>}
                     </button>
-                    {canEditStartCentre && <div className="absolute right-1 top-1 flex gap-1"><button type="button" onClick={() => { const nextLabel = window.prompt('Module name', label); const nextView = nextLabel && window.prompt('App view ID', view); if (nextLabel?.trim() && nextView?.trim()) setLauncherTiles((items) => items.map((item) => item.label === label ? { ...item, label: nextLabel.trim(), view: nextView.trim() } : item)); }} className="rounded bg-white/90 px-1 text-[9px] font-bold text-[#16223A]">Edit</button><button type="button" onClick={() => { if (window.confirm(`Delete module “${label}”?`)) setLauncherTiles((items) => items.filter((item) => item.label !== label)); }} className="rounded bg-white/90 px-1 text-[9px] font-bold text-red-700">Delete</button></div>}
+                    {canEditStartCentre && editMode && <div className="absolute right-1 top-1 flex gap-1"><button type="button" onClick={() => { const nextLabel = window.prompt('Module name', label); const nextView = nextLabel && window.prompt('App view ID', view); if (nextLabel?.trim() && nextView?.trim()) setLauncherTiles((items) => items.map((item) => item.label === label ? { ...item, label: nextLabel.trim(), view: nextView.trim() } : item)); }} className="rounded bg-white/90 px-1 text-[9px] font-bold text-[#16223A]">Edit</button><button type="button" onClick={() => { if (window.confirm(`Delete module “${label}”?`)) setLauncherTiles((items) => items.filter((item) => item.label !== label)); }} className="rounded bg-white/90 px-1 text-[9px] font-bold text-red-700">Delete</button></div>}
                   </div>
                 ))}
               </div>
@@ -687,7 +689,7 @@ export const FirmStartCentreView: React.FC = () => {
                 </h2>
                 <p className="mt-1 text-[#7A8296]">Six shelves. Open one to browse every document inside it.</p>
               </div>
-              {canEditStartCentre && <button type="button" onClick={() => { const title = window.prompt('Shelf name'); const detail = title && window.prompt('Shelf description'); if (title?.trim() && detail?.trim()) setShelves((items) => [...items, { icon: BookOpen, title: title.trim(), detail: detail.trim() }]); }} className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#16223A] px-3 py-2 text-xs font-bold text-white"><Plus className="h-3.5 w-3.5 text-[#E4C79A]" /> Add shelf</button>}
+              {canEditStartCentre && editMode && <button type="button" onClick={() => { const title = window.prompt('Shelf name'); const detail = title && window.prompt('Shelf description'); if (title?.trim() && detail?.trim()) setShelves((items) => [...items, { icon: BookOpen, title: title.trim(), detail: detail.trim() }]); }} className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#16223A] px-3 py-2 text-xs font-bold text-white"><Plus className="h-3.5 w-3.5 text-[#E4C79A]" /> Add shelf</button>}
               <div className="relative flex min-w-0 flex-1 basis-[260px] items-center">
                 <Search className="absolute left-2.5 h-3.5 w-3.5 text-[#A6A091]" />
                 <input
@@ -705,7 +707,7 @@ export const FirmStartCentreView: React.FC = () => {
                     <strong className="font-serif text-sm font-bold leading-tight text-[#16223A]">{title}</strong>
                     <span className="text-[11px] leading-relaxed text-[#5B6478]">{detail}</span>
                   </button>
-                  {canEditStartCentre && <div className="absolute right-2 top-2 flex gap-1"><button type="button" onClick={() => { const nextTitle = window.prompt('Shelf name', title); const nextDetail = nextTitle && window.prompt('Shelf description', detail); if (nextTitle?.trim() && nextDetail?.trim()) setShelves((items) => items.map((item, itemIndex) => itemIndex === shelfIndex ? { ...item, title: nextTitle.trim(), detail: nextDetail.trim() } : item)); }} className="rounded bg-white px-1 text-[9px] font-bold text-[#16223A] shadow">Edit</button><button type="button" onClick={() => { if (window.confirm(`Delete shelf “${title}”?`)) setShelves((items) => items.filter((_, itemIndex) => itemIndex !== shelfIndex)); }} className="rounded bg-white px-1 text-[9px] font-bold text-red-700 shadow">Delete</button></div>}
+                  {canEditStartCentre && editMode && <div className="absolute right-2 top-2 flex gap-1"><button type="button" onClick={() => { const nextTitle = window.prompt('Shelf name', title); const nextDetail = nextTitle && window.prompt('Shelf description', detail); if (nextTitle?.trim() && nextDetail?.trim()) setShelves((items) => items.map((item, itemIndex) => itemIndex === shelfIndex ? { ...item, title: nextTitle.trim(), detail: nextDetail.trim() } : item)); }} className="rounded bg-white px-1 text-[9px] font-bold text-[#16223A] shadow">Edit</button><button type="button" onClick={() => { if (window.confirm(`Delete shelf “${title}”?`)) setShelves((items) => items.filter((_, itemIndex) => itemIndex !== shelfIndex)); }} className="rounded bg-white px-1 text-[9px] font-bold text-red-700 shadow">Delete</button></div>}
                 </div>
               ))}
             </div>
@@ -882,7 +884,7 @@ export const FirmStartCentreView: React.FC = () => {
               <p className="mt-0.5 text-[10.5px] text-[#7A8296]">Portals, folders and Workspace</p>
             </div>
             <div className="flex items-center gap-2">
-              {canEditStartCentre && <button type="button" onClick={() => { const title = window.prompt('New quick-link group name'); if (title?.trim()) setQuickLinkGroups((groups) => [...groups, { title: title.trim(), icon: BookMarked, links: [] }]); }} className="rounded-md p-1 text-[#8A6534] hover:bg-[#F1E8DA]" title="Add quick-link group" aria-label="Add quick-link group"><Plus className="h-3.5 w-3.5" /></button>}
+              {canEditStartCentre && editMode && <button type="button" onClick={() => { const title = window.prompt('New quick-link group name'); if (title?.trim()) setQuickLinkGroups((groups) => [...groups, { title: title.trim(), icon: BookMarked, links: [] }]); }} className="rounded-md p-1 text-[#8A6534] hover:bg-[#F1E8DA]" title="Add quick-link group" aria-label="Add quick-link group"><Plus className="h-3.5 w-3.5" /></button>}
               <Globe2 className="h-4 w-4 shrink-0 text-[#A9814A]" />
             </div>
           </div>
@@ -902,7 +904,7 @@ export const FirmStartCentreView: React.FC = () => {
                     <span className={`shrink-0 text-[9.5px] font-bold ${isOpen ? 'text-[#D8AE6E]' : 'text-[#B4AB9A]'}`}>{group.links.length}</span>
                     <ChevronRight className={`h-3 w-3 shrink-0 opacity-70 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
                   </button>
-                  {canEditStartCentre && (
+                  {canEditStartCentre && editMode && (
                     <div className="flex items-center justify-end gap-1 px-2.5 pb-1">
                       <button type="button" onClick={() => { const title = window.prompt('Rename quick-link group', group.title); if (title?.trim()) setQuickLinkGroups((groups) => groups.map((item, itemIndex) => itemIndex === index ? { ...item, title: title.trim() } : item)); }} className="text-[9px] font-semibold text-[#8A6534] hover:underline">Edit group</button>
                       <button type="button" onClick={() => { if (window.confirm(`Delete quick-link group “${group.title}”?`)) setQuickLinkGroups((groups) => groups.filter((_, itemIndex) => itemIndex !== index)); }} className="text-[9px] font-semibold text-red-600 hover:underline">Delete</button>
@@ -912,13 +914,13 @@ export const FirmStartCentreView: React.FC = () => {
                   {isOpen && (
                     <div className="mb-2 ml-2.5 mt-1 flex flex-col gap-px border-l-2 border-[#E3D3BC] pl-[11px]">
                       {group.links.map(({ label, url, icon: LinkIcon }, linkIndex) => (
-                        <div key={label} className="flex items-center gap-1" title={canEditStartCentre ? url : undefined}>
+                        <div key={label} className="flex items-center gap-1" title={canEditStartCentre && editMode ? url : undefined}>
                           <a href={url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-1.5 text-[#2C241F] no-underline transition hover:bg-[#F4EEE4] hover:text-[#16223A]">
                             <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[7px] bg-[#F1E8DA] text-[#8A6534]"><LinkIcon className="h-3 w-3" /></span>
                             <span className="min-w-0 flex-1 truncate text-[11.5px] font-medium">{label}</span>
                             <ArrowUpRight className="h-3 w-3 shrink-0 text-[#C0B7A6]" />
                           </a>
-                          {canEditStartCentre && <><button type="button" onClick={() => { const nextLabel = window.prompt('Rename link', label); const nextUrl = nextLabel && window.prompt('Link URL', url); if (nextLabel?.trim() && nextUrl?.trim()) setQuickLinkGroups((groups) => groups.map((item, itemIndex) => itemIndex === index ? { ...item, links: item.links.map((link, currentIndex) => currentIndex === linkIndex ? { ...link, label: nextLabel.trim(), url: nextUrl.trim() } : link) } : item)); }} className="text-[9px] font-semibold text-[#8A6534]">Edit</button><button type="button" onClick={() => setQuickLinkGroups((groups) => groups.map((item, itemIndex) => itemIndex === index ? { ...item, links: item.links.filter((_, currentIndex) => currentIndex !== linkIndex) } : item))} className="text-[9px] font-semibold text-red-600">Delete</button></>}
+                          {canEditStartCentre && editMode && <><button type="button" onClick={() => { const nextLabel = window.prompt('Rename link', label); const nextUrl = nextLabel && window.prompt('Link URL', url); if (nextLabel?.trim() && nextUrl?.trim()) setQuickLinkGroups((groups) => groups.map((item, itemIndex) => itemIndex === index ? { ...item, links: item.links.map((link, currentIndex) => currentIndex === linkIndex ? { ...link, label: nextLabel.trim(), url: nextUrl.trim() } : link) } : item)); }} className="text-[9px] font-semibold text-[#8A6534]">Edit</button><button type="button" onClick={() => setQuickLinkGroups((groups) => groups.map((item, itemIndex) => itemIndex === index ? { ...item, links: item.links.filter((_, currentIndex) => currentIndex !== linkIndex) } : item))} className="text-[9px] font-semibold text-red-600">Delete</button></>}
                         </div>
                       ))}
                     </div>
