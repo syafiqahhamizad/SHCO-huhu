@@ -88,9 +88,9 @@ export const Sidebar: React.FC = () => {
       items: [
         { id: 'firmStartCentre', label: 'Firm Start Centre', icon: <Home className="w-3.5 h-3.5 text-amber-300" /> },
         { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-3.5 h-3.5" /> },
-        { id: 'partnerDashboard', label: 'Partner Dashboard', icon: <BarChart3 className="w-3.5 h-3.5" />, partnerOnly: true },
         { id: 'clientPortal', label: 'Client Access Portal', icon: <UserCheck className="w-3.5 h-3.5 text-amber-300" /> },
         { id: 'staffPortal', label: 'Staff Portal', icon: <UserCog className="w-3.5 h-3.5 text-amber-300" /> },
+        { id: 'aiAgent', label: 'AI Agent', icon: <Sparkles className="w-3.5 h-3.5 text-amber-300" /> },
       ],
     },
     {
@@ -109,14 +109,9 @@ export const Sidebar: React.FC = () => {
       ],
     },
     {
-      group: 'Claims',
+      group: 'Claims & Billing',
       items: [
         { id: 'reimbursements', label: 'Claims', icon: <Receipt className="w-3.5 h-3.5 text-amber-300 font-bold" /> },
-      ],
-    },
-    {
-      group: 'Billing',
-      items: [
         { id: 'billing', label: 'Billing', icon: <FileText className="w-3.5 h-3.5 text-amber-300" /> },
       ],
     },
@@ -148,7 +143,6 @@ export const Sidebar: React.FC = () => {
       group: 'System',
       items: [
         { id: 'users', label: 'Users & Permissions', icon: <UserCog className="w-3.5 h-3.5" />, systemOnly: true },
-        { id: 'aiAgent', label: 'AI Agent', icon: <Sparkles className="w-3.5 h-3.5 text-amber-300" /> },
         { id: 'practiceSettings', label: 'Firm & Practice Settings', icon: <Settings className="w-3.5 h-3.5" /> },
         { id: 'logs', label: 'Activity Logs', icon: <History className="w-3.5 h-3.5" /> },
         { id: 'about', label: 'About App', icon: <Info className="w-3.5 h-3.5" /> },
