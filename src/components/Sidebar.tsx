@@ -86,7 +86,7 @@ export const Sidebar: React.FC = () => {
       group: 'General',
       items: [
         { id: 'firmStartCentre', label: 'Firm Start Centre', icon: <Home className="w-3.5 h-3.5 text-amber-300" /> },
-        { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-3.5 h-3.5" /> },
+        { id: 'dashboard', label: 'My Dashboard', icon: <LayoutDashboard className="w-3.5 h-3.5" /> },
         { id: 'clientPortal', label: 'Client Access Portal', icon: <UserCheck className="w-3.5 h-3.5 text-amber-300" /> },
         { id: 'staffPortal', label: 'Staff Portal', icon: <UserCog className="w-3.5 h-3.5 text-amber-300" /> },
         { id: 'aiAgent', label: 'AI Agent', icon: <Sparkles className="w-3.5 h-3.5 text-amber-300" /> },

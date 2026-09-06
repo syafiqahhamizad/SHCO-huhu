@@ -9,7 +9,6 @@ import { SignInPortal } from './components/SignInPortal';
 import { ShieldAlert } from 'lucide-react';
 
 // Views
-import { ComprehensiveDashboardView as DashboardView } from './components/views/ComprehensiveDashboardView';
 import { PartnerDashboardView } from './components/views/PartnerDashboardView';
 import { LeadsView } from './components/views/LeadsView';
 import { ClientsView } from './components/views/ClientsView';
@@ -111,7 +110,7 @@ const MainContent: React.FC = () => {
       case 'myDashboard':
         return <MyDashboardView />;
       case 'dashboard':
-        return <DashboardView />;
+        return <MyDashboardView />;
       case 'partnerDashboard':
       case 'partner-dashboard':
         return <PartnerDashboardView />;
@@ -223,7 +222,7 @@ const MainContent: React.FC = () => {
         return <MyAccountView />;
 
       default:
-        return <DashboardView />;
+        return <MyDashboardView />;
     }
   };
 
