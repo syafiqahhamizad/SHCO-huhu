@@ -24,6 +24,7 @@ import {
   Globe2,
   GraduationCap,
   HardDrive,
+  Home,
   House,
   Landmark,
   LayoutDashboard,
@@ -34,6 +35,7 @@ import {
   Map,
   MapPin,
   Megaphone,
+  Network,
   Package,
   PartyPopper,
   Plus,
@@ -89,12 +91,13 @@ const TONE = {
 const formatDay = (value: string) =>
   new Date(`${value}T00:00:00`).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' });
 
-const ONBOARDING_LINKS = [
-  { label: 'Onboarding', url: '#' },
-  { label: 'Firm guide', url: '#' },
-  { label: 'Firm org chart', url: '#' },
-  { label: 'Policies', url: '#' },
-];
+const HOME_TAB = { id: 'home', label: 'Overview', icon: Home } as const;
+
+// Icons available when adding/editing a Firm Start Centre page or card; falls back to BookOpen.
+const START_CENTRE_ICONS: Record<string, React.ElementType> = {
+  UserPlus, BookOpen, Network, ShieldCheck, ListChecks, GraduationCap, FolderOpen, Scale, Contact, Package, Building2,
+};
+const iconFor = (name: string) => START_CENTRE_ICONS[name] || BookOpen;
 
 const QUICK_LINK_GROUPS: QuickLinkGroup[] = [
   { title: 'Due diligence', icon: SearchCheck, links: [
@@ -185,10 +188,28 @@ export const FirmStartCentreView: React.FC = () => {
     setCurrentView,
     setIsNewCaseModalOpen,
     canViewModule,
+    firmStartCentrePages,
+    canEditFirmStartCentre,
+    addStartCentrePage,
+    updateStartCentrePageLabel,
+    deleteStartCentrePage,
+    addStartCentreCard,
+    updateStartCentreCard,
+    deleteStartCentreCard,
   } = useApp() as ReturnType<typeof useApp> & { canViewModule?: (module: string) => boolean };
+
+  const canEditStartCentre = canEditFirmStartCentre;
 
   const [openGroup, setOpenGroup] = React.useState<number>(3);
   const [directoryOpen, setDirectoryOpen] = React.useState(false);
+  const [page, setPage] = React.useState<string>('home');
+  const [editMode, setEditMode] = React.useState(false);
+  const [newTabLabel, setNewTabLabel] = React.useState('');
+  const [editingTabId, setEditingTabId] = React.useState<string | null>(null);
+  const [tabLabelDraft, setTabLabelDraft] = React.useState('');
+  const [cardDraft, setCardDraft] = React.useState<{ pageId: string; cardId: string | null; title: string; detail: string } | null>(null);
+
+  const activePage = firmStartCentrePages.find((p) => p.id === page);
 
   const today = new Date();
   const todayKey = today.toISOString().slice(0, 10);
@@ -295,14 +316,110 @@ export const FirmStartCentreView: React.FC = () => {
 
       <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_240px]">
         <div className="flex min-w-0 flex-col gap-5">
-          {/* ONBOARDING STRIP */}
-          <section className="flex flex-wrap items-center gap-x-3.5 gap-y-2.5 rounded-xl border border-[#304362] bg-[#16223A] px-3.5 py-2.5">
-            {ONBOARDING_LINKS.map((link) => (
-              <a key={link.label} href={link.url} className="whitespace-nowrap text-[11px] font-semibold text-[#E4C79A] no-underline hover:text-white">
-                {link.label}
-              </a>
-            ))}
-          </section>
+          {/* TAB NAV */}
+          <nav className="flex flex-wrap items-center gap-1.5 rounded-xl border border-[#304362] bg-[#16223A] px-2.5 py-2">
+            {[HOME_TAB, ...firmStartCentrePages].map((tab) => {
+              const on = tab.id === page;
+              const TabIcon = tab.id === 'home' ? Home : iconFor((tab as { icon: string }).icon);
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setPage(tab.id)}
+                  className={`flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-[11px] font-semibold transition ${
+                    on ? 'border-[#E4C79A] bg-[#E4C79A] text-[#16223A]' : 'border-[#304362] bg-transparent text-[#E4C79A]'
+                  }`}
+                >
+                  <TabIcon className="h-[13px] w-[13px]" />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+            {canEditStartCentre && (
+              <button
+                type="button"
+                onClick={() => setEditMode((v) => !v)}
+                className={`ml-auto flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-[11px] font-semibold transition ${
+                  editMode ? 'border-white bg-white text-[#16223A]' : 'border-[#304362] bg-transparent text-white/70'
+                }`}
+              >
+                {editMode ? 'Done editing' : 'Edit tabs & content'}
+              </button>
+            )}
+          </nav>
+
+          {editMode && (
+            <section className="flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-[#C9A46B] bg-[#FDFBF7] px-3.5 py-2.5">
+              <input
+                type="text"
+                value={newTabLabel}
+                onChange={(e) => setNewTabLabel(e.target.value)}
+                placeholder="New tab name..."
+                className="min-w-0 flex-1 rounded-lg border border-[#E8D9CE] bg-white px-3 py-1.5 text-xs"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (addStartCentrePage(newTabLabel)) setNewTabLabel('');
+                }}
+                className="flex shrink-0 cursor-pointer items-center gap-1 rounded-lg bg-[#16223A] px-3 py-1.5 text-xs font-bold text-white"
+              >
+                <Plus className="h-3.5 w-3.5" /> Add tab
+              </button>
+              {page !== 'home' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingTabId(page);
+                      setTabLabelDraft(activePage?.label || '');
+                    }}
+                    className="shrink-0 cursor-pointer rounded-lg border border-[#E8D9CE] bg-white px-3 py-1.5 text-xs font-semibold text-[#16223A]"
+                  >
+                    Rename current tab
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (deleteStartCentrePage(page)) setPage('home');
+                    }}
+                    className="shrink-0 cursor-pointer rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-600"
+                  >
+                    Delete current tab
+                  </button>
+                </>
+              )}
+              {editingTabId && (
+                <div className="flex w-full items-center gap-2">
+                  <input
+                    type="text"
+                    value={tabLabelDraft}
+                    onChange={(e) => setTabLabelDraft(e.target.value)}
+                    className="min-w-0 flex-1 rounded-lg border border-[#E8D9CE] bg-white px-3 py-1.5 text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (updateStartCentrePageLabel(editingTabId, tabLabelDraft)) setEditingTabId(null);
+                    }}
+                    className="shrink-0 cursor-pointer rounded-lg bg-[#16223A] px-3 py-1.5 text-xs font-bold text-white"
+                  >
+                    Save name
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingTabId(null)}
+                    className="shrink-0 cursor-pointer rounded-lg border border-[#E8D9CE] bg-white px-3 py-1.5 text-xs font-semibold text-[#16223A]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </section>
+          )}
+
+          {page === 'home' && (
+            <>
 
           {/* ANNOUNCEMENTS */}
           <section id="announcements" className="rounded-xl border border-[#E1DCCF] bg-white p-5 shadow-xs">
@@ -560,9 +677,136 @@ export const FirmStartCentreView: React.FC = () => {
               </div>
             )}
           </section>
+            </>
+          )}
+
+          {activePage && (
+            <section className="flex flex-col gap-4">
+              <div className="rounded-2xl border border-[#E1DCCF] bg-[#FDFBF7] p-5">
+                <span className="text-[9.5px] font-bold uppercase tracking-[0.13em] text-[#8A8578]">{activePage.label}</span>
+                <h2 className="mt-1.5 font-serif text-xl font-bold -tracking-[0.015em] text-[#16223A]">{activePage.label}</h2>
+              </div>
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(230px,1fr))] gap-3">
+                {activePage.cards.map((card) => {
+                  const isEditing = cardDraft?.pageId === activePage.id && cardDraft.cardId === card.id;
+                  return (
+                    <div key={card.id} className="relative flex flex-col gap-1.5 rounded-xl border border-[#E8D9CE] bg-white p-4">
+                      {editMode && !isEditing && (
+                        <div className="absolute right-2 top-2 flex gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setCardDraft({ pageId: activePage.id, cardId: card.id, title: card.title, detail: card.detail })}
+                            className="cursor-pointer rounded-md border border-[#E8D9CE] bg-white px-1.5 py-0.5 text-[10px] font-semibold text-[#16223A]"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteStartCentreCard(activePage.id, card.id)}
+                            className="cursor-pointer rounded-md border border-red-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-red-600"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                      {isEditing ? (
+                        <>
+                          <input
+                            type="text"
+                            value={cardDraft.title}
+                            onChange={(e) => setCardDraft({ ...cardDraft, title: e.target.value })}
+                            className="rounded-lg border border-[#E8D9CE] px-2.5 py-1.5 font-serif text-[14.5px] text-[#16223A]"
+                            placeholder="Title"
+                          />
+                          <textarea
+                            value={cardDraft.detail}
+                            onChange={(e) => setCardDraft({ ...cardDraft, detail: e.target.value })}
+                            className="rounded-lg border border-[#E8D9CE] px-2.5 py-1.5 text-[11.5px] text-[#5B6478]"
+                            placeholder="Detail"
+                            rows={2}
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (updateStartCentreCard(activePage.id, card.id, { title: cardDraft.title, detail: cardDraft.detail })) setCardDraft(null);
+                              }}
+                              className="cursor-pointer rounded-lg bg-[#16223A] px-2.5 py-1 text-[11px] font-bold text-white"
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setCardDraft(null)}
+                              className="cursor-pointer rounded-lg border border-[#E8D9CE] px-2.5 py-1 text-[11px] font-semibold text-[#16223A]"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <strong className="font-serif text-[14.5px] text-[#16223A]">{card.title}</strong>
+                          <span className="text-[11.5px] leading-relaxed text-[#5B6478]">{card.detail}</span>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+                {editMode && (
+                  cardDraft?.pageId === activePage.id && cardDraft.cardId === null ? (
+                    <div className="flex flex-col gap-1.5 rounded-xl border border-dashed border-[#C9A46B] bg-white p-4">
+                      <input
+                        type="text"
+                        value={cardDraft.title}
+                        onChange={(e) => setCardDraft({ ...cardDraft, title: e.target.value })}
+                        className="rounded-lg border border-[#E8D9CE] px-2.5 py-1.5 font-serif text-[14.5px] text-[#16223A]"
+                        placeholder="Title"
+                      />
+                      <textarea
+                        value={cardDraft.detail}
+                        onChange={(e) => setCardDraft({ ...cardDraft, detail: e.target.value })}
+                        className="rounded-lg border border-[#E8D9CE] px-2.5 py-1.5 text-[11.5px] text-[#5B6478]"
+                        placeholder="Detail"
+                        rows={2}
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (addStartCentreCard(activePage.id, { title: cardDraft.title, detail: cardDraft.detail })) setCardDraft(null);
+                          }}
+                          className="cursor-pointer rounded-lg bg-[#16223A] px-2.5 py-1 text-[11px] font-bold text-white"
+                        >
+                          Add card
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCardDraft(null)}
+                          className="cursor-pointer rounded-lg border border-[#E8D9CE] px-2.5 py-1 text-[11px] font-semibold text-[#16223A]"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setCardDraft({ pageId: activePage.id, cardId: null, title: '', detail: '' })}
+                      className="flex min-h-[100px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-[#C9A46B] bg-white p-4 text-[#8A6534]"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span className="text-[11px] font-semibold">Add card</span>
+                    </button>
+                  )
+                )}
+              </div>
+            </section>
+          )}
         </div>
 
         {/* QUICK LINKS RAIL */}
+        {page === 'home' && (
         <aside className="flex min-w-0 flex-col self-start overflow-hidden rounded-2xl border border-[#E1DCCF] bg-[#FDFBF7] xl:sticky xl:top-0">
           <div className="flex items-center justify-between gap-2.5 border-b border-[#EDE6DA] bg-gradient-to-b from-[#FFFDF9] to-[#FAF5ED] px-4 py-3.5">
             <div>
@@ -611,6 +855,7 @@ export const FirmStartCentreView: React.FC = () => {
             })}
           </div>
         </aside>
+        )}
       </div>
     </div>
   );

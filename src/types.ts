@@ -22,6 +22,19 @@ export interface FirmAnnouncement {
   internalOnly: boolean;
 }
 
+export interface FirmStartCentreCard {
+  id: string;
+  title: string;
+  detail: string;
+}
+
+export interface FirmStartCentrePage {
+  id: string;
+  label: string;
+  icon: string; // lucide-react icon name, e.g. "UserPlus"
+  cards: FirmStartCentreCard[];
+}
+
 export interface ConflictCheck {
   status: 'Not Started' | 'Clear' | 'Flagged';
   notes: string;

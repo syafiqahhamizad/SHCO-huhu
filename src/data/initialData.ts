@@ -26,6 +26,7 @@ import {
   Retainer,
   User,
   FirmAnnouncement,
+  FirmStartCentrePage,
   ActivityLog,
   RolePermissionsMatrix,
   BankAccount,
@@ -769,6 +770,45 @@ export const INITIAL_FIRM_ANNOUNCEMENTS: FirmAnnouncement[] = [
   { id: 'ANN-001', title: 'Welcome to the Firm Start Centre', body: 'Your daily workspace for matters, deadlines, tasks and connected Google Workspace tools.', category: 'Announcement', createdAt: '2026-08-25T08:00:00.000Z', createdBy: 'System', published: true, internalOnly: true },
 ];
 
+export const INITIAL_FIRM_START_CENTRE_PAGES: FirmStartCentrePage[] = [
+  {
+    id: 'onboarding', label: 'Onboarding', icon: 'UserPlus',
+    cards: [
+      { id: 'ob-1', title: 'Day one checklist', detail: 'Email and Workspace account, e-filing credentials, matter numbering, seat and access card.' },
+      { id: 'ob-2', title: 'Pupillage guide', detail: 'Nine-month plan, master supervision, court attendance log and long call requirements.' },
+      { id: 'ob-3', title: 'File & document standards', detail: 'Naming conventions, template letters, attendance notes and closing requirements.' },
+    ],
+  },
+  {
+    id: 'guide', label: 'Firm guide', icon: 'BookOpen',
+    cards: [
+      { id: 'gd-1', title: 'Office hours & duty roster', detail: 'Mon–Fri, 9.00am–6.00pm' },
+      { id: 'gd-2', title: 'Billing & time recording', detail: 'Daily entries, monthly invoicing' },
+      { id: 'gd-3', title: 'Client correspondence standards', detail: 'Letterhead, 2-day reply rule' },
+      { id: 'gd-4', title: 'Escalation & conflicts', detail: 'Refer to supervising partner' },
+    ],
+  },
+  {
+    id: 'org', label: 'Firm org chart', icon: 'Network',
+    cards: [
+      { id: 'org-1', title: 'Litigation', detail: 'Partner-led · 4 fee earners' },
+      { id: 'org-2', title: 'Conveyancing', detail: 'Partner-led · 3 fee earners' },
+      { id: 'org-3', title: 'Corporate & Syariah', detail: 'Partner-led · 2 fee earners' },
+      { id: 'org-4', title: 'Accounts & Admin', detail: 'Office manager · 3 staff' },
+    ],
+  },
+  {
+    id: 'policies', label: 'Policies', icon: 'ShieldCheck',
+    cards: [
+      { id: 'pol-1', title: 'AMLA & client due diligence', detail: 'Identification, risk rating and record-keeping before any engagement.' },
+      { id: 'pol-2', title: 'Conflicts of interest', detail: 'Conflict search before opening, and what to do when one is found.' },
+      { id: 'pol-3', title: 'Trust account handling', detail: "Client money, withdrawals, reconciliation and Solicitors' Accounts Rules." },
+      { id: 'pol-4', title: 'IT, data & confidentiality', detail: 'Device security, PDPA duties, email discipline and file storage.' },
+      { id: 'pol-5', title: 'Leave & claims', detail: 'Annual, medical and emergency leave; travel and disbursement claims.' },
+    ],
+  },
+];
+
 export const INITIAL_LOGS: ActivityLog[] = [
   { ts: '2026-07-24 09:12', user: 'AH', action: 'Hearing Added', details: 'Case Management — CS-001, 04 Aug 2026' },
   { ts: '2026-07-23 16:40', user: 'SH', action: 'Lead Converted', details: 'Nur Syakirah Aiman → HQ-C001' },
@@ -791,6 +831,7 @@ export const INITIAL_ROLES_MATRIX: RolePermissionsMatrix = {
     users: { v: 1, a: 1, e: 1 },
     logs: { v: 1, a: 1, e: 1 },
     settings: { v: 1, a: 1, e: 1 },
+    firmStartCentreEdit: { v: 1, a: 1, e: 1 },
   },
   Lawyer: {
     dashboard: { v: 1, a: 1, e: 1 },

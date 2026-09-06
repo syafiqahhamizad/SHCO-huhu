@@ -727,6 +727,11 @@ export const SecurityView: React.FC = () => {
 
   const NAVIGATION_ITEMS: Record<string, { label: string; group: string; sensitive?: boolean; desc: string }> = {
     dashboard: { label: 'Executive Dashboard', group: 'General', desc: 'Main practice overview & fee tickers.' },
+    firmStartCentreEdit: {
+      label: 'Firm Start Centre — Content Editing',
+      group: 'General',
+      desc: 'Add, rename or delete tabs and cards (Onboarding, Firm guide, Org chart, Policies) on the Firm Start Centre home page.',
+    },
     partnerDashboard: { label: 'Partner Analytics', group: 'General', desc: 'Partner equity and revenue metrics.' },
     clientPortal: { label: 'Client Access Portal', group: 'General', desc: 'Client self-service status & payments.' },
     leads: { label: 'Intakes & Leads Pipeline', group: 'Practice', desc: 'Consultation intakes & conflict checks.' },

@@ -48,6 +48,8 @@ import {
   AttendanceRecord,
   LeaveApplication,
   FirmAnnouncement,
+  FirmStartCentrePage,
+  FirmStartCentreCard,
 } from '../types';
 import {
   getCurrentFirebaseAccessClaims,
@@ -92,6 +94,7 @@ import {
   INITIAL_INVENTORY_ITEMS,
   INITIAL_BANK_RECONCILIATION_ENTRIES,
   INITIAL_FIRM_ANNOUNCEMENTS,
+  INITIAL_FIRM_START_CENTRE_PAGES,
 } from '../data/initialData';
 
 interface AppContextType {
@@ -205,6 +208,15 @@ interface AppContextType {
   addNotification: (notif: Omit<NotificationItem, 'id' | 'timestamp' | 'read'>) => void;
   announcements: FirmAnnouncement[];
   addAnnouncement: (announcement: Omit<FirmAnnouncement, 'id' | 'createdAt' | 'createdBy'>) => boolean;
+
+  firmStartCentrePages: FirmStartCentrePage[];
+  canEditFirmStartCentre: boolean;
+  addStartCentrePage: (label: string) => boolean;
+  updateStartCentrePageLabel: (pageId: string, label: string) => boolean;
+  deleteStartCentrePage: (pageId: string) => boolean;
+  addStartCentreCard: (pageId: string, card: Omit<FirmStartCentreCard, 'id'>) => boolean;
+  updateStartCentreCard: (pageId: string, cardId: string, card: Omit<FirmStartCentreCard, 'id'>) => boolean;
+  deleteStartCentreCard: (pageId: string, cardId: string) => boolean;
 
   isNewCaseModalOpen: boolean;
   setIsNewCaseModalOpen: (open: boolean) => void;
@@ -1048,6 +1060,83 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAnnouncements((previous) => [created, ...previous]);
     logAuditEvent('CREATE', 'SYSTEM', created.id, created.title, `Firm announcement published by ${currentUser.name}.`);
     showToast('Firm announcement published.');
+    return true;
+  };
+
+  const [firmStartCentrePages, setFirmStartCentrePages] = useState<FirmStartCentrePage[]>(() =>
+    readStored(STORAGE_KEY + '_firmStartCentrePages', INITIAL_FIRM_START_CENTRE_PAGES)
+  );
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY + '_firmStartCentrePages', JSON.stringify(firmStartCentrePages));
+  }, [firmStartCentrePages]);
+
+  const canEditStartCentre = () => {
+    if (currentUser.isSuperAdmin || currentUser.isAdmin) return true;
+    const override = currentUser.navOverrides?.firmStartCentreEdit;
+    if (override) return override.e === 1;
+    const effectiveRole: Role = currentRole || currentUser.role || 'Partner';
+    return rolesMatrix[effectiveRole]?.firmStartCentreEdit?.e === 1;
+  };
+  const requireStartCentreEditAccess = () => {
+    if (!canEditStartCentre()) {
+      showToast('You do not have edit access to the Firm Start Centre. Ask a Partner or Super Admin to grant it under Users & Permissions.');
+      return false;
+    }
+    return true;
+  };
+
+  const addStartCentrePage = (label: string) => {
+    if (!requireStartCentreEditAccess()) return false;
+    const trimmed = label.trim();
+    if (!trimmed) return false;
+    const created: FirmStartCentrePage = { id: `page-${Date.now()}`, label: trimmed, icon: 'BookOpen', cards: [] };
+    setFirmStartCentrePages((previous) => [...previous, created]);
+    return true;
+  };
+
+  const updateStartCentrePageLabel = (pageId: string, label: string) => {
+    if (!requireStartCentreEditAccess()) return false;
+    const trimmed = label.trim();
+    if (!trimmed) return false;
+    setFirmStartCentrePages((previous) => previous.map((page) => (page.id === pageId ? { ...page, label: trimmed } : page)));
+    return true;
+  };
+
+  const deleteStartCentrePage = (pageId: string) => {
+    if (!requireStartCentreEditAccess()) return false;
+    setFirmStartCentrePages((previous) => previous.filter((page) => page.id !== pageId));
+    return true;
+  };
+
+  const addStartCentreCard = (pageId: string, card: Omit<FirmStartCentreCard, 'id'>) => {
+    if (!requireStartCentreEditAccess()) return false;
+    if (!card.title.trim()) return false;
+    const created: FirmStartCentreCard = { ...card, id: `card-${Date.now()}` };
+    setFirmStartCentrePages((previous) =>
+      previous.map((page) => (page.id === pageId ? { ...page, cards: [...page.cards, created] } : page))
+    );
+    return true;
+  };
+
+  const updateStartCentreCard = (pageId: string, cardId: string, card: Omit<FirmStartCentreCard, 'id'>) => {
+    if (!requireStartCentreEditAccess()) return false;
+    if (!card.title.trim()) return false;
+    setFirmStartCentrePages((previous) =>
+      previous.map((page) =>
+        page.id === pageId
+          ? { ...page, cards: page.cards.map((existing) => (existing.id === cardId ? { ...existing, ...card } : existing)) }
+          : page
+      )
+    );
+    return true;
+  };
+
+  const deleteStartCentreCard = (pageId: string, cardId: string) => {
+    if (!requireStartCentreEditAccess()) return false;
+    setFirmStartCentrePages((previous) =>
+      previous.map((page) => (page.id === pageId ? { ...page, cards: page.cards.filter((c) => c.id !== cardId) } : page))
+    );
     return true;
   };
 
@@ -2510,6 +2599,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addNotification,
         announcements,
         addAnnouncement,
+        firmStartCentrePages,
+        canEditFirmStartCentre: canEditStartCentre(),
+        addStartCentrePage,
+        updateStartCentrePageLabel,
+        deleteStartCentrePage,
+        addStartCentreCard,
+        updateStartCentreCard,
+        deleteStartCentreCard,
         resetClientPassword,
         addBankAccount,
         updateBankAccount,
