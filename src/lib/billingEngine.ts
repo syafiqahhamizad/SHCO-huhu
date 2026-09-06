@@ -23,17 +23,24 @@ export interface BillingTotals {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+const getItemTotal = (item: QuotationLineItem): number => {
+  const quantity = Number(item.quantity ?? 1);
+  const unitPrice = Number(item.unitPrice ?? item.amount ?? 0);
+  const total = item.chargeType === 'Per Quantity' ? quantity * unitPrice : unitPrice;
+  return Number.isFinite(total) ? total : 0;
+};
+
 /** Accounting-style totals: fees + SST on fees + disbursements + reimbursements */
 export function computeTotals(items: QuotationLineItem[]): BillingTotals {
   const fees = items
     .filter((i) => i.category === 'Fee - Fixed' || i.category === 'Fee - SRO')
-    .reduce((s, i) => s + (Number(i.amount) || 0), 0);
+    .reduce((s, i) => s + getItemTotal(i), 0);
   const disbursements = items
     .filter((i) => i.category === 'Disbursement')
-    .reduce((s, i) => s + (Number(i.amount) || 0), 0);
+    .reduce((s, i) => s + getItemTotal(i), 0);
   const reimbursements = items
     .filter((i) => i.category === 'Reimbursement')
-    .reduce((s, i) => s + (Number(i.amount) || 0), 0);
+    .reduce((s, i) => s + getItemTotal(i), 0);
   const sst = round2(fees * SST_RATE);
   return {
     fees: round2(fees),

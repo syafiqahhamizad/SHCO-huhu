@@ -216,7 +216,7 @@ export const SignInPortal: React.FC = () => {
                       <ShieldCheck className="w-4 h-4 text-[#A9814A]" />
                       <span>Firm Staff SSO Security Policy</span>
                     </div>
-                    <p className="text-[11px] text-slate-300 leading-relaxed">
+                    <p className="text-[11px] text-[#ffd29e] leading-relaxed">
                       Firm Portal SSO is <strong>strictly restricted to @shcolaw.com</strong> Google Workspace accounts. Unregistered external domains will be denied.
                     </p>
                   </div>
@@ -248,7 +248,7 @@ export const SignInPortal: React.FC = () => {
                         <KeyRound className="w-4 h-4 text-amber-400" />
                         <span>Client Access Portal Authorization</span>
                     </div>
-                    <p className="text-[11px] text-slate-300 leading-relaxed">
+                    <p className="text-[11px] text-[#ffd29e] leading-relaxed">
                       Clients enter registered Email address or Client ID along with your secure password to access authorized matter files and fee disclosures.
                     </p>
                   </div>
@@ -262,7 +262,7 @@ export const SignInPortal: React.FC = () => {
 
                   <form onSubmit={handleClientSubmit} className="space-y-4 text-xs">
                     <div>
-                      <label className="block text-slate-300 font-bold mb-1.5">
+                      <label className="block text-[#ffd29e] font-bold mb-1.5">
                         Registered Client Email or Client ID *
                       </label>
                       <input
@@ -276,7 +276,7 @@ export const SignInPortal: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="block text-slate-300 font-bold mb-1.5">Client Account Password *</label>
+                      <label className="block text-[#ffd29e] font-bold mb-1.5">Client Account Password *</label>
                       <input
                         type="password"
                         required
@@ -305,7 +305,7 @@ export const SignInPortal: React.FC = () => {
                       <Users className="w-4 h-4 text-[#A9814A]" />
                       <span>Approved External Access</span>
                     </div>
-                    <p className="text-[11px] text-slate-300 leading-relaxed">
+                    <p className="text-[11px] text-[#ffd29e] leading-relaxed">
                       For approved reviewers and freelancers. Access is limited by the role and matters assigned by the firm administrator.
                     </p>
                   </div>
@@ -319,7 +319,7 @@ export const SignInPortal: React.FC = () => {
 
                   <form onSubmit={handleExternalSubmit} className="space-y-4 text-xs">
                     <div>
-                      <label className="block text-slate-300 font-bold mb-1.5">Approved External Email *</label>
+                      <label className="block text-[#ffd29e] font-bold mb-1.5">Approved External Email *</label>
                       <input
                         type="email"
                         required
@@ -330,7 +330,7 @@ export const SignInPortal: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-slate-300 font-bold mb-1.5">Account Password *</label>
+                      <label className="block text-[#ffd29e] font-bold mb-1.5">Account Password *</label>
                       <input
                         type="password"
                         required

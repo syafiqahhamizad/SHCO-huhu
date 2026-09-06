@@ -67,9 +67,28 @@ function formatRinggitInWords(amount: number): string {
   return result + ' ONLY';
 }
 
+function normalizePreviewLineItem(item: { description?: string; category?: string; amount?: number; quantity?: number; unitPrice?: number; chargeType?: 'Per Quantity' | 'Fixed' }) {
+  const category = item.category || 'Fee - Fixed';
+  const quantity = Number(item.quantity ?? 1);
+  const unitPrice = Number(item.unitPrice ?? item.amount ?? 0);
+  const chargeType = item.chargeType ?? (category === 'Disbursement' || category === 'Reimbursement' ? 'Per Quantity' : 'Fixed');
+  const amount = chargeType === 'Per Quantity' ? quantity * unitPrice : unitPrice;
+
+  return {
+    ...item,
+    description: item.description || 'Untitled item',
+    category,
+    quantity,
+    unitPrice,
+    chargeType,
+    amount,
+  };
+}
+
 function lineItemAmount(item: { amount: number; quantity?: number; unitPrice?: number; chargeType?: 'Per Quantity' | 'Fixed' }): number {
-  const unitPrice = item.unitPrice ?? item.amount;
-  return item.chargeType === 'Per Quantity' ? (item.quantity || 1) * unitPrice : unitPrice;
+  const quantity = Number(item.quantity ?? 1);
+  const unitPrice = Number(item.unitPrice ?? item.amount ?? 0);
+  return item.chargeType === 'Per Quantity' ? quantity * unitPrice : unitPrice;
 }
 
 export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, onClose }) => {
@@ -112,15 +131,14 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
     docNo = q.id;
     recipientName = q.clientName;
 
-    const items =
-      q.lineItems && q.lineItems.length
-        ? q.lineItems
-        : [{ description: 'Professional Legal Fee — ' + q.practiceArea, category: 'Fee - Fixed', amount: q.total }];
+    const items = (q.lineItems && q.lineItems.length
+      ? q.lineItems
+      : [{ description: 'Professional Legal Fee — ' + q.practiceArea, category: 'Fee - Fixed', amount: q.total, quantity: 1, unitPrice: q.total, chargeType: 'Fixed' as const }]
+    ).map(normalizePreviewLineItem);
 
-    // Separate items by section
-    const profFeeItems = items.filter((i) => i.category.toLowerCase().includes('fee'));
-    const disbItems = items.filter((i) => i.category.toLowerCase().includes('disbursement') || i.category.toLowerCase().includes('stamp') || i.category.toLowerCase().includes('search'));
-    const reimbItems = items.filter((i) => !profFeeItems.includes(i) && !disbItems.includes(i));
+    const profFeeItems = items.filter((i) => i.category === 'Fee - Fixed' || i.category === 'Fee - SRO');
+    const disbItems = items.filter((i) => i.category === 'Disbursement');
+    const reimbItems = items.filter((i) => i.category === 'Reimbursement');
 
     const profFeeTotal = profFeeItems.reduce((s, i) => s + lineItemAmount(i), 0);
     const disbTotal = disbItems.reduce((s, i) => s + lineItemAmount(i), 0);
@@ -174,7 +192,7 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
                 Taking instructions, perusing and reviewing relevant documents, drafting and preparing the relevant legal instruments and pleadings, conducting legal research, getting-up and preparing the matter, negotiating on the client's behalf, undertaking reasonable due diligence, and rendering legal advice as required, together with all necessary and incidental work related thereto.
               </td>
             </tr>
-            {(profFeeItems.length > 0 ? profFeeItems : [{ description: 'Professional Legal Fee', amount: q.total }]).map((it, idx) => (
+            {(profFeeItems.length > 0 ? profFeeItems : [{ description: 'Professional Legal Fee', amount: q.total, quantity: 1, unitPrice: q.total, chargeType: 'Fixed' as const }]).map((it, idx) => (
               <tr key={idx}>
                 <td className="p-2 pl-4 text-slate-800">{it.description}</td>
                 <td className="p-2 text-right font-mono">{it.quantity ?? 1}</td>

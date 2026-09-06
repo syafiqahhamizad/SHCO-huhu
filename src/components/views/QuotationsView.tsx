@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Quotation, QuotationLineItem, Invoice, Receipt as ReceiptRecord } from '../../types';
 import { calculateSroTransferFee } from '../../lib/sroCalculator';
+import { computeTotals } from '../../lib/billingEngine';
 import { DocPreviewModal } from '../modals/DocPreviewModal';
 import { getPracticeSettings } from '../../services/templateService';
 import { FileText, Plus, Calculator, Search, ArrowRight, Eye, CheckCircle2, CalendarDays, Video, Receipt, Upload, Send, Save, X, Mail, MessageSquare, ExternalLink, ChevronRight } from 'lucide-react';
@@ -319,7 +320,8 @@ export const QuotationsView: React.FC = () => {
     const qId = `Q-${Math.floor(1000 + Math.random() * 9000)}`;
     if (quoteLineItems.length > 0) {
       lineItems = quoteLineItems;
-      calculatedTotal = lineItems.reduce((total, item) => total + (item.chargeType === 'Per Quantity' ? (item.quantity || 1) * (item.unitPrice ?? item.amount) : (item.unitPrice ?? item.amount)), 0);
+      const totals = computeTotals(lineItems);
+      calculatedTotal = totals.grandTotal;
     }
     const newQ: Quotation = {
       id: qId,
