@@ -189,10 +189,10 @@ export const Sidebar: React.FC = () => {
               SH
             </div>
             <div>
-              <div className="shco-brand-name font-roxborough text-[13px] font-bold leading-tight text-[#ffd29e] dark:text-[#ffd29e] tracking-wide uppercase">
+              <div className="shco-brand-name font-roxborough text-[13px] font-bold leading-tight text-[#ffd29e] dark:text-[#ffd29e] tracking-wide uppercase" style={{ color: '#ffd29e' }}>
                 SYAFIQAH HAMIZAD &amp; CO
               </div>
-              <div className="shco-brand-subtitle font-termes text-[10px] text-[#ffd29e] dark:text-[#ffd29e] tracking-tight font-medium italic flex items-center gap-1 mt-0.5">
+              <div className="shco-brand-subtitle font-termes text-[10px] text-[#ffd29e] dark:text-[#ffd29e] tracking-tight font-medium italic flex items-center gap-1 mt-0.5" style={{ color: '#ffd29e' }}>
                 Advocates &amp; Solicitors | Syarie Counsel
               </div>
             </div>

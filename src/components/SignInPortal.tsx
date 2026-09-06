@@ -80,10 +80,10 @@ export const SignInPortal: React.FC = () => {
             <Scale className="w-5 h-5 text-[#ffd29e]" />
           </div>
           <div>
-            <div className="shco-brand-name font-roxborough font-bold text-lg sm:text-2xl text-[#ffd29e] tracking-[0.08em] uppercase flex items-center gap-2">
+            <div className="shco-brand-name font-roxborough font-bold text-lg sm:text-2xl text-[#ffd29e] tracking-[0.08em] uppercase flex items-center gap-2" style={{ color: '#ffd29e' }}>
               <span>SYAFIQAH HAMIZAD &amp; CO</span>
             </div>
-            <p className="shco-brand-subtitle font-termes text-xs sm:text-[13px] text-[#ffd29e] tracking-[0.04em] mt-0.5 font-medium italic">
+            <p className="shco-brand-subtitle font-termes text-xs sm:text-[13px] text-[#ffd29e] tracking-[0.04em] mt-0.5 font-medium italic" style={{ color: '#ffd29e' }}>
               Advocates &amp; Solicitors | Syarie Counsel
             </p>
           </div>
