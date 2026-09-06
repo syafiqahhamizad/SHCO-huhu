@@ -129,7 +129,7 @@ export const Header: React.FC = () => {
   const info = getViewInfo();
 
   return (
-    <header className="sticky top-0 z-20 mb-4 sm:mb-6 mx-3 sm:mx-5 rounded-2xl border border-[#304362] bg-[#16223A] text-[#F6F1E9] px-4 sm:px-6 py-3 flex flex-col md:flex-row md:items-center justify-start gap-2.5 overflow-visible shadow-[0_12px_24px_-16px_rgba(22,34,58,.8)]">
+    <header className="sticky top-0 z-20 mb-4 sm:mb-6 rounded-2xl border border-[#304362] bg-[#16223A] text-[#F6F1E9] px-4 sm:px-6 py-3 flex flex-col md:flex-row md:items-center justify-start gap-2.5 overflow-visible shadow-[0_12px_24px_-16px_rgba(22,34,58,.8)]">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <h1 className="min-w-0 font-serif text-lg sm:text-xl font-bold text-[#F6F1E9] tracking-tight truncate">{info.title}</h1>

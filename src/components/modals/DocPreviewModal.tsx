@@ -88,7 +88,8 @@ function normalizePreviewLineItem(item: { description?: string; category?: strin
 function lineItemAmount(item: { amount: number; quantity?: number; unitPrice?: number; chargeType?: 'Per Quantity' | 'Fixed' }): number {
   const quantity = Number(item.quantity ?? 1);
   const unitPrice = Number(item.unitPrice ?? item.amount ?? 0);
-  return item.chargeType === 'Per Quantity' ? quantity * unitPrice : unitPrice;
+  const total = item.chargeType === 'Per Quantity' ? quantity * unitPrice : unitPrice;
+  return Number.isFinite(total) ? total : 0;
 }
 
 export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, onClose }) => {
@@ -151,7 +152,7 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
     const subjectText = `${q.practiceArea.toUpperCase()} — ${q.subtype || q.courtLevel || 'LEGAL ADVISORY & SERVICES'}`;
 
     previewContent = (
-      <div className="space-y-4 text-xs font-sans text-slate-900">
+      <div className="quotation-document-content space-y-4 text-xs font-sans text-slate-900">
         {/* Reference Block */}
         <div className="grid grid-cols-2 gap-4 text-[11px] border border-slate-300 bg-white p-3 rounded font-sans">
           <div className="space-y-1">
@@ -173,92 +174,71 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
         </div>
 
         {/* Body Table */}
-        <table className="w-full text-left border-collapse border border-slate-300">
+        <table className="w-full text-left border-collapse border border-black bg-white text-black">
           <thead>
-            <tr className="bg-[#16223A] text-white text-[10.5px] uppercase font-bold tracking-wider">
-              <th className="p-2 border border-slate-400">DESCRIPTION</th>
-              <th className="p-2 border border-slate-400 text-right w-16">QTY</th>
-              <th className="p-2 border border-slate-400 text-right w-28">UNIT (RM)</th>
-              <th className="p-2 border border-slate-400 text-right w-32">AMOUNT (RM)</th>
+            <tr className="bg-white text-black text-[10.5px] uppercase font-bold tracking-wider">
+              <th className="p-2 border border-black text-center">DESCRIPTION</th>
+              <th className="p-2 border border-black text-center w-40">AMOUNT (RM)</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200 text-[11px]">
-            {/* Section 1: Professional Fees */}
-            <tr className="bg-slate-100 font-bold">
-              <td colSpan={4} className="p-2 text-[#16223A] uppercase tracking-wider text-[10px]">1. PROFESSIONAL FEES</td>
-            </tr>
+          <tbody className="text-[11px]">
             <tr>
-              <td colSpan={4} className="p-2 pl-4 text-[10.5px] italic leading-relaxed text-slate-700">
-                Taking instructions, perusing and reviewing relevant documents, drafting and preparing the relevant legal instruments and pleadings, conducting legal research, getting-up and preparing the matter, negotiating on the client's behalf, undertaking reasonable due diligence, and rendering legal advice as required, together with all necessary and incidental work related thereto.
+              <td colSpan={2} className="p-2 border border-black text-black">
+                <p className="leading-snug mb-4">Being our professional charges for services rendered including taking instruction preparation of the following documents, attending to execution of stamping, registration, updating and advising your goodself from time to time via email or calls and other related matters incidental thereto not specifically stated herein.</p>
+                <p className="font-bold underline uppercase">Professional Fees:</p>
               </td>
             </tr>
             {(profFeeItems.length > 0 ? profFeeItems : [{ description: 'Professional Legal Fee', amount: q.total, quantity: 1, unitPrice: q.total, chargeType: 'Fixed' as const }]).map((it, idx) => (
-              <tr key={idx}>
-                <td className="p-2 pl-4 text-slate-800">{it.description}</td>
-                <td className="p-2 text-right font-mono">{it.quantity ?? 1}</td>
-                <td className="p-2 text-right font-mono">{(it.unitPrice ?? it.amount).toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
-                <td className="p-2 text-right font-mono font-medium">{lineItemAmount(it).toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
+              <tr key={`pf-${idx}`} className="text-black">
+                <td className="px-2 py-0.5 border-l border-black">{it.description}</td>
+                <td className="px-2 py-0.5 border-x border-black text-right font-mono">{lineItemAmount(it).toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
               </tr>
             ))}
-            <tr className="border-t border-slate-300 font-bold text-slate-900 bg-slate-50">
-              <td colSpan={3} className="p-1.5 pl-4 text-right">PROFESSIONAL FEES SUB TOTAL:</td>
-              <td className="p-1.5 text-right font-mono">
-                RM {(profFeeTotal || q.total).toLocaleString('en-MY', { minimumFractionDigits: 2 })}
-              </td>
+            <tr className="font-bold text-black">
+              <td className="p-1.5 border border-black text-right">SUB TOTAL:</td>
+              <td className="p-1.5 border border-black text-right font-mono">{profFeeTotal.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
             </tr>
 
-            {/* Section 2: Disbursement */}
             {disbItems.length > 0 && (
               <>
-                <tr className="bg-slate-100 font-bold border-t border-slate-300">
-                  <td colSpan={4} className="p-2 text-[#16223A] uppercase tracking-wider text-[10px]">2. DISBURSEMENT</td>
+                <tr>
+                  <td colSpan={2} className="p-2 border border-black text-black font-bold underline uppercase">Disbursement</td>
                 </tr>
                 {disbItems.map((it, idx) => (
-                  <tr key={idx}>
-                    <td className="p-2 pl-4 text-slate-800">{it.description}</td>
-                    <td className="p-2 text-right font-mono">{it.quantity ?? 1}</td>
-                    <td className="p-2 text-right font-mono">{(it.unitPrice ?? it.amount).toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
-                    <td className="p-2 text-right font-mono font-medium">{lineItemAmount(it).toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
+                  <tr key={`db-${idx}`} className="text-black">
+                    <td className="px-2 py-0.5 border-l border-black">{it.description}</td>
+                    <td className="px-2 py-0.5 border-x border-black text-right font-mono">{lineItemAmount(it).toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
                   </tr>
                 ))}
-                <tr className="border-t border-slate-300 font-bold text-slate-900 bg-slate-50">
-                  <td colSpan={3} className="p-1.5 pl-4 text-right">DISBURSEMENT SUB TOTAL:</td>
-                  <td className="p-1.5 text-right font-mono">
-                    RM {disbTotal.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
-                  </td>
+                <tr className="font-bold text-black">
+                  <td className="p-1.5 border border-black text-right">SUB TOTAL:</td>
+                  <td className="p-1.5 border border-black text-right font-mono">{disbTotal.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
                 </tr>
               </>
             )}
 
-            {/* Section 3: Reimbursement */}
             {reimbItems.length > 0 && (
               <>
-                <tr className="bg-slate-100 font-bold border-t border-slate-300">
-                  <td colSpan={4} className="p-2 text-[#16223A] uppercase tracking-wider text-[10px]">3. REIMBURSEMENT</td>
+                <tr>
+                  <td colSpan={2} className="p-2 border border-black text-black font-bold underline uppercase">Reimbursement</td>
                 </tr>
                 {reimbItems.map((it, idx) => (
-                  <tr key={idx}>
-                    <td className="p-2 pl-4 text-slate-800">{it.description}</td>
-                    <td className="p-2 text-right font-mono">{it.quantity ?? 1}</td>
-                    <td className="p-2 text-right font-mono">{(it.unitPrice ?? it.amount).toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
-                    <td className="p-2 text-right font-mono font-medium">{lineItemAmount(it).toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
+                  <tr key={`rb-${idx}`} className="text-black">
+                    <td className="px-2 py-0.5 border-l border-black">{it.description}</td>
+                    <td className="px-2 py-0.5 border-x border-black text-right font-mono">{lineItemAmount(it).toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
                   </tr>
                 ))}
-                <tr className="border-t border-slate-300 font-bold text-slate-900 bg-slate-50">
-                  <td colSpan={3} className="p-1.5 pl-4 text-right">REIMBURSEMENT SUB TOTAL:</td>
-                  <td className="p-1.5 text-right font-mono">
-                    RM {reimbTotal.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
-                  </td>
+                <tr className="font-bold text-black">
+                  <td className="p-1.5 border border-black text-right">SUB TOTAL:</td>
+                  <td className="p-1.5 border border-black text-right font-mono">{reimbTotal.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
                 </tr>
               </>
             )}
           </tbody>
           <tfoot>
-            <tr className="bg-[#16223A] text-white font-bold text-xs border-t-2 border-slate-900">
-              <td colSpan={3} className="p-2.5">TOTAL AMOUNT TO BE PAID</td>
-              <td className="p-2.5 text-right font-mono text-amber-300 text-sm">
-                RM {q.total.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
-              </td>
+            <tr className="text-black font-bold text-xs">
+              <td className="p-2.5 border border-black text-right">TOTAL AMOUNT TO BE PAID:</td>
+              <td className="p-2.5 border border-black text-right font-mono text-sm">{q.total.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
             </tr>
           </tfoot>
         </table>
@@ -795,6 +775,30 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
           ${Array.from(document.querySelectorAll('style')).map((style) => style.textContent || '').join('\n')}
 
           ${generatePrintStyleTag(practiceSettings)}
+
+          .quotation-document-content table {
+            border: 1px solid #000000 !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+          }
+
+          .quotation-document-content th,
+          .quotation-document-content td {
+            border-color: #000000 !important;
+            color: #000000 !important;
+            background: #ffffff !important;
+          }
+
+          .quotation-document-content th:nth-child(2),
+          .quotation-document-content td:nth-child(2) {
+            width: 25% !important;
+            text-align: right !important;
+          }
+
+          .quotation-document-content th:first-child,
+          .quotation-document-content td:first-child {
+            width: 75% !important;
+          }
         </style>
       </head>
       <body>
@@ -885,6 +889,25 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
           background-color: ${practiceSettings.primaryColor} !important;
           color: #ffffff !important;
           font-weight: 700 !important;
+        }
+
+        #doc-preview-printable-area .quotation-document-content table,
+        #doc-preview-printable-area .quotation-document-content th,
+        #doc-preview-printable-area .quotation-document-content td {
+          background: #ffffff !important;
+          border-color: #000000 !important;
+          color: #000000 !important;
+        }
+
+        #doc-preview-printable-area .quotation-document-content th:nth-child(2),
+        #doc-preview-printable-area .quotation-document-content td:nth-child(2) {
+          width: 25% !important;
+          text-align: right !important;
+        }
+
+        #doc-preview-printable-area .quotation-document-content th:first-child,
+        #doc-preview-printable-area .quotation-document-content td:first-child {
+          width: 75% !important;
         }
 
         #doc-preview-printable-area img {
