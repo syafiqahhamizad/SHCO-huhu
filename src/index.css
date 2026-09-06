@@ -982,6 +982,11 @@ form textarea:focus {
 
 /* Shared brand treatment for amber utilities: warm brass, not bright yellow. */
 @layer utilities {
+  .shco-brand-name,
+  .shco-brand-subtitle {
+    color: #ffd29e !important;
+  }
+
   /* Use the Firm Start Centre navy consistently wherever blue utilities appear. */
   .bg-blue-50,
   .bg-blue-100,
