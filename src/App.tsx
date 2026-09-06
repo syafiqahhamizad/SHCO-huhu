@@ -37,7 +37,6 @@ import { SimplifiedAccountingCentreView } from './components/views/SimplifiedAcc
 import {
   WorkspaceView,
   SecurityView,
-  SettingsView,
   UsersAndPermissionsView,
 } from './components/views/SystemViews';
 import { PracticeSettingsView } from './components/views/PracticeSettingsView';
@@ -126,6 +125,7 @@ const MainContent: React.FC = () => {
       case 'cases':
         return <CasesView />;
       case 'quotations':
+      case 'billing':
         return <QuotationsView />;
       case 'hearings':
         return <HearingsView />;
@@ -169,9 +169,6 @@ const MainContent: React.FC = () => {
       case 'paymentVouchers':
       case 'pv':
       case 'time':
-      case 'invoices':
-      case 'payments':
-      case 'receipts':
       case 'retainers':
       case 'statement':
       case 'officeAccounts':
@@ -210,11 +207,10 @@ const MainContent: React.FC = () => {
         return <UsersAndPermissionsView />;
       case 'practiceSettings':
       case 'practice-settings':
-        return <PracticeSettingsView />;
       case 'firmSettings':
       case 'firm-settings':
       case 'settings':
-        return <SettingsView />;
+        return <PracticeSettingsView />;
       case 'aiAgent':
       case 'ai-agent':
         return <AIAgentView />;

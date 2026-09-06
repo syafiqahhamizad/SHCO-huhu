@@ -2352,7 +2352,7 @@ export const CasesView: React.FC = () => {
           return (
             <div className="space-y-6 text-xs">
               {/* Visual Realistic Physical File Jacket / Folder Cover */}
-              <div className="bg-[#FAF8F5] border-2 border-[#A9814A]/40 rounded-2xl p-6 shadow-md relative overflow-hidden">
+              <div className="bg-[#FAF8F5] dark:bg-[#1B2330] border-2 border-[#A9814A]/40 dark:border-slate-700 rounded-2xl p-6 shadow-md relative overflow-hidden">
                 {/* Top Practice Color Bar */}
                 <div className={`absolute top-0 left-0 right-0 h-3 bg-gradient-to-r ${
                   isConveyancing ? 'from-[#2F6F4E] via-[#A9814A] to-[#2F6F4E]' :
@@ -3078,7 +3078,7 @@ export const CasesView: React.FC = () => {
                   combinedLogs.map((log) => (
                     <div key={log.id} className="relative pl-8 pb-2 group">
                       <div className="absolute left-1.5 top-1.5 w-3 h-3 rounded-full bg-[#A9814A] border-2 border-white shadow-2xs group-hover:scale-125 transition-transform" />
-                      <div className="bg-[#FAF8F5] border border-[#E1DCCF] p-3.5 rounded-xl space-y-1.5 hover:shadow-2xs transition-shadow">
+                      <div className="bg-[#FAF8F5] dark:bg-[#1B2330] border border-[#E1DCCF] dark:border-slate-700 p-3.5 rounded-xl space-y-1.5 hover:shadow-2xs transition-shadow">
                         <div className="flex items-center justify-between gap-2 flex-wrap">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${log.badgeColor || 'bg-slate-100 text-slate-700'}`}>
                             {log.type}

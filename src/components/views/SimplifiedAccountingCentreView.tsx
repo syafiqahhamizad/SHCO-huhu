@@ -62,10 +62,10 @@ export const SimplifiedAccountingCentreView: React.FC = () => {
           </div>
           <button
             type="button"
-            onClick={() => setCurrentView('invoices')}
+            onClick={() => setCurrentView('billing')}
             className="flex items-center gap-2 self-start rounded-lg bg-[#A9814A] px-3.5 py-2 font-bold text-white shadow-sm cursor-pointer md:self-auto hover:bg-[#B8925C] transition-colors"
           >
-            <DollarSign className="h-4 w-4" /> Open Invoices <ArrowRight className="h-3.5 w-3.5" />
+            <DollarSign className="h-4 w-4" /> Open Billing <ArrowRight className="h-3.5 w-3.5" />
           </button>
         </div>
       </section>

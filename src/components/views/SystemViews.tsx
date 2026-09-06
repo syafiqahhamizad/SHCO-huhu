@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Role } from '../../types';
-import { getPracticeSettings, DEFAULT_PRACTICE_SETTINGS } from '../../services/templateService';
+import { getPracticeSettings, savePracticeSettings, DEFAULT_PRACTICE_SETTINGS, PracticeSettings } from '../../services/templateService';
 import { provisionFirebaseUser } from '../../services/firebaseAuthService';
 import {
   Share2,
@@ -1379,34 +1379,22 @@ export const SettingsView: React.FC = () => {
     currentView === 'account' ? 'account' : 'branding'
   );
 
-  // Firm Branding & Letterhead Configuration State
-  const [firmLegalName, setFirmLegalName] = useState('MESSRS SYAFIQAH HAMIZAD & CO');
-  const [firmSubtitle, setFirmSubtitle] = useState('Advocates & Solicitors • Peguambela & Peguamcara');
-  const [headerBadgeText, setHeaderBadgeText] = useState('SH');
-  const [headerStyle, setHeaderStyle] = useState<'formal' | 'modern' | 'centered'>('formal');
-  const [addressLine, setAddressLine] = useState('8-23-03 (2nd Floor), Jalan Medan Pusat Bandar 7A, Bangi Sentral, 43650 Bandar Baru Bangi, Selangor');
-  const [contactPhone, setContactPhone] = useState('+603-8684 1998 / +6011-7382 8754');
-  const [officialEmail, setOfficialEmail] = useState('shco@shcolaw.com');
-  const [barCouncilNo, setBarCouncilNo] = useState('BC/S/2024/9912');
-  const [sstRegNo, setSstRegNo] = useState('W10-2401-3200019');
+  // Unified Practice & Firm Settings state from templateService
+  const [settings, setSettings] = useState<PracticeSettings>(() => getPracticeSettings());
 
-  // Document Formatting Templates
-  const [engagementOpeningText, setEngagementOpeningText] = useState(
-    'We are pleased to confirm our appointment to act as your Advocates & Solicitors in relation to the abovementioned legal matter. This letter sets out the agreed scope of professional representation, fee structure, and statutory terms of engagement.'
-  );
-  const [engagementTermsClause, setEngagementTermsClause] = useState(
-    '1. Professional fees are governed by the Solicitors Remuneration Order (SRO 2023).\n2. All out-of-pocket disbursements (court filing fees, registration fees, stamping) shall be reimbursed by the client.\n3. Initial trust deposit monies shall be held in our Client Trust Account pursuant to Solicitors\' Account Rules 1990.\n4. This agreement shall be governed by and construed in accordance with the laws of Malaysia.'
-  );
-  const [quotationValidityDays, setQuotationValidityDays] = useState('30');
-  const [paymentTermDays, setPaymentTermDays] = useState('14');
-  const [disbursementNote, setDisbursementNote] = useState(
-    'Invoices are payable within the stipulated payment terms. Payments should be credited to our CIMB Office Operating Account or Bank Islam Client Trust Account as instructed.'
-  );
+  useEffect(() => {
+    const handleSettingsUpdate = () => {
+      setSettings(getPracticeSettings());
+    };
+    window.addEventListener('shco-practice-settings-updated', handleSettingsUpdate);
+    return () => window.removeEventListener('shco-practice-settings-updated', handleSettingsUpdate);
+  }, []);
 
   const [previewDocType, setPreviewDocType] = useState<'engagement' | 'quotation' | 'invoice'>('engagement');
 
   const handleSaveBranding = () => {
-    showToast('Master Firm Branding & Document Templates saved successfully!', 'success');
+    savePracticeSettings(settings);
+    showToast('Master Firm Branding & System Configurations saved successfully!', 'success');
   };
 
   return (
@@ -1540,8 +1528,8 @@ export const SettingsView: React.FC = () => {
                   <label className="font-bold text-slate-700 uppercase block mb-1">Legal Firm Name (Letterhead Title)</label>
                   <input
                     type="text"
-                    value={firmLegalName}
-                    onChange={(e) => setFirmLegalName(e.target.value)}
+                    value={settings.firmName}
+                    onChange={(e) => setSettings((prev) => ({ ...prev, firmName: e.target.value }))}
                     className="w-full font-serif font-bold p-2 bg-white border border-slate-300 rounded text-xs text-[#16223A]"
                   />
                 </div>
@@ -1550,8 +1538,8 @@ export const SettingsView: React.FC = () => {
                   <label className="font-bold text-slate-700 uppercase block mb-1">Subtitle / Practice Designation</label>
                   <input
                     type="text"
-                    value={firmSubtitle}
-                    onChange={(e) => setFirmSubtitle(e.target.value)}
+                    value={settings.firmSubtitle}
+                    onChange={(e) => setSettings((prev) => ({ ...prev, firmSubtitle: e.target.value }))}
                     className="w-full p-2 bg-white border border-slate-300 rounded text-xs text-slate-700"
                   />
                 </div>
@@ -1561,8 +1549,8 @@ export const SettingsView: React.FC = () => {
                   <input
                     type="text"
                     maxLength={4}
-                    value={headerBadgeText}
-                    onChange={(e) => setHeaderBadgeText(e.target.value.toUpperCase())}
+                    value={settings.headerBadgeText || 'SH'}
+                    onChange={(e) => setSettings((prev) => ({ ...prev, headerBadgeText: e.target.value.toUpperCase() }))}
                     className="w-full p-2 bg-white border border-slate-300 rounded text-xs font-mono font-bold text-[#16223A]"
                   />
                 </div>
@@ -1570,8 +1558,8 @@ export const SettingsView: React.FC = () => {
                 <div>
                   <label className="font-bold text-slate-700 uppercase block mb-1">Letterhead Header Layout Style</label>
                   <select
-                    value={headerStyle}
-                    onChange={(e) => setHeaderStyle(e.target.value as 'formal' | 'modern' | 'centered')}
+                    value={settings.headerStyle || 'formal'}
+                    onChange={(e) => setSettings((prev) => ({ ...prev, headerStyle: e.target.value as any }))}
                     className="w-full p-2 bg-white border border-slate-300 rounded text-xs font-bold text-[#16223A] cursor-pointer"
                   >
                     <option value="formal">Formal Centered Classic (Bar Council Standard)</option>
@@ -1585,15 +1573,15 @@ export const SettingsView: React.FC = () => {
                   <div className="grid grid-cols-2 gap-1.5">
                     <input
                       type="text"
-                      value={barCouncilNo}
-                      onChange={(e) => setBarCouncilNo(e.target.value)}
+                      value={settings.barRef}
+                      onChange={(e) => setSettings((prev) => ({ ...prev, barRef: e.target.value }))}
                       placeholder="Bar Ref"
                       className="w-full p-2 bg-white border border-slate-300 rounded text-[11px] font-mono"
                     />
                     <input
                       type="text"
-                      value={sstRegNo}
-                      onChange={(e) => setSstRegNo(e.target.value)}
+                      value={settings.sstNo}
+                      onChange={(e) => setSettings((prev) => ({ ...prev, sstNo: e.target.value }))}
                       placeholder="SST No"
                       className="w-full p-2 bg-white border border-slate-300 rounded text-[11px] font-mono"
                     />
@@ -1604,8 +1592,8 @@ export const SettingsView: React.FC = () => {
                   <label className="font-bold text-slate-700 uppercase block mb-1">Official Office Address</label>
                   <input
                     type="text"
-                    value={addressLine}
-                    onChange={(e) => setAddressLine(e.target.value)}
+                    value={settings.address}
+                    onChange={(e) => setSettings((prev) => ({ ...prev, address: e.target.value }))}
                     className="w-full p-2 bg-white border border-slate-300 rounded text-xs text-slate-700"
                   />
                 </div>
@@ -1614,8 +1602,8 @@ export const SettingsView: React.FC = () => {
                   <label className="font-bold text-slate-700 uppercase block mb-1">Official Contact Tel / Mobile</label>
                   <input
                     type="text"
-                    value={contactPhone}
-                    onChange={(e) => setContactPhone(e.target.value)}
+                    value={settings.phone}
+                    onChange={(e) => setSettings((prev) => ({ ...prev, phone: e.target.value }))}
                     className="w-full p-2 bg-white border border-slate-300 rounded text-xs text-slate-700"
                   />
                 </div>
@@ -1624,8 +1612,8 @@ export const SettingsView: React.FC = () => {
                   <label className="font-bold text-slate-700 uppercase block mb-1">Official Domain Email</label>
                   <input
                     type="text"
-                    value={officialEmail}
-                    onChange={(e) => setOfficialEmail(e.target.value)}
+                    value={settings.email}
+                    onChange={(e) => setSettings((prev) => ({ ...prev, email: e.target.value }))}
                     className="w-full p-2 bg-white border border-slate-300 rounded text-xs text-slate-700"
                   />
                 </div>
@@ -1647,8 +1635,8 @@ export const SettingsView: React.FC = () => {
                   <label className="font-bold text-slate-700 uppercase block mb-1">Master Engagement Opening Paragraph</label>
                   <textarea
                     rows={2}
-                    value={engagementOpeningText}
-                    onChange={(e) => setEngagementOpeningText(e.target.value)}
+                    value={settings.engagementOpeningText || ''}
+                    onChange={(e) => setSettings((prev) => ({ ...prev, engagementOpeningText: e.target.value }))}
                     className="w-full p-2 bg-white border border-slate-300 rounded text-xs text-slate-800 leading-relaxed"
                   />
                 </div>
@@ -1657,8 +1645,8 @@ export const SettingsView: React.FC = () => {
                   <label className="font-bold text-slate-700 uppercase block mb-1">Standard Terms &amp; Governing Clauses</label>
                   <textarea
                     rows={4}
-                    value={engagementTermsClause}
-                    onChange={(e) => setEngagementTermsClause(e.target.value)}
+                    value={settings.engagementTermsClause || ''}
+                    onChange={(e) => setSettings((prev) => ({ ...prev, engagementTermsClause: e.target.value }))}
                     className="w-full p-2 bg-white border border-slate-300 rounded text-xs font-mono text-slate-800 leading-relaxed"
                   />
                 </div>
@@ -1680,8 +1668,8 @@ export const SettingsView: React.FC = () => {
                   <label className="font-bold text-slate-700 uppercase block mb-1">Quotation Validity Period (Days)</label>
                   <input
                     type="number"
-                    value={quotationValidityDays}
-                    onChange={(e) => setQuotationValidityDays(e.target.value)}
+                    value={settings.quotationValidityDays || '30'}
+                    onChange={(e) => setSettings((prev) => ({ ...prev, quotationValidityDays: e.target.value }))}
                     className="w-full p-2 bg-white border border-slate-300 rounded text-xs font-mono font-bold"
                   />
                 </div>
@@ -1690,8 +1678,8 @@ export const SettingsView: React.FC = () => {
                   <label className="font-bold text-slate-700 uppercase block mb-1">Tax Invoice Payment Terms (Days)</label>
                   <input
                     type="number"
-                    value={paymentTermDays}
-                    onChange={(e) => setPaymentTermDays(e.target.value)}
+                    value={settings.paymentTermDays || '14'}
+                    onChange={(e) => setSettings((prev) => ({ ...prev, paymentTermDays: e.target.value }))}
                     className="w-full p-2 bg-white border border-slate-300 rounded text-xs font-mono font-bold"
                   />
                 </div>
@@ -1700,8 +1688,8 @@ export const SettingsView: React.FC = () => {
                   <label className="font-bold text-slate-700 uppercase block mb-1">Billing Footer &amp; Bank Payment Instructions</label>
                   <textarea
                     rows={2}
-                    value={disbursementNote}
-                    onChange={(e) => setDisbursementNote(e.target.value)}
+                    value={settings.disbursementNote || ''}
+                    onChange={(e) => setSettings((prev) => ({ ...prev, disbursementNote: e.target.value }))}
                     className="w-full p-2 bg-white border border-slate-300 rounded text-xs text-slate-800 leading-relaxed"
                   />
                 </div>
@@ -1713,10 +1701,8 @@ export const SettingsView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  setFirmLegalName('MESSRS SYAFIQAH HAMIZAD & CO');
-                  setFirmSubtitle('Advocates & Solicitors • Peguambela & Peguamcara');
-                  setHeaderBadgeText('SH');
-                  setHeaderStyle('formal');
+                  setSettings(DEFAULT_PRACTICE_SETTINGS);
+                  savePracticeSettings(DEFAULT_PRACTICE_SETTINGS);
                   showToast('Reset to master firm defaults', 'info');
                 }}
                 className="px-3 py-2 text-slate-600 hover:text-slate-900 font-bold text-xs flex items-center gap-1 cursor-pointer"
@@ -1792,57 +1778,57 @@ export const SettingsView: React.FC = () => {
                 <div className="bg-[#FAF8F2] border border-[#E1DCCF] rounded-lg p-5 shadow-sm text-slate-900 text-[10.5px] font-sans leading-relaxed min-h-[440px] flex flex-col justify-between">
                   <div>
                     {/* Dynamic Letterhead Header */}
-                    {headerStyle === 'formal' && (
+                    {settings.headerStyle === 'formal' && (
                       <div className="text-center pb-3 border-b-2 border-[#16223A] mb-3">
                         <div className="flex items-center justify-center gap-2 mb-1">
                           <div className="w-7 h-7 rounded bg-[#16223A] text-amber-300 font-serif font-bold text-xs flex items-center justify-center border border-amber-400 shrink-0">
-                            {headerBadgeText || 'SH'}
+                            {settings.headerBadgeText || 'SH'}
                           </div>
                           <div className="font-serif font-bold text-base tracking-wide text-[#16223A]">
-                            {firmLegalName}
+                            {settings.firmName}
                           </div>
                         </div>
                         <div className="text-[10px] font-semibold text-[#5B6478] tracking-widest uppercase">
-                          {firmSubtitle}
+                          {settings.firmSubtitle}
                         </div>
-                        <div className="text-[9.5px] text-slate-600 mt-1">{addressLine}</div>
+                        <div className="text-[9.5px] text-slate-600 mt-1">{settings.address}</div>
                         <div className="text-[9px] text-slate-600 font-mono">
-                          Email: {officialEmail} &nbsp;|&nbsp; Tel: {contactPhone}
+                          Email: {settings.email} &nbsp;|&nbsp; Tel: {settings.phone}
                         </div>
                         <div className="text-[8.5px] font-mono text-slate-500 mt-0.5">
-                          Bar Ref: {barCouncilNo} | SST Reg: {sstRegNo}
+                          Bar Ref: {settings.barRef} | SST Reg: {settings.sstNo}
                         </div>
                       </div>
                     )}
 
-                    {headerStyle === 'modern' && (
+                    {settings.headerStyle === 'modern' && (
                       <div className="flex justify-between items-start pb-3 border-b-2 border-[#16223A] mb-3">
                         <div className="flex items-center gap-2">
                           <div className="w-9 h-9 rounded-lg bg-[#16223A] text-amber-300 font-serif font-bold text-sm flex items-center justify-center border border-amber-400">
-                            {headerBadgeText || 'SH'}
+                            {settings.headerBadgeText || 'SH'}
                           </div>
                           <div>
-                            <div className="font-serif font-bold text-sm text-[#16223A]">{firmLegalName}</div>
-                            <div className="text-[9.5px] font-semibold text-slate-500 uppercase">{firmSubtitle}</div>
+                            <div className="font-serif font-bold text-sm text-[#16223A]">{settings.firmName}</div>
+                            <div className="text-[9.5px] font-semibold text-slate-500 uppercase">{settings.firmSubtitle}</div>
                           </div>
                         </div>
                         <div className="text-right text-[9px] text-slate-600 leading-tight space-y-0.5">
-                          <div className="font-medium max-w-[180px]">{addressLine}</div>
-                          <div className="font-mono text-slate-500">{officialEmail}</div>
-                          <div className="font-mono text-slate-500">SST: {sstRegNo}</div>
+                          <div className="font-medium max-w-[180px]">{settings.address}</div>
+                          <div className="font-mono text-slate-500">{settings.email}</div>
+                          <div className="font-mono text-slate-500">SST: {settings.sstNo}</div>
                         </div>
                       </div>
                     )}
 
-                    {headerStyle === 'centered' && (
+                    {settings.headerStyle === 'centered' && (
                       <div className="text-center pb-3 border-b-2 border-amber-600 mb-3 space-y-0.5">
                         <div className="font-serif font-extrabold text-base text-[#16223A] tracking-wider uppercase">
-                          {firmLegalName}
+                          {settings.firmName}
                         </div>
                         <div className="text-[9.5px] font-semibold text-amber-900 tracking-widest uppercase">
-                          {firmSubtitle}
+                          {settings.firmSubtitle}
                         </div>
-                        <div className="text-[9px] text-slate-600">{addressLine} • Tel: {contactPhone}</div>
+                        <div className="text-[9px] text-slate-600">{settings.address} • Tel: {settings.phone}</div>
                       </div>
                     )}
 
@@ -1858,12 +1844,12 @@ export const SettingsView: React.FC = () => {
                           RE: LETTER OF ENGAGEMENT — APPOINTMENT AS ADVOCATES &amp; SOLICITORS
                         </div>
 
-                        <p className="text-slate-700 leading-relaxed italic">{engagementOpeningText}</p>
+                        <p className="text-slate-700 leading-relaxed italic">{settings.engagementOpeningText}</p>
 
                         <div className="bg-amber-50/60 p-2 border border-amber-200 rounded space-y-1">
                           <div className="font-bold text-amber-950 uppercase text-[9px]">Master Terms of Engagement:</div>
                           <pre className="text-[9px] font-sans text-slate-700 whitespace-pre-wrap leading-relaxed">
-                            {engagementTermsClause}
+                            {settings.engagementTermsClause}
                           </pre>
                         </div>
                       </div>
@@ -1873,7 +1859,7 @@ export const SettingsView: React.FC = () => {
                       <div className="space-y-3 text-[10px]">
                         <div className="flex justify-between text-slate-500 border-b border-slate-200 pb-1 font-mono">
                           <span>Quotation Ref: QUOT-2026-0811</span>
-                          <span>Valid: {quotationValidityDays} Days</span>
+                          <span>Valid: {settings.quotationValidityDays || '30'} Days</span>
                         </div>
 
                         <div className="bg-slate-100 p-2 border border-slate-300 font-bold text-slate-900">
@@ -1909,7 +1895,7 @@ export const SettingsView: React.FC = () => {
                       <div className="space-y-3 text-[10px]">
                         <div className="flex justify-between text-slate-500 border-b border-slate-200 pb-1 font-mono">
                           <span>TAX INVOICE NO: INV-2026-0042</span>
-                          <span>Terms: {paymentTermDays} Days</span>
+                          <span>Terms: {settings.paymentTermDays || '14'} Days</span>
                         </div>
 
                         <div className="bg-emerald-50 border border-emerald-200 p-2 rounded text-emerald-950 font-semibold flex justify-between items-center">
@@ -1918,7 +1904,7 @@ export const SettingsView: React.FC = () => {
                         </div>
 
                         <p className="text-[9.5px] text-slate-600 italic bg-white p-2 border border-slate-200 rounded">
-                          {disbursementNote}
+                          {settings.disbursementNote}
                         </p>
                       </div>
                     )}
@@ -1927,7 +1913,7 @@ export const SettingsView: React.FC = () => {
                   {/* Simulated Execution & Signatures Block */}
                   <div className="mt-4 pt-3 border-t border-slate-300 flex justify-between items-end text-[9px] text-slate-500">
                     <div>
-                      <div className="font-bold text-slate-800 uppercase">{firmLegalName}</div>
+                      <div className="font-bold text-slate-800 uppercase">{settings.firmName}</div>
                       <div>Computer-Generated Practice Instrument</div>
                     </div>
                     <div className="text-right">
@@ -1943,31 +1929,89 @@ export const SettingsView: React.FC = () => {
       )}
 
       {activeTab === 'profile' && (
-        <div className="bg-white border border-[#E1DCCF] p-5 rounded-xl shadow-xs space-y-3">
-          <h3 className="font-serif font-bold text-sm text-[#16223A] flex items-center gap-1.5">
-            <Building className="w-4 h-4 text-[#A9814A]" />
-            Firm Master Profile
-          </h3>
+        <div className="bg-white border border-[#E1DCCF] p-5 rounded-xl shadow-xs space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
+            <div>
+              <h3 className="font-serif font-bold text-sm text-[#16223A] flex items-center gap-1.5">
+                <Building className="w-4 h-4 text-[#A9814A]" />
+                <span>Firm Master Profile &amp; Regulatory Registration</span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Bar Council registration details, official firm contacts &amp; headquarters address
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleSaveBranding}
+              className="bg-[#16223A] hover:bg-[#1F2E4D] text-amber-300 font-bold px-4 py-1.5 rounded-lg text-xs flex items-center gap-1.5 shadow-xs cursor-pointer"
+            >
+              <Check className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Save Profile Changes</span>
+            </button>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="font-bold text-slate-600 uppercase block mb-1">Legal Firm Name</label>
-              <input type="text" readOnly value="MESSRS SYAFIQAH HAMIZAD & CO" className="w-full bg-slate-50 font-bold p-2 border border-slate-200 rounded" />
-            </div>
-            <div>
-              <label className="font-bold text-slate-600 uppercase block mb-1">Bar Council Ref No.</label>
-              <input type="text" readOnly value="BC/S/2024/9912" className="w-full bg-slate-50 font-mono p-2 border border-slate-200 rounded" />
-            </div>
-            <div>
-              <label className="font-bold text-slate-600 uppercase block mb-1">SST Registration No.</label>
-              <input type="text" readOnly value="W10-2401-3200019" className="w-full bg-slate-50 font-mono p-2 border border-slate-200 rounded" />
-            </div>
-            <div>
-              <label className="font-bold text-slate-600 uppercase block mb-1">Kuala Terengganu Office Address</label>
+              <label className="font-bold text-slate-700 uppercase block mb-1">Legal Firm Name</label>
               <input
                 type="text"
-                readOnly
-                value="No. 14, Tingkat 2, Jalan Sultan Ismail, 20200 Kuala Terengganu, Terengganu"
-                className="w-full bg-slate-50 p-2 border border-slate-200 rounded"
+                value={settings.firmName}
+                onChange={(e) => setSettings((prev) => ({ ...prev, firmName: e.target.value }))}
+                className="w-full font-bold p-2 bg-white border border-slate-300 rounded text-xs text-[#16223A]"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-slate-700 uppercase block mb-1">Practice Designation / Subtitle</label>
+              <input
+                type="text"
+                value={settings.firmSubtitle}
+                onChange={(e) => setSettings((prev) => ({ ...prev, firmSubtitle: e.target.value }))}
+                className="w-full p-2 bg-white border border-slate-300 rounded text-xs text-slate-700"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-slate-700 uppercase block mb-1">Bar Council Ref No.</label>
+              <input
+                type="text"
+                value={settings.barRef}
+                onChange={(e) => setSettings((prev) => ({ ...prev, barRef: e.target.value }))}
+                className="w-full font-mono p-2 bg-white border border-slate-300 rounded text-xs"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-slate-700 uppercase block mb-1">SST Registration No.</label>
+              <input
+                type="text"
+                value={settings.sstNo}
+                onChange={(e) => setSettings((prev) => ({ ...prev, sstNo: e.target.value }))}
+                className="w-full font-mono p-2 bg-white border border-slate-300 rounded text-xs"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="font-bold text-slate-700 uppercase block mb-1">Main Head Office Address</label>
+              <input
+                type="text"
+                value={settings.address}
+                onChange={(e) => setSettings((prev) => ({ ...prev, address: e.target.value }))}
+                className="w-full p-2 bg-white border border-slate-300 rounded text-xs text-slate-700"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-slate-700 uppercase block mb-1">Official Telephone / Mobile</label>
+              <input
+                type="text"
+                value={settings.phone}
+                onChange={(e) => setSettings((prev) => ({ ...prev, phone: e.target.value }))}
+                className="w-full p-2 bg-white border border-slate-300 rounded text-xs text-slate-700"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-slate-700 uppercase block mb-1">Official Email</label>
+              <input
+                type="text"
+                value={settings.email}
+                onChange={(e) => setSettings((prev) => ({ ...prev, email: e.target.value }))}
+                className="w-full p-2 bg-white border border-slate-300 rounded text-xs text-slate-700"
               />
             </div>
           </div>
@@ -1975,9 +2019,8 @@ export const SettingsView: React.FC = () => {
       )}
 
       {activeTab === 'bank' && (() => {
-        const sysPracticeSettings = getPracticeSettings();
-        const sysBankAccounts = sysPracticeSettings.bankAccounts && sysPracticeSettings.bankAccounts.length > 0
-          ? sysPracticeSettings.bankAccounts
+        const sysBankAccounts = settings.bankAccounts && settings.bankAccounts.length > 0
+          ? settings.bankAccounts
           : DEFAULT_PRACTICE_SETTINGS.bankAccounts || [];
 
         return (
@@ -1986,16 +2029,25 @@ export const SettingsView: React.FC = () => {
               <div>
                 <h3 className="font-serif font-bold text-sm text-[#16223A] flex items-center gap-1.5">
                   <HardDrive className="w-4 h-4 text-purple-800" />
-                  <span>Mandatory Separate Bank Accounts (Solicitors' Account Rules 1990)</span>
+                  <span>Mandatory Separate Bank Accounts Overview (SAR 1990)</span>
                 </h3>
                 <p className="text-xs text-slate-500">
                   Registered firm client trust accounts &amp; office operating accounts
                 </p>
               </div>
 
-              <span className="text-xs font-bold text-[#16223A] bg-amber-100 px-2.5 py-1 rounded-full border border-amber-300">
-                {sysBankAccounts.length} Active Firm Bank Accounts
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-[#16223A] bg-amber-100 px-2.5 py-1 rounded-full border border-amber-300">
+                  {sysBankAccounts.length} Active Accounts
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCurrentView?.('practiceSettings')}
+                  className="px-3 py-1 bg-[#16223A] hover:bg-[#1F2E4D] text-amber-300 font-bold text-xs rounded-lg cursor-pointer transition-colors"
+                >
+                  Manage Accounts in Practice Settings &rarr;
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

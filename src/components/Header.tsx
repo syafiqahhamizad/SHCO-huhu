@@ -79,19 +79,14 @@ export const Header: React.FC = () => {
       case 'fileClosing':
         return { title: 'File Closing Checklist', sub: 'Invoice, Trust & Document return verifications before matter closure' };
       case 'quotations':
-        return { title: 'Quotations', sub: 'SRO 2023 Scale Fee Calculator & Fee Quoting Templates' };
+      case 'billing':
+        return { title: 'Billing', sub: 'Quotation to Proforma Invoice to Official Receipt' };
       case 'time':
         return { title: 'Time Entries', sub: 'Fee earner billable hours and activities' };
       case 'expenses':
         return { title: 'Expenses & Disbursements', sub: 'Out-of-pocket costs billed back to clients' };
       case 'travelClaims':
         return { title: 'Travel / Mileage Claims', sub: 'Mileage at RM 0.60/km for client matters vs firm business' };
-      case 'invoices':
-        return { title: 'Tax Invoices', sub: 'Issued bills and payment status tracking' };
-      case 'payments':
-        return { title: 'Payments Received', sub: 'Collections applied against tax invoices' };
-      case 'receipts':
-        return { title: 'Official Receipts (OR)', sub: 'Official receipt entries for Client & Office accounts' };
       case 'paymentVouchers':
         return { title: 'Payment Vouchers (PV)', sub: 'Disbursements and firm expenses with partner sign-off' };
       case 'retainers':
@@ -129,7 +124,7 @@ export const Header: React.FC = () => {
   const info = getViewInfo();
 
   return (
-    <header className="sticky top-0 z-20 mb-4 sm:mb-6 border-b border-[#304362] bg-[#16223A] px-4 sm:px-6 py-2.5 flex flex-col md:flex-row md:items-center justify-start gap-2.5 overflow-visible">
+    <header className="sticky top-0 z-20 mb-4 sm:mb-6 border-b border-[#304362] bg-[#16223A] text-white px-4 sm:px-6 py-2.5 flex flex-col md:flex-row md:items-center justify-start gap-2.5 overflow-visible">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <h1 className="min-w-0 font-serif text-lg sm:text-xl font-bold text-white tracking-tight truncate">{info.title}</h1>
@@ -187,7 +182,7 @@ export const Header: React.FC = () => {
             aria-controls="notifications-dropdown"
             title="Notifications"
           >
-            <Bell className="w-4 h-4 text-amber-200" />
+            <Bell className="w-4 h-4 text-[#B86F4A] dark:text-amber-300" />
             {unreadNotificationsCount > 0 && (
               <span className="absolute -top-1 -right-1 bg-rose-600 text-white font-bold text-[9px] w-4 h-4 rounded-full flex items-center justify-center animate-pulse border border-white shadow-sm">
                 {unreadNotificationsCount}

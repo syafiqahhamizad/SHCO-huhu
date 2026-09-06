@@ -67,6 +67,11 @@ function formatRinggitInWords(amount: number): string {
   return result + ' ONLY';
 }
 
+function lineItemAmount(item: { amount: number; quantity?: number; unitPrice?: number; chargeType?: 'Per Quantity' | 'Fixed' }): number {
+  const unitPrice = item.unitPrice ?? item.amount;
+  return item.chargeType === 'Per Quantity' ? (item.quantity || 1) * unitPrice : unitPrice;
+}
+
 export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, onClose }) => {
   const { quotations, invoices, receipts, paymentVouchers, clients, cases, showToast } = useApp();
 
@@ -117,9 +122,9 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
     const disbItems = items.filter((i) => i.category.toLowerCase().includes('disbursement') || i.category.toLowerCase().includes('stamp') || i.category.toLowerCase().includes('search'));
     const reimbItems = items.filter((i) => !profFeeItems.includes(i) && !disbItems.includes(i));
 
-    const profFeeTotal = profFeeItems.reduce((s, i) => s + i.amount, 0);
-    const disbTotal = disbItems.reduce((s, i) => s + i.amount, 0);
-    const reimbTotal = reimbItems.reduce((s, i) => s + i.amount, 0);
+    const profFeeTotal = profFeeItems.reduce((s, i) => s + lineItemAmount(i), 0);
+    const disbTotal = disbItems.reduce((s, i) => s + lineItemAmount(i), 0);
+    const reimbTotal = reimbItems.reduce((s, i) => s + lineItemAmount(i), 0);
 
     const clientObj = clients.find((c) => c.name.toLowerCase() === q.clientName.toLowerCase());
     const caseObj = cases.find((c) => c.id === q.fileRef || c.ref === q.fileRef);
@@ -149,34 +154,36 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
           Subject : {subjectText}
         </div>
 
-        {/* Narrative Paragraph */}
-        <p className="text-[11px] text-slate-700 leading-relaxed italic bg-amber-50/50 p-2.5 rounded border border-amber-200/60">
-          Taking instructions, perusing and reviewing relevant documents, drafting and preparing the relevant legal instruments and pleadings, conducting legal research, getting-up and preparing the matter, negotiating on the client's behalf, undertaking reasonable due diligence, and rendering legal advice as required, together with all necessary and incidental work related thereto.
-        </p>
-
         {/* Body Table */}
         <table className="w-full text-left border-collapse border border-slate-300">
           <thead>
             <tr className="bg-[#16223A] text-white text-[10.5px] uppercase font-bold tracking-wider">
               <th className="p-2 border border-slate-400">DESCRIPTION</th>
-              <th className="p-2 border border-slate-400 text-right w-36">AMOUNT (RM)</th>
+              <th className="p-2 border border-slate-400 text-right w-16">QTY</th>
+              <th className="p-2 border border-slate-400 text-right w-28">UNIT (RM)</th>
+              <th className="p-2 border border-slate-400 text-right w-32">AMOUNT (RM)</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 text-[11px]">
             {/* Section 1: Professional Fees */}
             <tr className="bg-slate-100 font-bold">
-              <td colSpan={2} className="p-2 text-[#16223A] uppercase tracking-wider text-[10px]">1. PROFESSIONAL FEES</td>
+              <td colSpan={4} className="p-2 text-[#16223A] uppercase tracking-wider text-[10px]">1. PROFESSIONAL FEES</td>
+            </tr>
+            <tr>
+              <td colSpan={4} className="p-2 pl-4 text-[10.5px] italic leading-relaxed text-slate-700">
+                Taking instructions, perusing and reviewing relevant documents, drafting and preparing the relevant legal instruments and pleadings, conducting legal research, getting-up and preparing the matter, negotiating on the client's behalf, undertaking reasonable due diligence, and rendering legal advice as required, together with all necessary and incidental work related thereto.
+              </td>
             </tr>
             {(profFeeItems.length > 0 ? profFeeItems : [{ description: 'Professional Legal Fee', amount: q.total }]).map((it, idx) => (
               <tr key={idx}>
                 <td className="p-2 pl-4 text-slate-800">{it.description}</td>
-                <td className="p-2 text-right font-mono font-medium">
-                  {it.amount.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
-                </td>
+                <td className="p-2 text-right font-mono">{it.quantity ?? 1}</td>
+                <td className="p-2 text-right font-mono">{(it.unitPrice ?? it.amount).toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
+                <td className="p-2 text-right font-mono font-medium">{lineItemAmount(it).toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
               </tr>
             ))}
             <tr className="border-t border-slate-300 font-bold text-slate-900 bg-slate-50">
-              <td className="p-1.5 pl-4 text-right">PROFESSIONAL FEES SUB TOTAL:</td>
+              <td colSpan={3} className="p-1.5 pl-4 text-right">PROFESSIONAL FEES SUB TOTAL:</td>
               <td className="p-1.5 text-right font-mono">
                 RM {(profFeeTotal || q.total).toLocaleString('en-MY', { minimumFractionDigits: 2 })}
               </td>
@@ -186,18 +193,18 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
             {disbItems.length > 0 && (
               <>
                 <tr className="bg-slate-100 font-bold border-t border-slate-300">
-                  <td colSpan={2} className="p-2 text-[#16223A] uppercase tracking-wider text-[10px]">2. DISBURSEMENT</td>
+                  <td colSpan={4} className="p-2 text-[#16223A] uppercase tracking-wider text-[10px]">2. DISBURSEMENT</td>
                 </tr>
                 {disbItems.map((it, idx) => (
                   <tr key={idx}>
                     <td className="p-2 pl-4 text-slate-800">{it.description}</td>
-                    <td className="p-2 text-right font-mono font-medium">
-                      {it.amount.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
-                    </td>
+                    <td className="p-2 text-right font-mono">{it.quantity ?? 1}</td>
+                    <td className="p-2 text-right font-mono">{(it.unitPrice ?? it.amount).toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
+                    <td className="p-2 text-right font-mono font-medium">{lineItemAmount(it).toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
                   </tr>
                 ))}
                 <tr className="border-t border-slate-300 font-bold text-slate-900 bg-slate-50">
-                  <td className="p-1.5 pl-4 text-right">DISBURSEMENT SUB TOTAL:</td>
+                  <td colSpan={3} className="p-1.5 pl-4 text-right">DISBURSEMENT SUB TOTAL:</td>
                   <td className="p-1.5 text-right font-mono">
                     RM {disbTotal.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
                   </td>
@@ -209,18 +216,18 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
             {reimbItems.length > 0 && (
               <>
                 <tr className="bg-slate-100 font-bold border-t border-slate-300">
-                  <td colSpan={2} className="p-2 text-[#16223A] uppercase tracking-wider text-[10px]">3. REIMBURSEMENT</td>
+                  <td colSpan={4} className="p-2 text-[#16223A] uppercase tracking-wider text-[10px]">3. REIMBURSEMENT</td>
                 </tr>
                 {reimbItems.map((it, idx) => (
                   <tr key={idx}>
                     <td className="p-2 pl-4 text-slate-800">{it.description}</td>
-                    <td className="p-2 text-right font-mono font-medium">
-                      {it.amount.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
-                    </td>
+                    <td className="p-2 text-right font-mono">{it.quantity ?? 1}</td>
+                    <td className="p-2 text-right font-mono">{(it.unitPrice ?? it.amount).toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
+                    <td className="p-2 text-right font-mono font-medium">{lineItemAmount(it).toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
                   </tr>
                 ))}
                 <tr className="border-t border-slate-300 font-bold text-slate-900 bg-slate-50">
-                  <td className="p-1.5 pl-4 text-right">REIMBURSEMENT SUB TOTAL:</td>
+                  <td colSpan={3} className="p-1.5 pl-4 text-right">REIMBURSEMENT SUB TOTAL:</td>
                   <td className="p-1.5 text-right font-mono">
                     RM {reimbTotal.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
                   </td>
@@ -230,7 +237,7 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
           </tbody>
           <tfoot>
             <tr className="bg-[#16223A] text-white font-bold text-xs border-t-2 border-slate-900">
-              <td className="p-2.5">TOTAL AMOUNT TO BE PAID</td>
+              <td colSpan={3} className="p-2.5">TOTAL AMOUNT TO BE PAID</td>
               <td className="p-2.5 text-right font-mono text-amber-300 text-sm">
                 RM {q.total.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
               </td>
@@ -695,24 +702,90 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
     );
   }
 
-  const handleDownloadWord = () => {
+  const getDocumentMarkup = () => {
     const printableElement = document.getElementById('doc-preview-printable-area');
-    const contentHtml = printableElement ? printableElement.innerHTML : '';
-    const wordContent = `
+    return printableElement ? printableElement.innerHTML : '';
+  };
+
+  const getDocumentExportHtml = (contentHtml: string) => `
       <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-      <head><title>${docTitle} ${docNo}</title>
-      <style>
-        body { font-family: 'Calibri', Arial, sans-serif; font-size: 11pt; color: #111; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-        th { background-color: #f2f2f2; font-weight: bold; }
-      </style>
+      <head>
+        <title>${docTitle} ${docNo}</title>
+        <meta charset="utf-8" />
+        <style>
+          @page {
+            size: A4;
+            margin: 12mm;
+          }
+
+          html, body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            color: #111827;
+          }
+
+          body {
+            font-family: ${practiceSettings.fontFamily}, 'Plus Jakarta Sans', Arial, sans-serif;
+            font-size: ${practiceSettings.fontSizePt}pt;
+            line-height: ${practiceSettings.lineHeight};
+            background: #ffffff;
+            padding: 0;
+            margin: 0;
+          }
+
+          * { box-sizing: border-box; }
+
+          .document-export {
+            width: 100%;
+            max-width: 920px;
+            margin: 0 auto;
+            padding: 0;
+            background: #ffffff;
+            color: #111827;
+          }
+
+          .document-export table {
+            width: 100%;
+            border-collapse: collapse;
+            border-spacing: 0;
+            table-layout: fixed;
+            margin-top: 12px;
+          }
+
+          .document-export th,
+          .document-export td {
+            border: 1px solid #cbd5e1;
+            padding: 8px 10px;
+            text-align: left;
+            vertical-align: top;
+            word-break: break-word;
+          }
+
+          .document-export th {
+            background-color: ${practiceSettings.primaryColor};
+            color: #ffffff;
+            font-weight: 700;
+          }
+
+          .document-export img {
+            max-width: 120px;
+            max-height: 60px;
+            object-fit: contain;
+          }
+
+          ${Array.from(document.querySelectorAll('style')).map((style) => style.textContent || '').join('\n')}
+
+          ${generatePrintStyleTag(practiceSettings)}
+        </style>
       </head>
       <body>
-        ${contentHtml}
+        <div class="document-export">${contentHtml}</div>
       </body>
-      </html>
-    `;
+      </html>`;
+
+  const handleDownloadWord = () => {
+    const wordContent = getDocumentExportHtml(getDocumentMarkup());
     const blob = new Blob(['\ufeff', wordContent], { type: 'application/msword' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -726,30 +799,11 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
   };
 
   const handleDownloadPdf = () => {
-    const printableElement = document.getElementById('doc-preview-printable-area');
     const printWindow = window.open('', '_blank');
     if (printWindow) {
-      printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>${docTitle} ${docNo}</title>
-            ${generatePrintStyleTag(practiceSettings)}
-            <style>
-              body { font-family: ${practiceSettings.fontFamily}, 'Plus Jakarta Sans', sans-serif; padding: 20px; font-size: ${practiceSettings.fontSizePt}pt; }
-              table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-              th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-              th { background-color: ${practiceSettings.primaryColor}; color: white; font-weight: bold; }
-            </style>
-          </head>
-          <body>
-            <div class="practice-doc-wrapper">
-              ${printableElement ? printableElement.innerHTML : ''}
-            </div>
-          </body>
-        </html>
-      `);
+      printWindow.document.write(getDocumentExportHtml(getDocumentMarkup()));
       printWindow.document.close();
+      printWindow.document.title = `${docTitle} ${docNo}`;
       printWindow.focus();
       setTimeout(() => {
         printWindow.print();
@@ -775,14 +829,55 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
   };
 
   return (
-    <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 border border-[#E1DCCF] max-h-[90vh] overflow-y-auto">
-        {/* Modal Top Header */}
-        <div className="flex justify-between items-center pb-4 mb-4 border-b border-slate-200">
-          <div>
-            <h2 className="font-serif text-lg font-bold text-[#16223A]">{docTitle} Document Preview</h2>
-            <p className="text-xs text-slate-500 font-mono">{docNo}</p>
-          </div>
+    <>
+      <style>{`
+        #doc-preview-printable-area {
+          background: #ffffff !important;
+          border: none !important;
+          border-radius: 0 !important;
+          box-shadow: none !important;
+          padding: 0 !important;
+          margin: 0 auto !important;
+          max-width: 920px !important;
+          width: 100% !important;
+          font-family: ${practiceSettings.fontFamily}, 'Plus Jakarta Sans', Arial, sans-serif !important;
+          font-size: ${practiceSettings.fontSizePt}pt !important;
+          line-height: ${practiceSettings.lineHeight} !important;
+          color: #111827 !important;
+        }
+
+        #doc-preview-printable-area table {
+          width: 100% !important;
+          border-collapse: collapse !important;
+          border-spacing: 0 !important;
+          table-layout: fixed !important;
+          margin-top: 12px !important;
+        }
+
+        #doc-preview-printable-area th,
+        #doc-preview-printable-area td {
+          border: 1px solid #cbd5e1 !important;
+          padding: 8px 10px !important;
+          text-align: left !important;
+          vertical-align: top !important;
+          word-break: break-word !important;
+        }
+
+        #doc-preview-printable-area th {
+          background-color: ${practiceSettings.primaryColor} !important;
+          color: #ffffff !important;
+          font-weight: 700 !important;
+        }
+
+        #doc-preview-printable-area img {
+          max-width: 120px !important;
+          max-height: 60px !important;
+          object-fit: contain !important;
+        }
+      `}</style>
+      <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-2xl max-w-[1100px] w-full p-0 border border-[#E1DCCF] max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-end items-center px-4 pt-3">
           <button
             onClick={onClose}
             className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 transition-colors cursor-pointer"
@@ -794,11 +889,19 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
         {/* Legal Paper Letterhead Box */}
         <div
           id="doc-preview-printable-area"
-          className="bg-[#FAF8F2] border border-[#E1DCCF] rounded-lg p-6 shadow-inner mb-6"
+          className="mb-6"
           style={{
             fontFamily: practiceSettings.fontFamily,
             fontSize: `${practiceSettings.fontSizePt}pt`,
             lineHeight: practiceSettings.lineHeight,
+            background: '#ffffff',
+            border: 'none',
+            borderRadius: 0,
+            boxShadow: 'none',
+            padding: 0,
+            margin: '0 auto',
+            maxWidth: '920px',
+            width: '100%',
           }}
         >
           <div className="text-center pb-3 border-b-2 mb-4" style={{ borderColor: practiceSettings.primaryColor }}>
@@ -948,7 +1051,7 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
             className="px-4 py-2 text-xs font-bold bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded-md flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
           >
             <Printer className="w-3.5 h-3.5 text-amber-300" />
-            <span>Print Legal Document / PDF</span>
+            <span>Generate PDF / Print</span>
           </button>
 
           <button
@@ -977,5 +1080,6 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
         </div>
       </div>
     </div>
+    </>
   );
 };

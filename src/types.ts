@@ -127,9 +127,18 @@ export interface Client {
   createdAt?: string;
   lastPortalInviteSent?: string;
   portalAccessEnabled?: boolean;
+  portalUpdates?: ClientPortalUpdate[];
   lastLoginAt?: string;
   autoConflictMatches?: ConflictMatch[];
   conflictCheck?: ConflictCheck;
+}
+
+export interface ClientPortalUpdate {
+  id: string;
+  title: string;
+  message: string;
+  date: string;
+  source: 'Billing' | 'Matter' | 'Firm';
 }
 
 export interface Hearing {
@@ -408,6 +417,12 @@ export interface QuotationLineItem {
   description: string;
   category: 'Fee - Fixed' | 'Fee - SRO' | 'Disbursement' | 'Reimbursement';
   amount: number;
+  /** Number of units billed (e.g. 3 searches). Defaults to 1. */
+  quantity?: number;
+  /** Price per unit. Amount is auto-counted as quantity × unitPrice. */
+  unitPrice?: number;
+  /** 'Per Quantity' auto-counts amount from quantity × unitPrice; 'Fixed' locks the charge. */
+  chargeType?: 'Per Quantity' | 'Fixed';
 }
 
 export interface Quotation {
@@ -428,7 +443,7 @@ export interface Quotation {
   fileRef: string;
   leadId: string;
   clientName: string;
-  status: 'Draft' | 'Sent' | 'Accepted' | 'Declined';
+  status: 'Draft' | 'Pending Approval' | 'Ready' | 'Sent' | 'Accepted' | 'Declined';
   total: number;
   billedSoFar: number;
   remaining: number;
@@ -440,6 +455,11 @@ export interface Quotation {
   approvedBy: string;
   approvedDate: string;
   lineItems: QuotationLineItem[];
+  lastEditedBy?: string;
+  lastEditedAt?: string;
+  documents?: ClaimDocument[];
+  documentSentDate?: string;
+  documentSentBy?: string;
 }
 
 export interface QuoteTemplate {

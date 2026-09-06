@@ -152,18 +152,18 @@ export const AIAgentView: React.FC = () => {
             {isLoading ? 'Generating...' : 'Run AI Agent'}
           </button>
 
-          <div className="rounded-xl border border-[#E1DCCF] bg-[#F8F6F1] p-3 min-h-[180px]">
-            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-600 mb-2">
-              <ClipboardList className="w-4 h-4 text-[#A9814A]" />
+          <div className="rounded-xl border border-[#E1DCCF] dark:border-slate-700 bg-[#F8F6F1] dark:bg-[#15192A] p-3 min-h-[180px]">
+            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-600 dark:text-slate-300 mb-2">
+              <ClipboardList className="w-4 h-4 text-[#A9814A] dark:text-amber-400" />
               Output
             </div>
             {isLoading ? (
-              <div className="flex items-center gap-2 text-sm text-slate-600">
-                <Loader2 className="w-4 h-4 animate-spin text-[#A9814A]" />
+              <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                <Loader2 className="w-4 h-4 animate-spin text-[#A9814A] dark:text-amber-400" />
                 The agent is thinking...
               </div>
             ) : (
-              <pre className="whitespace-pre-wrap text-xs leading-6 text-slate-700 font-sans">
+              <pre className="whitespace-pre-wrap text-xs leading-6 text-slate-700 dark:text-slate-200 font-sans">
                 {reply || 'Your AI-generated summary, task list, or draft will appear here.'}
               </pre>
             )}

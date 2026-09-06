@@ -15,6 +15,15 @@ export interface FirmBankAccount {
   isActive?: boolean;
 }
 
+export interface DefaultBillingItem {
+  id: string;
+  description: string;
+  category: 'Disbursement' | 'Reimbursement';
+  unitPrice: number;
+  quantity: number;
+  chargeType: 'Per Quantity' | 'Fixed';
+}
+
 export interface PracticeSettings {
   logoUrl: string; // Base64 data URI or HTTP image URL
   primaryColor: string; // Header & Primary Accents (e.g., #16223A)
@@ -35,7 +44,15 @@ export interface PracticeSettings {
   bankAccountNo: string;
   bankAccounts?: FirmBankAccount[];
   headerStyle: 'formal' | 'modern' | 'centered';
+  headerBadgeText?: string;
   consultationFormLink?: string;
+  engagementOpeningText?: string;
+  engagementTermsClause?: string;
+  quotationValidityDays?: string;
+  paymentTermDays?: string;
+  disbursementNote?: string;
+  /** Default disbursement & reimbursement rows auto-inserted into every new quotation. */
+  defaultBillingItems?: DefaultBillingItem[];
   practiceAreas?: Array<{
     id: string;
     name: string;
@@ -81,7 +98,22 @@ export const DEFAULT_PRACTICE_SETTINGS: PracticeSettings = {
   bankName: 'CIMB Bank Berhad (Office) / Bank Islam (Client Trust)',
   bankAccountNo: 'CIMB: 8001092834 | Bank Islam: 1209384752',
   headerStyle: 'formal',
+  headerBadgeText: 'SH',
   consultationFormLink: 'https://forms.google.com/shcolaw-consultation-intake',
+  engagementOpeningText: 'We are pleased to confirm our appointment to act as your Advocates & Solicitors in relation to the abovementioned legal matter. This letter sets out the agreed scope of professional representation, fee structure, and statutory terms of engagement.',
+  engagementTermsClause: '1. Professional fees are governed by the Solicitors Remuneration Order (SRO 2023).\n2. All out-of-pocket disbursements (court filing fees, registration fees, stamping) shall be reimbursed by the client.\n3. Initial trust deposit monies shall be held in our Client Trust Account pursuant to Solicitors\' Account Rules 1990.\n4. This agreement shall be governed by and construed in accordance with the laws of Malaysia.',
+  quotationValidityDays: '30',
+  paymentTermDays: '14',
+  disbursementNote: 'Invoices are payable within the stipulated payment terms. Payments should be credited to our CIMB Office Operating Account or Bank Islam Client Trust Account as instructed.',
+  defaultBillingItems: [
+    { id: 'db-reimb-photocopy', description: 'Photocopy and printing charges', category: 'Reimbursement', unitPrice: 200, quantity: 1, chargeType: 'Fixed' },
+    { id: 'db-reimb-travel', description: 'Travelling expenses', category: 'Reimbursement', unitPrice: 500, quantity: 1, chargeType: 'Fixed' },
+    { id: 'db-reimb-tel-courier', description: 'Telephone, fax, courier, Runner & Postage charges', category: 'Reimbursement', unitPrice: 300, quantity: 1, chargeType: 'Fixed' },
+    { id: 'db-reimb-misc', description: 'Miscellaneous', category: 'Reimbursement', unitPrice: 100, quantity: 1, chargeType: 'Fixed' },
+    { id: 'db-disb-bankruptcy', description: 'Bankruptcy search', category: 'Disbursement', unitPrice: 10, quantity: 1, chargeType: 'Per Quantity' },
+    { id: 'db-disb-ssm', description: 'SSM search', category: 'Disbursement', unitPrice: 15.4, quantity: 1, chargeType: 'Per Quantity' },
+    { id: 'db-disb-jpn', description: 'JPN search', category: 'Disbursement', unitPrice: 50, quantity: 1, chargeType: 'Per Quantity' },
+  ],
   practiceAreas: [
     { id: 'pa-1', name: 'Civil Litigation', code: 'L', color: '#16223A', description: 'Court litigation, dispute resolution & appeals' },
     { id: 'pa-2', name: 'Estate Administration', code: 'EST', color: '#854D0E', description: 'Probate, Letters of Administration & Wasiat' },

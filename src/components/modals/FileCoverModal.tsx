@@ -178,10 +178,10 @@ export const FileCoverModal: React.FC<FileCoverModalProps> = ({
         </div>
 
         {/* PRINTABLE LEGAL FILE COVER JACKET CANVAS */}
-        <div className="p-6 sm:p-8 bg-[#FAF7F0] text-[#16223A] print:p-6 print:bg-white relative">
+        <div className="p-6 sm:p-8 bg-[#FAF7F0] dark:bg-[#121821] text-[#16223A] dark:text-[#E8ECFF] print:p-6 print:bg-white relative">
           
           {/* Authentic Double Border Legal Frame */}
-          <div className="border-4 border-[#16223A] p-5 sm:p-6 rounded-xl bg-[#FAF8F3] relative shadow-2xs print:shadow-none print:border-4 print:border-[#16223A]">
+          <div className="border-4 border-[#16223A] dark:border-slate-700 p-5 sm:p-6 rounded-xl bg-[#FAF8F3] dark:bg-[#1B2330] relative shadow-2xs print:shadow-none print:border-4 print:border-[#16223A]">
             
             {/* Top Gold & Navy Accent Line */}
             <div className="h-2 bg-[#16223A] rounded-t mb-4 border-b-2 border-[#A9814A]" />

@@ -127,15 +127,15 @@ export const CourtMemoModal: React.FC<CourtMemoModalProps> = ({ entry, caseObj, 
                 <td className="p-2 font-bold uppercase bg-slate-50 border-r border-black">MEDIUM:</td>
                 <td className="p-2 font-semibold tracking-wide" colSpan={2}>
                   <div className="flex gap-6">
-                    <span className={entry.medium === 'OPEN COURT' ? 'font-bold underline' : 'text-slate-400'}>
+                    <span className={entry.medium === 'OPEN COURT' ? 'font-bold underline' : 'text-slate-600 dark:text-slate-400'}>
                       OPEN COURT
                     </span>
                     <span>/</span>
-                    <span className={entry.medium === 'IN CHAMBERS' ? 'font-bold underline' : 'text-slate-400'}>
+                    <span className={entry.medium === 'IN CHAMBERS' ? 'font-bold underline' : 'text-slate-600 dark:text-slate-400'}>
                       IN CHAMBERS
                     </span>
                     <span>/</span>
-                    <span className={entry.medium === 'E-REVIEW' ? 'font-bold underline' : 'text-slate-400'}>
+                    <span className={entry.medium === 'E-REVIEW' ? 'font-bold underline' : 'text-slate-600 dark:text-slate-400'}>
                       E-REVIEW
                     </span>
                   </div>
@@ -189,11 +189,11 @@ export const CourtMemoModal: React.FC<CourtMemoModalProps> = ({ entry, caseObj, 
                   CLIENT ( {entry.clientName || (caseObj ? caseObj.clientId : '')} ):
                 </td>
                 <td className="p-2 font-bold" colSpan={2}>
-                  <span className={entry.clientAttendance === 'Present' ? 'bg-black text-white px-2 py-0.5 rounded' : 'text-slate-400'}>
+                  <span className={entry.clientAttendance === 'Present' ? 'bg-black text-white px-2 py-0.5 rounded' : 'text-slate-600 dark:text-slate-400'}>
                     PRESENT
                   </span>
                   {' / '}
-                  <span className={entry.clientAttendance === 'Not Present' ? 'bg-black text-white px-2 py-0.5 rounded' : 'text-slate-400'}>
+                  <span className={entry.clientAttendance === 'Not Present' ? 'bg-black text-white px-2 py-0.5 rounded' : 'text-slate-600 dark:text-slate-400'}>
                     NOT PRESENT
                   </span>
                 </td>
@@ -205,11 +205,11 @@ export const CourtMemoModal: React.FC<CourtMemoModalProps> = ({ entry, caseObj, 
                   OPPONENT ( {entry.opponentName || (caseObj ? caseObj.opposingParty : '')} ):
                 </td>
                 <td className="p-2 font-bold" colSpan={2}>
-                  <span className={entry.opponentAttendance === 'Present' ? 'bg-black text-white px-2 py-0.5 rounded' : 'text-slate-400'}>
+                  <span className={entry.opponentAttendance === 'Present' ? 'bg-black text-white px-2 py-0.5 rounded' : 'text-slate-600 dark:text-slate-400'}>
                     PRESENT
                   </span>
                   {' / '}
-                  <span className={entry.opponentAttendance === 'Not Present' ? 'bg-black text-white px-2 py-0.5 rounded' : 'text-slate-400'}>
+                  <span className={entry.opponentAttendance === 'Not Present' ? 'bg-black text-white px-2 py-0.5 rounded' : 'text-slate-600 dark:text-slate-400'}>
                     NOT PRESENT
                   </span>
                 </td>

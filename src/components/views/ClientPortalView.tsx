@@ -234,6 +234,29 @@ export const ClientPortalView: React.FC = () => {
               Sec 126 Evidence Act 1950 Confidentiality
             </span>
           </div>
+
+          {(currentClient?.portalUpdates || []).length > 0 && (
+            <section className="mt-5 rounded-xl border border-[#E1DCCF] bg-white p-5 shadow-xs">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="font-serif text-base font-bold text-[#16223A]">Latest Firm Updates</h3>
+                  <p className="text-[11px] text-slate-500">Recent billing and matter updates shared with you.</p>
+                </div>
+                <span className="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-bold text-emerald-800">Portal synced</span>
+              </div>
+              <div className="space-y-2">
+                {(currentClient?.portalUpdates || []).slice(0, 5).map((update) => (
+                  <div key={update.id} className="rounded-lg border border-slate-100 bg-[#FAF8F2] p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs font-bold text-[#16223A]">{update.title}</span>
+                      <span className="text-[10px] text-slate-500">{new Date(update.date).toLocaleString()}</span>
+                    </div>
+                    <p className="mt-1 text-[11px] text-slate-600">{update.message}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
           <h2 className="font-serif text-xl font-bold text-white flex items-center gap-2">
             Client Portal — {currentClient?.name}
           </h2>

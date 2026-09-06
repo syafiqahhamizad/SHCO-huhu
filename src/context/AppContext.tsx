@@ -7,6 +7,7 @@ import {
   PartnerCode,
   Lead,
   Client,
+  ClientPortalUpdate,
   Case,
   NewCasePrefill,
   CaseActivityLog,
@@ -229,6 +230,7 @@ interface AppContextType {
   deleteLead: (id: string) => void;
   addClient: (client: Client) => void;
   updateClient: (id: string, updates: Partial<Client>) => void;
+  addClientPortalUpdate: (clientId: string, update: Omit<ClientPortalUpdate, 'id' | 'date'>) => void;
   deleteClient: (id: string) => void;
   sendClientPortalInvite: (clientId: string) => { success: boolean; inviteDate: string; tempPass: string };
   addCase: (caseObj: Case) => void;
@@ -1454,6 +1456,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     counselRegistry: 'counselRegistry',
     templates: 'templates',
     accountingCentre: 'finance',
+    billing: 'finance',
     quotations: 'finance',
     time: 'finance',
     expenses: 'finance',
@@ -1907,6 +1910,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Client details updated.');
   };
 
+  const addClientPortalUpdate = (clientId: string, update: Omit<ClientPortalUpdate, 'id' | 'date'>) => {
+    const portalUpdate: ClientPortalUpdate = {
+      ...update,
+      id: `PORTAL-${Date.now()}`,
+      date: new Date().toISOString(),
+    };
+    setClients((prev) => prev.map((client) => (
+      client.id === clientId
+        ? { ...client, portalUpdates: [portalUpdate, ...(client.portalUpdates || [])] }
+        : client
+    )));
+    addActivityLog('Client Portal Updated', `${clientId} — ${update.title}`);
+  };
+
   const deleteClient = (id: string) => {
     if (!hasModulePermission('clients', 'e')) {
       showToast('Access denied: you do not have client delete permission.');
@@ -2173,13 +2190,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addQuotation = (q: Quotation) => {
-    setQuotations((prev) => [q, ...prev]);
+    const editedQuotation: Quotation = {
+      ...q,
+      lastEditedBy: q.lastEditedBy || currentUser?.name || 'System',
+      lastEditedAt: q.lastEditedAt || new Date().toISOString(),
+    };
+    setQuotations((prev) => [editedQuotation, ...prev]);
     addActivityLog('Quotation Created', `${q.id} — RM ${q.total.toLocaleString()}`);
     showToast('Quotation created');
   };
 
   const updateQuotation = (id: string, updates: Partial<Quotation>) => {
-    setQuotations((prev) => prev.map((quotation) => (quotation.id === id ? { ...quotation, ...updates } : quotation)));
+    const editedUpdates: Partial<Quotation> = {
+      ...updates,
+      lastEditedBy: currentUser?.name || 'System',
+      lastEditedAt: new Date().toISOString(),
+    };
+    setQuotations((prev) => prev.map((quotation) => (quotation.id === id ? { ...quotation, ...editedUpdates } : quotation)));
     addActivityLog('Quotation Updated', `${id} — ${updates.documentType || 'Quotation'} status changed`);
     showToast(`Quotation ${id} updated.`);
   };
@@ -2496,6 +2523,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteLead,
         addClient,
         updateClient,
+        addClientPortalUpdate,
         deleteClient,
         sendClientPortalInvite,
         addCase,

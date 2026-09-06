@@ -8,6 +8,7 @@ import {
   renderTemplateContent,
   generatePrintStyleTag,
   PracticeSettings,
+  DefaultBillingItem,
   DocumentTemplate,
   FirmBankAccount,
   DEFAULT_PRACTICE_SETTINGS,
@@ -69,6 +70,29 @@ export const PracticeSettingsView: React.FC = () => {
   const [newMatterName, setNewMatterName] = useState('');
   const [newMatterCode, setNewMatterCode] = useState('');
   const [newMatterPracticeArea, setNewMatterPracticeArea] = useState('Conveyancing');
+  const defaultBillingItems = settings.defaultBillingItems || DEFAULT_PRACTICE_SETTINGS.defaultBillingItems || [];
+
+  const updateDefaultBillingItem = (id: string, updates: Partial<DefaultBillingItem>) => {
+    const updatedSettings = {
+      ...settings,
+      defaultBillingItems: defaultBillingItems.map((item) => item.id === id ? { ...item, ...updates } : item),
+    };
+    setSettings(updatedSettings);
+  };
+
+  const addDefaultBillingItem = (category: DefaultBillingItem['category']) => {
+    setSettings((current) => ({
+      ...current,
+      defaultBillingItems: [...(current.defaultBillingItems || []), {
+        id: `billing_${Date.now()}`,
+        description: '',
+        category,
+        unitPrice: 0,
+        quantity: 1,
+        chargeType: 'Per Quantity',
+      }],
+    }));
+  };
 
   // Bank Accounts state and modal control
   const bankAccounts = settings.bankAccounts && settings.bankAccounts.length > 0
@@ -96,6 +120,14 @@ export const PracticeSettingsView: React.FC = () => {
       setTemplateContent(tmpl.content);
     }
   }, [activeDocType, templates]);
+
+  useEffect(() => {
+    const handleSettingsUpdate = () => {
+      setSettings(getPracticeSettings());
+    };
+    window.addEventListener('shco-practice-settings-updated', handleSettingsUpdate);
+    return () => window.removeEventListener('shco-practice-settings-updated', handleSettingsUpdate);
+  }, []);
 
   // Handle Logo Upload (Base64)
   const handleLogoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -323,6 +355,10 @@ export const PracticeSettingsView: React.FC = () => {
     { tag: '{{paymentTerms}}', desc: 'Invoice Payment Due Days' },
   ];
 
+  const scrollToSection = (sectionId: string) => {
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   return (
     <div className="space-y-4 text-xs">
       {/* Inject Dynamic Print Styles */}
@@ -336,10 +372,10 @@ export const PracticeSettingsView: React.FC = () => {
           </div>
           <div>
             <h1 className="font-serif font-bold text-lg text-amber-200">
-              Practice Settings &amp; Custom Document Template Engine
+              Firm &amp; Practice Settings
             </h1>
             <p className="text-xs text-slate-300">
-              Configure firm logo, custom typography, print styles, and upload Microsoft Word / HTML document templates with placeholder auto-mapping.
+              Manage firm identity, branding, documents, accounts, billing defaults, and legal practice configuration in one place.
             </p>
           </div>
         </div>
@@ -350,15 +386,34 @@ export const PracticeSettingsView: React.FC = () => {
           className="bg-amber-400 hover:bg-amber-300 text-[#16223A] font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-2 cursor-pointer shadow-sm transition-colors"
         >
           <Check className="w-4 h-4 text-[#16223A]" />
-          <span>Save Practice Branding &amp; Templates</span>
+          <span>Save All Settings</span>
         </button>
       </div>
+
+      <nav aria-label="Settings sections" className="flex flex-wrap gap-2 border-b border-[#E1DCCF] pb-3">
+        {[
+          ['firm-identity', 'Firm Profile'],
+          ['firm-branding', 'Branding & Documents'],
+          ['firm-accounts', 'Bank Accounts'],
+          ['billing-defaults', 'Billing Defaults'],
+          ['practice-configuration', 'Practice Configuration'],
+        ].map(([sectionId, label]) => (
+          <button
+            key={sectionId}
+            type="button"
+            onClick={() => scrollToSection(sectionId)}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-[#16223A] transition-colors hover:border-[#A9814A] hover:bg-amber-50 cursor-pointer"
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* Left Column: Branding, Colors & Typography Settings */}
         <div className="lg:col-span-5 space-y-4">
           {/* Company Logo Upload & Brand Colors Card */}
-          <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-3">
+          <div id="firm-branding" className="scroll-mt-6 bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-3">
             <h3 className="font-serif font-bold text-sm text-[#16223A] border-b border-slate-200 pb-2 flex items-center gap-2">
               <Image className="w-4 h-4 text-[#A9814A]" />
               <span>1. Firm Logo &amp; Color Scheme</span>
@@ -473,7 +528,7 @@ export const PracticeSettingsView: React.FC = () => {
           </div>
 
           {/* Custom Font Family, Sizes & Structure */}
-          <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-3">
+          <div id="firm-identity" className="scroll-mt-6 bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-3">
             <h3 className="font-serif font-bold text-sm text-[#16223A] border-b border-slate-200 pb-2 flex items-center gap-2">
               <Type className="w-4 h-4 text-[#A9814A]" />
               <span>2. Typography, Font Sizes &amp; Page Structure</span>
@@ -556,7 +611,7 @@ export const PracticeSettingsView: React.FC = () => {
           </div>
 
           {/* Firm Identity Particulars */}
-          <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-3">
+          <div id="firm-accounts" className="scroll-mt-6 bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-3">
             <h3 className="font-serif font-bold text-sm text-[#16223A] border-b border-slate-200 pb-2 flex items-center gap-2">
               <Building className="w-4 h-4 text-[#A9814A]" />
               <span>3. Firm Identity &amp; Statutory Particulars</span>
@@ -607,7 +662,7 @@ export const PracticeSettingsView: React.FC = () => {
           </div>
 
           {/* Firm Bank Accounts Manager Card */}
-          <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-3">
+          <div id="billing-defaults" className="scroll-mt-6 bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-3">
             <div className="flex items-center justify-between border-b border-slate-200 pb-2">
               <div>
                 <h3 className="font-serif font-bold text-sm text-[#16223A] flex items-center gap-2">
@@ -876,7 +931,7 @@ export const PracticeSettingsView: React.FC = () => {
           </div>
 
           {/* Section 5: Client Consultation Booking Intake Portal Link */}
-          <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-3">
+          <div id="practice-configuration" className="scroll-mt-6 bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-3">
             <h3 className="font-serif font-bold text-sm text-[#16223A] border-b border-slate-200 pb-2 flex items-center gap-2">
               <ExternalLink className="w-4 h-4 text-[#A9814A]" />
               <span>5. Client Consultation Booking Intake Link</span>
@@ -912,7 +967,36 @@ export const PracticeSettingsView: React.FC = () => {
             </div>
           </div>
 
-          {/* Section 6: Practice Area & Matter Tag Registry */}
+          {/* Section 6: Default Billing Items */}
+          <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2 gap-2">
+              <div>
+                <h3 className="font-serif font-bold text-sm text-[#16223A]">6. Default Disbursement &amp; Reimbursement Items</h3>
+                <p className="text-[10px] text-slate-500">These rows are copied into every new quotation. Per quantity rows calculate quantity × unit price; fixed rows use the unit price as the total.</p>
+              </div>
+              <div className="flex gap-1 shrink-0">
+                <button type="button" onClick={() => addDefaultBillingItem('Disbursement')} className="px-2 py-1 rounded bg-[#16223A] text-amber-200 text-[10px] font-bold cursor-pointer">+ Disbursement</button>
+                <button type="button" onClick={() => addDefaultBillingItem('Reimbursement')} className="px-2 py-1 rounded bg-[#16223A] text-amber-200 text-[10px] font-bold cursor-pointer">+ Reimbursement</button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {defaultBillingItems.map((item) => (
+                <div key={item.id} className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_8rem_5rem_7rem_7rem_auto] gap-2 items-center bg-white border border-slate-200 rounded p-2">
+                  <input value={item.description} onChange={(e) => updateDefaultBillingItem(item.id, { description: e.target.value })} placeholder="Description" className="w-full bg-white text-xs text-slate-900" />
+                  <select value={item.category} onChange={(e) => updateDefaultBillingItem(item.id, { category: e.target.value as DefaultBillingItem['category'] })} className="w-full bg-white text-[10px] text-slate-900"><option value="Disbursement">Disbursement</option><option value="Reimbursement">Reimbursement</option></select>
+                  <select value={item.chargeType} onChange={(e) => updateDefaultBillingItem(item.id, { chargeType: e.target.value as DefaultBillingItem['chargeType'] })} className="w-full bg-white text-[10px] text-slate-900"><option value="Per Quantity">Per qty</option><option value="Fixed">Fixed</option></select>
+                  <input type="number" min="0" step="1" value={item.quantity} onChange={(e) => updateDefaultBillingItem(item.id, { quantity: Number(e.target.value) || 0 })} aria-label="Default quantity" className="w-full bg-white text-right font-mono text-xs text-slate-900" />
+                  <input type="number" min="0" step="0.01" value={item.unitPrice} onChange={(e) => updateDefaultBillingItem(item.id, { unitPrice: Number(e.target.value) || 0 })} aria-label="Default unit price" className="w-full bg-white text-right font-mono text-xs text-slate-900" />
+                  <button type="button" onClick={() => setSettings((current) => ({ ...current, defaultBillingItems: (current.defaultBillingItems || []).filter((entry) => entry.id !== item.id) }))} title="Remove default billing item" className="p-1 text-rose-600 hover:bg-rose-50 rounded cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end border-t border-slate-200 pt-2">
+              <button type="button" onClick={handleSaveSettings} className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded font-bold text-[11px] cursor-pointer"><Check className="w-3.5 h-3.5 inline mr-1" />Save Billing Defaults</button>
+            </div>
+          </div>
+
+          {/* Section 7: Practice Area & Matter Tag Registry */}
           <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-3">
             <div className="flex items-center justify-between border-b border-slate-200 pb-2">
               <div>

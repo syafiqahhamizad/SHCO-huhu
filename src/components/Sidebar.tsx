@@ -16,11 +16,8 @@ import {
   Share2,
   FolderX,
   FileText,
-  Timer,
   Receipt,
   Car,
-  FileSpreadsheet,
-  CreditCard,
   Building,
   Shield,
   FileCheck2,
@@ -120,13 +117,7 @@ export const Sidebar: React.FC = () => {
     {
       group: 'Billing',
       items: [
-        { id: 'accountingCentre', label: 'Accounting Centre', icon: <BarChart3 className="w-3.5 h-3.5 text-amber-300" /> },
-        { id: 'quotations', label: 'Quotations', icon: <FileText className="w-3.5 h-3.5" /> },
-        { id: 'time', label: 'Time Entries', icon: <Timer className="w-3.5 h-3.5" /> },
-        { id: 'invoices', label: 'Invoices', icon: <FileSpreadsheet className="w-3.5 h-3.5" /> },
-        { id: 'payments', label: 'Client Payments Received', icon: <CreditCard className="w-3.5 h-3.5" /> },
-        { id: 'receipts', label: 'Official Receipts', icon: <Receipt className="w-3.5 h-3.5" /> },
-        { id: 'billingReports', label: 'Billing Reports', icon: <BarChart3 className="w-3.5 h-3.5" />, partnerOnly: true },
+        { id: 'billing', label: 'Billing', icon: <FileText className="w-3.5 h-3.5 text-amber-300" /> },
       ],
     },
     {
@@ -158,8 +149,7 @@ export const Sidebar: React.FC = () => {
       items: [
         { id: 'users', label: 'Users & Permissions', icon: <UserCog className="w-3.5 h-3.5" />, systemOnly: true },
         { id: 'aiAgent', label: 'AI Agent', icon: <Sparkles className="w-3.5 h-3.5 text-amber-300" /> },
-        { id: 'practiceSettings', label: 'Practice Settings (SRO 2023)', icon: <Palette className="w-3.5 h-3.5" /> },
-        { id: 'firmSettings', label: 'Firm Settings & Accounts', icon: <Settings className="w-3.5 h-3.5" /> },
+        { id: 'practiceSettings', label: 'Firm & Practice Settings', icon: <Settings className="w-3.5 h-3.5" /> },
         { id: 'logs', label: 'Activity Logs', icon: <History className="w-3.5 h-3.5" /> },
         { id: 'about', label: 'About App', icon: <Info className="w-3.5 h-3.5" /> },
         { id: 'account', label: 'My Account', icon: <User className="w-3.5 h-3.5" /> },

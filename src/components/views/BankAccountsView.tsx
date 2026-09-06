@@ -175,8 +175,8 @@ export const BankAccountsView: React.FC = () => {
       </div>
 
       {/* Accounts List */}
-      <div className="bg-white border border-[#E1DCCF] rounded-xl shadow-xs overflow-hidden">
-        <div className="p-4 bg-[#F7F5F0] border-b border-[#E1DCCF] flex items-center justify-between">
+      <div className="bg-white border border-[#E1DCCF] dark:border-slate-700 rounded-xl shadow-xs overflow-hidden">
+        <div className="p-4 bg-[#F7F5F0] dark:bg-[#15192A] border-b border-[#E1DCCF] dark:border-slate-700 flex items-center justify-between">
           <h2 className="font-bold text-slate-800 font-serif text-sm flex items-center gap-2">
             <CreditCard className="w-4 h-4 text-[#A9814A]" />
             Active Firm Accounts List

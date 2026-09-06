@@ -20,7 +20,7 @@ const corsHeaders = (req, res) => {
 };
 
 exports.provisionUser = onRequest(
-  { region: 'asia-southeast1', timeoutSeconds: 30 },
+  { region: 'asia-southeast1', timeoutSeconds: 30, invoker: 'public' },
   async (req, res) => {
     corsHeaders(req, res);
     if (req.method === 'OPTIONS') {
@@ -92,7 +92,7 @@ exports.provisionUser = onRequest(
 );
 
 exports.draftBillingItems = onRequest(
-  { secrets: [GEMINI_API_KEY], region: 'asia-southeast1', timeoutSeconds: 60 },
+  { secrets: [GEMINI_API_KEY], region: 'asia-southeast1', timeoutSeconds: 60, invoker: 'public' },
   async (req, res) => {
     corsHeaders(req, res);
     if (req.method === 'OPTIONS') {
@@ -157,4 +157,78 @@ Respond with ONLY valid JSON in this exact shape, no markdown:
       res.status(500).json({ error: (err && err.message) || 'AI drafting failed' });
     }
   }
+);
+
+const getAssistantInstruction = (mode) => ({
+  general: 'You are a legal operations assistant for a Malaysian law firm. Help with summaries, drafting, task planning, and risk review in clear professional language.',
+  meeting: 'You are a legal meeting assistant. Turn raw meeting transcript notes into a concise meeting summary with key issues, decisions, risks, and next steps.',
+  task: 'You are a legal workflow planner. Break the request into practical tasks, owners, and sequencing.',
+  email: 'You are a legal communication assistant. Draft clear, professional client or internal emails. Keep tone formal and concise.',
+  review: 'You are a legal case review assistant. Highlight risks, missing items, and recommended next steps for the matter.',
+}[mode] || 'You are a legal operations assistant.');
+
+exports.aiAssistant = onRequest(
+  { secrets: [GEMINI_API_KEY], region: 'asia-southeast1', timeoutSeconds: 60, invoker: 'public' },
+  async (req, res) => {
+    corsHeaders(req, res);
+    if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+    if (req.method !== 'POST') { res.status(405).json({ error: 'POST only' }); return; }
+    try {
+      const { prompt, mode = 'general', context = '' } = req.body || {};
+      const userInput = typeof prompt === 'string' ? prompt.trim() : '';
+      if (!userInput) { res.status(400).json({ error: 'A prompt is required.' }); return; }
+      const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY.value() });
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: `${getAssistantInstruction(mode)}\n\nContext:\n${context || 'No extra context provided.'}\n\nUser request:\n${userInput}`,
+      });
+      const reply = String(response.text || '').trim();
+      if (!reply) throw new Error('AI returned no response text.');
+      res.json({ reply, mode, generatedAt: new Date().toISOString() });
+    } catch (err) {
+      console.error('AI assistant error:', err);
+      res.status(500).json({ error: err?.message || 'AI assistant failed' });
+    }
+  },
+);
+
+exports.aiMeetingSummary = onRequest(
+  { secrets: [GEMINI_API_KEY], region: 'asia-southeast1', timeoutSeconds: 60, invoker: 'public' },
+  async (req, res) => {
+    corsHeaders(req, res);
+    if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+    if (req.method !== 'POST') { res.status(405).json({ error: 'POST only' }); return; }
+    try {
+      const { transcript, caseTitle, clientName, meetingDate } = req.body || {};
+      const rawTranscript = typeof transcript === 'string' ? transcript.trim() : '';
+      if (!rawTranscript) { res.status(400).json({ error: 'Meeting transcript is required.' }); return; }
+      const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY.value() });
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: `You are a legal assistant for a Malaysian law firm. Summarize this meeting transcript into a formal internal record.
+Matter: ${caseTitle || 'General matter'}
+Client: ${clientName || 'Client'}
+Meeting date: ${meetingDate || new Date().toISOString().slice(0, 10)}
+
+Transcript:\n${rawTranscript}
+
+Return valid JSON only: {"summary":"...","decisions":"...","nextSteps":"...","risks":"..."}`,
+      });
+      const text = String(response.text || '').trim();
+      const jsonStart = text.indexOf('{');
+      const jsonEnd = text.lastIndexOf('}');
+      if (jsonStart === -1 || jsonEnd === -1) throw new Error('AI returned a non-JSON response.');
+      const parsed = JSON.parse(text.slice(jsonStart, jsonEnd + 1));
+      res.json({
+        summary: parsed.summary || 'Summary not generated.',
+        decisions: parsed.decisions || 'No decisions recorded.',
+        nextSteps: parsed.nextSteps || 'No next steps identified.',
+        risks: parsed.risks || 'No material risks identified.',
+        generatedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.error('AI meeting summary error:', err);
+      res.status(500).json({ error: err?.message || 'AI meeting summary failed' });
+    }
+  },
 );

@@ -1003,7 +1003,7 @@ We/I, ${clientNamesCombined.toUpperCase()}, hereby authorize Syafiqah Hamizad & 
                   </div>
                 </button>
 
-                <div className="text-slate-300 text-xs shrink-0">›</div>
+                <div className="text-slate-500 dark:text-slate-400 text-xs shrink-0">›</div>
 
                 <button
                   type="button"
@@ -1026,7 +1026,7 @@ We/I, ${clientNamesCombined.toUpperCase()}, hereby authorize Syafiqah Hamizad & 
                   </div>
                 </button>
 
-                <div className="text-slate-300 text-xs shrink-0">›</div>
+                <div className="text-slate-500 dark:text-slate-400 text-xs shrink-0">›</div>
 
                 <button
                   type="button"
@@ -1049,7 +1049,7 @@ We/I, ${clientNamesCombined.toUpperCase()}, hereby authorize Syafiqah Hamizad & 
                   </div>
                 </button>
 
-                <div className="text-slate-300 text-xs shrink-0">›</div>
+                <div className="text-slate-500 dark:text-slate-400 text-xs shrink-0">›</div>
 
                 <button
                   type="button"

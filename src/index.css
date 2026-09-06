@@ -75,6 +75,44 @@
   }
 
   /* Keep unstyled content legible when placed on an opaque dark surface. */
+  :is(
+    .bg-\[\#16223A\],
+    .bg-\[\#0A0E1A\],
+    .bg-\[\#15192A\],
+    .bg-\[\#1A1F35\],
+    .bg-\[\#1B2330\],
+    .bg-\[\#161d30\],
+    .bg-\[\#0D1526\],
+    .bg-slate-950,
+    .bg-slate-900,
+    .bg-slate-800,
+    .bg-slate-700,
+    .bg-slate-900\/90,
+    .firm-quick-links,
+    .quick-link-card
+  ) {
+    color: #EEF3FF;
+  }
+
+  :is(
+    .bg-\[\#16223A\],
+    .bg-\[\#0A0E1A\],
+    .bg-\[\#15192A\],
+    .bg-\[\#1A1F35\],
+    .bg-\[\#1B2330\],
+    .bg-\[\#161d30\],
+    .bg-\[\#0D1526\],
+    .bg-slate-950,
+    .bg-slate-900,
+    .bg-slate-800,
+    .bg-slate-700,
+    .bg-slate-900\/90,
+    .firm-quick-links,
+    .quick-link-card
+  ) * {
+    color: inherit;
+  }
+
   html:not(.dark) .bg-\[\#16223A\],
   html:not(.dark) .bg-\[\#0A0E1A\],
   html:not(.dark) .bg-\[\#15192A\],
@@ -97,6 +135,41 @@
   html:not(.dark) .bg-slate-800 *,
   html:not(.dark) .bg-slate-700 * {
     color: inherit;
+  }
+
+  :is(
+    .bg-\[\#16223A\],
+    .bg-\[\#0A0E1A\],
+    .bg-\[\#15192A\],
+    .bg-\[\#1A1F35\],
+    .bg-\[\#1B2330\],
+    .bg-\[\#161d30\],
+    .bg-\[\#0D1526\],
+    .bg-slate-950,
+    .bg-slate-900,
+    .bg-slate-800,
+    .bg-slate-700,
+    .bg-slate-900\/90,
+    .firm-quick-links,
+    .quick-link-card
+  ) :is(
+    h1, h2, h3, h4, h5, h6, p, span, strong, em, label, a, button, li, td, th, div,
+    .text-\[\#16223A\],
+    .text-\[\#2C241F\],
+    .text-slate-950,
+    .text-slate-900,
+    .text-slate-800,
+    .text-slate-700,
+    .text-slate-600,
+    .text-slate-500,
+    .text-black,
+    .text-gray-900,
+    .text-gray-800,
+    .text-gray-700,
+    .text-\[\#4A3931\],
+    .text-\[\#5B6478\]
+  ) {
+    color: #EEF3FF !important;
   }
 
   html:not(.dark) .bg-\[\#16223A\] .text-\[\#16223A\],
@@ -204,6 +277,36 @@
     color: inherit;
   }
 
+  /* Keep the navy dashboard/header surfaces readable in either theme without changing the normal light header styling. */
+  html:not(.dark) :is(
+    .bg-\[\#16223A\],
+    .bg-\[\#0A0E1A\],
+    .bg-\[\#15192A\],
+    .bg-\[\#1A1F35\],
+    .bg-\[\#1B2330\],
+    .bg-slate-900,
+    .bg-slate-800,
+    .bg-slate-700
+  ) :is(
+    h1, h2, h3, h4, h5, h6, p, span, strong, em, label, a, button, li, td, th, div,
+    .text-\[\#16223A\],
+    .text-\[\#2C241F\],
+    .text-slate-950,
+    .text-slate-900,
+    .text-slate-800,
+    .text-slate-700,
+    .text-slate-600,
+    .text-slate-500,
+    .text-black,
+    .text-gray-900,
+    .text-gray-800,
+    .text-gray-700,
+    .text-\[\#4A3931\],
+    .text-\[\#5B6478\]
+  ) {
+    color: #EEF3FF !important;
+  }
+
   html.dark .firm-quick-links,
   html.dark .quick-link-card,
   html.dark .featured-link {
@@ -255,44 +358,77 @@
     border-color: #2F3A4B !important;
   }
 
+  html.dark select option {
+    background-color: #171E2A !important;
+    color: #EEF3FF !important;
+  }
+
   html.dark .bg-white {
     background-color: #1B2330 !important;
     color: #EEF3FF;
   }
 
-  html.dark .bg-\[\#F6F4EE\] {
-    background-color: #121821 !important;
+  html.dark .bg-\[\#F6F4EE\],
+  html.dark .bg-\[\#F8F6F1\],
+  html.dark .bg-\[\#FAF8F5\],
+  html.dark .bg-\[\#FAF7F0\],
+  html.dark .bg-\[\#FAF8F3\],
+  html.dark .bg-\[\#F7F5F0\],
+  html.dark .bg-\[\#F8F2E7\],
+  html.dark .bg-\[\#F8FAFC\],
+  html.dark .bg-\[\#E5E7EB\],
+  html.dark .bg-\[\#F3F4F6\],
+  html.dark .bg-\[\#16223A\]\/5,
+  html.dark .bg-\[\#16223A\]\/8,
+  html.dark .bg-\[\#16223A\]\/10 {
+    background-color: #15192A !important;
+    color: #EEF3FF !important;
   }
 
   html.dark .bg-\[\#FAF8F2\],
   html.dark .bg-\[\#FCFBF7\] {
     background-color: #1B2330 !important;
+    color: #EEF3FF !important;
   }
 
-  html.dark .border-\[\#E1DCCF\] {
+  html.dark .border-\[\#E1DCCF\],
+  html.dark .border-\[\#E8D9CE\],
+  html.dark .border-\[\#E7D7BA\],
+  html.dark .border-\[\#F1EBE0\] {
     border-color: #2D3748 !important;
   }
 
   /* Light foregrounds for surfaces converted to dark mode. */
   html.dark .text-\[\#16223A\],
   html.dark .text-\[\#2C241F\],
+  html.dark .text-\[\#0A0E1A\],
   html.dark .text-slate-950,
-  html.dark .text-slate-900 {
+  html.dark .text-slate-900,
+  html.dark .text-black,
+  html.dark .text-gray-900,
+  html.dark .text-gray-950 {
     color: #E8ECFF !important;
   }
 
   html.dark .text-slate-800,
   html.dark .text-slate-700,
+  html.dark .text-gray-800,
+  html.dark .text-gray-700,
   html.dark .text-\[\#4A3931\],
-  html.dark .text-\[\#925338\] {
+  html.dark .text-\[\#925338\],
+  html.dark .text-\[\#7A5D34\],
+  html.dark .text-\[\#8A8578\] {
     color: #D0D8F0 !important;
   }
 
   html.dark .text-slate-600,
   html.dark .text-slate-500,
   html.dark .text-slate-400,
+  html.dark .text-gray-600,
+  html.dark .text-gray-500,
   html.dark .text-\[\#5B6478\],
-  html.dark .text-\[\#8B6A58\] {
+  html.dark .text-\[\#8B6A58\],
+  html.dark .text-\[\#7A8296\] {
     color: #A8B0D8 !important;
   }
 
@@ -339,13 +475,12 @@
   html.dark [class*="bg-slate-50"], html.dark [class*="bg-slate-100"], html.dark [class*="bg-slate-200"] { background-color: rgba(90, 100, 120, 0.22) !important; }
 
   /* Stray light-only text (no own background) sitting inside a light-mode white/paper card. */
-  html:not(.dark) .bg-white .text-white:not([class*="bg-"]),
-  html:not(.dark) .bg-\[\#FAF8F2\] .text-white:not([class*="bg-"]),
-  html:not(.dark) .bg-\[\#FCFBF7\] .text-white:not([class*="bg-"]),
-  html:not(.dark) .bg-white .text-slate-300:not([class*="bg-"]),
-  html:not(.dark) .bg-\[\#FAF8F2\] .text-slate-300:not([class*="bg-"]),
-  html:not(.dark) .bg-white .text-slate-200:not([class*="bg-"]) {
+  html:not(.dark) :is(.bg-white, .bg-\[\#FAF8F2\], .bg-\[\#FCFBF7\], .bg-\[\#F6F4EE\], .bg-\[\#F8F6F1\], .bg-\[\#FAF8F5\], .bg-\[\#FAF7F0\], .bg-\[\#FAF8F3\], .bg-\[\#F7F5F0\], .bg-\[\#F8F2E7\], .bg-\[\#F8FAFC\], .bg-slate-50, .bg-slate-100) :is(.text-white, .text-amber-200, .text-amber-100):not([class*="bg-"]) {
     color: #2C241F !important;
+  }
+
+  html:not(.dark) :is(.bg-white, .bg-\[\#FAF8F2\], .bg-\[\#FCFBF7\], .bg-\[\#F6F4EE\], .bg-\[\#F8F6F1\], .bg-\[\#FAF8F5\], .bg-\[\#FAF7F0\], .bg-\[\#FAF8F3\], .bg-\[\#F7F5F0\], .bg-\[\#F8F2E7\], .bg-\[\#F8FAFC\], .bg-slate-50, .bg-slate-100) :is(.text-slate-300, .text-slate-200):not([class*="bg-"]) {
+    color: #52607A !important;
   }
 
   /* Dark mode card and section backgrounds */
