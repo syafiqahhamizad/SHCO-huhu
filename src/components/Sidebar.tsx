@@ -74,7 +74,6 @@ export const Sidebar: React.FC = () => {
   
   // Mobile and accessibility state
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
 
   const handleNavItemClick = (itemId: string) => {
     setCurrentView(itemId);
@@ -199,25 +198,12 @@ export const Sidebar: React.FC = () => {
             </div>
           </div>
 
-          {/* Search Bar */}
-          <div className="mb-4 px-2">
-            <input
-              type="text"
-              placeholder="Search navigation..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value.toLowerCase())}
-              className="w-full px-3 py-1.5 text-xs bg-white/10 dark:bg-[#171E2A] border border-white/20 dark:border-[#2F3A4B] text-white dark:text-[#EEF3FF] placeholder:text-slate-400 dark:placeholder:text-[#7A86A1] rounded-md focus:outline-none focus:border-[#A9814A] dark:focus:border-[#B7925A] focus:ring-1 focus:ring-[#A9814A]/50 dark:focus:ring-[#B7925A]/50 transition-all"
-              aria-label="Search navigation menu"
-            />
-          </div>
-
           {/* Navigation Items */}
           <nav className="space-y-2" role="menubar">
             {NAV_GROUPS.map((group) => {
               const visibleItems = group.items.filter((item) => {
                 if (item.partnerOnly && !isPartner) return false;
                 if (item.systemOnly && !isAdmin) return false;
-                if (searchQuery && !item.label.toLowerCase().includes(searchQuery)) return false;
                 return canViewModule(item.id);
               });
 
