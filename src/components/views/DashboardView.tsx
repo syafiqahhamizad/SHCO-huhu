@@ -64,7 +64,17 @@ export const DashboardView: React.FC = () => {
   );
 
   const assignedCaseIds = new Set(assignedCases.map((matter) => matter.id));
-  const deadlines30 = (deadlines || []).filter((d) => d.status !== 'Completed' && (!d.caseId || assignedCaseIds.has(d.caseId))).length;
+  const todayTime = new Date(`${todayStr}T00:00:00`).getTime();
+  const thirtyDaysFromNow = todayTime + 30 * 86400000;
+  const deadlines30 = (deadlines || []).filter((d) => {
+    const dueTime = new Date(`${d.dueDate}T00:00:00`).getTime();
+    return (
+      d.status !== 'Completed' &&
+      (!d.caseId || assignedCaseIds.has(d.caseId)) &&
+      dueTime >= todayTime &&
+      dueTime <= thirtyDaysFromNow
+    );
+  }).length;
 
   const outstandingBilling = (invoices || []).filter((invoice) => !invoice.fileRef || assignedCases.some((matter) => matter.ref === invoice.fileRef)).reduce(
     (acc, i) => acc + (i.status !== 'Paid' ? i.total : 0),
@@ -101,7 +111,7 @@ export const DashboardView: React.FC = () => {
 
   // Deadlines at risk
   const deadlinesAtRisk = (deadlines || [])
-    .filter((d) => d.status !== 'Completed')
+    .filter((d) => d.status !== 'Completed' && (!d.caseId || assignedCaseIds.has(d.caseId)))
     .map((d) => {
       const days = Math.round((new Date(d.dueDate).getTime() - new Date(todayStr).getTime()) / 86400000);
       return { ...d, days };
