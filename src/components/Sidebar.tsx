@@ -199,7 +199,7 @@ export const Sidebar: React.FC = () => {
               <div className="font-roxborough text-[13px] font-bold leading-tight text-[#ffd29e] dark:text-[#ffd29e] tracking-wide uppercase">
                 SYAFIQAH HAMIZAD &amp; CO
               </div>
-              <div className="font-termes text-[10px] text-[#ffd29e] dark:text-[#C89A63] tracking-tight font-medium italic flex items-center gap-1 mt-0.5">
+              <div className="font-termes text-[10px] text-[#ffd29e] dark:text-[#ffd29e] tracking-tight font-medium italic flex items-center gap-1 mt-0.5">
                 Advocates &amp; Solicitors | Syarie Counsel
               </div>
             </div>
