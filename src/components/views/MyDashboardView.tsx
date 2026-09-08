@@ -29,6 +29,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { Case, Task } from '../../types';
 import { identityTokens, isMine } from '../../lib/identity';
+import { DashboardTabs } from '../DashboardTabs';
 
 const TONE = {
   navy: '#16223A',
@@ -481,22 +482,6 @@ export const MyDashboardView: React.FC = () => {
           </div>
         </div>
       </div>
-
-      <section className="flex flex-wrap items-center gap-2 rounded-xl border border-[#D9D3C4] bg-white p-2.5 shadow-md">
-        {[
-          { key: 'todo', label: 'My Dashboard', icon: FolderOpen, action: () => setCurrentView('dashboard'), active: currentView === 'dashboard' || currentView === 'myDashboard', count: rows.length },
-          { key: 'partner', label: 'Partner Dashboard', icon: LayoutDashboard, action: () => setCurrentView('partnerDashboard'), active: currentView === 'partnerDashboard' || currentView === 'partner-dashboard' },
-          { key: 'firm', label: 'Firm-Wide Matters', icon: BriefcaseBusiness, action: () => setCurrentView('firmDashboard'), active: currentView === 'firmDashboard' },
-          { key: 'finance', label: 'Accounting Centre', icon: Receipt, action: () => setCurrentView('accountingCentre') },
-        ].map(({ key, label, icon: TabIcon, action, active, count }) => (
-          <button key={key} type="button" onClick={action} className={`flex min-h-11 items-center gap-2 rounded-lg px-4 py-2.5 text-[12px] font-bold transition-all focus:outline-none focus:ring-2 focus:ring-[#A9814A] ${active ? 'bg-[#A9814A] text-[#1A1204] shadow-md' : 'text-[#33415C] hover:bg-[#F9F7F2] hover:text-[#16223A]'}`}>
-            <TabIcon className="h-4 w-4" />
-            <span>{label}</span>
-            {count !== undefined && <span className="rounded bg-white/35 px-1.5 py-0.5 text-[10px]">{count}</span>}
-          </button>
-        ))}
-        <span className="ml-auto flex items-center gap-1.5 pr-1 text-[10.5px] text-[#5B6478]"><RefreshCw className="h-3 w-3 text-[#0E4C55]" /> Google Tasks synced just now</span>
-      </section>
 
       <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         {[

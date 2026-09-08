@@ -296,6 +296,7 @@ export const CasesView: React.FC = () => {
 
   const [isRecycleBinOpen, setIsRecycleBinOpen] = useState(false);
   const [isMatterDetailsEditOpen, setIsMatterDetailsEditOpen] = useState(false);
+  const [matterEditRef, setMatterEditRef] = useState('');
   const [matterEditTitle, setMatterEditTitle] = useState('');
   const [matterEditPracticeArea, setMatterEditPracticeArea] = useState('');
   const [matterEditClientName, setMatterEditClientName] = useState('');
@@ -318,6 +319,7 @@ export const CasesView: React.FC = () => {
   const [matterEditContractValue, setMatterEditContractValue] = useState('');
   const [matterEditRegulatoryAuthority, setMatterEditRegulatoryAuthority] = useState('');
   const [matterEditGoverningLaw, setMatterEditGoverningLaw] = useState('');
+  const [matterEditPartners, setMatterEditPartners] = useState<PartnerCode[]>([]);
 
   const isPartner = currentRole === 'Partner' || isAdmin;
 
@@ -338,6 +340,7 @@ export const CasesView: React.FC = () => {
   const [ncClientTag, setNcClientTag] = useState('QAL');
   const [ncSelectedPartners, setNcSelectedPartners] = useState<PartnerCode[]>(['SH']);
   const [ncLawyerInCharge, setNcLawyerInCharge] = useState<PartnerCode>('SH');
+  const [ncManualRefOverride, setNcManualRefOverride] = useState('');
   const [ncCourt, setNcCourt] = useState('Sessions Court Kuala Terengganu');
   const [ncJudge, setNcJudge] = useState('YA Puan Hakim Zarina');
   const [ncCourtCaseNo, setNcCourtCaseNo] = useState('');
@@ -573,6 +576,7 @@ export const CasesView: React.FC = () => {
 
   const handleOpenMatterDetailsEdit = () => {
     if (!selectedCase) return;
+    setMatterEditRef(selectedCase.ref || '');
     setMatterEditTitle(selectedCase.title || '');
     setMatterEditPracticeArea(selectedCase.practiceArea || selectedCase.type || '');
     setMatterEditClientName(selectedCase.clientName || '');
@@ -597,6 +601,7 @@ export const CasesView: React.FC = () => {
     setMatterEditContractValue(String(selectedCase.contractValue || ''));
     setMatterEditRegulatoryAuthority(selectedCase.regulatoryAuthority || '');
     setMatterEditGoverningLaw(selectedCase.governingLaw || '');
+    setMatterEditPartners(selectedCase.partners || []);
     setHandlerSearchQuery('');
     setIsHandlerDropdownOpen(false);
     setIsMatterDetailsEditOpen(true);
@@ -605,9 +610,19 @@ export const CasesView: React.FC = () => {
   const handleSaveMatterDetails = (event: React.FormEvent) => {
     event.preventDefault();
     if (!selectedCase || !matterEditTitle.trim()) return;
+    const nextRef = matterEditRef.trim();
+    if (!nextRef) {
+      showToast('File reference is required.');
+      return;
+    }
+    if (cases.some((matter) => matter.id !== selectedCase.id && matter.ref.trim() === nextRef)) {
+      showToast('That file reference is already assigned to another matter.');
+      return;
+    }
     const fileHandlers = Array.from(new Set(matterEditHandlers.filter(Boolean)));
 
     updateCase(selectedCase.id, {
+      ref: nextRef,
       title: matterEditTitle.trim(),
       type: matterEditPracticeArea.trim() || selectedCase.type,
       practiceArea: matterEditPracticeArea.trim() || selectedCase.practiceArea,
@@ -617,7 +632,12 @@ export const CasesView: React.FC = () => {
       judge: matterEditJudge.trim(),
       courtCaseNo: matterEditCourtCaseNo.trim() || undefined,
       lawyers: fileHandlers,
+      lawyerInCharge: matterEditLawyer.trim() || fileHandlers[0] || undefined,
+      partners: matterEditPartners,
       stage: matterEditStage.trim(),
+      nextHearing: matterEditNextHearing.trim(),
+      matterCode: matterEditCode.trim() || undefined,
+      subtype: matterEditSubtype.trim() || undefined,
       caseNotes: matterEditNotes.trim(),
       propertyTitleNo: matterEditPropertyTitleNo.trim() || undefined,
       propertyAddress: matterEditPropertyAddress.trim() || undefined,
@@ -629,7 +649,7 @@ export const CasesView: React.FC = () => {
       governingLaw: matterEditGoverningLaw.trim() || undefined,
     });
     setIsMatterDetailsEditOpen(false);
-    showToast(`Matter ${selectedCase.ref} details updated.`);
+    showToast(`Matter ${nextRef} details updated.`);
   };
 
   const isPartnerOrAdmin = isAdmin;
@@ -900,6 +920,12 @@ export const CasesView: React.FC = () => {
       return;
     }
     const generatedRef = generateRefString(ncPracticeArea, selectedMatterCode, ncSelectedPartners, ncLawyerInCharge, ncClientTag);
+    const finalRef = ncManualRefOverride.trim() || generatedRef;
+
+    if (cases.some((matter) => matter.ref.trim() === finalRef)) {
+      showToast('That file reference is already assigned to another matter. Please choose a different reference.');
+      return;
+    }
 
     const finalRole = ncClientRole === 'Other' ? (ncCustomRole.trim() || 'Client') : ncClientRole;
 
@@ -1020,7 +1046,7 @@ export const CasesView: React.FC = () => {
 
     const newCaseObj: Case = {
       id: newCaseId,
-      ref: generatedRef,
+      ref: finalRef,
       title: `${leadClientName} — ${ncPracticeArea} (${finalRole})`,
       clientId: leadClientId,
       clientName: leadClientName,
@@ -1077,7 +1103,8 @@ export const CasesView: React.FC = () => {
     };
 
     addCase(newCaseObj);
-    showToast(`Matter ${generatedRef} created! Google Drive folder hierarchy generated automatically with Cause Papers (Drafts & Extracted), Correspondences (Drafts), Client Documents, KYC (Synced), Research, & Meeting Notes.`);
+    showToast(`Matter ${finalRef} created! Google Drive folder hierarchy generated automatically with Cause Papers (Drafts & Extracted), Correspondences (Drafts), Client Documents, KYC (Synced), Research, & Meeting Notes.`);
+    setNcManualRefOverride('');
     setIsNewCaseModalOpen(false);
     setCurrentCaseId(newCaseId);
   };
@@ -5123,7 +5150,10 @@ export const CasesView: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => setIsNewCaseModalOpen(true)}
+            onClick={() => {
+              setNcManualRefOverride('');
+              setIsNewCaseModalOpen(true);
+            }}
             className="bg-[#16223A] hover:bg-[#203050] text-amber-300 font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 transition-colors cursor-pointer shadow-md"
           >
             <Plus className="w-4 h-4 text-amber-300" />
@@ -5928,13 +5958,25 @@ export const CasesView: React.FC = () => {
               </div>
 
               {/* Dynamic Live Reference Preview */}
-              <div className="p-3 bg-[#FAF8F2] border border-[#E1DCCF] rounded-lg">
-                <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+              <div className="p-3 bg-[#FAF8F2] border border-[#E1DCCF] rounded-lg space-y-2">
+                <span className="text-[10px] font-bold text-slate-500 uppercase block">
                   Generated Reference Format Preview:
                 </span>
-                <span className="ref-seal text-xs font-mono font-bold text-[#16223A]">
-                  {generateRefString(ncPracticeArea, ncMatterCode === 'CUSTOM' ? ncSubtype : ncMatterCode, ncSelectedPartners, ncLawyerInCharge, ncClientTag)}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="ref-seal text-xs font-mono font-bold text-[#16223A] break-all flex-1">
+                    {generateRefString(ncPracticeArea, ncMatterCode === 'CUSTOM' ? ncSubtype : ncMatterCode, ncSelectedPartners, ncLawyerInCharge, ncClientTag)}
+                  </span>
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block uppercase mb-1 text-[10px]">Matter Reference Override</label>
+                  <input
+                    type="text"
+                    value={ncManualRefOverride || generateRefString(ncPracticeArea, ncMatterCode === 'CUSTOM' ? ncSubtype : ncMatterCode, ncSelectedPartners, ncLawyerInCharge, ncClientTag)}
+                    onChange={(e) => setNcManualRefOverride(e.target.value.trim())}
+                    placeholder="Leave blank to use generated format"
+                    className="w-full font-mono text-xs bg-white border border-[#E1DCCF] rounded-lg p-2"
+                  />
+                </div>
               </div>
 
               {/* PRACTICE AREA SPECIFIC PARTICULAR FIELDS */}

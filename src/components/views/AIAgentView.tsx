@@ -66,7 +66,7 @@ export const AIAgentView: React.FC = () => {
             </p>
           </div>
           <div className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-amber-900">
-            Gemini-powered assistant
+            Claude-powered assistant
           </div>
         </div>
       </div>

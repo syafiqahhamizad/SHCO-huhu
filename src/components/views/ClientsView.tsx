@@ -194,6 +194,31 @@ export const ClientsView: React.FC = () => {
     showToast('Exported client database to CSV / Excel!');
   };
 
+  const handleBackupClientsAndCases = () => {
+    handleExportClients();
+    exportToCsv('SHCO_Case_Database', cases.map((caseRecord) => ({
+      'Case ID': caseRecord.id,
+      'File Reference': caseRecord.ref,
+      'Case Title': caseRecord.title,
+      'Client ID': caseRecord.clientId,
+      'Client Name': caseRecord.clientName || clients.find((client) => client.id === caseRecord.clientId)?.name || '—',
+      Practice: caseRecord.practiceArea || caseRecord.type,
+      'Matter Code': caseRecord.matterCode || '—',
+      'File Opened Date': caseRecord.fileOpenedDate || caseRecord.createdDate || '—',
+      Status: caseRecord.status,
+      'Client Role': caseRecord.clientRole || '—',
+      'Partner(s) in Charge': (caseRecord.partners || []).join(', ') || '—',
+      'Lawyer / File Handler': caseRecord.lawyerInCharge || (caseRecord.lawyers || []).join(', ') || '—',
+      'Court Case No.': caseRecord.courtCaseNo || '—',
+      Court: caseRecord.court || '—',
+      Judge: caseRecord.judge || '—',
+      'Opposing Party': caseRecord.opposingParty || '—',
+      'Next Hearing': caseRecord.nextHearing || '—',
+      Notes: caseRecord.caseNotes || caseRecord.notes || '—',
+    })));
+    showToast('Downloaded client and case backups for Excel.');
+  };
+
   // --- Filtering Logic ---
   const filteredClients = clients.filter((c) => {
     // Search matching
@@ -838,6 +863,15 @@ export const ClientsView: React.FC = () => {
           >
             <Download className="w-3.5 h-3.5 text-[#A9814A]" />
             <span>Export Excel</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleBackupClientsAndCases}
+            className="border border-emerald-200 hover:bg-emerald-50 text-emerald-900 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+          >
+            <Download className="w-3.5 h-3.5 text-emerald-700" />
+            <span>Backup Clients + Cases</span>
           </button>
 
           <button

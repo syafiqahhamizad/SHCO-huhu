@@ -296,6 +296,11 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'SHCO_PRACTICE_SYSTEM_DATA_V1';
 const SESSION_STORAGE_KEY = 'SHCO_PRACTICE_SYSTEM_SESSION_V1';
+const LOAD_DEMO_OPERATIONAL_DATA = false;
+
+function operationalFallback<T>(seedData: T[]): T[] {
+  return LOAD_DEMO_OPERATIONAL_DATA ? seedData : [];
+}
 
 function sanitizeClientPasswordsForStorage<T extends { role?: string; clientPassword?: string }>(items: T[]): T[] {
   return items.map((item) => {
@@ -911,7 +916,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Load state from localStorage if available
   const [leads, setLeads] = useState<Lead[]>(() => {
-    return readStored(STORAGE_KEY + '_leads', INITIAL_LEADS);
+    return readStored(STORAGE_KEY + '_leads', operationalFallback(INITIAL_LEADS));
   });
 
   const [clients, setClients] = useState<Client[]>(() => {
@@ -922,7 +927,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch {
         return INITIAL_CLIENTS;
       }
-    })() : INITIAL_CLIENTS;
+    })() : operationalFallback(INITIAL_CLIENTS);
 
     return baseClients.map((c) => ({
       ...c,
@@ -932,36 +937,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [cases, setCases] = useState<Case[]>(() => {
-    return readStored(STORAGE_KEY + '_cases', INITIAL_CASES);
+    return readStored(STORAGE_KEY + '_cases', operationalFallback(INITIAL_CASES));
   });
 
   const [quotations, setQuotations] = useState<Quotation[]>(() => {
-    return readStored(STORAGE_KEY + '_quotations', INITIAL_QUOTATIONS);
+    return readStored(STORAGE_KEY + '_quotations', operationalFallback(INITIAL_QUOTATIONS));
   });
 
   const [quoteTemplates] = useState<QuoteTemplate[]>(INITIAL_QUOTE_TEMPLATES);
   const [referralPartners, setReferralPartners] = useState<ReferralPartner[]>(() => {
-    return readStored(STORAGE_KEY + '_referrals', INITIAL_REFERRALS);
+    return readStored(STORAGE_KEY + '_referrals', operationalFallback(INITIAL_REFERRALS));
   });
   const [officeBuckets] = useState<OfficeBucket[]>(INITIAL_OFFICE_BUCKETS);
   const [chartOfAccounts] = useState<ChartOfAccount[]>(INITIAL_CHART_OF_ACCOUNTS);
 
   const [travelClaims, setTravelClaims] = useState<TravelClaim[]>(() => {
-    return readStored(STORAGE_KEY + '_travelClaims', INITIAL_TRAVEL_CLAIMS);
+    return readStored(STORAGE_KEY + '_travelClaims', operationalFallback(INITIAL_TRAVEL_CLAIMS));
   });
 
   const [receipts, setReceipts] = useState<Receipt[]>(() => {
-    return readStored(STORAGE_KEY + '_receipts', INITIAL_RECEIPTS);
+    return readStored(STORAGE_KEY + '_receipts', operationalFallback(INITIAL_RECEIPTS));
   });
 
   const [paymentVouchers, setPaymentVouchers] = useState<PaymentVoucher[]>(() => {
-    return readStored(STORAGE_KEY + '_paymentVouchers', INITIAL_PAYMENT_VOUCHERS);
+    return readStored(STORAGE_KEY + '_paymentVouchers', operationalFallback(INITIAL_PAYMENT_VOUCHERS));
   });
 
-  const [generalLedger, setGeneralLedger] = useState<GeneralLedgerEntry[]>(INITIAL_GENERAL_LEDGER);
-  const [trialBalance] = useState<TrialBalanceRow[]>(INITIAL_TRIAL_BALANCE);
-  const [cashFlowOffice] = useState<CashFlowRow[]>(INITIAL_CASH_FLOW);
-  const [threeWayRec] = useState<ThreeWayRecRow[]>(INITIAL_3WAY_REC);
+  const [generalLedger, setGeneralLedger] = useState<GeneralLedgerEntry[]>(operationalFallback(INITIAL_GENERAL_LEDGER));
+  const [trialBalance] = useState<TrialBalanceRow[]>(operationalFallback(INITIAL_TRIAL_BALANCE));
+  const [cashFlowOffice] = useState<CashFlowRow[]>(operationalFallback(INITIAL_CASH_FLOW));
+  const [threeWayRec] = useState<ThreeWayRecRow[]>(operationalFallback(INITIAL_3WAY_REC));
   const [docTemplates] = useState<DocTemplate[]>(INITIAL_DOC_TEMPLATES);
 
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
@@ -1289,28 +1294,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [notifications]);
 
   const [deadlines, setDeadlines] = useState<Deadline[]>(() => {
-    return readStored(STORAGE_KEY + '_deadlines', INITIAL_DEADLINES);
+    return readStored(STORAGE_KEY + '_deadlines', operationalFallback(INITIAL_DEADLINES));
   });
 
   const [courts] = useState<Court[]>(INITIAL_COURTS);
   const [judges] = useState<Judge[]>(INITIAL_JUDGES);
 
-  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>(INITIAL_TIME_ENTRIES);
-  const [expenses, setExpenses] = useState<Expense[]>(INITIAL_EXPENSES);
+  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>(operationalFallback(INITIAL_TIME_ENTRIES));
+  const [expenses, setExpenses] = useState<Expense[]>(operationalFallback(INITIAL_EXPENSES));
 
   const [invoices, setInvoices] = useState<Invoice[]>(() => {
-    return readStored(STORAGE_KEY + '_invoices', INITIAL_INVOICES);
+    return readStored(STORAGE_KEY + '_invoices', operationalFallback(INITIAL_INVOICES));
   });
 
   const [payments, setPayments] = useState<Payment[]>(() => {
-    return readStored(STORAGE_KEY + '_payments', INITIAL_PAYMENTS);
+    return readStored(STORAGE_KEY + '_payments', operationalFallback(INITIAL_PAYMENTS));
   });
 
   const [retainers, setRetainers] = useState<Retainer[]>(() => {
-    return readStored(STORAGE_KEY + '_retainers', INITIAL_RETAINERS);
+    return readStored(STORAGE_KEY + '_retainers', operationalFallback(INITIAL_RETAINERS));
   });
 
-  const [logs, setLogs] = useState<ActivityLog[]>(INITIAL_LOGS);
+  const [logs, setLogs] = useState<ActivityLog[]>(operationalFallback(INITIAL_LOGS));
   const [rolesMatrix, setRolesMatrix] = useState<RolePermissionsMatrix>(() => {
     return readStored(STORAGE_KEY + '_rolesMatrix', INITIAL_ROLES_MATRIX);
   });
@@ -1570,6 +1575,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const VIEW_TO_MODULE_MAP: Record<string, string> = {
     firmStartCentre: 'dashboard',
     dashboard: 'dashboard',
+    firmDashboard: 'dashboard',
     partnerDashboard: 'dashboard',
     clientPortal: 'clientPortal',
     leads: 'leads',

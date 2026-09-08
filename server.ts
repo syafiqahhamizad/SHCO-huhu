@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import { randomUUID } from 'node:crypto';
 import { createServer as createViteServer } from 'vite';
+import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenAI } from '@google/genai';
 import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
@@ -227,12 +228,12 @@ Respond with ONLY valid JSON in this exact shape, no markdown:
     }
   });
 
-  // ================= Gemini AI — legal assistant and meeting summarizer =================
+  // ================= Claude AI — legal assistant =================
   app.post('/api/ai/assistant', async (req, res) => {
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
+      const apiKey = process.env.ANTHROPIC_API_KEY;
       if (!apiKey) {
-        res.status(503).json({ error: 'GEMINI_API_KEY is not configured on the server.' });
+        res.status(503).json({ error: 'ANTHROPIC_API_KEY is not configured on the server.' });
         return;
       }
 
@@ -243,7 +244,6 @@ Respond with ONLY valid JSON in this exact shape, no markdown:
         return;
       }
 
-      const ai = new GoogleGenAI({ apiKey });
       const modeInstruction = {
         general: 'You are a legal operations assistant for a Malaysian law firm. Help with summaries, drafting, task planning, and risk review in clear professional language.',
         meeting: 'You are a legal meeting assistant. Turn raw meeting transcript notes into a concise meeting summary with key issues, decisions, risks, and next steps.',
@@ -252,12 +252,22 @@ Respond with ONLY valid JSON in this exact shape, no markdown:
         review: 'You are a legal case review assistant. Highlight risks, missing items, and recommended next steps for the matter.',
       }[mode as keyof typeof modeInstruction] || 'You are a legal operations assistant.';
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: `${modeInstruction}\n\nContext:\n${context || 'No extra context provided.'}\n\nUser request:\n${userInput}`,
+      const anthropic = new Anthropic({ apiKey });
+      const response = await anthropic.messages.create({
+        model: process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514',
+        max_tokens: 2000,
+        system: modeInstruction,
+        messages: [{
+          role: 'user',
+          content: `Context:\n${context || 'No extra context provided.'}\n\nUser request:\n${userInput}`,
+        }],
       });
 
-      const text = String(response.text || '').trim();
+      const text = response.content
+        .filter((block) => block.type === 'text')
+        .map((block) => block.text)
+        .join('')
+        .trim();
       if (!text) {
         throw new Error('AI returned no response text.');
       }

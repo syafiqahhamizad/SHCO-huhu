@@ -3,6 +3,7 @@ import { AppProvider, useApp } from './context/AppContext';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { Toast } from './components/Toast';
+import { DashboardTabs } from './components/DashboardTabs';
 import { NewCaseModal } from './components/NewCaseModal';
 import { NewClientModal } from './components/NewClientModal';
 import { SignInPortal } from './components/SignInPortal';
@@ -235,6 +236,11 @@ const MainContent: React.FC = () => {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#F6F4EE] dark:bg-[#0A0E1A]">
         <main className="flex-1 p-4 pt-16 sm:p-6 sm:pt-6 overflow-y-auto bg-[#F6F4EE] dark:bg-[#0A0E1A]">
           <Header />
+          {['dashboard', 'myDashboard', 'firmDashboard', 'partnerDashboard', 'partner-dashboard', 'accountingCentre', 'accounting-centre', 'accounting'].includes(currentView) && (
+            <div className="mt-4 sm:mt-6">
+              <DashboardTabs />
+            </div>
+          )}
           <div className="mt-4 sm:mt-6">
             {renderView()}
           </div>

@@ -705,6 +705,25 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
     return printableElement ? printableElement.innerHTML : '';
   };
 
+  const getDocumentStyles = () => {
+    const styles: string[] = [];
+
+    document.querySelectorAll('style').forEach((style) => {
+      if (style.textContent) styles.push(style.textContent);
+    });
+
+    Array.from(document.styleSheets).forEach((styleSheet) => {
+      try {
+        const rules = Array.from(styleSheet.cssRules || []).map((rule) => rule.cssText).join('\n');
+        if (rules) styles.push(rules);
+      } catch {
+        // Ignore stylesheets that the browser marks as inaccessible.
+      }
+    });
+
+    return styles.join('\n');
+  };
+
   const getDocumentExportHtml = (contentHtml: string) => `
       <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
       <head>
@@ -772,7 +791,7 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
             object-fit: contain;
           }
 
-          ${Array.from(document.querySelectorAll('style')).map((style) => style.textContent || '').join('\n')}
+          ${getDocumentStyles()}
 
           ${generatePrintStyleTag(practiceSettings)}
 
@@ -802,7 +821,9 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
         </style>
       </head>
       <body>
-        <div class="document-export">${contentHtml}</div>
+        <div class="document-export">
+          ${contentHtml}
+        </div>
       </body>
       </html>`;
 
@@ -826,10 +847,19 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
       printWindow.document.write(getDocumentExportHtml(getDocumentMarkup()));
       printWindow.document.close();
       printWindow.document.title = `${docTitle} ${docNo}`;
-      printWindow.focus();
-      setTimeout(() => {
+      const print = () => {
+        printWindow.focus();
         printWindow.print();
-      }, 250);
+      };
+      const images = Array.from(printWindow.document.images);
+      const imagesReady = Promise.all(images.map((image) => image.complete
+        ? Promise.resolve()
+        : new Promise<void>((resolve) => {
+          image.addEventListener('load', () => resolve(), { once: true });
+          image.addEventListener('error', () => resolve(), { once: true });
+        })));
+      const fontsReady = printWindow.document.fonts?.ready || Promise.resolve();
+      Promise.all([imagesReady, fontsReady]).then(print);
     } else {
       showToast(`PDF generated for ${docTitle} ${docNo}`);
     }
