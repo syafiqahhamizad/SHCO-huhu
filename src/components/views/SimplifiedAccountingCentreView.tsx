@@ -110,6 +110,16 @@ export const SimplifiedAccountingCentreView: React.FC = () => {
       </section>
 
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 shadow-xs">
+          <h3 className="font-serif text-lg font-bold text-emerald-950 mb-3">Client Account Workflow</h3>
+          <div className="space-y-2 text-xs text-emerald-950">
+            <div><strong>1. Receive:</strong> record a client receipt or retainer deposit.</div>
+            <div><strong>2. Spend:</strong> record every client disbursement against the file.</div>
+            <div><strong>3. Bill:</strong> prepare and send the fee invoice.</div>
+            <div><strong>4. Reconcile:</strong> match the ledger, cash book, bank statement, and reconciliation.</div>
+          </div>
+          <p className="mt-3 text-[10px] leading-relaxed text-emerald-800">Client funds are not office income. Use the Client/Trust account setting for client money and keep supporting documents for every movement.</p>
+        </div>
         <div className="rounded-xl border border-[#E1DCCF] bg-white p-5 shadow-xs">
           <h3 className="font-serif text-lg font-bold text-[#16223A] mb-4 flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-[#A9814A]" />

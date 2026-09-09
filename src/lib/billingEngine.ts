@@ -6,7 +6,7 @@
  * - Conveyancing → SRO 2023 scale fees (auto from consideration/loan amount)
  * - Litigation & others → court level × stage fee matrix (editable after auto-fill)
  */
-import { QuotationLineItem, QuoteTemplate } from '../types';
+import { QuotationLineItem, QuoteTemplate, TimeEntry } from '../types';
 import { calculateSroTransferFee, calculateSroLoanFee } from './sroCalculator';
 
 export const SST_RATE = 0.08; // 8% service tax on professional fees
@@ -58,6 +58,20 @@ export function nextDocNumber(prefix: string, existingIds: string[]): string {
     return match ? Math.max(highest, parseInt(match[1], 10)) : highest;
   }, 0);
   return `${prefix}-${String(max + 1).padStart(4, '0')}`;
+}
+
+/** Converts approved, billable time into invoice-ready professional-fee rows. */
+export function buildTimeEntryItems(entries: TimeEntry[]): QuotationLineItem[] {
+  return entries
+    .filter((entry) => entry.billable && !entry.billed && entry.approvalStatus === 'Approved')
+    .map((entry) => ({
+      description: `${entry.description || 'Professional services'} (${entry.date}, ${entry.hours}h)`,
+      category: 'Fee - Fixed',
+      amount: round2(entry.hours * entry.rate),
+      quantity: entry.hours,
+      unitPrice: entry.rate,
+      chargeType: 'Per Quantity',
+    }));
 }
 
 /* ================= CONVEYANCING — SRO 2023 automation ================= */

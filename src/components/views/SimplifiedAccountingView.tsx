@@ -20,9 +20,11 @@ import {
   Eye,
   FileText,
 } from 'lucide-react';
-import { TimeEntry, Invoice, Payment, Expense, TravelClaim, PaymentVoucher, BankAccount } from '../../types';
+import { TimeEntry, Invoice, Payment, Expense, TravelClaim, PaymentVoucher, BankAccount, Receipt as ReceiptRecord } from '../../types';
+import { buildTimeEntryItems, computeTotals } from '../../lib/billingEngine';
+import { submitInvoiceToMyInvois } from '../../services/eInvoiceService';
 
-type Tab = 'invoices' | 'expenses' | 'payments' | 'time' | 'claims' | 'vouchers' | 'banking' | 'reports';
+type Tab = 'invoices' | 'expenses' | 'payments' | 'time' | 'claims' | 'vouchers' | 'banking' | 'fileCashFlow' | 'reports';
 
 // Maps every sidebar/billing route id to the tab that should be shown when it is opened
 const VIEW_TO_TAB: Record<string, Tab> = {
@@ -70,6 +72,8 @@ export const SimplifiedAccountingView: React.FC = () => {
     travelClaims,
     paymentVouchers,
     bankAccounts,
+    retainers,
+    receipts,
     cases,
     clients,
     addInvoice,
@@ -287,6 +291,30 @@ export const SimplifiedAccountingView: React.FC = () => {
             <div className="space-y-2">
               {filteredInvoices.map((inv) => {
                 const client = clients.find((c) => c.id === inv.clientId);
+                const submitToMyInvois = async () => {
+                  updateInvoice(inv.id, { eInvoiceStatus: 'Pending', eInvoiceSubmittedAt: new Date().toISOString() });
+                  try {
+                    const result = await submitInvoiceToMyInvois(inv);
+                    updateInvoice(inv.id, {
+                      eInvoiceStatus: result.status,
+                      eInvoiceUuid: result.uuid,
+                      eInvoiceQrUrl: result.qrUrl,
+                      eInvoiceSubmittedAt: result.submittedAt,
+                    });
+                    showToast(`Mock MyInvois validation completed for ${inv.invoiceNo}`);
+                  } catch (error) {
+                    updateInvoice(inv.id, { eInvoiceStatus: 'Rejected' });
+                    showToast(error instanceof Error ? error.message : 'E-invoice submission failed');
+                  }
+                };
+                const prepareInvoice = () => {
+                  updateInvoice(inv.id, { status: 'Ready' });
+                  showToast(`${inv.invoiceNo} prepared and ready to send`);
+                };
+                const sendInvoice = () => {
+                  updateInvoice(inv.id, { status: 'Sent' });
+                  showToast(`${inv.invoiceNo} marked as sent to ${client?.name || 'client'}; email delivery is not connected yet`);
+                };
                 return (
                   <div
                     key={inv.id}
@@ -315,6 +343,34 @@ export const SimplifiedAccountingView: React.FC = () => {
                       >
                         {inv.status}
                       </div>
+                      <div className="mt-1 text-[10px] text-slate-500">
+                        E-invoice: {inv.eInvoiceStatus || 'Not Submitted'}
+                      </div>
+                    </div>
+                    {inv.status !== 'Paid' && inv.status !== 'Voided' && inv.eInvoiceStatus !== 'Validated' && (
+                      <button
+                        onClick={submitToMyInvois}
+                        className="rounded border border-slate-300 px-2 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-100"
+                      >
+                        Submit to MyInvois
+                      </button>
+                    )}
+                    <div className="ml-2 flex flex-col gap-1">
+                      {inv.status === 'Draft' && (
+                        <button onClick={prepareInvoice} className="rounded bg-blue-600 px-2 py-1 text-[10px] font-semibold text-white hover:bg-blue-700">
+                          Prepare
+                        </button>
+                      )}
+                      {inv.status === 'Ready' && (
+                        <button onClick={sendInvoice} className="rounded bg-indigo-600 px-2 py-1 text-[10px] font-semibold text-white hover:bg-indigo-700">
+                          Send
+                        </button>
+                      )}
+                      {inv.status !== 'Paid' && inv.status !== 'Voided' && (
+                        <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">
+                          Record payment in Payments
+                        </span>
+                      )}
                     </div>
                   </div>
                 );
@@ -503,10 +559,23 @@ export const SimplifiedAccountingView: React.FC = () => {
         return;
       }
 
+      const amount = parseFloat(formData.amount);
+      const alreadyCollected = payments
+        .filter((payment) => payment.invoiceId === invoice.id)
+        .reduce((sum, payment) => sum + payment.amount, 0);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        showToast('Enter a payment amount greater than zero');
+        return;
+      }
+      if (alreadyCollected + amount > invoice.total) {
+        showToast('Payment cannot exceed the invoice balance');
+        return;
+      }
+
       addPayment({
         id: `PAY-${Date.now()}`,
         invoiceId: formData.invoiceId,
-        amount: parseFloat(formData.amount),
+        amount,
         date: formData.date,
         method: formData.method as any,
         status: 'Recorded',
@@ -656,6 +725,7 @@ export const SimplifiedAccountingView: React.FC = () => {
   // =============== TIME ENTRIES TAB ===============
   const TimeEntriesTab = () => {
     const [isFormOpen, setIsFormOpen] = useState(false);
+    const [selectedEntryIds, setSelectedEntryIds] = useState<string[]>([]);
     const [formData, setFormData] = useState({
       caseId: '',
       hours: '',
@@ -699,6 +769,50 @@ export const SimplifiedAccountingView: React.FC = () => {
       unbilledValue: timeEntries
         .filter((t) => !t.billed)
         .reduce((sum, t) => sum + t.hours * t.rate, 0),
+    };
+
+    const billSelectedEntries = () => {
+      const selectedEntries = timeEntries.filter((entry) => selectedEntryIds.includes(entry.id));
+      const billableEntries = selectedEntries.filter(
+        (entry) => entry.billable && !entry.billed && entry.approvalStatus === 'Approved'
+      );
+      if (billableEntries.length === 0) {
+        showToast('Select approved, unbilled time entries first');
+        return;
+      }
+      const caseIds = [...new Set(billableEntries.map((entry) => entry.caseId))];
+      if (caseIds.length !== 1) {
+        showToast('Bill one matter at a time');
+        return;
+      }
+      const matter = cases.find((caseItem) => caseItem.id === caseIds[0]);
+      if (!matter) {
+        showToast('Matter not found');
+        return;
+      }
+      const lineItems = buildTimeEntryItems(billableEntries);
+      const totals = computeTotals(lineItems);
+      const invoiceId = `INV-${Date.now()}`;
+      addInvoice({
+        id: invoiceId,
+        clientId: matter.clientId,
+        caseId: matter.id,
+        fileRef: matter.ref,
+        partyType: 'Client',
+        partyName: matter.clientName,
+        amount: totals.fees,
+        discount: 0,
+        tax: totals.sst,
+        total: totals.grandTotal,
+        date: new Date().toISOString().slice(0, 10),
+        dueDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+        status: 'Draft',
+        lineItems,
+        eInvoiceStatus: 'Not Submitted',
+      });
+      billableEntries.forEach((entry) => updateTimeEntry(entry.id, { billed: true, invoiceId, approvalStatus: 'Billed' }));
+      setSelectedEntryIds([]);
+      showToast(`Draft invoice created for ${matter.ref}`);
     };
 
     return (
@@ -801,12 +915,21 @@ export const SimplifiedAccountingView: React.FC = () => {
               className="flex-1 border-0 bg-transparent text-xs outline-none"
             />
           </div>
-          <button
-            onClick={() => setIsFormOpen(!isFormOpen)}
-            className="flex items-center gap-1 rounded bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
-          >
-            <Plus className="h-4 w-4" /> Log
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={billSelectedEntries}
+              disabled={selectedEntryIds.length === 0}
+              className="rounded bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Bill Selected
+            </button>
+            <button
+              onClick={() => setIsFormOpen(!isFormOpen)}
+              className="flex items-center gap-1 rounded bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
+            >
+              <Plus className="h-4 w-4" /> Log
+            </button>
+          </div>
         </div>
 
         {filteredEntries.length === 0 ? (
@@ -823,6 +946,16 @@ export const SimplifiedAccountingView: React.FC = () => {
                   key={entry.id}
                   className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3 hover:bg-slate-50"
                 >
+                  <input
+                    type="checkbox"
+                    checked={selectedEntryIds.includes(entry.id)}
+                    disabled={Boolean(entry.billed) || entry.approvalStatus !== 'Approved'}
+                    onChange={(event) => setSelectedEntryIds((current) => event.target.checked
+                      ? [...current, entry.id]
+                      : current.filter((id) => id !== entry.id))}
+                    className="mr-3 h-4 w-4 rounded border-slate-300"
+                    aria-label={`Select ${entry.description || 'time entry'} for billing`}
+                  />
                   <div className="flex-1">
                     <div className="font-semibold text-slate-900 text-xs">{entry.description}</div>
                     <div className="text-slate-500 text-xs mt-0.5">
@@ -1273,6 +1406,102 @@ export const SimplifiedAccountingView: React.FC = () => {
     );
   };
 
+  // =============== FILE CASH FLOW TAB ===============
+  const FileCashFlowTab = () => {
+    const [selectedCaseId, setSelectedCaseId] = useState(cases[0]?.id || '');
+    const selectedCase = cases.find((caseItem) => caseItem.id === selectedCaseId);
+    const fileInvoices = invoices.filter((invoice) => invoice.caseId === selectedCaseId || invoice.fileRef === selectedCase?.ref);
+    const invoiceIds = new Set(fileInvoices.map((invoice) => invoice.id));
+    const filePayments = payments.filter((payment) => invoiceIds.has(payment.invoiceId));
+    const fileExpenses = expenses.filter((expense) => expense.caseId === selectedCaseId && expense.accountSet === 'CLIENT');
+    const fileVouchers = paymentVouchers.filter(
+      (voucher) => voucher.accountSet === 'CLIENT' && (voucher.fileRef === selectedCase?.ref || voucher.clientId === selectedCase?.clientId)
+    );
+    const fileRetainers = retainers.filter((retainer) => retainer.caseId === selectedCaseId);
+    const fileReceipts = receipts.filter(
+      (receipt) => receipt.accountSet === 'CLIENT' && (receipt.fileRef === selectedCase?.ref || receipt.clientId === selectedCase?.clientId)
+    );
+    const retainerDeposits = fileRetainers.filter((retainer) => retainer.type === 'Deposit').reduce((sum, item) => sum + item.amount, 0);
+    const receiptDeposits = fileReceipts.reduce((sum, item) => sum + item.amount, 0);
+    const deposits = retainerDeposits + receiptDeposits;
+    const appliedRetainers = fileRetainers.filter((retainer) => retainer.type !== 'Deposit').reduce((sum, item) => sum + item.amount, 0);
+    const disbursements = fileExpenses.reduce((sum, item) => sum + item.amount, 0) + fileVouchers.reduce((sum, item) => sum + item.amount, 0);
+    const invoiced = fileInvoices.reduce((sum, invoice) => sum + invoice.total, 0);
+    const collected = filePayments.reduce((sum, payment) => sum + payment.amount, 0);
+    const availableClientFunds = deposits - appliedRetainers - disbursements;
+    const rows = [
+      ...fileRetainers.map((item) => ({ id: item.id, date: item.date, type: item.type === 'Deposit' ? 'Client funds in' : 'Retainer applied/refunded', description: item.remarks, amount: item.type === 'Deposit' ? item.amount : -item.amount })),
+      ...fileReceipts.map((item) => ({ id: item.id, date: item.date, type: 'Client receipt', description: `${item.description} (${item.bankRef})`, amount: item.amount })),
+      ...fileExpenses.map((item) => ({ id: item.id, date: item.date, type: 'Disbursement', description: item.description || item.category, amount: -item.amount })),
+      ...fileVouchers.map((item) => ({ id: item.id, date: item.date, type: 'Client voucher', description: item.description, amount: -item.amount })),
+      ...filePayments.map((item) => ({ id: item.id, date: item.date, type: 'Invoice payment', description: item.invoiceId, amount: item.amount })),
+    ].sort((a, b) => b.date.localeCompare(a.date));
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">File Cash Flow</h2>
+            <p className="text-xs text-slate-500">Operational file view from recorded client transactions. Confirm against the client ledger and bank reconciliation.</p>
+          </div>
+          <select value={selectedCaseId} onChange={(event) => setSelectedCaseId(event.target.value)} className="max-w-xs rounded border border-slate-300 px-2 py-2 text-xs">
+            <option value="">Select matter</option>
+            {cases.map((caseItem) => <option key={caseItem.id} value={caseItem.id}>{caseItem.ref} - {caseItem.title}</option>)}
+          </select>
+        </div>
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-blue-800">Client account workflow</div>
+          <div className="mt-2 grid grid-cols-1 gap-2 text-xs md:grid-cols-4">
+            {[
+              ['1', 'Receive funds', 'Record a CLIENT receipt or retainer deposit.'],
+              ['2', 'Track disbursement', 'Use CLIENT expense or client payment voucher.'],
+              ['3', 'Invoice client', 'Prepare, send, then record the actual payment.'],
+              ['4', 'Reconcile', 'Match the cash book, bank statement, and ledger.'],
+            ].map(([step, title, description]) => (
+              <div key={step} className="rounded border border-blue-100 bg-white p-2">
+                <div className="font-bold text-blue-700">{step}. {title}</div>
+                <div className="mt-1 text-[10px] leading-relaxed text-slate-600">{description}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        {!selectedCase ? (
+          <div className="rounded-lg border border-dashed border-slate-300 py-8 text-center text-xs text-slate-500">Select a matter to view its file balance.</div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+              {[
+                ['Client funds received', deposits, 'text-blue-700'],
+                ['Disbursements', disbursements, 'text-rose-700'],
+                ['Available file funds', availableClientFunds, availableClientFunds >= 0 ? 'text-emerald-700' : 'text-rose-700'],
+                ['Invoiced', invoiced, 'text-amber-700'],
+                ['Collected', collected, 'text-emerald-700'],
+              ].map(([label, value, color]) => (
+                <div key={label as string} className="rounded-lg border border-slate-200 bg-white p-3">
+                  <div className="text-[10px] font-semibold uppercase text-slate-500">{label}</div>
+                  <div className={`mt-1 font-mono text-sm font-bold ${color}`}>{formatCurrency(value as number)}</div>
+                </div>
+              ))}
+            </div>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-900">
+              This view is a file-level summary, not a substitute for the official client ledger, cash book, bank statement, or reconciliation review. Record receipts and payment vouchers through their accounting workflows.
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-white overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th className="p-3">Date</th><th className="p-3">Type</th><th className="p-3">Description</th><th className="p-3 text-right">Amount</th></tr></thead>
+                <tbody>
+                  {rows.length === 0 ? <tr><td colSpan={4} className="p-6 text-center text-slate-500">No file cash transactions recorded yet.</td></tr> : rows.map((row) => (
+                    <tr key={row.id} className="border-b border-slate-100 last:border-0"><td className="p-3">{row.date}</td><td className="p-3 font-semibold">{row.type}</td><td className="p-3 text-slate-600">{row.description}</td><td className={`p-3 text-right font-mono font-bold ${row.amount >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{row.amount >= 0 ? '+' : ''}{formatCurrency(row.amount)}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
   // Main Render
   return (
     <div className="h-full bg-slate-50 flex flex-col">
@@ -1296,6 +1525,7 @@ export const SimplifiedAccountingView: React.FC = () => {
           { id: 'claims' as const, label: 'Travel Claims', icon: Briefcase },
           { id: 'vouchers' as const, label: 'Vouchers', icon: FileCheck2 },
           { id: 'banking' as const, label: 'Banking', icon: Landmark },
+          { id: 'fileCashFlow' as const, label: 'File Cash Flow', icon: FileText },
           { id: 'reports' as const, label: 'Reports', icon: BarChart3 },
         ].map(({ id, label, icon: Icon }) => (
           <button
@@ -1325,6 +1555,7 @@ export const SimplifiedAccountingView: React.FC = () => {
         {activeTab === 'claims' && <TravelClaimsTab />}
         {activeTab === 'vouchers' && <PaymentVouchersTab />}
         {activeTab === 'banking' && <BankingTab />}
+        {activeTab === 'fileCashFlow' && <FileCashFlowTab />}
         {activeTab === 'reports' && <ReportsTab />}
       </div>
     </div>

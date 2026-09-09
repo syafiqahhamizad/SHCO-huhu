@@ -591,10 +591,14 @@ export interface Invoice {
   total: number;
   date: string;
   dueDate: string;
-  status: 'Draft' | 'Pending Review' | 'Ready' | 'Unpaid' | 'Partial' | 'Paid' | 'Voided';
+  status: 'Draft' | 'Pending Review' | 'Ready' | 'Sent' | 'Unpaid' | 'Partial' | 'Paid' | 'Voided';
   voidReason?: string;
   voidedBy?: string;
   voidedAt?: string;
+  eInvoiceStatus?: 'Not Submitted' | 'Pending' | 'Validated' | 'Rejected';
+  eInvoiceUuid?: string;
+  eInvoiceQrUrl?: string;
+  eInvoiceSubmittedAt?: string;
   lineItems?: QuotationLineItem[];
 }
 

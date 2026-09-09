@@ -1,54 +1,48 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { Toast } from './components/Toast';
 import { DASHBOARD_TAB_VIEWS, DashboardTabs } from './components/DashboardTabs';
-import { NewCaseModal } from './components/NewCaseModal';
-import { NewClientModal } from './components/NewClientModal';
 import { SignInPortal } from './components/SignInPortal';
 import { ShieldAlert } from 'lucide-react';
 
-// Views
-import { PartnerDashboardView } from './components/views/PartnerDashboardView';
-import { ComprehensiveDashboardView } from './components/views/ComprehensiveDashboardView';
-import { LeadsView } from './components/views/LeadsView';
-import { ClientsView } from './components/views/ClientsView';
-import { CasesView } from './components/views/CasesView';
-import { QuotationsView } from './components/views/QuotationsView';
-import { ClientPortalView } from './components/views/ClientPortalView';
-import { AIAgentView } from './components/views/AIAgentView';
-
-import {
-  HearingsView,
-  CalendarView,
-  DocumentsView,
-  TemplatesView,
-  CaseStatusView,
-  TasksView,
-  DeadlinesView,
-  CourtsView,
-  ReferralView,
-  FileClosingView,
-} from './components/views/PracticeViews';
-
-import { SimplifiedAccountingView } from './components/views/SimplifiedAccountingView';
-import { SimplifiedAccountingCentreView } from './components/views/SimplifiedAccountingCentreView';
-
-import {
-  WorkspaceView,
-  SecurityView,
-  UsersAndPermissionsView,
-} from './components/views/SystemViews';
-import { PracticeSettingsView } from './components/views/PracticeSettingsView';
-import { TrustAuditLogsView } from './components/views/TrustAuditLogsView';
-import { InventoryView } from './components/views/InventoryView';
-import { StaffPortalView } from './components/views/StaffPortalView';
-import { MyAccountView } from './components/views/MyAccountView';
-import { AboutAppView } from './components/views/AboutAppView';
-import { ActivityLogsView } from './components/views/ActivityLogsView';
-import { FirmStartCentreView } from './components/views/FirmStartCentreView';
-import { MyDashboardView } from './components/views/MyDashboardView';
+const PartnerDashboardView = React.lazy(() => import('./components/views/PartnerDashboardView').then((module) => ({ default: module.PartnerDashboardView })));
+const ComprehensiveDashboardView = React.lazy(() => import('./components/views/ComprehensiveDashboardView').then((module) => ({ default: module.ComprehensiveDashboardView })));
+const LeadsView = React.lazy(() => import('./components/views/LeadsView').then((module) => ({ default: module.LeadsView })));
+const ClientsView = React.lazy(() => import('./components/views/ClientsView').then((module) => ({ default: module.ClientsView })));
+const CasesView = React.lazy(() => import('./components/views/CasesView').then((module) => ({ default: module.CasesView })));
+const QuotationsView = React.lazy(() => import('./components/views/QuotationsView').then((module) => ({ default: module.QuotationsView })));
+const ClientPortalView = React.lazy(() => import('./components/views/ClientPortalView').then((module) => ({ default: module.ClientPortalView })));
+const AIAgentView = React.lazy(() => import('./components/views/AIAgentView').then((module) => ({ default: module.AIAgentView })));
+const PracticeViews = import('./components/views/PracticeViews');
+const HearingsView = React.lazy(() => PracticeViews.then((module) => ({ default: module.HearingsView })));
+const CalendarView = React.lazy(() => PracticeViews.then((module) => ({ default: module.CalendarView })));
+const DocumentsView = React.lazy(() => PracticeViews.then((module) => ({ default: module.DocumentsView })));
+const TemplatesView = React.lazy(() => PracticeViews.then((module) => ({ default: module.TemplatesView })));
+const CaseStatusView = React.lazy(() => PracticeViews.then((module) => ({ default: module.CaseStatusView })));
+const TasksView = React.lazy(() => PracticeViews.then((module) => ({ default: module.TasksView })));
+const DeadlinesView = React.lazy(() => PracticeViews.then((module) => ({ default: module.DeadlinesView })));
+const CourtsView = React.lazy(() => PracticeViews.then((module) => ({ default: module.CourtsView })));
+const ReferralView = React.lazy(() => PracticeViews.then((module) => ({ default: module.ReferralView })));
+const FileClosingView = React.lazy(() => PracticeViews.then((module) => ({ default: module.FileClosingView })));
+const SimplifiedAccountingView = React.lazy(() => import('./components/views/SimplifiedAccountingView').then((module) => ({ default: module.SimplifiedAccountingView })));
+const SimplifiedAccountingCentreView = React.lazy(() => import('./components/views/SimplifiedAccountingCentreView').then((module) => ({ default: module.SimplifiedAccountingCentreView })));
+const SystemViews = import('./components/views/SystemViews');
+const WorkspaceView = React.lazy(() => SystemViews.then((module) => ({ default: module.WorkspaceView })));
+const SecurityView = React.lazy(() => SystemViews.then((module) => ({ default: module.SecurityView })));
+const UsersAndPermissionsView = React.lazy(() => SystemViews.then((module) => ({ default: module.UsersAndPermissionsView })));
+const PracticeSettingsView = React.lazy(() => import('./components/views/PracticeSettingsView').then((module) => ({ default: module.PracticeSettingsView })));
+const TrustAuditLogsView = React.lazy(() => import('./components/views/TrustAuditLogsView').then((module) => ({ default: module.TrustAuditLogsView })));
+const InventoryView = React.lazy(() => import('./components/views/InventoryView').then((module) => ({ default: module.InventoryView })));
+const StaffPortalView = React.lazy(() => import('./components/views/StaffPortalView').then((module) => ({ default: module.StaffPortalView })));
+const MyAccountView = React.lazy(() => import('./components/views/MyAccountView').then((module) => ({ default: module.MyAccountView })));
+const AboutAppView = React.lazy(() => import('./components/views/AboutAppView').then((module) => ({ default: module.AboutAppView })));
+const ActivityLogsView = React.lazy(() => import('./components/views/ActivityLogsView').then((module) => ({ default: module.ActivityLogsView })));
+const FirmStartCentreView = React.lazy(() => import('./components/views/FirmStartCentreView').then((module) => ({ default: module.FirmStartCentreView })));
+const MyDashboardView = React.lazy(() => import('./components/views/MyDashboardView').then((module) => ({ default: module.MyDashboardView })));
+const NewCaseModal = React.lazy(() => import('./components/NewCaseModal').then((module) => ({ default: module.NewCaseModal })));
+const NewClientModal = React.lazy(() => import('./components/NewClientModal').then((module) => ({ default: module.NewClientModal })));
 
 const MainContent: React.FC = () => {
   const {
@@ -242,18 +236,32 @@ const MainContent: React.FC = () => {
             </div>
           )}
           <div className="mt-4 sm:mt-6">
-            {renderView()}
+            <Suspense
+              fallback={(
+                <div className="rounded-xl border border-[#E1DCCF] bg-white p-8 text-center text-xs font-semibold text-slate-500">
+                  Loading module...
+                </div>
+              )}
+            >
+              {renderView()}
+            </Suspense>
           </div>
         </main>
       </div>
-      <NewCaseModal
-        isOpen={isNewCaseModalOpen}
-        onClose={() => setIsNewCaseModalOpen(false)}
-      />
-      <NewClientModal
-        isOpen={isRegisterClientModalOpen}
-        onClose={() => setIsRegisterClientModalOpen(false)}
-      />
+      <Suspense fallback={null}>
+        {isNewCaseModalOpen && (
+          <NewCaseModal
+            isOpen={isNewCaseModalOpen}
+            onClose={() => setIsNewCaseModalOpen(false)}
+          />
+        )}
+        {isRegisterClientModalOpen && (
+          <NewClientModal
+            isOpen={isRegisterClientModalOpen}
+            onClose={() => setIsRegisterClientModalOpen(false)}
+          />
+        )}
+      </Suspense>
       <Toast />
     </div>
   );

@@ -1784,6 +1784,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!isAuthorizedAdmin) return false;
     }
 
+    // Admin accounts retain full module access even when their active role is not in the matrix.
+    if (currentUser.isSuperAdmin || currentUser.isAdmin) {
+      return true;
+    }
+
     if ((currentUser.isSuperAdmin || currentUser.isAdmin) && effectiveRole === 'Partner') {
       return true;
     }
@@ -2417,10 +2422,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addPayment = (p: Payment) => {
     setPayments((prev) => [p, ...prev]);
-    // Auto mark invoice paid if fully covered
-    setInvoices((prevInvs) =>
-      prevInvs.map((inv) => (inv.id === p.invoiceId ? { ...inv, status: 'Paid' } : inv))
-    );
+    setInvoices((prevInvs) => prevInvs.map((inv) => {
+      if (inv.id !== p.invoiceId) return inv;
+      const collected = payments
+        .filter((payment) => payment.invoiceId === p.invoiceId)
+        .reduce((sum, payment) => sum + payment.amount, 0) + p.amount;
+      const status = collected >= inv.total ? 'Paid' : collected > 0 ? 'Partial' : 'Unpaid';
+      return { ...inv, status };
+    }));
     addNotification({
       title: 'Invoice Payment Verified & Marked Paid',
       message: `Tax Invoice ${p.invoiceId} (RM ${p.amount.toLocaleString('en-MY', { minimumFractionDigits: 2 })}) has been marked as PAID by Finance.`,

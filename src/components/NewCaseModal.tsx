@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { Case, CaseDocument, PartyRecord, OpposingSolicitorRecord } from '../types';
 import { scanOpposingPartyConflicts } from '../lib/conflictUtils';
 import { getPracticeSettings } from '../services/templateService';
+import { buildTasksForMatter } from '../data/taskTemplates';
 import {
   X,
   CheckCircle2,
@@ -820,7 +821,11 @@ We/I, ${clientNamesCombined.toUpperCase()}, hereby authorize Syafiqah Hamizad & 
       hearings: [],
       documents: [],
       courtDiary: [],
-      tasks: [],
+      tasks: buildTasksForMatter(
+        practiceArea,
+        fileOpeningDate || new Date().toISOString().split('T')[0],
+        primaryLawyerNames[0] || partnersLabel || 'Unassigned'
+      ),
       serviceRecord: [],
       meetingNotes: [],
       internalNotes: [],

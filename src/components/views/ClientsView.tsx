@@ -290,10 +290,21 @@ export const ClientsView: React.FC = () => {
             </button>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="font-serif text-base font-bold text-[#16223A]">{selectedClient.name}</h2>
-                <span className="px-2 py-0.5 bg-blue-100 text-blue-900 rounded text-[10px] font-bold border border-blue-200">
-                  {selectedClient.type}
-                </span>
+                <input
+                  value={selectedClient.name}
+                  onChange={(e) => updateClient(selectedClient.id, { name: e.target.value })}
+                  className="font-serif text-base font-bold text-[#16223A] bg-transparent border-0 border-b border-transparent focus:border-[#A9814A] focus:ring-0 p-0"
+                  aria-label="Client official name"
+                />
+                <select
+                  value={selectedClient.type}
+                  onChange={(e) => updateClient(selectedClient.id, { type: e.target.value as Client['type'] })}
+                  className="px-2 py-0.5 bg-blue-100 text-blue-900 rounded text-[10px] font-bold border border-blue-200"
+                  aria-label="Client type"
+                >
+                  <option value="Individual">Individual</option>
+                  <option value="Corporate">Corporate</option>
+                </select>
                 <span className="font-mono text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
                   ID: {selectedClient.id}
                 </span>
@@ -484,15 +495,38 @@ export const ClientsView: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                   <div>
                     <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Structure Category</label>
-                    <span className="font-semibold text-[#16223A]">{selectedClient.entityCategory || 'Corporate'}</span>
+                    <select
+                      value={selectedClient.entityCategory || 'Sdn Bhd'}
+                      onChange={(e) => updateClient(selectedClient.id, { entityCategory: e.target.value as Client['entityCategory'] })}
+                      className="w-full text-xs font-semibold"
+                    >
+                      <option value="Sdn Bhd">Sdn Bhd</option>
+                      <option value="Berhad">Berhad</option>
+                      <option value="Enterprise">Enterprise</option>
+                      <option value="Sole Proprietorship">Sole Proprietorship</option>
+                      <option value="Partnership">Partnership</option>
+                      <option value="LLP">LLP</option>
+                      <option value="Society/Association">Society/Association</option>
+                      <option value="Foreign Corp">Foreign Corp</option>
+                      <option value="Government / Statutory Body">Government / Statutory Body</option>
+                      <option value="Cooperative (Koperasi)">Cooperative (Koperasi)</option>
+                    </select>
                   </div>
                   <div>
                     <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">SSM / ROC Registration No.</label>
-                    <span className="font-mono font-semibold text-[#16223A]">{selectedClient.registrationNo || '—'}</span>
+                    <input
+                      value={selectedClient.registrationNo || ''}
+                      onChange={(e) => updateClient(selectedClient.id, { registrationNo: e.target.value })}
+                      className="w-full text-xs font-mono font-semibold"
+                    />
                   </div>
                   <div>
                     <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Corporate Tax / SST No.</label>
-                    <span className="font-mono font-semibold text-[#16223A]">{selectedClient.taxSstNo || '—'}</span>
+                    <input
+                      value={selectedClient.taxSstNo || ''}
+                      onChange={(e) => updateClient(selectedClient.id, { taxSstNo: e.target.value })}
+                      className="w-full text-xs font-mono font-semibold"
+                    />
                   </div>
                 </div>
               </div>
@@ -505,17 +539,27 @@ export const ClientsView: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                   <div>
                     <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">NRIC / Identification No.</label>
-                    <span className="font-mono font-semibold text-[#16223A]">
-                      {selectedClient.icNo || selectedClient.icNumber || '—'}
-                    </span>
+                    <input
+                      value={selectedClient.icNo || selectedClient.icNumber || ''}
+                      onChange={(e) => updateClient(selectedClient.id, { icNo: e.target.value, icNumber: e.target.value })}
+                      className="w-full text-xs font-mono font-semibold"
+                    />
                   </div>
                   <div>
                     <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Nationality</label>
-                    <span className="font-semibold text-[#16223A]">{selectedClient.nationality || 'Malaysian'}</span>
+                    <input
+                      value={selectedClient.nationality || ''}
+                      onChange={(e) => updateClient(selectedClient.id, { nationality: e.target.value })}
+                      className="w-full text-xs font-semibold"
+                    />
                   </div>
                   <div>
                     <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Occupation / Profession</label>
-                    <span className="font-semibold text-[#16223A]">{selectedClient.occupation || '—'}</span>
+                    <input
+                      value={selectedClient.occupation || ''}
+                      onChange={(e) => updateClient(selectedClient.id, { occupation: e.target.value })}
+                      className="w-full text-xs font-semibold"
+                    />
                   </div>
                 </div>
               </div>
