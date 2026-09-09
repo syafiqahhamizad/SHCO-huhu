@@ -619,6 +619,13 @@
     color: #F4F7FF !important;
   }
 
+  /* Dashboard panels intentionally use light text on saturated backgrounds. Keep
+     the global light-surface readability rules from changing that contrast. */
+  .my-dashboard-dark-panel,
+  .my-dashboard-dark-panel :is(h1, h2, h3, h4, h5, h6, p, span, strong, em, label, a, button, li, td, th, div) {
+    color: #FFFFFF !important;
+  }
+
   /* Custom scrollbar styling */
   ::-webkit-scrollbar {
     width: 6px;

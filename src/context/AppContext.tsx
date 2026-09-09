@@ -2221,7 +2221,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateCase = (id: string, updates: Partial<Case>) => {
-    if (!hasModulePermission('cases', 'e')) {
+    const hasCaseOverride = Boolean(currentUser.isAdmin || currentUser.isSuperAdmin);
+    if (!hasCaseOverride && !hasModulePermission('cases', 'e')) {
       showToast('Access denied: you do not have matter edit permission.');
       return;
     }

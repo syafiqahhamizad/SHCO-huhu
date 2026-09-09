@@ -321,7 +321,7 @@ export const CasesView: React.FC = () => {
   const [matterEditGoverningLaw, setMatterEditGoverningLaw] = useState('');
   const [matterEditPartners, setMatterEditPartners] = useState<PartnerCode[]>([]);
 
-  const isPartner = currentRole === 'Partner' || isAdmin;
+  const isPartner = currentRole === 'Partner' || isAdmin || isSuperAdmin;
 
   // List view filters
   const [statusFilter, setStatusFilter] = useState<string>('');
@@ -652,7 +652,7 @@ export const CasesView: React.FC = () => {
     showToast(`Matter ${nextRef} details updated.`);
   };
 
-  const isPartnerOrAdmin = isAdmin;
+  const isPartnerOrAdmin = isAdmin || isSuperAdmin;
 
   // Sort cases in descending order (latest registered cases at the top for Admin/Partner view)
   const sortedCases = [...cases].sort((a, b) => {
