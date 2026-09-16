@@ -152,18 +152,21 @@ const QUICK_LINK_GROUPS: QuickLinkGroup[] = [
   ] },
 ];
 
+// Literal hex here (not the shared TONE.* tokens) — design/shco-portal-redesign gives this
+// quick-launch grid its own distinct per-tile palette, unrelated to TONE's semantic colors
+// (TONE.forest/slate/ink etc. mean something different elsewhere in this file).
 const SMALL_TILES: LauncherTile[] = [
-  { label: 'Practice', view: 'cases', icon: Scale, bg: TONE.brass },
-  { label: 'Calendar', view: 'calendar', icon: CalendarDays, bg: TONE.olive },
-  { label: 'Billing', view: 'invoices', icon: FileSpreadsheet, bg: TONE.clay, module: 'invoices' },
-  { label: 'Claims', view: 'reimbursements', icon: Receipt, bg: TONE.rust, module: 'reimbursements' },
-  { label: 'Accounting', view: 'accountingCentre', icon: Building2, bg: TONE.forest, module: 'accountingCentre' },
-  { label: 'Trust Account', view: 'clientAccount', icon: ShieldCheck, bg: TONE.deepTeal, module: 'clientAccount' },
-  { label: 'Staff Portal', view: 'staff-portal', icon: UserCog, bg: TONE.teal, module: 'staffPortal' },
-  { label: 'Client Portal', view: 'client-portal', icon: UserCheck, bg: TONE.plum },
-  { label: 'Firm Inventory', view: 'inventory', icon: Package, bg: TONE.slate, module: 'inventory' },
+  { label: 'Practice', view: 'cases', icon: Scale, bg: '#3D6B9C' },
+  { label: 'Calendar', view: 'calendar', icon: CalendarDays, bg: '#2F6F4E' },
+  { label: 'Billing', view: 'invoices', icon: FileSpreadsheet, bg: '#B2542F', module: 'invoices' },
+  { label: 'Claims', view: 'reimbursements', icon: Receipt, bg: '#8A6D3B', module: 'reimbursements' },
+  { label: 'Accounting', view: 'accountingCentre', icon: Building2, bg: '#2E7D7A', module: 'accountingCentre' },
+  { label: 'Trust Account', view: 'clientAccount', icon: ShieldCheck, bg: '#1F7A5C', module: 'clientAccount' },
+  { label: 'Staff Portal', view: 'staff-portal', icon: UserCog, bg: '#6B3D8C', module: 'staffPortal' },
+  { label: 'Client Portal', view: 'client-portal', icon: UserCheck, bg: '#16223A' },
+  { label: 'Firm Inventory', view: 'inventory', icon: Package, bg: '#4C5A72', module: 'inventory' },
   // TODO: point Library at a dedicated view once one exists; it currently opens the Law Library tab of Inventory.
-  { label: 'Library', view: 'inventory', icon: BookMarked, bg: TONE.ink, module: 'inventory' },
+  { label: 'Library', view: 'inventory', icon: BookMarked, bg: '#16223A', module: 'inventory' },
 ];
 
 const SHELVES = [

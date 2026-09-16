@@ -296,7 +296,11 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'SHCO_PRACTICE_SYSTEM_DATA_V1';
 const SESSION_STORAGE_KEY = 'SHCO_PRACTICE_SYSTEM_SESSION_V1';
-const LOAD_DEMO_OPERATIONAL_DATA = false;
+// Opt-in, local-only QA bypass: ?preview=1 skips real Google sign-in and loads
+// sample data instead of live Firestore, so the app can be reviewed without
+// Firebase credentials. Off by default; never touches real auth or data.
+const SAFE_PREVIEW_MODE = new URLSearchParams(window.location.search).get('preview') === '1';
+const LOAD_DEMO_OPERATIONAL_DATA = SAFE_PREVIEW_MODE;
 
 function operationalFallback<T>(seedData: T[]): T[] {
   return LOAD_DEMO_OPERATIONAL_DATA ? seedData : [];
@@ -348,6 +352,8 @@ function normalizeClaimEmailList(value: unknown): string[] {
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    if (SAFE_PREVIEW_MODE) return true;
+
     const loginPreviewRequested = new URLSearchParams(window.location.search).get('login') === '1';
     if (loginPreviewRequested) {
       sessionStorage.removeItem(SESSION_STORAGE_KEY);
@@ -1880,7 +1886,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(STORAGE_KEY + '_retainers', JSON.stringify(retainers));
   }, [retainers]);
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || SAFE_PREVIEW_MODE) return;
 
     let unsubscribe: (() => void) | undefined;
     let cancelled = false;
