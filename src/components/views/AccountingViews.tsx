@@ -273,11 +273,11 @@ export const TimeView: React.FC = () => {
   return (
     <div className="space-y-4 text-xs">
       {/* Top Banner & KPI Cards */}
-      <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-4">
+      <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs space-y-4">
         <div className="flex flex-wrap justify-between items-center gap-3">
           <div>
             <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-              <Timer className="w-5 h-5 text-[#A9814A]" />
+              <Timer className="w-5 h-5 text-[#3D6B9C]" />
               Billable Time Entries Register
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -287,14 +287,14 @@ export const TimeView: React.FC = () => {
           <div className="flex gap-2">
             <button
               onClick={handleExportCsv}
-              className="border border-[#E1DCCF] hover:bg-slate-50 text-slate-800 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="border border-[#DDE3EB] hover:bg-slate-50 text-slate-800 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
             >
-              <Download className="w-4 h-4 text-[#A9814A]" />
+              <Download className="w-4 h-4 text-[#3D6B9C]" />
               <span>Export CSV</span>
             </button>
             <button
               onClick={handleOpenNewModal}
-              className="bg-[#16223A] hover:bg-[#1F2E4D] text-white text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              className="bg-[#16223A] hover:bg-[#16223A] text-white text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
             >
               <Plus className="w-4 h-4" />
               <span>Key In Time Entry</span>
@@ -304,7 +304,7 @@ export const TimeView: React.FC = () => {
 
         {/* Metrics Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-100">
-          <div className="p-3 bg-[#FAF8F2] border border-[#E1DCCF]/60 rounded-lg">
+          <div className="p-3 bg-[#F6F8FA] border border-[#DDE3EB]/60 rounded-lg">
             <div className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Total Hours Logged</div>
             <div className="text-xl font-bold font-mono text-[#16223A] mt-1">{totalLoggedHours.toFixed(1)} hrs</div>
             <div className="text-[10px] text-slate-500 mt-0.5">{timeEntries.length} entries recorded</div>
@@ -335,7 +335,7 @@ export const TimeView: React.FC = () => {
       </div>
 
       {/* Filter Controls Bar */}
-      <div className="bg-white border border-[#E1DCCF] p-3 rounded-xl flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-white border border-[#DDE3EB] p-3 rounded-xl flex flex-wrap items-center justify-between gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
           <input
@@ -349,7 +349,7 @@ export const TimeView: React.FC = () => {
 
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
-            <Filter className="w-3.5 h-3.5 text-[#A9814A]" />
+            <Filter className="w-3.5 h-3.5 text-[#3D6B9C]" />
             <span>Status:</span>
           </div>
           <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
@@ -393,10 +393,10 @@ export const TimeView: React.FC = () => {
       </div>
 
       {/* Table Register */}
-      <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
-            <tr className="bg-[#F6F4EE] border-b border-[#E1DCCF] text-[10px] uppercase text-slate-600">
+            <tr className="bg-[#F6F8FA] border-b border-[#DDE3EB] text-[10px] uppercase text-slate-600">
               <th className="p-3 font-bold">Matter Ref &amp; Client</th>
               <th className="p-3 font-bold">Fee Earner</th>
               <th className="p-3 font-bold">Date</th>
@@ -421,7 +421,7 @@ export const TimeView: React.FC = () => {
                 const clientObj = cs ? clients.find((cl) => cl.id === cs.clientId) : null;
 
                 return (
-                  <tr key={t.id} className="hover:bg-[#FAF8F2]">
+                  <tr key={t.id} className="hover:bg-[#F6F8FA]">
                     <td className="p-3 font-mono">
                       <span className="ref-seal block">{cs ? cs.ref : '—'}</span>
                       <span className="text-[10px] font-sans text-slate-500 truncate block max-w-[150px]">
@@ -482,9 +482,9 @@ export const TimeView: React.FC = () => {
       {/* Key In / Edit Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#E1DCCF]">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#DDE3EB]">
             <h3 className="font-serif text-lg font-bold text-[#16223A] mb-3 flex items-center gap-2">
-              <Timer className="w-5 h-5 text-[#A9814A]" />
+              <Timer className="w-5 h-5 text-[#3D6B9C]" />
               {editingId ? 'Edit Billable Time Entry' : 'Key In Billable Time Entry'}
             </h3>
 
@@ -613,13 +613,13 @@ export const TimeView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 border border-[#E1DCCF] text-slate-700 rounded-md font-semibold cursor-pointer hover:bg-slate-50"
+                  className="px-4 py-2 border border-[#DDE3EB] text-slate-700 rounded-md font-semibold cursor-pointer hover:bg-slate-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded-md font-semibold cursor-pointer shadow-xs"
+                  className="px-4 py-2 bg-[#16223A] hover:bg-[#16223A] text-white rounded-md font-semibold cursor-pointer shadow-xs"
                 >
                   {editingId ? 'Update Entry' : 'Save Entry'}
                 </button>
@@ -894,11 +894,11 @@ const _LegacyExpensesView: React.FC = () => {
   return (
     <div className="space-y-4 text-xs">
       {/* Top Banner & KPI Summary Cards */}
-      <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-4">
+      <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs space-y-4">
         <div className="flex flex-wrap justify-between items-center gap-3">
           <div>
             <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-              <ReceiptIcon className="w-5 h-5 text-[#A9814A]" />
+              <ReceiptIcon className="w-5 h-5 text-[#3D6B9C]" />
               Disbursements &amp; Firm Expenses Register
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -908,14 +908,14 @@ const _LegacyExpensesView: React.FC = () => {
           <div className="flex gap-2">
             <button
               onClick={handleExportCsv}
-              className="border border-[#E1DCCF] hover:bg-slate-50 text-slate-800 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="border border-[#DDE3EB] hover:bg-slate-50 text-slate-800 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
             >
-              <Download className="w-4 h-4 text-[#A9814A]" />
+              <Download className="w-4 h-4 text-[#3D6B9C]" />
               <span>Export CSV</span>
             </button>
             <button
               onClick={handleOpenNewModal}
-              className="bg-[#16223A] hover:bg-[#1F2E4D] text-white text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              className="bg-[#16223A] hover:bg-[#16223A] text-white text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
             >
               <Plus className="w-4 h-4" />
               <span>Key In Expense / Disbursement</span>
@@ -960,7 +960,7 @@ const _LegacyExpensesView: React.FC = () => {
       </div>
 
       {/* Filter Bar */}
-      <div className="bg-white border border-[#E1DCCF] p-3 rounded-xl flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-white border border-[#DDE3EB] p-3 rounded-xl flex flex-wrap items-center justify-between gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
           <input
@@ -974,7 +974,7 @@ const _LegacyExpensesView: React.FC = () => {
 
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1.5 text-slate-600 font-semibold text-[11px]">
-            <Filter className="w-3.5 h-3.5 text-[#A9814A]" />
+            <Filter className="w-3.5 h-3.5 text-[#3D6B9C]" />
             <span>Scope:</span>
           </div>
           <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
@@ -1018,10 +1018,10 @@ const _LegacyExpensesView: React.FC = () => {
       </div>
 
       {/* Expense Register Table */}
-      <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
-            <tr className="bg-[#F6F4EE] border-b border-[#E1DCCF] text-[10px] uppercase text-slate-600">
+            <tr className="bg-[#F6F8FA] border-b border-[#DDE3EB] text-[10px] uppercase text-slate-600">
               <th className="p-3 font-bold">Scope / Target</th>
               <th className="p-3 font-bold">Date</th>
               <th className="p-3 font-bold">Category</th>
@@ -1045,7 +1045,7 @@ const _LegacyExpensesView: React.FC = () => {
                 const hasDoc = e.attachmentName || (e.description && e.description.includes('[Doc:'));
 
                 return (
-                  <tr key={e.id} className="hover:bg-[#FAF8F2]">
+                  <tr key={e.id} className="hover:bg-[#F6F8FA]">
                     <td className="p-3 font-mono">
                       {isFirm ? (
                         <span className="px-2 py-0.5 bg-blue-100 text-blue-900 text-[10px] font-bold rounded">
@@ -1131,9 +1131,9 @@ const _LegacyExpensesView: React.FC = () => {
       {/* Key In Expense Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#E1DCCF]">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#DDE3EB]">
             <h3 className="font-serif text-lg font-bold text-[#16223A] mb-3 flex items-center gap-2">
-              <ReceiptIcon className="w-5 h-5 text-[#A9814A]" />
+              <ReceiptIcon className="w-5 h-5 text-[#3D6B9C]" />
               {editingId ? 'Edit Financial Record' : 'Record Expense / Disbursement'}
             </h3>
 
@@ -1289,7 +1289,7 @@ const _LegacyExpensesView: React.FC = () => {
 
               <div>
                 <label className="font-bold text-slate-700 block uppercase mb-1 flex items-center gap-1">
-                  <Paperclip className="w-3.5 h-3.5 text-[#A9814A]" />
+                  <Paperclip className="w-3.5 h-3.5 text-[#3D6B9C]" />
                   Upload / Attach Supporting Document (Receipt / Bill)
                 </label>
                 <input
@@ -1308,13 +1308,13 @@ const _LegacyExpensesView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 border border-[#E1DCCF] text-slate-700 rounded-md font-semibold cursor-pointer hover:bg-slate-50"
+                  className="px-4 py-2 border border-[#DDE3EB] text-slate-700 rounded-md font-semibold cursor-pointer hover:bg-slate-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded-md font-semibold cursor-pointer shadow-xs"
+                  className="px-4 py-2 bg-[#16223A] hover:bg-[#16223A] text-white rounded-md font-semibold cursor-pointer shadow-xs"
                 >
                   {editingId ? 'Update Record' : 'Save Record'}
                 </button>
@@ -1401,10 +1401,10 @@ export const AutoPvPromptModal: React.FC<{
 
   return (
     <div className="fixed inset-0 bg-[#16223A]/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#E1DCCF] text-xs space-y-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#DDE3EB] text-xs space-y-4">
         <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
           <div className="p-2 bg-amber-100 rounded-lg text-amber-900 mt-0.5">
-            <ReceiptIcon className="w-5 h-5 text-[#A9814A]" />
+            <ReceiptIcon className="w-5 h-5 text-[#3D6B9C]" />
           </div>
           <div>
             <div className="flex items-center gap-2 text-amber-900 font-bold text-sm">
@@ -1507,14 +1507,14 @@ export const AutoPvPromptModal: React.FC<{
               type="button"
               onClick={onClose}
               disabled={isSendingEmail}
-              className="px-3 py-1.5 border border-[#E1DCCF] text-slate-600 hover:bg-slate-50 rounded-md font-semibold cursor-pointer text-xs"
+              className="px-3 py-1.5 border border-[#DDE3EB] text-slate-600 hover:bg-slate-50 rounded-md font-semibold cursor-pointer text-xs"
             >
               Skip PV for Now
             </button>
             <button
               type="submit"
               disabled={isSendingEmail}
-              className="px-4 py-1.5 bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded-md font-semibold cursor-pointer flex items-center gap-1.5 text-xs shadow-xs disabled:opacity-60"
+              className="px-4 py-1.5 bg-[#16223A] hover:bg-[#16223A] text-white rounded-md font-semibold cursor-pointer flex items-center gap-1.5 text-xs shadow-xs disabled:opacity-60"
             >
               {isSendingEmail ? (
                 <>
@@ -1594,10 +1594,10 @@ export const TravelClaimsView: React.FC = () => {
 
   return (
     <div className="space-y-4 text-xs">
-      <div className="flex justify-between items-center bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+      <div className="flex justify-between items-center bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
         <div>
           <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-            <Car className="w-5 h-5 text-[#A9814A]" />
+            <Car className="w-5 h-5 text-[#3D6B9C]" />
             Travel &amp; Mileage Claims (RM 1.00 / KM Scale)
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -1606,17 +1606,17 @@ export const TravelClaimsView: React.FC = () => {
         </div>
         <button
           onClick={() => setIsModalOpen(true)}
-          className="bg-[#16223A] hover:bg-[#1F2E4D] text-[#F6F4EE] text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+          className="bg-[#16223A] hover:bg-[#16223A] text-[#F6F8FA] text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
         >
           <Plus className="w-4 h-4" />
           <span>New Travel Claim</span>
         </button>
       </div>
 
-      <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
-            <tr className="bg-[#F6F4EE] border-b border-[#E1DCCF] text-[10px] uppercase text-slate-600">
+            <tr className="bg-[#F6F8FA] border-b border-[#DDE3EB] text-[10px] uppercase text-slate-600">
               <th className="p-3 font-bold">Claim ID &amp; Date</th>
               <th className="p-3 font-bold">Claimant</th>
               <th className="p-3 font-bold">Purpose Type</th>
@@ -1636,7 +1636,7 @@ export const TravelClaimsView: React.FC = () => {
               );
 
               return (
-                <tr key={t.id} className="hover:bg-[#FAF8F2]">
+                <tr key={t.id} className="hover:bg-[#F6F8FA]">
                   <td className="p-3 font-mono">
                     <span className="font-bold text-[#16223A] block">{t.id}</span>
                     <span className="text-slate-500 text-[10px]">{t.date}</span>
@@ -1684,15 +1684,15 @@ export const TravelClaimsView: React.FC = () => {
                     {matchingPv ? (
                       <button
                         onClick={() => setPreviewPvId(matchingPv.id)}
-                        className="px-2.5 py-1 text-[11px] border border-[#E1DCCF] text-slate-800 hover:bg-slate-100 rounded font-semibold cursor-pointer inline-flex items-center gap-1"
+                        className="px-2.5 py-1 text-[11px] border border-[#DDE3EB] text-slate-800 hover:bg-slate-100 rounded font-semibold cursor-pointer inline-flex items-center gap-1"
                       >
-                        <ReceiptIcon className="w-3 h-3 text-[#A9814A]" />
+                        <ReceiptIcon className="w-3 h-3 text-[#3D6B9C]" />
                         <span>Preview PV</span>
                       </button>
                     ) : (
                       <button
                         onClick={() => setPendingPromptClaim(t)}
-                        className="px-2.5 py-1 text-[11px] bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded font-semibold cursor-pointer inline-flex items-center gap-1"
+                        className="px-2.5 py-1 text-[11px] bg-[#16223A] hover:bg-[#16223A] text-white rounded font-semibold cursor-pointer inline-flex items-center gap-1"
                       >
                         <Plus className="w-3 h-3 text-amber-300" />
                         <span>Generate PV</span>
@@ -1727,9 +1727,9 @@ export const TravelClaimsView: React.FC = () => {
       {/* New Travel Claim Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 border border-[#E1DCCF] max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 border border-[#DDE3EB] max-h-[90vh] overflow-y-auto">
             <h3 className="font-serif text-lg font-bold text-[#16223A] mb-3 flex items-center gap-2">
-              <Car className="w-5 h-5 text-[#A9814A]" />
+              <Car className="w-5 h-5 text-[#3D6B9C]" />
               Submit Travel / Mileage Claim
             </h3>
             <form onSubmit={handleSaveClaim} className="space-y-3 text-xs">
@@ -1885,7 +1885,7 @@ export const TravelClaimsView: React.FC = () => {
               </div>
 
               <div className="p-2.5 bg-amber-50 border border-amber-200 text-amber-900 rounded text-[11px] flex items-center gap-1.5 font-medium">
-                <ReceiptIcon className="w-4 h-4 text-[#A9814A] shrink-0" />
+                <ReceiptIcon className="w-4 h-4 text-[#3D6B9C] shrink-0" />
                 <span>Submitting this claim will automatically prompt to generate the Payment Voucher (PV) for Partner Sign-Off.</span>
               </div>
 
@@ -1893,13 +1893,13 @@ export const TravelClaimsView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 border border-[#E1DCCF] text-slate-700 rounded-md font-semibold cursor-pointer"
+                  className="px-4 py-2 border border-[#DDE3EB] text-slate-700 rounded-md font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded-md font-semibold cursor-pointer"
+                  className="px-4 py-2 bg-[#16223A] hover:bg-[#16223A] text-white rounded-md font-semibold cursor-pointer"
                 >
                   Submit &amp; Prompt PV
                 </button>
@@ -2108,10 +2108,10 @@ export const InvoicesView: React.FC = () => {
 
   return (
     <div className="space-y-4 text-xs">
-      <div className="flex flex-wrap justify-between items-center bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs gap-3">
+      <div className="flex flex-wrap justify-between items-center bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs gap-3">
         <div>
           <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-            <FileSpreadsheet className="w-5 h-5 text-[#A9814A]" />
+            <FileSpreadsheet className="w-5 h-5 text-[#3D6B9C]" />
             Tax &amp; Billing Invoices Register
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">Issue &amp; track fee invoices (with taxable or non-taxable options).</p>
@@ -2119,14 +2119,14 @@ export const InvoicesView: React.FC = () => {
         <div className="flex gap-2">
           <button
             onClick={handleExportCsv}
-            className="border border-[#E1DCCF] hover:bg-slate-50 text-slate-800 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="border border-[#DDE3EB] hover:bg-slate-50 text-slate-800 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
           >
-            <Download className="w-4 h-4 text-[#A9814A]" />
+            <Download className="w-4 h-4 text-[#3D6B9C]" />
             <span>Export CSV / Sheets</span>
           </button>
           <button
             onClick={() => setIsModalOpen(true)}
-            className="bg-[#16223A] hover:bg-[#1F2E4D] text-white text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+            className="bg-[#16223A] hover:bg-[#16223A] text-white text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
           >
             <Plus className="w-4 h-4" />
             <span>Issue Tax Invoice</span>
@@ -2134,10 +2134,10 @@ export const InvoicesView: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
-            <tr className="bg-[#F6F4EE] border-b border-[#E1DCCF] text-[10px] uppercase text-slate-600">
+            <tr className="bg-[#F6F8FA] border-b border-[#DDE3EB] text-[10px] uppercase text-slate-600">
               <th className="p-3 font-bold">Invoice No</th>
               <th className="p-3 font-bold">Client Name</th>
               <th className="p-3 font-bold">Matter Ref</th>
@@ -2154,7 +2154,7 @@ export const InvoicesView: React.FC = () => {
               const cs = cases.find((c) => c.id === i.caseId);
 
               return (
-                <tr key={i.id} className="hover:bg-[#FAF8F2]">
+                <tr key={i.id} className="hover:bg-[#F6F8FA]">
                   <td className="p-3 font-mono font-bold text-slate-800">{i.id}</td>
                   <td className="p-3 font-bold text-[#16223A]">{client ? client.name : '—'}</td>
                   <td className="p-3">
@@ -2178,8 +2178,8 @@ export const InvoicesView: React.FC = () => {
                   </td>
                   <td className="p-3 text-right">
                     <div className="flex items-center justify-end gap-1.5">
-                      <button onClick={() => setDocPreviewId(i.id)} className="px-2.5 py-1 text-[11px] border border-[#E1DCCF] text-slate-800 hover:bg-slate-100 rounded-md font-semibold cursor-pointer flex items-center gap-1" title="View invoice"><Eye className="w-3.5 h-3.5 text-slate-500" /><span>View</span></button>
-                      <button onClick={() => handleOpenInvoiceEdit(i)} disabled={i.status === 'Paid' || i.status === 'Voided'} className="px-2.5 py-1 text-[11px] border border-[#A9814A] text-[#7b5b2e] hover:bg-amber-50 rounded-md font-semibold cursor-pointer disabled:cursor-not-allowed disabled:opacity-40" title="Edit unpaid invoice line items">Edit</button>
+                      <button onClick={() => setDocPreviewId(i.id)} className="px-2.5 py-1 text-[11px] border border-[#DDE3EB] text-slate-800 hover:bg-slate-100 rounded-md font-semibold cursor-pointer flex items-center gap-1" title="View invoice"><Eye className="w-3.5 h-3.5 text-slate-500" /><span>View</span></button>
+                      <button onClick={() => handleOpenInvoiceEdit(i)} disabled={i.status === 'Paid' || i.status === 'Voided'} className="px-2.5 py-1 text-[11px] border border-[#3D6B9C] text-[#8A6D3B] hover:bg-amber-50 rounded-md font-semibold cursor-pointer disabled:cursor-not-allowed disabled:opacity-40" title="Edit unpaid invoice line items">Edit</button>
                     </div>
                   </td>
                 </tr>
@@ -2195,7 +2195,7 @@ export const InvoicesView: React.FC = () => {
 
       {editingInvoice && (
         <div className="fixed inset-0 bg-[#16223A]/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 border border-[#E2E5E9] max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 border border-[#DDE3EB] max-h-[90vh] overflow-y-auto">
             <h3 className="font-serif text-lg font-bold text-[#16223A] mb-1">Edit Invoice {editingInvoice.id}</h3>
             <p className="text-xs text-slate-500 mb-4">Update billing lines before payment. Paid and voided invoices are locked.</p>
             <form onSubmit={handleSaveInvoiceEdit} className="space-y-4">
@@ -2210,9 +2210,9 @@ export const InvoicesView: React.FC = () => {
       {/* Key In Invoice Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 border border-[#E1DCCF] max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 border border-[#DDE3EB] max-h-[90vh] overflow-y-auto">
             <h3 className="font-serif text-lg font-bold text-[#16223A] mb-3 flex items-center gap-2">
-              <FileSpreadsheet className="w-5 h-5 text-[#A9814A]" />
+              <FileSpreadsheet className="w-5 h-5 text-[#3D6B9C]" />
               Issue New Invoice
             </h3>
             <form onSubmit={handleSaveInvoice} className="space-y-3 text-xs">
@@ -2248,7 +2248,7 @@ export const InvoicesView: React.FC = () => {
               </div>
 
               {/* Centralized Billing Engine Box */}
-              <div className="p-3 bg-[#FAF8F2] border border-[#E1DCCF] rounded-lg space-y-2">
+              <div className="p-3 bg-[#F6F8FA] border border-[#DDE3EB] rounded-lg space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-[#16223A] flex items-center gap-1 text-[11px]">
                     ⚡ Centralized Billing &amp; Claim Integration
@@ -2259,7 +2259,7 @@ export const InvoicesView: React.FC = () => {
                 </div>
 
                 {/* Upfront Client Deposit Budget Header */}
-                <div className="p-2 bg-white border border-[#E1DCCF] rounded flex items-center justify-between text-[11px]">
+                <div className="p-2 bg-white border border-[#DDE3EB] rounded flex items-center justify-between text-[11px]">
                   <div>
                     <span className="text-slate-600 font-medium">Client Upfront Trust Retainer: </span>
                     <span className="font-mono font-bold text-emerald-800">
@@ -2439,13 +2439,13 @@ export const InvoicesView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 border border-[#E1DCCF] text-slate-700 rounded-md font-semibold cursor-pointer"
+                  className="px-4 py-2 border border-[#DDE3EB] text-slate-700 rounded-md font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded-md font-semibold cursor-pointer"
+                  className="px-4 py-2 bg-[#16223A] hover:bg-[#16223A] text-white rounded-md font-semibold cursor-pointer"
                 >
                   Save &amp; Issue Invoice
                 </button>
@@ -2682,11 +2682,11 @@ export const PaymentsView: React.FC = () => {
   return (
     <div className="space-y-4 text-xs">
       {/* Top Banner & Tab Control */}
-      <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-3">
+      <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs space-y-3">
         <div className="flex justify-between items-start">
           <div>
             <h2 className="font-serif text-xl font-bold text-[#16223A] flex items-center gap-2">
-              <CreditCard className="w-6 h-6 text-[#A9814A]" />
+              <CreditCard className="w-6 h-6 text-[#3D6B9C]" />
               Unified Accounting, Claims &amp; Payment Hub
             </h2>
             <p className="text-xs text-slate-500 mt-1">
@@ -2698,14 +2698,14 @@ export const PaymentsView: React.FC = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIsNewClaimOpen(true)}
-              className="bg-[#16223A] hover:bg-[#1F2E4D] text-[#F6F4EE] text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer shadow-xs"
+              className="bg-[#16223A] hover:bg-[#16223A] text-[#F6F8FA] text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
               <Car className="w-4 h-4 text-amber-300" />
               <span>+ Travel Mileage Claim</span>
             </button>
             <button
               onClick={() => setIsNewPvOpen(true)}
-              className="bg-[#16223A] hover:bg-[#1F2E4D] text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer shadow-xs"
+              className="bg-[#16223A] hover:bg-[#16223A] text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
               <ReceiptIcon className="w-4 h-4 text-emerald-300" />
               <span>+ Payment Voucher</span>
@@ -2721,12 +2721,12 @@ export const PaymentsView: React.FC = () => {
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex border-b border-[#E1DCCF] gap-1 pt-2">
+        <div className="flex border-b border-[#DDE3EB] gap-1 pt-2">
           <button
             onClick={() => setActiveTab('OVERVIEW')}
             className={`px-4 py-2 font-bold text-xs flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
               activeTab === 'OVERVIEW'
-                ? 'border-[#A9814A] text-[#16223A] bg-[#FAF8F2]'
+                ? 'border-[#3D6B9C] text-[#16223A] bg-[#F6F8FA]'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -2737,7 +2737,7 @@ export const PaymentsView: React.FC = () => {
             onClick={() => setActiveTab('CLAIMS')}
             className={`px-4 py-2 font-bold text-xs flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
               activeTab === 'CLAIMS'
-                ? 'border-[#A9814A] text-[#16223A] bg-[#FAF8F2]'
+                ? 'border-[#3D6B9C] text-[#16223A] bg-[#F6F8FA]'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -2748,7 +2748,7 @@ export const PaymentsView: React.FC = () => {
             onClick={() => setActiveTab('VOUCHERS')}
             className={`px-4 py-2 font-bold text-xs flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
               activeTab === 'VOUCHERS'
-                ? 'border-[#A9814A] text-[#16223A] bg-[#FAF8F2]'
+                ? 'border-[#3D6B9C] text-[#16223A] bg-[#F6F8FA]'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -2759,7 +2759,7 @@ export const PaymentsView: React.FC = () => {
             onClick={() => setActiveTab('COLLECTIONS')}
             className={`px-4 py-2 font-bold text-xs flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
               activeTab === 'COLLECTIONS'
-                ? 'border-[#A9814A] text-[#16223A] bg-[#FAF8F2]'
+                ? 'border-[#3D6B9C] text-[#16223A] bg-[#F6F8FA]'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -2793,7 +2793,7 @@ export const PaymentsView: React.FC = () => {
         <div className="space-y-4">
           {/* Executive Summary Cards */}
           <div className="grid grid-cols-4 gap-3">
-            <div className="p-3.5 bg-white border border-[#E1DCCF] rounded-xl shadow-xs">
+            <div className="p-3.5 bg-white border border-[#DDE3EB] rounded-xl shadow-xs">
               <span className="text-[10px] uppercase font-bold text-slate-500 block">Total Invoice Collections</span>
               <span className="font-mono text-lg font-bold text-emerald-800 block mt-0.5">
                 RM {totalCollections.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
@@ -2801,7 +2801,7 @@ export const PaymentsView: React.FC = () => {
               <span className="text-[10px] text-slate-400 mt-1 block">Inflows received from client tax invoices</span>
             </div>
 
-            <div className="p-3.5 bg-white border border-[#E1DCCF] rounded-xl shadow-xs">
+            <div className="p-3.5 bg-white border border-[#DDE3EB] rounded-xl shadow-xs">
               <span className="text-[10px] uppercase font-bold text-slate-500 block">Travel Mileage Claims</span>
               <span className="font-mono text-lg font-bold text-[#16223A] block mt-0.5">
                 RM {totalTravelClaims.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
@@ -2830,7 +2830,7 @@ export const PaymentsView: React.FC = () => {
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-amber-100 text-amber-900 rounded-lg">
-                <ReceiptIcon className="w-5 h-5 text-[#A9814A]" />
+                <ReceiptIcon className="w-5 h-5 text-[#3D6B9C]" />
               </div>
               <div>
                 <h4 className="font-serif font-bold text-amber-950 text-xs">
@@ -2843,17 +2843,17 @@ export const PaymentsView: React.FC = () => {
             </div>
             <button
               onClick={() => setIsNewClaimOpen(true)}
-              className="px-3 py-1.5 bg-[#16223A] text-white rounded font-bold text-xs hover:bg-[#1F2E4D] cursor-pointer shrink-0"
+              className="px-3 py-1.5 bg-[#16223A] text-white rounded font-bold text-xs hover:bg-[#16223A] cursor-pointer shrink-0"
             >
               Test Integrated Claim Flow
             </button>
           </div>
 
           {/* Integrated Real-Time Financial Ledger */}
-          <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs">
-            <div className="p-3 bg-[#F6F4EE] border-b border-[#E1DCCF] flex justify-between items-center">
+          <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs">
+            <div className="p-3 bg-[#F6F8FA] border-b border-[#DDE3EB] flex justify-between items-center">
               <h3 className="font-serif font-bold text-[#16223A] text-xs flex items-center gap-1.5">
-                <Layers className="w-4 h-4 text-[#A9814A]" />
+                <Layers className="w-4 h-4 text-[#3D6B9C]" />
                 Unified Real-Time Accounting &amp; Expense Ledger
               </h3>
               <span className="text-[11px] text-slate-500 font-mono">
@@ -2863,7 +2863,7 @@ export const PaymentsView: React.FC = () => {
 
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b border-[#E1DCCF] text-[10px] uppercase text-slate-600">
+                <tr className="bg-slate-50 border-b border-[#DDE3EB] text-[10px] uppercase text-slate-600">
                   <th className="p-3 font-bold">Ref ID &amp; Date</th>
                   <th className="p-3 font-bold">Record Category</th>
                   <th className="p-3 font-bold">Matter / File Ref</th>
@@ -2874,7 +2874,7 @@ export const PaymentsView: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {combinedLedger.map((item) => (
-                  <tr key={`${item.type}-${item.id}`} className="hover:bg-[#FAF8F2]">
+                  <tr key={`${item.type}-${item.id}`} className="hover:bg-[#F6F8FA]">
                     <td className="p-3 font-mono">
                       <span className="font-bold text-[#16223A] block">{item.id}</span>
                       <span className="text-slate-500 text-[10px]">{item.date}</span>
@@ -2937,27 +2937,27 @@ export const PaymentsView: React.FC = () => {
       {/* TAB 4: INVOICE COLLECTIONS */}
       {activeTab === 'COLLECTIONS' && (
         <div className="space-y-4">
-          <div className="flex justify-between items-center bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+          <div className="flex justify-between items-center bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
             <div>
               <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-                <CreditCard className="w-5 h-5 text-[#A9814A]" />
+                <CreditCard className="w-5 h-5 text-[#3D6B9C]" />
                 Invoice Collections &amp; Payments Received Register
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">Record payments received against client tax invoices.</p>
             </div>
             <button
               onClick={() => setIsRecordPaymentOpen(true)}
-              className="bg-[#16223A] hover:bg-[#1F2E4D] text-white text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              className="bg-[#16223A] hover:bg-[#16223A] text-white text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
             >
               <Plus className="w-4 h-4" />
               <span>Record Payment Received</span>
             </button>
           </div>
 
-          <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs">
+          <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-[#F6F4EE] border-b border-[#E1DCCF] text-[10px] uppercase text-slate-600">
+                <tr className="bg-[#F6F8FA] border-b border-[#DDE3EB] text-[10px] uppercase text-slate-600">
                   <th className="p-3 font-bold">Receipt / OR No</th>
                   <th className="p-3 font-bold">Invoice ID</th>
                   <th className="p-3 font-bold text-right">Amount Paid (RM)</th>
@@ -2967,7 +2967,7 @@ export const PaymentsView: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {payments.map((p) => (
-                  <tr key={p.id} className="hover:bg-[#FAF8F2]">
+                  <tr key={p.id} className="hover:bg-[#F6F8FA]">
                     <td className="p-3 font-mono font-bold text-slate-800">{p.id}</td>
                     <td className="p-3 font-mono text-slate-700">{p.invoiceId}</td>
                     <td className="p-3 text-right font-mono font-bold text-emerald-800">
@@ -3027,10 +3027,10 @@ export const PaymentsView: React.FC = () => {
           </div>
 
           {/* Email Outbox Log Table */}
-          <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs">
-            <div className="p-3 bg-[#F6F4EE] border-b border-[#E1DCCF] flex justify-between items-center">
+          <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs">
+            <div className="p-3 bg-[#F6F8FA] border-b border-[#DDE3EB] flex justify-between items-center">
               <h4 className="font-serif font-bold text-[#16223A] text-xs flex items-center gap-1.5">
-                <Inbox className="w-4 h-4 text-[#A9814A]" />
+                <Inbox className="w-4 h-4 text-[#3D6B9C]" />
                 Google Workspace Email Dispatch Audit Log ({emailLogs.length})
               </h4>
               <button
@@ -3043,7 +3043,7 @@ export const PaymentsView: React.FC = () => {
 
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b border-[#E1DCCF] text-[10px] uppercase text-slate-600">
+                <tr className="bg-slate-50 border-b border-[#DDE3EB] text-[10px] uppercase text-slate-600">
                   <th className="p-3 font-bold">Log Ref &amp; Time</th>
                   <th className="p-3 font-bold">Recipient</th>
                   <th className="p-3 font-bold">Subject</th>
@@ -3060,7 +3060,7 @@ export const PaymentsView: React.FC = () => {
                   </tr>
                 ) : (
                   emailLogs.map((log) => (
-                    <tr key={log.id} className="hover:bg-[#FAF8F2]">
+                    <tr key={log.id} className="hover:bg-[#F6F8FA]">
                       <td className="p-3 font-mono">
                         <span className="font-bold text-[#16223A] block">{log.id}</span>
                         <span className="text-slate-500 text-[10px]">
@@ -3096,9 +3096,9 @@ export const PaymentsView: React.FC = () => {
       {/* Record Payment Modal */}
       {isRecordPaymentOpen && (
         <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#E1DCCF]">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#DDE3EB]">
             <h3 className="font-serif text-lg font-bold text-[#16223A] mb-3 flex items-center gap-2">
-              <CreditCard className="w-5 h-5 text-[#A9814A]" />
+              <CreditCard className="w-5 h-5 text-[#3D6B9C]" />
               Key In Invoice Payment Received
             </h3>
             <form onSubmit={handleSavePayment} className="space-y-3 text-xs">
@@ -3155,13 +3155,13 @@ export const PaymentsView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsRecordPaymentOpen(false)}
-                  className="px-4 py-2 border border-[#E1DCCF] text-slate-700 rounded-md font-semibold cursor-pointer"
+                  className="px-4 py-2 border border-[#DDE3EB] text-slate-700 rounded-md font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded-md font-semibold cursor-pointer"
+                  className="px-4 py-2 bg-[#16223A] hover:bg-[#16223A] text-white rounded-md font-semibold cursor-pointer"
                 >
                   Save &amp; Issue Receipt
                 </button>
@@ -3174,9 +3174,9 @@ export const PaymentsView: React.FC = () => {
       {/* New Travel Claim Modal */}
       {isNewClaimOpen && (
         <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 border border-[#E1DCCF] max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 border border-[#DDE3EB] max-h-[90vh] overflow-y-auto">
             <h3 className="font-serif text-lg font-bold text-[#16223A] mb-3 flex items-center gap-2">
-              <Car className="w-5 h-5 text-[#A9814A]" />
+              <Car className="w-5 h-5 text-[#3D6B9C]" />
               Submit Travel / Mileage Claim
             </h3>
             <form onSubmit={handleSaveClaim} className="space-y-3 text-xs">
@@ -3332,7 +3332,7 @@ export const PaymentsView: React.FC = () => {
               </div>
 
               <div className="p-2.5 bg-amber-50 border border-amber-200 text-amber-900 rounded text-[11px] flex items-center gap-1.5 font-medium">
-                <ReceiptIcon className="w-4 h-4 text-[#A9814A] shrink-0" />
+                <ReceiptIcon className="w-4 h-4 text-[#3D6B9C] shrink-0" />
                 <span>Submitting this claim will automatically prompt to generate the Payment Voucher (PV) for Partner Sign-Off.</span>
               </div>
 
@@ -3340,13 +3340,13 @@ export const PaymentsView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsNewClaimOpen(false)}
-                  className="px-4 py-2 border border-[#E1DCCF] text-slate-700 rounded-md font-semibold cursor-pointer"
+                  className="px-4 py-2 border border-[#DDE3EB] text-slate-700 rounded-md font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded-md font-semibold cursor-pointer"
+                  className="px-4 py-2 bg-[#16223A] hover:bg-[#16223A] text-white rounded-md font-semibold cursor-pointer"
                 >
                   Submit &amp; Prompt PV
                 </button>
@@ -3359,9 +3359,9 @@ export const PaymentsView: React.FC = () => {
       {/* New Payment Voucher Modal */}
       {isNewPvOpen && (
         <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 border border-[#E1DCCF] max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 border border-[#DDE3EB] max-h-[90vh] overflow-y-auto">
             <h3 className="font-serif text-lg font-bold text-[#16223A] mb-3 flex items-center gap-2">
-              <ReceiptIcon className="w-5 h-5 text-[#A9814A]" />
+              <ReceiptIcon className="w-5 h-5 text-[#3D6B9C]" />
               Create Payment Voucher (PV)
             </h3>
             <form onSubmit={handleSavePv} className="space-y-3 text-xs">
@@ -3442,13 +3442,13 @@ export const PaymentsView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsNewPvOpen(false)}
-                  className="px-4 py-2 border border-[#E1DCCF] text-slate-700 rounded-md font-semibold cursor-pointer"
+                  className="px-4 py-2 border border-[#DDE3EB] text-slate-700 rounded-md font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded-md font-semibold cursor-pointer"
+                  className="px-4 py-2 bg-[#16223A] hover:bg-[#16223A] text-white rounded-md font-semibold cursor-pointer"
                 >
                   Create PV &amp; Queue Approval
                 </button>
@@ -3494,10 +3494,10 @@ export const ReceiptsView: React.FC = () => {
 
   return (
     <div className="space-y-4 text-xs">
-      <div className="flex justify-between items-center bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+      <div className="flex justify-between items-center bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
         <div>
           <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-            <ReceiptIcon className="w-5 h-5 text-[#A9814A]" />
+            <ReceiptIcon className="w-5 h-5 text-[#3D6B9C]" />
             Official Receipts (OR) Register
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -3506,17 +3506,17 @@ export const ReceiptsView: React.FC = () => {
         </div>
         <button
           onClick={() => setIsModalOpen(true)}
-          className="bg-[#16223A] hover:bg-[#1F2E4D] text-white text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+          className="bg-[#16223A] hover:bg-[#16223A] text-white text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
         >
           <Plus className="w-4 h-4" />
           <span>Issue Official Receipt (OR)</span>
         </button>
       </div>
 
-      <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
-            <tr className="bg-[#F6F4EE] border-b border-[#E1DCCF] text-[10px] uppercase text-slate-600">
+            <tr className="bg-[#F6F8FA] border-b border-[#DDE3EB] text-[10px] uppercase text-slate-600">
               <th className="p-3 font-bold">OR No</th>
               <th className="p-3 font-bold">Date</th>
               <th className="p-3 font-bold">Account Set</th>
@@ -3528,7 +3528,7 @@ export const ReceiptsView: React.FC = () => {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {receipts.map((r) => (
-              <tr key={r.id} className="hover:bg-[#FAF8F2]">
+              <tr key={r.id} className="hover:bg-[#F6F8FA]">
                 <td className="p-3 font-mono font-bold text-slate-800">{r.id}</td>
                 <td className="p-3 font-mono text-slate-600">{r.date}</td>
                 <td className="p-3">
@@ -3550,7 +3550,7 @@ export const ReceiptsView: React.FC = () => {
                 <td className="p-3 text-right">
                   <button
                     onClick={() => setDocPreviewId(r.id)}
-                    className="px-2.5 py-1 text-[11px] border border-[#E1DCCF] text-slate-800 hover:bg-slate-100 rounded-md font-semibold cursor-pointer flex items-center gap-1 ml-auto"
+                    className="px-2.5 py-1 text-[11px] border border-[#DDE3EB] text-slate-800 hover:bg-slate-100 rounded-md font-semibold cursor-pointer flex items-center gap-1 ml-auto"
                   >
                     <Eye className="w-3.5 h-3.5 text-slate-500" />
                     <span>View OR</span>
@@ -3569,9 +3569,9 @@ export const ReceiptsView: React.FC = () => {
       {/* Key In Receipt Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#E1DCCF]">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#DDE3EB]">
             <h3 className="font-serif text-lg font-bold text-[#16223A] mb-3 flex items-center gap-2">
-              <ReceiptIcon className="w-5 h-5 text-[#A9814A]" />
+              <ReceiptIcon className="w-5 h-5 text-[#3D6B9C]" />
               Issue Official Receipt (OR)
             </h3>
             <form onSubmit={handleSaveReceipt} className="space-y-3 text-xs">
@@ -3653,13 +3653,13 @@ export const ReceiptsView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 border border-[#E1DCCF] text-slate-700 rounded-md font-semibold cursor-pointer"
+                  className="px-4 py-2 border border-[#DDE3EB] text-slate-700 rounded-md font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded-md font-semibold cursor-pointer"
+                  className="px-4 py-2 bg-[#16223A] hover:bg-[#16223A] text-white rounded-md font-semibold cursor-pointer"
                 >
                   Generate Official Receipt
                 </button>
@@ -3755,10 +3755,10 @@ export const PaymentVouchersView: React.FC = () => {
 
   return (
     <div className="space-y-4 text-xs">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
         <div>
           <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-            <ReceiptIcon className="w-5 h-5 text-[#A9814A]" />
+            <ReceiptIcon className="w-5 h-5 text-[#3D6B9C]" />
             Centralized Payment Vouchers (PV) Register
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -3770,15 +3770,15 @@ export const PaymentVouchersView: React.FC = () => {
           <button
             type="button"
             onClick={handleExportCsv}
-            className="border border-[#E1DCCF] hover:bg-slate-50 text-slate-800 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="border border-[#DDE3EB] hover:bg-slate-50 text-slate-800 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
           >
-            <Download className="w-4 h-4 text-[#A9814A]" />
+            <Download className="w-4 h-4 text-[#3D6B9C]" />
             <span>Export CSV / Sheets</span>
           </button>
           <button
             type="button"
             onClick={() => setIsModalOpen(true)}
-            className="bg-[#16223A] hover:bg-[#1F2E4D] text-white text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+            className="bg-[#16223A] hover:bg-[#16223A] text-white text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
           >
             <Plus className="w-4 h-4" />
             <span>Create Payment Voucher</span>
@@ -3787,7 +3787,7 @@ export const PaymentVouchersView: React.FC = () => {
       </div>
 
       {/* 4 Category Quick Tabs */}
-      <div className="flex flex-wrap items-center gap-2 bg-white p-2 border border-[#E1DCCF] rounded-xl shadow-xs">
+      <div className="flex flex-wrap items-center gap-2 bg-white p-2 border border-[#DDE3EB] rounded-xl shadow-xs">
         {categoriesList.map((cat) => (
           <button
             key={cat.id}
@@ -3813,10 +3813,10 @@ export const PaymentVouchersView: React.FC = () => {
         </div>
       )}
 
-      <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
-            <tr className="bg-[#F6F4EE] border-b border-[#E1DCCF] text-[10px] uppercase text-slate-600">
+            <tr className="bg-[#F6F8FA] border-b border-[#DDE3EB] text-[10px] uppercase text-slate-600">
               <th className="p-3 font-bold">PV No</th>
               <th className="p-3 font-bold">Date</th>
               <th className="p-3 font-bold">Category</th>
@@ -3830,7 +3830,7 @@ export const PaymentVouchersView: React.FC = () => {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filteredVouchers.map((pv) => (
-              <tr key={pv.id} className="hover:bg-[#FAF8F2]">
+              <tr key={pv.id} className="hover:bg-[#F6F8FA]">
                 <td className="p-3 font-mono font-bold text-slate-800">{pv.id}</td>
                 <td className="p-3 font-mono text-slate-600">{pv.date}</td>
                 <td className="p-3">
@@ -3882,7 +3882,7 @@ export const PaymentVouchersView: React.FC = () => {
                   )}
                   <button
                     onClick={() => setDocPreviewId(pv.id)}
-                    className="px-2 py-1 text-[11px] border border-[#E1DCCF] text-slate-800 hover:bg-slate-100 rounded font-semibold cursor-pointer"
+                    className="px-2 py-1 text-[11px] border border-[#DDE3EB] text-slate-800 hover:bg-slate-100 rounded font-semibold cursor-pointer"
                   >
                     View PV
                   </button>
@@ -3900,9 +3900,9 @@ export const PaymentVouchersView: React.FC = () => {
       {/* Create PV Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 border border-[#E1DCCF]">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 border border-[#DDE3EB]">
             <h3 className="font-serif text-lg font-bold text-[#16223A] mb-3 flex items-center gap-2">
-              <ReceiptIcon className="w-5 h-5 text-[#A9814A]" />
+              <ReceiptIcon className="w-5 h-5 text-[#3D6B9C]" />
               Create New Payment Voucher (PV)
             </h3>
             <form onSubmit={handleSaveVoucher} className="space-y-3 text-xs">
@@ -4007,13 +4007,13 @@ export const PaymentVouchersView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 border border-[#E1DCCF] text-slate-700 rounded-md font-semibold cursor-pointer"
+                  className="px-4 py-2 border border-[#DDE3EB] text-slate-700 rounded-md font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded-md font-semibold cursor-pointer"
+                  className="px-4 py-2 bg-[#16223A] hover:bg-[#16223A] text-white rounded-md font-semibold cursor-pointer"
                 >
                   Save &amp; Queue PV for Approval
                 </button>
@@ -4066,7 +4066,7 @@ export const RetainersView: React.FC = () => {
 
   return (
     <div className="space-y-4 text-xs">
-      <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
         <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
           <Building className="w-5 h-5 text-purple-800" />
           Client Account (Trust) &amp; Solicitors' Account Rules 1990 Compliance
@@ -4095,7 +4095,7 @@ export const RetainersView: React.FC = () => {
       </div>
 
       {/* 3-Way Reconciliation Engine */}
-      <div className="bg-white border border-[#E1DCCF] p-5 rounded-xl shadow-xs space-y-3">
+      <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-3">
         <h3 className="font-serif font-bold text-sm text-[#16223A]">
           3-Way Trust Reconciliation Engine (Monthly Audit Requirement)
         </h3>
@@ -4105,7 +4105,7 @@ export const RetainersView: React.FC = () => {
 
         <table className="w-full text-left text-xs border-collapse">
           <thead>
-            <tr className="border-b border-[#E1DCCF] text-[10px] uppercase text-slate-500">
+            <tr className="border-b border-[#DDE3EB] text-[10px] uppercase text-slate-500">
               <th className="py-2">Month</th>
               <th className="py-2 text-right">Bank Statement</th>
               <th className="py-2 text-right">Cash Book / GL</th>
@@ -4150,14 +4150,14 @@ export const StatementView: React.FC = () => {
 
   return (
     <div className="space-y-4 text-xs">
-      <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
         <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-          <FileCheck2 className="w-5 h-5 text-[#A9814A]" />
+          <FileCheck2 className="w-5 h-5 text-[#3D6B9C]" />
           Client Financial Statement
         </h2>
       </div>
 
-      <div className="bg-white border border-[#E1DCCF] p-5 rounded-xl shadow-xs space-y-4">
+      <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-4">
         <div className="max-w-xs">
           <label className="font-bold text-slate-700 block uppercase mb-1">Select Client</label>
           <select value={selectedCId} onChange={(e) => setSelectedCId(e.target.value)} className="w-full">
@@ -4190,9 +4190,9 @@ export const OfficeAccountsView: React.FC = () => {
 
   return (
     <div className="space-y-4 text-xs">
-      <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
         <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-          <Building className="w-5 h-5 text-[#A9814A]" />
+          <Building className="w-5 h-5 text-[#3D6B9C]" />
           CFO Office Financial Buckets &amp; Cash Runway Dashboard
         </h2>
         <p className="text-xs text-slate-500 mt-0.5">
@@ -4202,19 +4202,19 @@ export const OfficeAccountsView: React.FC = () => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+        <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
           <div className="text-[10px] uppercase font-bold text-slate-500">Total Firm Office Cash</div>
           <div className="font-serif text-2xl font-bold text-[#16223A] mt-1">
             RM {totalCash.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
           </div>
         </div>
 
-        <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+        <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
           <div className="text-[10px] uppercase font-bold text-slate-500">Cash Runway (Overhead RM 8,000/mo)</div>
           <div className="font-serif text-2xl font-bold text-emerald-800 mt-1">{runwayMonths} Months</div>
         </div>
 
-        <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+        <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
           <div className="text-[10px] uppercase font-bold text-slate-500">Buckets Under Target</div>
           <div className="font-serif text-2xl font-bold text-rose-700 mt-1">
             {officeBuckets.filter((b) => b.target && b.balance < b.target).length} of {officeBuckets.length}
@@ -4225,7 +4225,7 @@ export const OfficeAccountsView: React.FC = () => {
       {/* Bucket Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {officeBuckets.map((b) => (
-          <div key={b.code} className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-2">
+          <div key={b.code} className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs space-y-2">
             <div className="font-mono text-xs font-bold text-slate-500">
               {b.code} — {b.name}
             </div>
@@ -4251,17 +4251,17 @@ export const CoaView: React.FC = () => {
 
   return (
     <div className="space-y-4 text-xs">
-      <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
         <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-          <BookOpen className="w-5 h-5 text-[#A9814A]" />
+          <BookOpen className="w-5 h-5 text-[#3D6B9C]" />
           Chart of Accounts
         </h2>
       </div>
 
-      <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
-            <tr className="bg-[#F6F4EE] border-b border-[#E1DCCF] text-[10px] uppercase text-slate-600">
+            <tr className="bg-[#F6F8FA] border-b border-[#DDE3EB] text-[10px] uppercase text-slate-600">
               <th className="p-3 font-bold">Code</th>
               <th className="p-3 font-bold">Account Name</th>
               <th className="p-3 font-bold">Type</th>
@@ -4293,17 +4293,17 @@ export const GLView: React.FC = () => {
 
   return (
     <div className="space-y-4 text-xs">
-      <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
         <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-          <BookMarked className="w-5 h-5 text-[#A9814A]" />
+          <BookMarked className="w-5 h-5 text-[#3D6B9C]" />
           General Ledger (Single Point of Double Entry)
         </h2>
       </div>
 
-      <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
-            <tr className="bg-[#F6F4EE] border-b border-[#E1DCCF] text-[10px] uppercase text-slate-600">
+            <tr className="bg-[#F6F8FA] border-b border-[#DDE3EB] text-[10px] uppercase text-slate-600">
               <th className="p-3 font-bold">GL No</th>
               <th className="p-3 font-bold">Date</th>
               <th className="p-3 font-bold">Doc</th>
@@ -4356,17 +4356,17 @@ export const TrialBalanceView: React.FC = () => {
 
   return (
     <div className="space-y-4 text-xs">
-      <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
         <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-          <Scale className="w-5 h-5 text-[#A9814A]" />
+          <Scale className="w-5 h-5 text-[#3D6B9C]" />
           Trial Balance
         </h2>
       </div>
 
-      <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs p-4">
+      <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs p-4">
         <table className="w-full text-left text-xs border-collapse font-mono">
           <thead>
-            <tr className="border-b border-[#E1DCCF] text-[10px] uppercase text-slate-500 font-sans">
+            <tr className="border-b border-[#DDE3EB] text-[10px] uppercase text-slate-500 font-sans">
               <th className="py-2">Code</th>
               <th className="py-2">Account Name</th>
               <th className="py-2 text-right">Debit (RM)</th>
@@ -4405,14 +4405,14 @@ export const TrialBalanceView: React.FC = () => {
 export const BalanceSheetView: React.FC = () => {
   return (
     <div className="space-y-4 text-xs">
-      <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
         <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-          <LineChart className="w-5 h-5 text-[#A9814A]" />
+          <LineChart className="w-5 h-5 text-[#3D6B9C]" />
           Balance Sheet (Assets = Liabilities + Equity)
         </h2>
       </div>
 
-      <div className="bg-white border border-[#E1DCCF] p-5 rounded-xl shadow-xs space-y-4 font-mono">
+      <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-4 font-mono">
         <div className="space-y-2">
           <div className="font-bold font-serif text-sm text-[#16223A] border-b border-slate-200 pb-1">ASSETS</div>
           <div className="flex justify-between">
@@ -4456,17 +4456,17 @@ export const CashFlowView: React.FC = () => {
 
   return (
     <div className="space-y-4 text-xs">
-      <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
         <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-[#A9814A]" />
+          <TrendingUp className="w-5 h-5 text-[#3D6B9C]" />
           Cash Flow Statement — Office Bank Account
         </h2>
       </div>
 
-      <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs">
         <table className="w-full text-left text-xs border-collapse font-mono">
           <thead>
-            <tr className="bg-[#F6F4EE] border-b border-[#E1DCCF] text-[10px] uppercase text-slate-600 font-sans">
+            <tr className="bg-[#F6F8FA] border-b border-[#DDE3EB] text-[10px] uppercase text-slate-600 font-sans">
               <th className="p-3 font-bold">Month</th>
               <th className="p-3 font-bold text-right">Opening Balance</th>
               <th className="p-3 font-bold text-right">Money In</th>
@@ -4546,10 +4546,10 @@ export const BillingReportsView: React.FC = () => {
 
   return (
     <div className="space-y-5 text-xs">
-      <div className="flex flex-wrap justify-between items-center bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs gap-3">
+      <div className="flex flex-wrap justify-between items-center bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs gap-3">
         <div>
           <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-[#A9814A]" />
+            <BarChart3 className="w-5 h-5 text-[#3D6B9C]" />
             Partner Billing, Collections &amp; AR Aging Performance Report
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -4558,16 +4558,16 @@ export const BillingReportsView: React.FC = () => {
         </div>
         <button
           onClick={handleExportCsv}
-          className="border border-[#E1DCCF] hover:bg-slate-50 text-slate-800 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+          className="border border-[#DDE3EB] hover:bg-slate-50 text-slate-800 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
         >
-          <Download className="w-4 h-4 text-[#A9814A]" />
+          <Download className="w-4 h-4 text-[#3D6B9C]" />
           <span>Export CSV / Sheets</span>
         </button>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-white p-4 border border-[#E1DCCF] rounded-xl shadow-xs">
+        <div className="bg-white p-4 border border-[#DDE3EB] rounded-xl shadow-xs">
           <div className="text-slate-500 font-bold uppercase text-[10px]">Total Tax Invoiced</div>
           <div className="font-serif text-xl font-bold text-[#16223A] mt-1">
             RM {totalInvoiced.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
@@ -4575,7 +4575,7 @@ export const BillingReportsView: React.FC = () => {
           <div className="text-[10px] text-slate-500 mt-0.5">Includes RM {totalSst.toFixed(2)} SST</div>
         </div>
 
-        <div className="bg-white p-4 border border-[#E1DCCF] rounded-xl shadow-xs">
+        <div className="bg-white p-4 border border-[#DDE3EB] rounded-xl shadow-xs">
           <div className="text-slate-500 font-bold uppercase text-[10px]">Collections Received</div>
           <div className="font-serif text-xl font-bold text-emerald-800 mt-1">
             RM {totalCollected.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
@@ -4583,7 +4583,7 @@ export const BillingReportsView: React.FC = () => {
           <div className="text-[10px] text-emerald-700 font-semibold mt-0.5">{collectionRate}% Collection Efficiency</div>
         </div>
 
-        <div className="bg-white p-4 border border-[#E1DCCF] rounded-xl shadow-xs">
+        <div className="bg-white p-4 border border-[#DDE3EB] rounded-xl shadow-xs">
           <div className="text-slate-500 font-bold uppercase text-[10px]">Outstanding Debt (AR)</div>
           <div className="font-serif text-xl font-bold text-rose-700 mt-1">
             RM {totalUnpaid.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
@@ -4591,7 +4591,7 @@ export const BillingReportsView: React.FC = () => {
           <div className="text-[10px] text-rose-600 mt-0.5">{unpaidInvoices.length} Unpaid Tax Invoices</div>
         </div>
 
-        <div className="bg-white p-4 border border-[#E1DCCF] rounded-xl shadow-xs">
+        <div className="bg-white p-4 border border-[#DDE3EB] rounded-xl shadow-xs">
           <div className="text-slate-500 font-bold uppercase text-[10px]">Overdue &gt; 60 Days</div>
           <div className="font-serif text-xl font-bold text-amber-800 mt-1">
             RM {(sumTotal(overdue6190) + sumTotal(overdue90Plus)).toLocaleString('en-MY', { minimumFractionDigits: 2 })}
@@ -4601,9 +4601,9 @@ export const BillingReportsView: React.FC = () => {
       </div>
 
       {/* Aged Accounts Receivable (AR) Breakdown */}
-      <div className="bg-white border border-[#E1DCCF] p-5 rounded-xl shadow-xs space-y-3">
+      <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-3">
         <h3 className="font-serif font-bold text-sm text-[#16223A] flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-[#A9814A]" />
+          <Calendar className="w-4 h-4 text-[#3D6B9C]" />
           Aged Accounts Receivable (AR) Breakdown
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 font-mono">
@@ -4642,13 +4642,13 @@ export const BillingReportsView: React.FC = () => {
       </div>
 
       {/* Invoice Recovery Register Table */}
-      <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs">
-        <div className="p-4 bg-[#F6F4EE] border-b border-[#E1DCCF] font-serif font-bold text-[#16223A]">
+      <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs">
+        <div className="p-4 bg-[#F6F8FA] border-b border-[#DDE3EB] font-serif font-bold text-[#16223A]">
           Outstanding Client Debtors &amp; Payment Status Register
         </div>
         <table className="w-full text-left text-xs border-collapse">
           <thead>
-            <tr className="bg-slate-50 border-b border-[#E1DCCF] text-[10px] uppercase text-slate-600">
+            <tr className="bg-slate-50 border-b border-[#DDE3EB] text-[10px] uppercase text-slate-600">
               <th className="p-3 font-bold">Invoice ID</th>
               <th className="p-3 font-bold">Client Name</th>
               <th className="p-3 font-bold">Matter Ref</th>
@@ -4665,7 +4665,7 @@ export const BillingReportsView: React.FC = () => {
               const daysOverdue = i.status === 'Paid' ? 0 : getDaysOverdue(i.dueDate);
 
               return (
-                <tr key={i.id} className="hover:bg-[#FAF8F2]">
+                <tr key={i.id} className="hover:bg-[#F6F8FA]">
                   <td className="p-3 font-mono font-bold text-slate-800">{i.id}</td>
                   <td className="p-3 font-bold text-[#16223A]">{client ? client.name : '—'}</td>
                   <td className="p-3">
@@ -4714,7 +4714,7 @@ export const TrustReportsView: React.FC = () => {
 
   return (
     <div className="space-y-4 text-xs">
-      <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
         <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
           <PieChart className="w-5 h-5 text-purple-800" />
           Client Account Trust Compliance Report (Solicitors' Account Rules 1990)
@@ -4725,7 +4725,7 @@ export const TrustReportsView: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+        <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
           <div className="text-[10px] uppercase font-bold text-slate-500">Total Trust Monies Held</div>
           <div className="font-serif text-2xl font-bold text-purple-900 mt-1">
             RM {totalTrustHeld.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
@@ -4733,26 +4733,26 @@ export const TrustReportsView: React.FC = () => {
           <div className="text-[10px] text-purple-700 mt-0.5">Bank A/C 1020 (Client Trust A/C)</div>
         </div>
 
-        <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+        <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
           <div className="text-[10px] uppercase font-bold text-slate-500">3-Way Audit Status</div>
           <div className="font-serif text-2xl font-bold text-emerald-800 mt-1">100% RECONCILED</div>
           <div className="text-[10px] text-emerald-700 mt-0.5">Zero Variance Detected</div>
         </div>
 
-        <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+        <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
           <div className="text-[10px] uppercase font-bold text-slate-500">Bar Council Compliance</div>
           <div className="font-serif text-2xl font-bold text-emerald-800 mt-1">FULL PASS</div>
           <div className="text-[10px] text-slate-500 mt-0.5">SAR 1990 Strict Separation Verified</div>
         </div>
       </div>
 
-      <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs">
-        <div className="p-3 bg-[#F6F4EE] border-b border-[#E1DCCF] font-serif font-bold text-[#16223A]">
+      <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs">
+        <div className="p-3 bg-[#F6F8FA] border-b border-[#DDE3EB] font-serif font-bold text-[#16223A]">
           Client Ledger Trust Balances
         </div>
         <table className="w-full text-left text-xs border-collapse font-sans">
           <thead>
-            <tr className="bg-slate-50 border-b border-[#E1DCCF] text-[10px] uppercase text-slate-600">
+            <tr className="bg-slate-50 border-b border-[#DDE3EB] text-[10px] uppercase text-slate-600">
               <th className="p-3 font-bold">Client Name</th>
               <th className="p-3 font-bold text-right">Trust Balance (RM)</th>
               <th className="p-3 font-bold">Status</th>
@@ -4762,7 +4762,7 @@ export const TrustReportsView: React.FC = () => {
             {Object.entries(clientBalances).map(([cId, bal]) => {
               const client = clients.find((c) => c.id === cId);
               return (
-                <tr key={cId} className="hover:bg-[#FAF8F2]">
+                <tr key={cId} className="hover:bg-[#F6F8FA]">
                   <td className="p-3 font-bold text-[#16223A]">{client ? client.name : cId}</td>
                   <td className="p-3 text-right font-mono font-bold text-purple-900">
                     RM {bal.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
@@ -4787,9 +4787,9 @@ export const OfficeReportsView: React.FC = () => {
 
   return (
     <div className="space-y-4 text-xs">
-      <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
         <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-          <DollarSign className="w-5 h-5 text-[#A9814A]" />
+          <DollarSign className="w-5 h-5 text-[#3D6B9C]" />
           Office Accounts &amp; Financial Health Executive Report
         </h2>
         <p className="text-xs text-slate-500 mt-0.5">
@@ -4797,7 +4797,7 @@ export const OfficeReportsView: React.FC = () => {
         </p>
       </div>
 
-      <div className="bg-white border border-[#E1DCCF] p-5 rounded-xl shadow-xs space-y-3">
+      <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-3">
         <div className="text-slate-500 font-bold uppercase text-[10px]">Total Office Operating Liquidity</div>
         <div className="font-serif text-3xl font-bold text-[#16223A]">
           RM {totalCash.toLocaleString('en-MY', { minimumFractionDigits: 2 })}

@@ -16,9 +16,6 @@ import {
   X,
   CheckCircle2,
   Trash2,
-  Sun,
-  Moon,
-  Monitor,
   Archive,
   LogOut,
 } from 'lucide-react';
@@ -37,8 +34,6 @@ export const Header: React.FC = () => {
     currentUser,
     logoutUser,
     showToast,
-    theme,
-    setTheme,
     notifications = [],
     unreadNotificationsCount = 0,
     markNotificationAsRead,
@@ -140,12 +135,12 @@ export const Header: React.FC = () => {
   const isPrivilegedHeader = Boolean(currentUser?.isAdmin || currentUser?.isSuperAdmin);
 
   return (
-    <header className={`sticky top-0 z-20 mb-4 sm:mb-6 rounded-2xl border border-[#304362] bg-[#16223A] text-[#F6F1E9] px-4 sm:px-6 py-3 flex flex-col justify-start gap-2.5 overflow-visible shadow-[0_12px_24px_-16px_rgba(22,34,58,.8)] ${isPrivilegedHeader ? 'items-stretch' : 'md:flex-row md:items-center'}`}>
+    <header className={`sticky top-0 z-20 mb-4 sm:mb-6 rounded-2xl border border-[#16223A] bg-[#16223A] text-[#F6F8FA] px-4 sm:px-6 py-3 flex flex-col justify-start gap-2.5 overflow-visible shadow-[0_12px_24px_-16px_rgba(22,34,58,.8)] ${isPrivilegedHeader ? 'items-stretch' : 'md:flex-row md:items-center'}`}>
       <div className={`min-w-0 ${isPrivilegedHeader ? 'w-full order-1' : ''}`}>
         <div className="flex items-center gap-2">
-          <h1 className="min-w-0 font-serif text-lg sm:text-xl font-bold text-[#F6F1E9] tracking-tight">{info.title}</h1>
+          <h1 className="min-w-0 font-serif text-lg sm:text-xl font-bold text-[#F6F8FA] tracking-tight">{info.title}</h1>
         </div>
-        <p className="text-xs text-[#C7D0DF] mt-0.5 line-clamp-2">{info.sub}</p>
+        <p className="text-xs text-[#DDE3EB] mt-0.5 line-clamp-2">{info.sub}</p>
       </div>
 
       <div className={`flex w-full min-w-0 flex-wrap items-center gap-1.5 sm:gap-2 ${isPrivilegedHeader ? 'order-2 border-t border-white/10 pt-2' : 'md:ml-8 md:w-auto md:shrink-0'}`}>
@@ -153,7 +148,7 @@ export const Header: React.FC = () => {
           <button
             type="button"
             onClick={() => setFirmStartCentreEditMode((enabled) => !enabled)}
-            className={`order-last flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-bold cursor-pointer transition ${firmStartCentreEditMode ? 'border-[#E4C79A] bg-[#E4C79A] text-[#16223A]' : 'border-white/20 bg-white/10 text-[#F6F1E9] hover:bg-white/20'}`}
+            className={`order-last flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-bold cursor-pointer transition ${firmStartCentreEditMode ? 'border-[#FBF2E9] bg-[#FBF2E9] text-[#16223A]' : 'border-white/20 bg-white/10 text-[#F6F8FA] hover:bg-white/20'}`}
             title="Toggle Firm Start Centre content editing"
           >
             {firmStartCentreEditMode ? 'Done editing' : 'Edit content'}
@@ -161,13 +156,13 @@ export const Header: React.FC = () => {
         )}
         {/* Global Search Bar */}
         <div className="relative group w-full min-w-0 sm:flex-1 md:w-auto md:flex-none">
-          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#A9814A] transition-colors" />
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#3D6B9C] transition-colors" />
           <input
             type="text"
             placeholder="Search matters, clients, docs..."
             value={globalSearch}
             onChange={(e) => setGlobalSearch(e.target.value)}
-            className="w-full max-w-full pl-8 pr-3 py-1.5 text-xs bg-white/95 border border-white/20 text-[#2C241F] placeholder:text-slate-400 rounded-md sm:w-48 md:w-60 md:focus:w-64 transition-all focus:outline-none focus:border-[#E4C79A] focus:ring-1 focus:ring-[#E4C79A]/30"
+            className="w-full max-w-full pl-8 pr-3 py-1.5 text-xs bg-white/95 border border-white/20 text-[#16223A] placeholder:text-slate-400 rounded-md sm:w-48 md:w-60 md:focus:w-64 transition-all focus:outline-none focus:border-[#FBF2E9] focus:ring-1 focus:ring-[#FBF2E9]/30"
             aria-label="Global search for matters, clients, documents"
           />
         </div>
@@ -178,7 +173,7 @@ export const Header: React.FC = () => {
           onClick={() => window.location.reload()}
           title="Reload latest saved data"
           aria-label="Reload latest saved data"
-            className="shrink-0 rounded p-1.5 text-[#C7D0DF] transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-[#E4C79A] cursor-pointer"
+            className="shrink-0 rounded p-1.5 text-[#DDE3EB] transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-[#FBF2E9] cursor-pointer"
         >
           <RefreshCw className="h-4 w-4" />
         </button>
@@ -186,11 +181,11 @@ export const Header: React.FC = () => {
         {/* Recycle Bin & Data Recovery Vault */}
         <button
           onClick={() => setIsRecycleBinOpen(true)}
-          className="p-2 rounded-lg bg-white border border-[#E8D9CE] text-slate-700 hover:text-[#2C241F] hover:border-[#B86F4A] focus:outline-none focus:ring-2 focus:ring-[#B86F4A] transition-all relative shadow-2xs cursor-pointer flex items-center gap-1"
+          className="p-2 rounded-lg bg-white border border-[#DDE3EB] text-slate-700 hover:text-[#16223A] hover:border-[#8A6D3B] focus:outline-none focus:ring-2 focus:ring-[#8A6D3B] transition-all relative shadow-2xs cursor-pointer flex items-center gap-1"
           aria-label={`Data recovery vault with ${deletedRecords.length} deleted items`}
           title="Recycle Bin"
         >
-          <Archive className="w-4 h-4 text-[#A9814A]" />
+          <Archive className="w-4 h-4 text-[#3D6B9C]" />
           {deletedRecords.length > 0 && (
             <span className="bg-amber-100 text-amber-900 border border-amber-300 font-bold text-[9px] px-1.5 py-0.2 rounded-full">
               {deletedRecords.length}
@@ -202,13 +197,13 @@ export const Header: React.FC = () => {
         <div className="relative">
           <button
             onClick={() => setIsNotifOpen((prev) => !prev)}
-            className="p-1.5 rounded-md bg-white border border-[#E8D9CE] text-slate-700 hover:text-[#2C241F] hover:border-[#B86F4A] focus:outline-none focus:ring-2 focus:ring-[#B86F4A] transition-all relative shadow-2xs cursor-pointer"
+            className="p-1.5 rounded-md bg-white border border-[#DDE3EB] text-slate-700 hover:text-[#16223A] hover:border-[#8A6D3B] focus:outline-none focus:ring-2 focus:ring-[#8A6D3B] transition-all relative shadow-2xs cursor-pointer"
             aria-label={`Notifications: ${unreadNotificationsCount} unread alerts`}
             aria-expanded={isNotifOpen}
             aria-controls="notifications-dropdown"
             title="Notifications"
           >
-            <Bell className="w-4 h-4 text-[#B86F4A] dark:text-amber-300" />
+            <Bell className="w-4 h-4 text-[#8A6D3B] dark:text-amber-300" />
             {unreadNotificationsCount > 0 && (
               <span className="absolute -top-1 -right-1 bg-rose-600 text-white font-bold text-[9px] w-4 h-4 rounded-full flex items-center justify-center animate-pulse border border-white shadow-sm">
                 {unreadNotificationsCount}
@@ -218,7 +213,7 @@ export const Header: React.FC = () => {
 
           {/* Dropdown Panel */}
           {isNotifOpen && (
-            <div id="notifications-dropdown" className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white border border-[#E1DCCF] rounded-xl shadow-2xl z-50 overflow-hidden" role="region" aria-label="Notifications panel">
+            <div id="notifications-dropdown" className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white border border-[#DDE3EB] rounded-xl shadow-2xl z-50 overflow-hidden" role="region" aria-label="Notifications panel">
               <div className="bg-[#16223A] text-white p-3.5 flex items-center justify-between border-b border-amber-400/30">
                 <div className="flex items-center gap-2">
                   <Bell className="w-4 h-4 text-amber-300" />
@@ -249,12 +244,12 @@ export const Header: React.FC = () => {
               </div>
 
               {/* Filter Tabs */}
-              <div className="flex bg-[#FAF8F2] border-b border-[#E1DCCF] px-3 pt-2 text-[11px] font-semibold text-slate-600 gap-3">
+              <div className="flex bg-[#F6F8FA] border-b border-[#DDE3EB] px-3 pt-2 text-[11px] font-semibold text-slate-600 gap-3">
                 <button
                   onClick={() => setNotifFilter('all')}
                   className={`pb-1.5 border-b-2 transition-all ${
                     notifFilter === 'all'
-                      ? 'border-[#A9814A] text-[#16223A] font-bold'
+                      ? 'border-[#3D6B9C] text-[#16223A] font-bold'
                       : 'border-transparent text-slate-500 hover:text-slate-800'
                   }`}
                 >
@@ -264,7 +259,7 @@ export const Header: React.FC = () => {
                   onClick={() => setNotifFilter('hearing')}
                   className={`pb-1.5 border-b-2 transition-all flex items-center gap-1 ${
                     notifFilter === 'hearing'
-                      ? 'border-[#A9814A] text-[#16223A] font-bold'
+                      ? 'border-[#3D6B9C] text-[#16223A] font-bold'
                       : 'border-transparent text-slate-500 hover:text-slate-800'
                   }`}
                 >
@@ -275,7 +270,7 @@ export const Header: React.FC = () => {
                   onClick={() => setNotifFilter('invoice')}
                   className={`pb-1.5 border-b-2 transition-all flex items-center gap-1 ${
                     notifFilter === 'invoice'
-                      ? 'border-[#A9814A] text-[#16223A] font-bold'
+                      ? 'border-[#3D6B9C] text-[#16223A] font-bold'
                       : 'border-transparent text-slate-500 hover:text-slate-800'
                   }`}
                 >
@@ -285,7 +280,7 @@ export const Header: React.FC = () => {
               </div>
 
               {/* List items */}
-              <div className="max-h-80 overflow-y-auto divide-y divide-[#E1DCCF]">
+              <div className="max-h-80 overflow-y-auto divide-y divide-[#DDE3EB]">
                 {notifications
                   .filter((n) => (notifFilter === 'all' ? true : n.type === notifFilter))
                   .length === 0 ? (
@@ -306,7 +301,7 @@ export const Header: React.FC = () => {
                           }
                         }}
                         className={`p-3 text-left hover:bg-amber-50/50 cursor-pointer transition-all flex gap-2.5 items-start ${
-                          !n.read ? 'bg-amber-50/80 border-l-2 border-[#A9814A]' : 'bg-white'
+                          !n.read ? 'bg-amber-50/80 border-l-2 border-[#3D6B9C]' : 'bg-white'
                         }`}
                       >
                         <div
@@ -336,42 +331,21 @@ export const Header: React.FC = () => {
                 )}
               </div>
 
-              <div className="p-2 bg-[#FAF8F2] border-t border-[#E1DCCF] text-center text-[10px] text-slate-500">
+              <div className="p-2 bg-[#F6F8FA] border-t border-[#DDE3EB] text-center text-[10px] text-slate-500">
                 Court and billing notifications
               </div>
             </div>
           )}
         </div>
 
-        {/* Quick Theme Toggle Button */}
-        <button
-          onClick={() => {
-            const nextTheme = theme === 'light' ? 'dark' : theme === 'dark' ? 'system' : 'light';
-            setTheme(nextTheme);
-            showToast(`Theme set to ${nextTheme}`);
-          }}
-          className="flex items-center gap-1 bg-white hover:bg-[#F5E9E1] border border-[#E8D9CE] px-2 py-1.5 rounded-md text-xs cursor-pointer shadow-2xs transition-colors"
-          title={`Theme: ${theme}`}
-          aria-label="Change theme"
-        >
-          {theme === 'dark' ? (
-            <Moon className="w-4 h-4 text-amber-400" />
-          ) : theme === 'light' ? (
-            <Sun className="w-4 h-4 text-[#A9814A]" />
-          ) : (
-            <Monitor className="w-4 h-4 text-blue-700" />
-          )}
-          <span className="sr-only">{theme}</span>
-        </button>
-
         {/* Current User & Role Badge / SSO Login Trigger */}
         <div className="flex min-w-0 max-w-full items-center gap-1.5">
           {isUserPreview ? (
-            <button type="button" onClick={exitUserPreview} className="rounded-md border border-amber-300 bg-[#16223A] px-2 py-1.5 text-[10px] font-bold text-[#E4C79A] shadow-2xs cursor-pointer" title="Exit full-system user preview">
+            <button type="button" onClick={exitUserPreview} className="rounded-md border border-amber-300 bg-[#16223A] px-2 py-1.5 text-[10px] font-bold text-[#FBF2E9] shadow-2xs cursor-pointer" title="Exit full-system user preview">
               Exit preview
             </button>
           ) : (currentUser?.isAdmin || currentUser?.isSuperAdmin) ? (
-            <label className="flex items-center gap-1 rounded-md border border-white/20 bg-white/10 px-2 py-1.5 text-[10px] font-semibold text-[#F6F1E9]">
+            <label className="flex items-center gap-1 rounded-md border border-white/20 bg-white/10 px-2 py-1.5 text-[10px] font-semibold text-[#F6F8FA]">
               <span>View as</span>
               <select value={previewUserId || ''} onChange={(event) => { if (event.target.value) startUserPreview(event.target.value); }} className="max-w-[120px] cursor-pointer bg-transparent text-[10px] font-bold text-white outline-none">
                 <option value="" className="text-[#16223A]">My view</option>
@@ -380,7 +354,7 @@ export const Header: React.FC = () => {
             </label>
           ) : null}
           <div
-            className="flex min-w-0 max-w-[15rem] items-center gap-1.5 bg-white border border-[#E8D9CE] px-2 py-1.5 rounded-md text-xs shadow-2xs"
+            className="flex min-w-0 max-w-[15rem] items-center gap-1.5 bg-white border border-[#DDE3EB] px-2 py-1.5 rounded-md text-xs shadow-2xs"
             title="Current signed-in user"
           >
             <div className="w-5 h-5 rounded-full bg-[#16223A] text-white flex items-center justify-center font-bold text-[10px]">
@@ -390,7 +364,7 @@ export const Header: React.FC = () => {
               <div className="font-bold text-[#16223A] flex min-w-0 items-center gap-1">
                 <span className="whitespace-nowrap text-[#16223A]">{currentUser?.name || 'User'}</span>
                 {currentUser?.isSuperAdmin && (
-                  <span className="bg-[#16223A] text-[#E4C79A] border border-[#A9814A] text-[8px] font-bold px-1 rounded shrink-0">
+                  <span className="bg-[#16223A] text-[#FBF2E9] border border-[#3D6B9C] text-[8px] font-bold px-1 rounded shrink-0">
                     SUPER ADMIN
                   </span>
                 )}
@@ -402,10 +376,10 @@ export const Header: React.FC = () => {
           <button
             type="button"
             onClick={logoutUser}
-            className="flex shrink-0 items-center gap-1 bg-[#A9814A] hover:bg-[#C29A5A] text-white border border-[#D4AF37] px-2.5 py-1.5 rounded-md text-xs font-bold cursor-pointer shadow-2xs transition-all"
+            className="flex shrink-0 items-center gap-1 bg-[#3D6B9C] hover:bg-[#3D6B9C] text-white border border-[#3D6B9C] px-2.5 py-1.5 rounded-md text-xs font-bold cursor-pointer shadow-2xs transition-all"
             title="Sign out"
           >
-            <LogOut className="w-3.5 h-3.5 text-[#D4AF37]" />
+            <LogOut className="w-3.5 h-3.5 text-[#3D6B9C]" />
             <span className="hidden sm:inline">Sign Out</span>
           </button>
         </div>

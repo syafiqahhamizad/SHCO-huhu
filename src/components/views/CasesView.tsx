@@ -43,6 +43,8 @@ import {
 } from 'lucide-react';
 import { RecycleBinModal } from '../RecycleBinModal';
 import { CaseStatusView } from './PracticeViews';
+import { StatCard, StatusBadge } from '../ui';
+import { palette } from '../../lib/designTokens';
 
 export const PRACTICE_CLIENT_ROLES: Record<string, string[]> = {
   'Civil Litigation': [
@@ -141,6 +143,13 @@ export const CasesView: React.FC = () => {
     quotations,
     travelClaims,
     expenses,
+    updateExpense,
+    timeEntries,
+    addTimeEntry,
+    updateTimeEntry,
+    invoices,
+    addInvoice,
+    getNextSequenceId,
     retainers,
     addRetainer,
     addExpense,
@@ -179,7 +188,7 @@ export const CasesView: React.FC = () => {
     const printWindow = window.open('', '_blank', 'width=900,height=700');
     if (!printWindow) return;
     const safeBody = body.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br />');
-    printWindow.document.write(`<html><head><title>${title}</title><style>body{font-family:Georgia,serif;color:#16223A;padding:48px;line-height:1.6}h1{font-size:24px;border-bottom:2px solid #A9814A;padding-bottom:12px}.meta{color:#64748B;font:12px Arial,sans-serif;margin-bottom:28px}</style></head><body><h1>${title}</h1><div class="meta">${selectedCase?.ref || ''} | ${selectedCase?.title || ''}</div><div>${safeBody}</div></body></html>`);
+    printWindow.document.write(`<html><head><title>${title}</title><style>body{font-family:Georgia,serif;color:#16223A;padding:48px;line-height:1.6}h1{font-size:24px;border-bottom:2px solid #3D6B9C;padding-bottom:12px}.meta{color:#5B6478;font:12px Arial,sans-serif;margin-bottom:28px}</style></head><body><h1>${title}</h1><div class="meta">${selectedCase?.ref || ''} | ${selectedCase?.title || ''}</div><div>${safeBody}</div></body></html>`);
     printWindow.document.close();
     printWindow.focus();
     printWindow.print();
@@ -428,6 +437,14 @@ export const CasesView: React.FC = () => {
   const [isAddMeetingModalOpen, setIsAddMeetingModalOpen] = useState(false);
   const [isAddInternalModalOpen, setIsAddInternalModalOpen] = useState(false);
   const [isAddDocModalOpen, setIsAddDocModalOpen] = useState(false);
+
+  // New billing/memo tabs (design/shco-portal-redesign) — Activities, Disbursements, Memo inline-add forms
+  const [addActivityOpen, setAddActivityOpen] = useState(false);
+  const [activityDraft, setActivityDraft] = useState({ date: new Date().toISOString().slice(0, 10), units: '1.0', rate: '', description: '' });
+  const [addDisbOpen, setAddDisbOpen] = useState(false);
+  const [disbDraft, setDisbDraft] = useState({ date: new Date().toISOString().slice(0, 10), amount: '', description: '' });
+  const [createMemoOpen, setCreateMemoOpen] = useState(false);
+  const [memoDraft, setMemoDraft] = useState<{ type: 'Notes' | 'Status' | 'Court Minutes' | 'File Location'; date: string; description: string }>({ type: 'Notes', date: new Date().toISOString().slice(0, 10), description: '' });
 
   // Case Deletion & Activity Log state
   const { confirm, ConfirmationModal } = useConfirmation();
@@ -1995,14 +2012,14 @@ export const CasesView: React.FC = () => {
         {/* Back Button */}
         <button
           onClick={() => setCurrentCaseId(null)}
-          className="text-xs font-semibold text-slate-700 hover:text-[#16223A] flex items-center gap-1.5 cursor-pointer bg-white border border-[#E1DCCF] px-3 py-1.5 rounded-md w-max"
+          className="text-xs font-semibold text-slate-700 hover:text-[#16223A] flex items-center gap-1.5 cursor-pointer bg-white border border-[#DDE3EB] px-3 py-1.5 rounded-md w-max"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>All Matters</span>
         </button>
 
         {/* Matter Header Banner */}
-        <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+        <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -2010,15 +2027,15 @@ export const CasesView: React.FC = () => {
                 <span
                   className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                     selectedCase.status === 'Active'
-                      ? 'bg-emerald-100 text-emerald-800'
+                      ? 'bg-[#E6EFE9] text-[#2F6F4E]'
                       : 'bg-slate-100 text-slate-700'
                   }`}
                 >
                   {selectedCase.status}
                 </span>
                 {selectedCase.clientRole && (
-                  <span className="px-2.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-100 text-[#16223A] border border-[#A9814A]/40 uppercase tracking-wider flex items-center gap-1">
-                    <Scale className="w-3 h-3 text-[#A9814A]" />
+                  <span className="px-2.5 py-0.5 rounded text-[10px] font-extrabold bg-[#FBF2E9] text-[#16223A] border border-[#3D6B9C]/40 uppercase tracking-wider flex items-center gap-1">
+                    <Scale className="w-3 h-3 text-[#3D6B9C]" />
                     Representing: {selectedCase.clientRole}
                   </span>
                 )}
@@ -2035,7 +2052,7 @@ export const CasesView: React.FC = () => {
               <select
                 value={selectedCase.status}
                 onChange={(e) => updateCase(selectedCase.id, { status: e.target.value as any })}
-                className="text-xs p-1.5 bg-white border border-[#E1DCCF] rounded-lg font-bold"
+                className="text-xs p-1.5 bg-white border border-[#DDE3EB] rounded-lg font-bold"
               >
                 <option value="Active">Active</option>
                 <option value="Pending">Pending</option>
@@ -2045,7 +2062,7 @@ export const CasesView: React.FC = () => {
               <button
                 type="button"
                 onClick={handleOpenMatterDetailsEdit}
-                className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs rounded-lg flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors ml-1"
+                className="px-3 py-1.5 bg-[#FBF2E9] hover:bg-[#FBF2E9] text-[#8A6D3B] border border-[#8A6D3B] font-bold text-xs rounded-lg flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors ml-1"
               >
                 <Edit3 className="w-3.5 h-3.5" />
                 <span>Edit Matter Details</span>
@@ -2059,24 +2076,29 @@ export const CasesView: React.FC = () => {
                     handleDeleteCase(selectedCase);
                   }
                 }}
-                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs rounded-lg flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors ml-1"
+                className="px-3 py-1.5 bg-[#FBEDE9] hover:bg-[#FBEDE9] text-[#B23A2E] border border-[#FBEDE9] font-bold text-xs rounded-lg flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors ml-1"
                 title="Delete case file if wrongly entered"
               >
-                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                <Trash2 className="w-3.5 h-3.5 text-[#B23A2E]" />
                 <span>Delete Matter</span>
               </button>
             </div>
           </div>
 
           {/* Workspace Subtabs */}
-          <div className="flex flex-wrap gap-2 border-b border-[#E1DCCF] mt-5 -mb-4 text-xs font-semibold overflow-x-auto pb-1">
+          <div className="flex flex-wrap gap-2 border-b border-[#DDE3EB] mt-5 -mb-4 text-xs font-semibold overflow-x-auto pb-1">
             {[
               { id: 'overview', label: 'Overview & Matter Details' },
               ...(needsCourtTabs ? [{ id: 'hearings', label: `Hearings (${(selectedCase.hearings || []).length})` }] : []),
               ...(needsCourtTabs ? [{ id: 'diary', label: `Court Diary (${(selectedCase.courtDiary || []).length})` }] : []),
+              { id: 'matterActivities', label: `Activities (${(timeEntries || []).filter((t: any) => t.caseId === selectedCase.id).length})` },
+              { id: 'matterDisbursements', label: `Disbursements (${(expenses || []).filter((e: any) => e.caseId === selectedCase.id).length})` },
+              { id: 'matterUnbilled', label: 'Unbilled Items' },
+              { id: 'matterInvoices', label: `Invoices (${(invoices || []).filter((i: any) => i.caseId === selectedCase.id).length})` },
               { id: 'tasks', label: `Matter Tasks & Case Status (${(selectedCase.tasks || []).length})` },
               { id: 'ledger', label: 'Client Trust & Cashbook Ledger' },
               { id: 'service', label: `Service Record (${(selectedCase.serviceRecord || []).length})` },
+              { id: 'memo', label: `Memo (${(selectedCase.memos || []).length})` },
               { id: 'meetings', label: `Meeting Notes (${(selectedCase.meetingNotes || []).length})` },
               { id: 'research', label: `Legal Research (${(selectedCase.researchNotes || []).length})` },
               { id: 'internal', label: `Internal Notes (${(selectedCase.internalNotes || []).length})` },
@@ -2093,7 +2115,7 @@ export const CasesView: React.FC = () => {
                 }}
                 className={`pb-3 px-1 border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
                   caseSubTab === tab.id
-                    ? 'border-[#A9814A] text-[#16223A]'
+                    ? 'border-[#3D6B9C] text-[#16223A]'
                     : 'border-transparent text-slate-500 hover:text-slate-800'
                 }`}
               >
@@ -2105,8 +2127,8 @@ export const CasesView: React.FC = () => {
 
         {isMatterDetailsEditOpen && (
           <div className="fixed inset-0 z-50 bg-[#16223A]/60 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white border border-[#E1DCCF] rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6">
-              <div className="flex items-center justify-between border-b border-[#E1DCCF] pb-3 mb-4">
+            <div className="bg-white border border-[#DDE3EB] rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6">
+              <div className="flex items-center justify-between border-b border-[#DDE3EB] pb-3 mb-4">
                 <div>
                   <h3 className="font-serif text-lg font-bold text-[#16223A]">Edit Matter Details</h3>
                   <p className="text-xs text-slate-500 mt-0.5">Update the registration details for {selectedCase.ref}. Roster and task records stay attached.</p>
@@ -2124,7 +2146,7 @@ export const CasesView: React.FC = () => {
                     <select
                       value={matterEditPracticeArea}
                       onChange={(e) => setMatterEditPracticeArea(e.target.value)}
-                      className="w-full font-bold bg-white border border-[#E1DCCF] rounded-lg p-2 text-xs"
+                      className="w-full font-bold bg-white border border-[#DDE3EB] rounded-lg p-2 text-xs"
                     >
                       <option value="Civil Litigation">Civil Litigation</option>
                       <option value="Conveyancing">Conveyancing</option>
@@ -2158,17 +2180,17 @@ export const CasesView: React.FC = () => {
 
                   if (isEditLitigation) {
                     return (
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-xl border border-amber-200 bg-amber-50/40 p-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-xl border border-[#FBF2E9] bg-[#FBF2E9]/40 p-3">
                         <div>
-                          <label className="font-bold text-amber-900 block uppercase mb-1">Court / Forum</label>
+                          <label className="font-bold text-[#8A6D3B] block uppercase mb-1">Court / Forum</label>
                           <input value={matterEditCourt} onChange={(e) => setMatterEditCourt(e.target.value)} placeholder="e.g. High Court of Malaya" className="w-full bg-white" />
                         </div>
                         <div>
-                          <label className="font-bold text-amber-900 block uppercase mb-1">Presiding Judge / Magistrate</label>
+                          <label className="font-bold text-[#8A6D3B] block uppercase mb-1">Presiding Judge / Magistrate</label>
                           <input value={matterEditJudge} onChange={(e) => setMatterEditJudge(e.target.value)} placeholder="e.g. Y.A. Dato' Justice S. Ramanathan" className="w-full bg-white" />
                         </div>
                         <div>
-                          <label className="font-bold text-amber-900 block uppercase mb-1">Suit / Court Case No.</label>
+                          <label className="font-bold text-[#8A6D3B] block uppercase mb-1">Suit / Court Case No.</label>
                           <input value={matterEditCourtCaseNo} onChange={(e) => setMatterEditCourtCaseNo(e.target.value)} placeholder="e.g. TA-A51NCvC-16-10/2025" className="w-full font-mono bg-white" />
                         </div>
                       </div>
@@ -2177,21 +2199,21 @@ export const CasesView: React.FC = () => {
 
                   if (isEditConveyancing) {
                     return (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl border border-emerald-200 bg-emerald-50/40 p-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl border border-[#E6EFE9] bg-[#E6EFE9]/40 p-3">
                         <div>
-                          <label className="font-bold text-emerald-900 block uppercase mb-1">Property Title / Lot No.</label>
+                          <label className="font-bold text-[#2F6F4E] block uppercase mb-1">Property Title / Lot No.</label>
                           <input value={matterEditPropertyTitleNo} onChange={(e) => setMatterEditPropertyTitleNo(e.target.value)} placeholder="e.g. H.S.(D) 10492 / Lot 8812" className="w-full bg-white font-mono" />
                         </div>
                         <div>
-                          <label className="font-bold text-emerald-900 block uppercase mb-1">Property Address</label>
+                          <label className="font-bold text-[#2F6F4E] block uppercase mb-1">Property Address</label>
                           <input value={matterEditPropertyAddress} onChange={(e) => setMatterEditPropertyAddress(e.target.value)} placeholder="e.g. No. 18, Jalan Astaka 3, BRP" className="w-full bg-white" />
                         </div>
                         <div>
-                          <label className="font-bold text-emerald-900 block uppercase mb-1">Purchase Price / Consideration</label>
+                          <label className="font-bold text-[#2F6F4E] block uppercase mb-1">Purchase Price / Consideration</label>
                           <input value={matterEditPurchasePrice} onChange={(e) => setMatterEditPurchasePrice(e.target.value)} placeholder="e.g. RM 650,000.00" className="w-full bg-white font-mono" />
                         </div>
                         <div>
-                          <label className="font-bold text-emerald-900 block uppercase mb-1">Financier / Loan Bank</label>
+                          <label className="font-bold text-[#2F6F4E] block uppercase mb-1">Financier / Loan Bank</label>
                           <input value={matterEditFinancierBank} onChange={(e) => setMatterEditFinancierBank(e.target.value)} placeholder="e.g. Maybank Islamic Berhad" className="w-full bg-white" />
                         </div>
                       </div>
@@ -2200,21 +2222,21 @@ export const CasesView: React.FC = () => {
 
                   if (isEditCorporate) {
                     return (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl border border-purple-200 bg-purple-50/40 p-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl border border-[#F1EBF6] bg-[#F1EBF6]/40 p-3">
                         <div>
-                          <label className="font-bold text-purple-900 block uppercase mb-1">Corporate Matter Type</label>
+                          <label className="font-bold text-[#6B3D8C] block uppercase mb-1">Corporate Matter Type</label>
                           <input value={matterEditCorporateMatterType} onChange={(e) => setMatterEditCorporateMatterType(e.target.value)} placeholder="e.g. Share Sale Agreement & Advisory" className="w-full bg-white" />
                         </div>
                         <div>
-                          <label className="font-bold text-purple-900 block uppercase mb-1">Contract / Transaction Value</label>
+                          <label className="font-bold text-[#6B3D8C] block uppercase mb-1">Contract / Transaction Value</label>
                           <input value={matterEditContractValue} onChange={(e) => setMatterEditContractValue(e.target.value)} placeholder="e.g. RM 2,500,000.00" className="w-full bg-white font-mono" />
                         </div>
                         <div>
-                          <label className="font-bold text-purple-900 block uppercase mb-1">Regulatory Authority</label>
+                          <label className="font-bold text-[#6B3D8C] block uppercase mb-1">Regulatory Authority</label>
                           <input value={matterEditRegulatoryAuthority} onChange={(e) => setMatterEditRegulatoryAuthority(e.target.value)} placeholder="e.g. Suruhanjaya Syarikat Malaysia (SSM)" className="w-full bg-white" />
                         </div>
                         <div>
-                          <label className="font-bold text-purple-900 block uppercase mb-1">Governing Law</label>
+                          <label className="font-bold text-[#6B3D8C] block uppercase mb-1">Governing Law</label>
                           <input value={matterEditGoverningLaw} onChange={(e) => setMatterEditGoverningLaw(e.target.value)} placeholder="e.g. Laws of Malaysia" className="w-full bg-white" />
                         </div>
                       </div>
@@ -2225,8 +2247,8 @@ export const CasesView: React.FC = () => {
                 })()}
 
                 {/* Searchable Multi-Select Dropdown for Additional File Handlers */}
-                <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-3 space-y-2">
-                  <label className="font-bold text-blue-900 block uppercase text-xs">Additional File Handlers</label>
+                <div className="rounded-xl border border-[#E7EEF6] bg-[#E7EEF6]/40 p-3 space-y-2">
+                  <label className="font-bold text-[#3D6B9C] block uppercase text-xs">Additional File Handlers</label>
                   <p className="text-[10.5px] text-slate-500">
                     Select staff members and lawyers assigned to handle this matter. Assigned handlers from registration intake are prefilled.
                   </p>
@@ -2236,13 +2258,13 @@ export const CasesView: React.FC = () => {
                     {matterEditHandlers.map((handlerName) => (
                       <span
                         key={handlerName}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#16223A] text-amber-300 rounded-lg text-xs font-bold shadow-2xs border border-[#16223A]"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#16223A] text-[#8A6D3B] rounded-lg text-xs font-bold shadow-2xs border border-[#16223A]"
                       >
                         <span>{handlerName}</span>
                         <button
                           type="button"
                           onClick={() => setMatterEditHandlers((prev) => prev.filter((name) => name !== handlerName))}
-                          className="ml-1 text-amber-300/80 hover:text-white cursor-pointer font-bold text-sm"
+                          className="ml-1 text-[#8A6D3B]/80 hover:text-white cursor-pointer font-bold text-sm"
                           title="Remove handler"
                         >
                           ×
@@ -2260,7 +2282,7 @@ export const CasesView: React.FC = () => {
                   <div className="relative">
                     <div
                       onClick={() => setIsHandlerDropdownOpen((prev) => !prev)}
-                      className="flex items-center bg-white border border-[#E1DCCF] rounded-lg px-2.5 py-1.5 focus-within:ring-2 focus-within:ring-[#16223A] cursor-pointer"
+                      className="flex items-center bg-white border border-[#DDE3EB] rounded-lg px-2.5 py-1.5 focus-within:ring-2 focus-within:ring-[#16223A] cursor-pointer"
                     >
                       <Search className="w-3.5 h-3.5 text-slate-400 mr-2 shrink-0" />
                       <input
@@ -2296,7 +2318,7 @@ export const CasesView: React.FC = () => {
 
                     {/* Dropdown Options List */}
                     {isHandlerDropdownOpen && (
-                      <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-[#E1DCCF] rounded-xl shadow-lg z-30 max-h-48 overflow-y-auto divide-y divide-slate-100">
+                      <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-[#DDE3EB] rounded-xl shadow-lg z-30 max-h-48 overflow-y-auto divide-y divide-slate-100">
                         {(() => {
                           const availableStaff = users
                             .filter((u) => u.status === 'Active' && u.role !== 'Client')
@@ -2329,8 +2351,8 @@ export const CasesView: React.FC = () => {
                                 }}
                                 className={`w-full text-left p-2.5 text-xs flex items-center justify-between transition-colors cursor-pointer ${
                                   isSelected
-                                    ? 'bg-amber-50/70 text-[#16223A]'
-                                    : 'hover:bg-[#FAF8F2] text-[#16223A]'
+                                    ? 'bg-[#FBF2E9]/70 text-[#16223A]'
+                                    : 'hover:bg-[#F6F8FA] text-[#16223A]'
                                 }`}
                               >
                                 <div className="flex items-center gap-2">
@@ -2340,11 +2362,11 @@ export const CasesView: React.FC = () => {
                                   </span>
                                 </div>
                                 {isSelected ? (
-                                  <span className="text-[10px] text-emerald-800 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300">
+                                  <span className="text-[10px] text-[#2F6F4E] font-bold bg-[#E6EFE9] px-2 py-0.5 rounded border border-[#2F6F4E]">
                                     ✓ Assigned
                                   </span>
                                 ) : (
-                                  <span className="text-[10px] text-amber-800 font-bold hover:underline">
+                                  <span className="text-[10px] text-[#8A6D3B] font-bold hover:underline">
                                     + Assign
                                   </span>
                                 )}
@@ -2365,9 +2387,9 @@ export const CasesView: React.FC = () => {
                   <label className="font-bold text-slate-700 block uppercase mb-1">Matter Case Notes</label>
                   <textarea rows={4} value={matterEditNotes} onChange={(e) => setMatterEditNotes(e.target.value)} className="w-full resize-y" />
                 </div>
-                <div className="flex justify-end gap-2 border-t border-[#E1DCCF] pt-4">
-                  <button type="button" onClick={() => setIsMatterDetailsEditOpen(false)} className="px-4 py-2 border border-[#E1DCCF] text-slate-700 rounded-lg font-semibold cursor-pointer">Cancel</button>
-                  <button type="submit" className="px-5 py-2 bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded-lg font-bold cursor-pointer">Save Matter Details</button>
+                <div className="flex justify-end gap-2 border-t border-[#DDE3EB] pt-4">
+                  <button type="button" onClick={() => setIsMatterDetailsEditOpen(false)} className="px-4 py-2 border border-[#DDE3EB] text-slate-700 rounded-lg font-semibold cursor-pointer">Cancel</button>
+                  <button type="submit" className="px-5 py-2 bg-[#16223A] hover:bg-[#16223A] text-white rounded-lg font-bold cursor-pointer">Save Matter Details</button>
                 </div>
               </form>
             </div>
@@ -2379,40 +2401,40 @@ export const CasesView: React.FC = () => {
           return (
             <div className="space-y-6 text-xs">
               {/* Visual Realistic Physical File Jacket / Folder Cover */}
-              <div className="bg-[#FAF8F5] dark:bg-[#1B2330] border-2 border-[#A9814A]/40 dark:border-slate-700 rounded-2xl p-6 shadow-md relative overflow-hidden">
+              <div className="bg-[#F6F8FA] dark:bg-[#16223A] border-2 border-[#3D6B9C]/40 dark:border-slate-700 rounded-2xl p-6 shadow-md relative overflow-hidden">
                 {/* Top Practice Color Bar */}
                 <div className={`absolute top-0 left-0 right-0 h-3 bg-gradient-to-r ${
-                  isConveyancing ? 'from-[#2F6F4E] via-[#A9814A] to-[#2F6F4E]' :
-                  isCorporate ? 'from-[#3B1E54] via-[#A9814A] to-[#3B1E54]' :
-                  'from-[#16223A] via-[#A9814A] to-[#16223A]'
+                  isConveyancing ? 'from-[#2F6F4E] via-[#3D6B9C] to-[#2F6F4E]' :
+                  isCorporate ? 'from-[#6B3D8C] via-[#3D6B9C] to-[#6B3D8C]' :
+                  'from-[#16223A] via-[#3D6B9C] to-[#16223A]'
                 }`} />
 
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-[#E1DCCF] pb-4 mb-5">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-[#DDE3EB] pb-4 mb-5">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-[#16223A] text-amber-300 rounded-xl flex items-center justify-center font-serif font-extrabold text-lg border border-[#A9814A] shadow-xs">
+                    <div className="w-12 h-12 bg-[#16223A] text-[#8A6D3B] rounded-xl flex items-center justify-center font-serif font-extrabold text-lg border border-[#3D6B9C] shadow-xs">
                       SH
                     </div>
                     <div>
                       <h3 className="font-serif font-black text-base text-[#16223A] tracking-wide">
                         MESSRS SYAFIQAH HAMIZAD &amp; CO
                       </h3>
-                      <p className="text-[10.5px] font-bold text-[#A9814A] tracking-wider uppercase">
+                      <p className="text-[10.5px] font-bold text-[#3D6B9C] tracking-wider uppercase">
                         Advocates &amp; Solicitors
                       </p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <div className="text-right font-mono bg-white border border-[#E1DCCF] px-3 py-1.5 rounded-lg shadow-2xs">
+                    <div className="text-right font-mono bg-white border border-[#DDE3EB] px-3 py-1.5 rounded-lg shadow-2xs">
                       <span className="block text-[9px] uppercase font-bold text-slate-400">File Ref Seal</span>
                       <span className="font-extrabold text-sm text-[#16223A]">{selectedCase.ref}</span>
                     </div>
                     <button
                       type="button"
                       onClick={() => setIsFileCoverModalOpen(true)}
-                      className="bg-[#16223A] hover:bg-[#1F2E4D] text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 cursor-pointer shadow-xs transition-all shrink-0"
+                      className="bg-[#16223A] hover:bg-[#16223A] text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 cursor-pointer shadow-xs transition-all shrink-0"
                     >
-                      <Printer className="w-4 h-4 text-[#A9814A]" />
+                      <Printer className="w-4 h-4 text-[#3D6B9C]" />
                       <span>Print File Cover</span>
                     </button>
                   </div>
@@ -2421,12 +2443,12 @@ export const CasesView: React.FC = () => {
                 {/* Physical Jacket Grid Content */}
                 <div className="grid grid-cols-1 gap-5">
                   {/* File Title & Particulars */}
-                  <div className="w-full bg-white border border-[#E1DCCF] p-5 rounded-xl space-y-4 shadow-2xs">
+                  <div className="w-full bg-white border border-[#DDE3EB] p-5 rounded-xl space-y-4 shadow-2xs">
                     <div>
                       <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded border ${
-                        isConveyancing ? 'text-emerald-800 bg-emerald-50 border-emerald-200' :
-                        isCorporate ? 'text-purple-800 bg-purple-50 border-purple-200' :
-                        'text-amber-800 bg-amber-50 border-amber-200'
+                        isConveyancing ? 'text-[#2F6F4E] bg-[#E6EFE9] border-[#E6EFE9]' :
+                        isCorporate ? 'text-[#6B3D8C] bg-[#F1EBF6] border-[#F1EBF6]' :
+                        'text-[#8A6D3B] bg-[#FBF2E9] border-[#FBF2E9]'
                       }`}>
                         {isConveyancing ? 'Physical File Cover Jacket Details (Conveyancing & Property)' :
                          isCorporate ? 'Physical File Cover Jacket Details (Corporate & Advisory)' :
@@ -2456,7 +2478,7 @@ export const CasesView: React.FC = () => {
                         </div>
                         <div>
                           <span className="font-bold text-slate-500 uppercase text-[10px] block">Practice Area Category</span>
-                          <span className="font-bold text-blue-900 text-xs">{selectedCase.practiceArea || selectedCase.type || 'Litigation'}</span>
+                          <span className="font-bold text-[#3D6B9C] text-xs">{selectedCase.practiceArea || selectedCase.type || 'Litigation'}</span>
                         </div>
                       </div>
                     )}
@@ -2475,7 +2497,7 @@ export const CasesView: React.FC = () => {
                         </div>
                         <div>
                           <span className="font-bold text-slate-500 uppercase text-[10px] block">Purchase Price / Consideration</span>
-                          <span className="font-semibold text-emerald-800 text-xs font-mono">{selectedCase.purchasePrice || 'RM 650,000.00'}</span>
+                          <span className="font-semibold text-[#2F6F4E] text-xs font-mono">{selectedCase.purchasePrice || 'RM 650,000.00'}</span>
                         </div>
                         <div>
                           <span className="font-bold text-slate-500 uppercase text-[10px] block">Financier / Loan Bank</span>
@@ -2488,7 +2510,7 @@ export const CasesView: React.FC = () => {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
                         <div>
                           <span className="font-bold text-slate-500 uppercase text-[10px] block">Corporate Advisory Nature</span>
-                          <span className="font-bold text-purple-900 text-xs">
+                          <span className="font-bold text-[#6B3D8C] text-xs">
                             {selectedCase.corporateMatterType || selectedCase.type || 'Corporate Advisory & Share Sale Agreement'}
                           </span>
                         </div>
@@ -2508,15 +2530,15 @@ export const CasesView: React.FC = () => {
                     )}
 
                     {/* Parties Summary Box */}
-                    <div className="bg-[#FAF8F2] p-3.5 rounded-lg border border-[#E1DCCF] space-y-2">
+                    <div className="bg-[#F6F8FA] p-3.5 rounded-lg border border-[#DDE3EB] space-y-2">
                       <div className="flex justify-between items-center text-[10.5px]">
-                        <span className="font-bold text-blue-900 uppercase">
+                        <span className="font-bold text-[#3D6B9C] uppercase">
                           {isConveyancing ? 'Purchaser / Borrower (Client):' : isCorporate ? 'Retaining Client:' : 'Represented Client(s):'}
                         </span>
                         <span className="font-bold text-slate-800">{selectedCase.clientName} ({selectedCase.clientRole || (isConveyancing ? 'Purchaser' : isCorporate ? 'Client' : 'Plaintiff')})</span>
                       </div>
                       <div className="flex justify-between items-center text-[10.5px]">
-                        <span className="font-bold text-rose-900 uppercase">
+                        <span className="font-bold text-[#B23A2E] uppercase">
                           {isConveyancing ? 'Vendor / Developer / Counterparty:' : isCorporate ? 'Counterparty / Target Entity:' : 'Opposing Party:'}
                         </span>
                         <span className="font-bold text-slate-800">{selectedCase.opposingParty || (isConveyancing ? 'Vendor / Developer' : isCorporate ? 'Target Entity' : 'Opposing Defendant')}</span>
@@ -2527,8 +2549,8 @@ export const CasesView: React.FC = () => {
               </div>
 
               {/* Read-Only Overview & Editable Particulars Form */}
-              <div className="bg-white border border-[#E1DCCF] p-5 rounded-xl shadow-xs space-y-4">
-                <div className="flex justify-between items-center border-b border-[#E1DCCF] pb-3">
+              <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-4">
+                <div className="flex justify-between items-center border-b border-[#DDE3EB] pb-3">
                   <div>
                     <h3 className="font-serif font-bold text-sm text-[#16223A]">
                       {isConveyancing ? 'Conveyancing & Property Particulars' :
@@ -2545,7 +2567,7 @@ export const CasesView: React.FC = () => {
 
                 {/* EDITABLE FORM FIELDS FOR LITIGATION */}
                 {isLitigation && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-[#FAF8F2] p-4 rounded-xl border border-[#E1DCCF]">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-[#F6F8FA] p-4 rounded-xl border border-[#DDE3EB]">
                     <div>
                       <label className="font-bold text-slate-500 block uppercase text-[10px]">Court Case No.</label>
                       <input
@@ -2594,9 +2616,9 @@ export const CasesView: React.FC = () => {
 
                 {/* EDITABLE FORM FIELDS FOR CONVEYANCING */}
                 {isConveyancing && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-emerald-50/40 p-4 rounded-xl border border-emerald-200">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-[#E6EFE9]/40 p-4 rounded-xl border border-[#E6EFE9]">
                     <div>
-                      <label className="font-bold text-emerald-900 block uppercase text-[10px]">Property Title / Lot No.</label>
+                      <label className="font-bold text-[#2F6F4E] block uppercase text-[10px]">Property Title / Lot No.</label>
                       <input
                         type="text"
                         value={selectedCase.propertyTitleNo || ''}
@@ -2606,7 +2628,7 @@ export const CasesView: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="font-bold text-emerald-900 block uppercase text-[10px]">Property Address</label>
+                      <label className="font-bold text-[#2F6F4E] block uppercase text-[10px]">Property Address</label>
                       <input
                         type="text"
                         value={selectedCase.propertyAddress || ''}
@@ -2616,7 +2638,7 @@ export const CasesView: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="font-bold text-emerald-900 block uppercase text-[10px]">Purchase Price / SPA Consideration</label>
+                      <label className="font-bold text-[#2F6F4E] block uppercase text-[10px]">Purchase Price / SPA Consideration</label>
                       <input
                         type="text"
                         value={selectedCase.purchasePrice || ''}
@@ -2626,7 +2648,7 @@ export const CasesView: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="font-bold text-emerald-900 block uppercase text-[10px]">Financier / Loan Bank</label>
+                      <label className="font-bold text-[#2F6F4E] block uppercase text-[10px]">Financier / Loan Bank</label>
                       <input
                         type="text"
                         value={selectedCase.financierBank || ''}
@@ -2636,7 +2658,7 @@ export const CasesView: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="font-bold text-emerald-900 block uppercase text-[10px]">Developer / Vendor Name</label>
+                      <label className="font-bold text-[#2F6F4E] block uppercase text-[10px]">Developer / Vendor Name</label>
                       <input
                         type="text"
                         value={selectedCase.developerName || ''}
@@ -2646,7 +2668,7 @@ export const CasesView: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="font-bold text-emerald-900 block uppercase text-[10px]">Target Completion / SPA Date</label>
+                      <label className="font-bold text-[#2F6F4E] block uppercase text-[10px]">Target Completion / SPA Date</label>
                       <input
                         type="date"
                         value={selectedCase.completionDate || ''}
@@ -2655,7 +2677,7 @@ export const CasesView: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="font-bold text-emerald-900 block uppercase text-[10px]">MOT / Redemption Status</label>
+                      <label className="font-bold text-[#2F6F4E] block uppercase text-[10px]">MOT / Redemption Status</label>
                       <input
                         type="text"
                         value={selectedCase.motStatus || ''}
@@ -2665,7 +2687,7 @@ export const CasesView: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="font-bold text-emerald-900 block uppercase text-[10px]">PIC (Partner-in-Charge)</label>
+                      <label className="font-bold text-[#2F6F4E] block uppercase text-[10px]">PIC (Partner-in-Charge)</label>
                       <select
                         value={selectedCase.lawyerInCharge || ''}
                         onChange={(e) => updateCase(selectedCase.id, { lawyerInCharge: e.target.value })}
@@ -2682,9 +2704,9 @@ export const CasesView: React.FC = () => {
 
                 {/* EDITABLE FORM FIELDS FOR CORPORATE */}
                 {isCorporate && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-purple-50/40 p-4 rounded-xl border border-purple-200">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-[#F1EBF6]/40 p-4 rounded-xl border border-[#F1EBF6]">
                     <div>
-                      <label className="font-bold text-purple-900 block uppercase text-[10px]">Advisory / Transaction Type</label>
+                      <label className="font-bold text-[#6B3D8C] block uppercase text-[10px]">Advisory / Transaction Type</label>
                       <input
                         type="text"
                         value={selectedCase.corporateMatterType || ''}
@@ -2694,7 +2716,7 @@ export const CasesView: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="font-bold text-purple-900 block uppercase text-[10px]">Contract / Deal Value</label>
+                      <label className="font-bold text-[#6B3D8C] block uppercase text-[10px]">Contract / Deal Value</label>
                       <input
                         type="text"
                         value={selectedCase.contractValue || ''}
@@ -2704,7 +2726,7 @@ export const CasesView: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="font-bold text-purple-900 block uppercase text-[10px]">Regulatory Authority</label>
+                      <label className="font-bold text-[#6B3D8C] block uppercase text-[10px]">Regulatory Authority</label>
                       <input
                         type="text"
                         value={selectedCase.regulatoryAuthority || ''}
@@ -2714,7 +2736,7 @@ export const CasesView: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="font-bold text-purple-900 block uppercase text-[10px]">Governing Law &amp; Forum</label>
+                      <label className="font-bold text-[#6B3D8C] block uppercase text-[10px]">Governing Law &amp; Forum</label>
                       <input
                         type="text"
                         value={selectedCase.governingLaw || ''}
@@ -2724,7 +2746,7 @@ export const CasesView: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="font-bold text-purple-900 block uppercase text-[10px]">Target Closing / Execution Date</label>
+                      <label className="font-bold text-[#6B3D8C] block uppercase text-[10px]">Target Closing / Execution Date</label>
                       <input
                         type="date"
                         value={selectedCase.targetClosingDate || ''}
@@ -2733,7 +2755,7 @@ export const CasesView: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="font-bold text-purple-900 block uppercase text-[10px]">Retainer Status</label>
+                      <label className="font-bold text-[#6B3D8C] block uppercase text-[10px]">Retainer Status</label>
                       <input
                         type="text"
                         value={selectedCase.retainerStatus || ''}
@@ -2743,7 +2765,7 @@ export const CasesView: React.FC = () => {
                       />
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="font-bold text-purple-900 block uppercase text-[10px]">PIC (Partner-in-Charge)</label>
+                      <label className="font-bold text-[#6B3D8C] block uppercase text-[10px]">PIC (Partner-in-Charge)</label>
                       <select
                         value={selectedCase.lawyerInCharge || ''}
                         onChange={(e) => updateCase(selectedCase.id, { lawyerInCharge: e.target.value })}
@@ -2759,11 +2781,11 @@ export const CasesView: React.FC = () => {
                 )}
 
                 {/* Represented Clients Roster */}
-                <div className="bg-blue-50/50 border border-blue-200 p-4 rounded-xl space-y-3">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-blue-200 pb-2">
+                <div className="bg-[#E7EEF6]/50 border border-[#E7EEF6] p-4 rounded-xl space-y-3">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-[#E7EEF6] pb-2">
                     <div>
                       <h4 className="font-serif font-bold text-sm text-[#16223A] flex items-center gap-1.5">
-                        <UserCheck className="w-4 h-4 text-blue-600" />
+                        <UserCheck className="w-4 h-4 text-[#3D6B9C]" />
                         {isConveyancing ? 'Purchaser(s) / Borrower(s) Represented by SHCO' :
                          isCorporate ? 'Retaining Client(s) Represented by SHCO' :
                          'Clients Represented by SHCO (Multi-Party Roster)'}
@@ -2772,7 +2794,7 @@ export const CasesView: React.FC = () => {
                     <button
                       type="button"
                       onClick={handleOpenAddClientParty}
-                      className="bg-[#16223A] hover:bg-[#1F2E4D] text-white px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors whitespace-nowrap"
+                      className="bg-[#16223A] hover:bg-[#16223A] text-white px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors whitespace-nowrap"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>Add Represented Client</span>
@@ -2790,11 +2812,11 @@ export const CasesView: React.FC = () => {
                           },
                         ]
                     ).map((cParty, idx) => (
-                      <div key={cParty.id || idx} className="bg-white p-3 rounded-lg border border-blue-200 flex justify-between items-center">
+                      <div key={cParty.id || idx} className="bg-white p-3 rounded-lg border border-[#E7EEF6] flex justify-between items-center">
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-[#16223A] text-xs">{cParty.name}</span>
-                            <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
+                            <span className="text-[10px] font-bold text-[#3D6B9C] bg-[#E7EEF6] border border-[#E7EEF6] px-2 py-0.5 rounded">
                               {cParty.role}
                             </span>
                           </div>
@@ -2809,7 +2831,7 @@ export const CasesView: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => handleEditClientParty(cParty)}
-                            className="p-1 text-slate-600 hover:text-blue-700 hover:bg-slate-100 rounded cursor-pointer text-[11px] font-medium"
+                            className="p-1 text-slate-600 hover:text-[#3D6B9C] hover:bg-slate-100 rounded cursor-pointer text-[11px] font-medium"
                           >
                             Edit
                           </button>
@@ -2820,11 +2842,11 @@ export const CasesView: React.FC = () => {
                 </div>
 
                 {/* Opposing Parties / Counterparties Roster */}
-                <div className="bg-rose-50/30 border border-rose-200 p-4 rounded-xl space-y-3">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-rose-200 pb-2">
+                <div className="bg-[#FBEDE9]/30 border border-[#FBEDE9] p-4 rounded-xl space-y-3">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-[#FBEDE9] pb-2">
                     <div>
                       <h4 className="font-serif font-bold text-sm text-[#16223A] flex items-center gap-1.5">
-                        <Users className="w-4 h-4 text-rose-600" />
+                        <Users className="w-4 h-4 text-[#B23A2E]" />
                         {isConveyancing ? 'Vendor / Developer / Counterparties Roster' :
                          isCorporate ? 'Counterparty & Target Entities Roster' :
                          'Opposing Parties (Multi-Opponent Roster)'}
@@ -2833,7 +2855,7 @@ export const CasesView: React.FC = () => {
                     <button
                       type="button"
                       onClick={handleOpenAddOppParty}
-                      className="bg-[#16223A] hover:bg-[#1F2E4D] text-white px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors whitespace-nowrap"
+                      className="bg-[#16223A] hover:bg-[#16223A] text-white px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors whitespace-nowrap"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>{isConveyancing ? 'Add Counterparty / Vendor' : isCorporate ? 'Add Counterparty / Entity' : 'Add Opposing Party'}</span>
@@ -2851,11 +2873,11 @@ export const CasesView: React.FC = () => {
                           },
                         ]
                     ).map((opParty, idx) => (
-                      <div key={opParty.id || idx} className="bg-white p-3 rounded-lg border border-rose-200 flex justify-between items-center">
+                      <div key={opParty.id || idx} className="bg-white p-3 rounded-lg border border-[#FBEDE9] flex justify-between items-center">
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-[#16223A] text-xs">{opParty.name}</span>
-                            <span className="text-[10px] font-bold text-rose-800 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded">
+                            <span className="text-[10px] font-bold text-[#B23A2E] bg-[#FBEDE9] border border-[#FBEDE9] px-2 py-0.5 rounded">
                               {opParty.role}
                             </span>
                           </div>
@@ -2869,7 +2891,7 @@ export const CasesView: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => handleEditOppParty(opParty)}
-                            className="p-1 text-slate-600 hover:text-rose-700 hover:bg-slate-100 rounded cursor-pointer text-[11px] font-medium"
+                            className="p-1 text-slate-600 hover:text-[#B23A2E] hover:bg-slate-100 rounded cursor-pointer text-[11px] font-medium"
                           >
                             Edit
                           </button>
@@ -2877,7 +2899,7 @@ export const CasesView: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => handleRemoveOppParty(opParty.id)}
-                              className="p-1 text-rose-600 hover:bg-rose-50 rounded cursor-pointer text-[11px]"
+                              className="p-1 text-[#B23A2E] hover:bg-[#FBEDE9] rounded cursor-pointer text-[11px]"
                             >
                               Delete
                             </button>
@@ -2889,11 +2911,11 @@ export const CasesView: React.FC = () => {
                 </div>
 
                 {/* External Solicitors / Legal Advisory Registry */}
-                <div className="bg-[#16223A]/5 border border-[#E1DCCF] p-4 rounded-xl space-y-3">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-[#E1DCCF] pb-2">
+                <div className="bg-[#16223A]/5 border border-[#DDE3EB] p-4 rounded-xl space-y-3">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-[#DDE3EB] pb-2">
                     <div>
                       <h4 className="font-serif font-bold text-sm text-[#16223A] flex items-center gap-1.5">
-                        <Briefcase className="w-4 h-4 text-[#A9814A]" />
+                        <Briefcase className="w-4 h-4 text-[#3D6B9C]" />
                         {isConveyancing ? "External / Counterparty Solicitors Registry (Vendor's / Purchaser's / Bank's Counsel)" :
                          isCorporate ? 'Counterparty Counsel & Advisory Firms Registry' :
                          'Opposing Solicitors Registry (Multi-Lawfirm & Multi-Counsel)'}
@@ -2903,7 +2925,7 @@ export const CasesView: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setIsRegOpposingModalOpen(true)}
-                        className="bg-[#16223A] hover:bg-[#1F2E4D] text-white px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors whitespace-nowrap"
+                        className="bg-[#16223A] hover:bg-[#16223A] text-white px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors whitespace-nowrap"
                       >
                         <Plus className="w-3.5 h-3.5" />
                         <span>Register New Firm / Counsel</span>
@@ -2911,7 +2933,7 @@ export const CasesView: React.FC = () => {
                       <button
                         type="button"
                         onClick={openChangeOpposingModal}
-                        className="bg-[#A9814A] hover:bg-[#8E6B3B] text-white px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors whitespace-nowrap"
+                        className="bg-[#3D6B9C] hover:bg-[#8A6D3B] text-white px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors whitespace-nowrap"
                       >
                         <RefreshCw className="w-3.5 h-3.5" />
                         <span>Notice of Change</span>
@@ -2949,12 +2971,12 @@ export const CasesView: React.FC = () => {
                             <span className="font-bold text-slate-900 text-xs sm:text-sm">
                               {reg.firmName}
                             </span>
-                            <span className="text-[10.5px] font-bold text-[#A9814A] bg-amber-50 border border-[#A9814A]/40 px-2 py-0.5 rounded">
+                            <span className="text-[10.5px] font-bold text-[#3D6B9C] bg-[#FBF2E9] border border-[#3D6B9C]/40 px-2 py-0.5 rounded">
                               {reg.partyRepresented}
                             </span>
                             {reg.isPrimary && (
-                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-300 px-1.5 py-0.2 rounded flex items-center gap-1">
-                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span className="text-[10px] font-bold text-[#2F6F4E] bg-[#E6EFE9] border border-[#2F6F4E] px-1.5 py-0.2 rounded flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3 text-[#2F6F4E]" />
                                 Primary Counsel on Record
                               </span>
                             )}
@@ -2963,7 +2985,7 @@ export const CasesView: React.FC = () => {
                           {/* Advocates roster */}
                           {reg.solicitors && (
                             <div className="text-xs text-slate-800 font-semibold flex items-start gap-1">
-                              <UserCheck className="w-3.5 h-3.5 text-blue-600 mt-0.5 shrink-0" />
+                              <UserCheck className="w-3.5 h-3.5 text-[#3D6B9C] mt-0.5 shrink-0" />
                               <span>Counsel / Lawyer: <strong className="text-slate-900">{reg.solicitors}</strong></span>
                             </div>
                           )}
@@ -2971,7 +2993,7 @@ export const CasesView: React.FC = () => {
                           <div className="flex items-center gap-4 text-[11px] text-slate-600 font-medium flex-wrap pt-0.5">
                             {reg.firmRef && <span>File Ref: <strong className="font-mono text-slate-800">{reg.firmRef}</strong></span>}
                             {reg.contactNumber && <span>Tel: {reg.contactNumber}</span>}
-                            {reg.email && <span>Email: <span className="text-blue-600">{reg.email}</span></span>}
+                            {reg.email && <span>Email: <span className="text-[#3D6B9C]">{reg.email}</span></span>}
                           </div>
                         </div>
 
@@ -2979,7 +3001,7 @@ export const CasesView: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => handleEditRegOpposing(reg)}
-                            className="px-3 py-1.5 bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded text-xs font-semibold cursor-pointer shadow-xs transition-colors flex items-center gap-1"
+                            className="px-3 py-1.5 bg-[#16223A] hover:bg-[#16223A] text-white rounded text-xs font-semibold cursor-pointer shadow-xs transition-colors flex items-center gap-1"
                           >
                             <FileText className="w-3.5 h-3.5" />
                             <span>Edit Details</span>
@@ -2988,7 +3010,7 @@ export const CasesView: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => handleRemoveRegOpposing(reg.id)}
-                              className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded text-xs font-semibold cursor-pointer border border-rose-200 transition-colors"
+                              className="px-2.5 py-1.5 bg-[#FBEDE9] hover:bg-[#FBEDE9] text-[#B23A2E] rounded text-xs font-semibold cursor-pointer border border-[#FBEDE9] transition-colors"
                             >
                               Remove
                             </button>
@@ -3028,7 +3050,7 @@ export const CasesView: React.FC = () => {
               title: `Task: ${t.title}`,
               description: `Assigned to ${t.assignedTo}. Status: ${t.status}. Priority: ${t.priority}.`,
               actor: t.assignedTo || 'Assigned Lawyer',
-              badgeColor: t.status === 'Completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800',
+              badgeColor: t.status === 'Completed' ? 'bg-[#E6EFE9] text-[#2F6F4E]' : 'bg-[#E7EEF6] text-[#3D6B9C]',
             });
           });
 
@@ -3040,7 +3062,7 @@ export const CasesView: React.FC = () => {
               title: `Court Hearing: ${h.purpose}`,
               description: `Status: ${h.status}. Outcome: ${h.outcome || 'Pending court appearance'}.`,
               actor: 'Litigation Team',
-              badgeColor: 'bg-amber-100 text-amber-800',
+              badgeColor: 'bg-[#FBF2E9] text-[#8A6D3B]',
             });
           });
 
@@ -3052,7 +3074,7 @@ export const CasesView: React.FC = () => {
               title: `Document Service: ${s.documentServed}`,
               description: `Served on ${s.servedOn} via ${s.method}. Proof obtained: ${s.proofObtained}.`,
               actor: s.servedBy || 'Litigation Clerk',
-              badgeColor: 'bg-purple-100 text-purple-800',
+              badgeColor: 'bg-[#F1EBF6] text-[#6B3D8C]',
             });
           });
 
@@ -3064,18 +3086,18 @@ export const CasesView: React.FC = () => {
               title: `Client / Case Meeting: ${m.meetingNotes.slice(0, 80) || 'Meeting'}`,
               description: m.decisions || m.meetingNotes || 'Meeting conducted.',
               actor: m.ourLawyers || m.clientAttendees || 'Lawyer in charge',
-              badgeColor: 'bg-[#16223A] text-amber-300',
+              badgeColor: 'bg-[#16223A] text-[#8A6D3B]',
             });
           });
 
           combinedLogs.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
 
           return (
-            <div className="bg-white border border-[#E1DCCF] p-5 rounded-xl shadow-xs space-y-5 text-xs">
+            <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-5 text-xs">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-4">
                 <div>
                   <h3 className="font-serif font-bold text-sm text-[#16223A] flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-[#A9814A]" />
+                    <Activity className="w-4 h-4 text-[#3D6B9C]" />
                     <span>Case Activity Feed & Compliance Audit Log</span>
                   </h3>
                   <p className="text-xs text-slate-500">
@@ -3086,9 +3108,9 @@ export const CasesView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setIsAddActivityModalOpen(true)}
-                    className="bg-[#16223A] hover:bg-[#1F2E4D] text-amber-300 text-xs font-bold px-3 py-1.5 rounded-md flex items-center gap-1.5 shadow-xs cursor-pointer shrink-0"
+                    className="bg-[#16223A] hover:bg-[#16223A] text-[#8A6D3B] text-xs font-bold px-3 py-1.5 rounded-md flex items-center gap-1.5 shadow-xs cursor-pointer shrink-0"
                   >
-                    <Plus className="w-3.5 h-3.5 text-amber-300" />
+                    <Plus className="w-3.5 h-3.5 text-[#8A6D3B]" />
                     <span>Log Compliance / Activity</span>
                   </button>
                 ) : (
@@ -3104,8 +3126,8 @@ export const CasesView: React.FC = () => {
                 ) : (
                   combinedLogs.map((log) => (
                     <div key={log.id} className="relative pl-8 pb-2 group">
-                      <div className="absolute left-1.5 top-1.5 w-3 h-3 rounded-full bg-[#A9814A] border-2 border-white shadow-2xs group-hover:scale-125 transition-transform" />
-                      <div className="bg-[#FAF8F5] dark:bg-[#1B2330] border border-[#E1DCCF] dark:border-slate-700 p-3.5 rounded-xl space-y-1.5 hover:shadow-2xs transition-shadow">
+                      <div className="absolute left-1.5 top-1.5 w-3 h-3 rounded-full bg-[#3D6B9C] border-2 border-white shadow-2xs group-hover:scale-125 transition-transform" />
+                      <div className="bg-[#F6F8FA] dark:bg-[#16223A] border border-[#DDE3EB] dark:border-slate-700 p-3.5 rounded-xl space-y-1.5 hover:shadow-2xs transition-shadow">
                         <div className="flex items-center justify-between gap-2 flex-wrap">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${log.badgeColor || 'bg-slate-100 text-slate-700'}`}>
                             {log.type}
@@ -3133,40 +3155,40 @@ export const CasesView: React.FC = () => {
           );
 
           return (
-            <div className="bg-white border border-[#E1DCCF] p-5 rounded-xl shadow-xs space-y-4">
-              <div className="flex justify-between items-center border-b border-[#E1DCCF] pb-3">
+            <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-4">
+              <div className="flex justify-between items-center border-b border-[#DDE3EB] pb-3">
                 <div>
                   <h3 className="font-serif font-bold text-sm text-[#16223A] flex items-center gap-2">
-                    <History className="w-4 h-4 text-[#A9814A]" />
+                    <History className="w-4 h-4 text-[#3D6B9C]" />
                     <span>Matter System Audit Trail &amp; Database Change History</span>
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
                     Immutable activity log tracking every creation, edit, update, deletion, and restoration for matter #{selectedCase.ref}
                   </p>
                 </div>
-                <span className="text-xs font-mono font-bold bg-[#16223A] text-amber-300 px-2.5 py-1 rounded-lg">
+                <span className="text-xs font-mono font-bold bg-[#16223A] text-[#8A6D3B] px-2.5 py-1 rounded-lg">
                   {caseLogs.length} Audit Events Logged
                 </span>
               </div>
 
               <div className="space-y-3">
                 {caseLogs.length === 0 ? (
-                  <div className="p-8 text-center text-slate-500 bg-[#FAF8F2] rounded-xl border border-dashed border-[#E1DCCF] text-xs">
+                  <div className="p-8 text-center text-slate-500 bg-[#F6F8FA] rounded-xl border border-dashed border-[#DDE3EB] text-xs">
                     No system audit logs recorded for this matter yet. Future CRUD operations on this matter will automatically record audit events here.
                   </div>
                 ) : (
                   caseLogs.map((log) => (
                     <div
                       key={log.id}
-                      className="p-3.5 bg-[#FAF8F2] border border-[#E1DCCF] rounded-xl flex items-start justify-between gap-3 text-xs"
+                      className="p-3.5 bg-[#F6F8FA] border border-[#DDE3EB] rounded-xl flex items-start justify-between gap-3 text-xs"
                     >
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <span className={`px-2 py-0.5 text-[9.5px] font-bold font-mono rounded ${
-                            log.action === 'CREATE' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
-                            log.action === 'UPDATE' ? 'bg-blue-100 text-blue-800 border border-blue-300' :
-                            log.action === 'DELETE' ? 'bg-rose-100 text-rose-800 border border-rose-300' :
-                            'bg-amber-100 text-amber-800 border border-amber-300'
+                            log.action === 'CREATE' ? 'bg-[#E6EFE9] text-[#2F6F4E] border border-[#2F6F4E]' :
+                            log.action === 'UPDATE' ? 'bg-[#E7EEF6] text-[#3D6B9C] border border-[#3D6B9C]' :
+                            log.action === 'DELETE' ? 'bg-[#FBEDE9] text-[#B23A2E] border border-[#B23A2E]' :
+                            'bg-[#FBF2E9] text-[#8A6D3B] border border-[#8A6D3B]'
                           }`}>
                             {log.action}
                           </span>
@@ -3190,7 +3212,7 @@ export const CasesView: React.FC = () => {
         })()}
 
         {needsCourtTabs && caseSubTab === 'hearings' && (
-          <div className="bg-white border border-[#E1DCCF] p-5 rounded-xl shadow-xs space-y-4">
+          <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-4">
             <div className="flex justify-between items-center">
               <div>
                 <h3 className="font-serif font-bold text-sm text-[#16223A]">Court Hearings Schedule</h3>
@@ -3200,7 +3222,7 @@ export const CasesView: React.FC = () => {
               </div>
               <button
                 onClick={() => setIsAddHearingModalOpen(true)}
-                className="bg-[#16223A] hover:bg-[#1F2E4D] text-white text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1 cursor-pointer"
+                className="bg-[#16223A] hover:bg-[#16223A] text-white text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Hearing</span>
@@ -3208,42 +3230,42 @@ export const CasesView: React.FC = () => {
             </div>
 
             {isAddServiceModalOpen && (
-              <form onSubmit={handleSaveService} className="border border-[#A9814A]/40 bg-[#FAF8F2] rounded-lg p-4 space-y-3 text-xs">
+              <form onSubmit={handleSaveService} className="border border-[#3D6B9C]/40 bg-[#F6F8FA] rounded-lg p-4 space-y-3 text-xs">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <label className="font-bold text-slate-700">Date Served
-                    <input type="date" value={svcDate} onChange={(e) => setSvcDate(e.target.value)} className="mt-1 w-full p-2 border border-[#E1DCCF] rounded-lg font-normal" />
+                    <input type="date" value={svcDate} onChange={(e) => setSvcDate(e.target.value)} className="mt-1 w-full p-2 border border-[#DDE3EB] rounded-lg font-normal" />
                   </label>
                   <label className="font-bold text-slate-700">Proof Status
-                    <select value={svcProof} onChange={(e) => setSvcProof(e.target.value as 'Y' | 'N')} className="mt-1 w-full p-2 border border-[#E1DCCF] rounded-lg">
+                    <select value={svcProof} onChange={(e) => setSvcProof(e.target.value as 'Y' | 'N')} className="mt-1 w-full p-2 border border-[#DDE3EB] rounded-lg">
                       <option value="Y">Proof Obtained</option>
                       <option value="N">Pending Proof</option>
                     </select>
                   </label>
                 </div>
                 <label className="font-bold text-slate-700 block">Document Served *
-                  <input required value={svcDoc} onChange={(e) => setSvcDoc(e.target.value)} placeholder="Statement of Claim or Notice of Application" className="mt-1 w-full p-2 border border-[#E1DCCF] rounded-lg font-normal" />
+                  <input required value={svcDoc} onChange={(e) => setSvcDoc(e.target.value)} placeholder="Statement of Claim or Notice of Application" className="mt-1 w-full p-2 border border-[#DDE3EB] rounded-lg font-normal" />
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <label className="font-bold text-slate-700">Served On
-                    <input value={svcServedOn} onChange={(e) => setSvcServedOn(e.target.value)} placeholder="Party / solicitor" className="mt-1 w-full p-2 border border-[#E1DCCF] rounded-lg font-normal" />
+                    <input value={svcServedOn} onChange={(e) => setSvcServedOn(e.target.value)} placeholder="Party / solicitor" className="mt-1 w-full p-2 border border-[#DDE3EB] rounded-lg font-normal" />
                   </label>
                   <label className="font-bold text-slate-700">Served By
-                    <input value={svcServedBy} onChange={(e) => setSvcServedBy(e.target.value)} placeholder="Process server" className="mt-1 w-full p-2 border border-[#E1DCCF] rounded-lg font-normal" />
+                    <input value={svcServedBy} onChange={(e) => setSvcServedBy(e.target.value)} placeholder="Process server" className="mt-1 w-full p-2 border border-[#DDE3EB] rounded-lg font-normal" />
                   </label>
                   <label className="font-bold text-slate-700">Service Method
-                    <input value={svcMethod} onChange={(e) => setSvcMethod(e.target.value)} placeholder="Personal Service" className="mt-1 w-full p-2 border border-[#E1DCCF] rounded-lg font-normal" />
+                    <input value={svcMethod} onChange={(e) => setSvcMethod(e.target.value)} placeholder="Personal Service" className="mt-1 w-full p-2 border border-[#DDE3EB] rounded-lg font-normal" />
                   </label>
                 </div>
                 <div className="flex justify-end gap-2">
-                  <button type="button" onClick={() => setIsAddServiceModalOpen(false)} className="px-3 py-1.5 border border-[#E1DCCF] rounded-lg font-bold text-slate-700 cursor-pointer">Cancel</button>
-                  <button type="submit" className="px-3 py-1.5 bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded-lg font-bold cursor-pointer">Log Service Record</button>
+                  <button type="button" onClick={() => setIsAddServiceModalOpen(false)} className="px-3 py-1.5 border border-[#DDE3EB] rounded-lg font-bold text-slate-700 cursor-pointer">Cancel</button>
+                  <button type="submit" className="px-3 py-1.5 bg-[#16223A] hover:bg-[#16223A] text-white rounded-lg font-bold cursor-pointer">Log Service Record</button>
                 </div>
               </form>
             )}
 
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-[#E1DCCF] text-[10px] uppercase text-slate-500">
+                <tr className="border-b border-[#DDE3EB] text-[10px] uppercase text-slate-500">
                   <th className="py-2">Date</th>
                   <th className="py-2">Time</th>
                   <th className="py-2">Purpose / Stage</th>
@@ -3270,8 +3292,8 @@ export const CasesView: React.FC = () => {
                           <span
                             className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                               h.status === 'Completed'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-blue-100 text-blue-800'
+                                ? 'bg-[#E6EFE9] text-[#2F6F4E]'
+                                : 'bg-[#E7EEF6] text-[#3D6B9C]'
                             }`}
                           >
                             {h.status}
@@ -3284,7 +3306,7 @@ export const CasesView: React.FC = () => {
                                 `Dear ${clientObj ? clientObj.name : 'Client'},\n\nYour hearing for matter ${selectedCase.ref} is scheduled on ${h.date} at ${h.time} for ${h.purpose}.\n\nSyafiqah Hamizad & Co`
                               )
                             }
-                            className="bg-[#2F6F4E] hover:bg-emerald-800 text-white text-[11px] font-medium px-2 py-1 rounded cursor-pointer"
+                            className="bg-[#2F6F4E] hover:bg-[#2F6F4E] text-white text-[11px] font-medium px-2 py-1 rounded cursor-pointer"
                           >
                             WhatsApp Client
                           </button>
@@ -3299,7 +3321,7 @@ export const CasesView: React.FC = () => {
 
         {/* Tab 3: Court Diary */}
         {needsCourtTabs && caseSubTab === 'diary' && (
-          <div className="bg-white border border-[#E1DCCF] p-5 rounded-xl shadow-xs space-y-4">
+          <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-4">
             <div className="flex justify-between items-center">
               <div>
                 <h3 className="font-serif font-bold text-sm text-[#16223A]">Official Court Diary</h3>
@@ -3309,7 +3331,7 @@ export const CasesView: React.FC = () => {
               </div>
               <button
                 onClick={openAddDiaryModal}
-                className="bg-[#16223A] hover:bg-[#1F2E4D] text-white text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1 cursor-pointer"
+                className="bg-[#16223A] hover:bg-[#16223A] text-white text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>New Diary Entry</span>
@@ -3330,7 +3352,7 @@ export const CasesView: React.FC = () => {
                             {e.medium}
                           </span>
                         )}
-                        <span className="bg-amber-100 text-[#16223A] border border-[#A9814A]/40 text-[9.5px] px-2 py-0.5 rounded font-extrabold uppercase">
+                        <span className="bg-[#FBF2E9] text-[#16223A] border border-[#3D6B9C]/40 text-[9.5px] px-2 py-0.5 rounded font-extrabold uppercase">
                           Representing: {e.clientRole || selectedCase.clientRole || 'Plaintiff'}
                         </span>
                       </div>
@@ -3338,7 +3360,7 @@ export const CasesView: React.FC = () => {
                         <span className="text-[10.5px] text-slate-500 font-semibold">{e.court} ({e.corum})</span>
                         <button
                           onClick={() => setSelectedMemoEntry(e)}
-                          className="px-2 py-1 bg-[#A9814A] hover:bg-[#8e6b3b] text-white text-[10px] font-bold rounded flex items-center gap-1 cursor-pointer transition-colors"
+                          className="px-2 py-1 bg-[#3D6B9C] hover:bg-[#8A6D3B] text-white text-[10px] font-bold rounded flex items-center gap-1 cursor-pointer transition-colors"
                         >
                           <Printer className="w-3 h-3" />
                           <span>View Court Memo</span>
@@ -3357,7 +3379,7 @@ export const CasesView: React.FC = () => {
                       </div>
                       <div>
                         <span className="text-slate-500 font-bold block text-[9.5px] uppercase">Next Compliance Date:</span>
-                        <span className="font-mono font-bold text-rose-700">{e.nextDate || '—'}</span>
+                        <span className="font-mono font-bold text-[#B23A2E]">{e.nextDate || '—'}</span>
                       </div>
                     </div>
 
@@ -3375,14 +3397,200 @@ export const CasesView: React.FC = () => {
         {/* Tab 5: Matter Tasks (Kanban board synced with the firm-wide Case Status panel) */}
         {caseSubTab === 'tasks' && selectedCase && <CaseStatusView matterCaseId={selectedCase.id} />}
 
+        {/* Activities — billable time entries for this matter (Units × Rate → Amount) */}
+        {caseSubTab === 'matterActivities' && (() => {
+          const myActivities = timeEntries.filter((t: any) => t.caseId === selectedCase.id).sort((a: any, b: any) => (b.date || '').localeCompare(a.date || ''));
+          const total = myActivities.reduce((s: number, t: any) => s + Number(t.hours || 0) * Number(t.rate || 0), 0);
+          return (
+            <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-4 text-xs text-[#16223A]">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="font-serif font-bold text-sm text-[#16223A]">Activities · billable time entries</h3>
+                  <p className="text-slate-500">Amount = units × rate. Total RM {total.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</p>
+                </div>
+                <button type="button" onClick={() => setAddActivityOpen((v) => !v)} className="rounded-lg px-3 py-1.5 text-[11px] font-bold text-white" style={{ backgroundColor: addActivityOpen ? palette.red : palette.blue }}>{addActivityOpen ? 'Cancel' : '+ Add Activity'}</button>
+              </div>
+              {addActivityOpen && (
+                <div className="grid gap-2 rounded-lg border border-[#DDE3EB] bg-[#F6F8FA] p-3 sm:grid-cols-5">
+                  <input type="date" value={activityDraft.date} onChange={(e) => setActivityDraft({ ...activityDraft, date: e.target.value })} className="rounded border border-[#DDE3EB] px-2 py-1.5" />
+                  <input type="number" step="0.1" placeholder="Units (hrs)" value={activityDraft.units} onChange={(e) => setActivityDraft({ ...activityDraft, units: e.target.value })} className="rounded border border-[#DDE3EB] px-2 py-1.5" />
+                  <input type="number" placeholder="Rate (RM/hr)" value={activityDraft.rate} onChange={(e) => setActivityDraft({ ...activityDraft, rate: e.target.value })} className="rounded border border-[#DDE3EB] px-2 py-1.5" />
+                  <input placeholder="Description" value={activityDraft.description} onChange={(e) => setActivityDraft({ ...activityDraft, description: e.target.value })} className="rounded border border-[#DDE3EB] px-2 py-1.5 sm:col-span-1" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!activityDraft.description.trim()) return;
+                      addTimeEntry({ id: `T-${Date.now()}`, caseId: selectedCase.id, feeEarner: currentUser?.name || '', date: activityDraft.date, hours: Number(activityDraft.units) || 0, rate: Number(activityDraft.rate) || 0, billable: true, billed: false, description: activityDraft.description.trim() });
+                      setActivityDraft({ date: new Date().toISOString().slice(0, 10), units: '1.0', rate: '', description: '' });
+                      setAddActivityOpen(false);
+                    }}
+                    className="rounded-lg px-3 py-1.5 text-[11px] font-bold text-white"
+                    style={{ backgroundColor: palette.navy }}
+                  >
+                    Save Activity
+                  </button>
+                </div>
+              )}
+              <table className="w-full text-left border-collapse text-[#16223A]">
+                <thead><tr className="border-b border-[#DDE3EB] text-[10px] uppercase text-slate-500"><th className="py-2">Date</th><th className="py-2">User</th><th className="py-2">Description</th><th className="py-2 text-right">Units</th><th className="py-2 text-right">Rate</th><th className="py-2 text-right">Amount</th></tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                  {myActivities.length === 0 ? <tr><td colSpan={6} className="py-6 text-center text-slate-400">No activities logged yet.</td></tr> : myActivities.map((t: any) => (
+                    <tr key={t.id}><td className="py-2">{t.date}</td><td className="py-2">{t.feeEarner}</td><td className="py-2">{t.description}</td><td className="py-2 text-right font-mono">{Number(t.hours || 0).toFixed(1)}</td><td className="py-2 text-right font-mono">{Number(t.rate || 0).toLocaleString()}</td><td className="py-2 text-right font-mono font-bold">{(Number(t.hours || 0) * Number(t.rate || 0)).toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
+
+        {/* Disbursements — out-of-pocket costs for this matter */}
+        {caseSubTab === 'matterDisbursements' && (() => {
+          const myDisb = expenses.filter((e: any) => e.caseId === selectedCase.id).sort((a: any, b: any) => (b.date || '').localeCompare(a.date || ''));
+          const total = myDisb.reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+          return (
+            <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-4 text-xs text-[#16223A]">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="font-serif font-bold text-sm text-[#16223A]">Disbursements</h3>
+                  <p className="text-slate-500">Total RM {total.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</p>
+                </div>
+                <button type="button" onClick={() => setAddDisbOpen((v) => !v)} className="rounded-lg px-3 py-1.5 text-[11px] font-bold text-white" style={{ backgroundColor: addDisbOpen ? palette.red : palette.blue }}>{addDisbOpen ? 'Cancel' : '+ Add Disbursement'}</button>
+              </div>
+              {addDisbOpen && (
+                <div className="grid gap-2 rounded-lg border border-[#DDE3EB] bg-[#F6F8FA] p-3 sm:grid-cols-4">
+                  <input type="date" value={disbDraft.date} onChange={(e) => setDisbDraft({ ...disbDraft, date: e.target.value })} className="rounded border border-[#DDE3EB] px-2 py-1.5" />
+                  <input type="number" placeholder="Amount (RM)" value={disbDraft.amount} onChange={(e) => setDisbDraft({ ...disbDraft, amount: e.target.value })} className="rounded border border-[#DDE3EB] px-2 py-1.5" />
+                  <input placeholder="Description" value={disbDraft.description} onChange={(e) => setDisbDraft({ ...disbDraft, description: e.target.value })} className="rounded border border-[#DDE3EB] px-2 py-1.5" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!disbDraft.description.trim()) return;
+                      addExpense({ id: `E-${Date.now()}`, caseId: selectedCase.id, date: disbDraft.date, category: 'Disbursement', amount: Number(disbDraft.amount) || 0, billable: true, billed: false, description: disbDraft.description.trim(), claimant: currentUser?.name || '' });
+                      setDisbDraft({ date: new Date().toISOString().slice(0, 10), amount: '', description: '' });
+                      setAddDisbOpen(false);
+                    }}
+                    className="rounded-lg px-3 py-1.5 text-[11px] font-bold text-white"
+                    style={{ backgroundColor: palette.navy }}
+                  >
+                    Save Disbursement
+                  </button>
+                </div>
+              )}
+              <table className="w-full text-left border-collapse text-[#16223A]">
+                <thead><tr className="border-b border-[#DDE3EB] text-[10px] uppercase text-slate-500"><th className="py-2">Date</th><th className="py-2">User</th><th className="py-2">Description</th><th className="py-2 text-right">Amount</th></tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                  {myDisb.length === 0 ? <tr><td colSpan={4} className="py-6 text-center text-slate-400">No disbursements logged yet.</td></tr> : myDisb.map((e: any) => (
+                    <tr key={e.id}><td className="py-2">{e.date}</td><td className="py-2">{e.claimant}</td><td className="py-2">{e.description}</td><td className="py-2 text-right font-mono font-bold">{Number(e.amount || 0).toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
+
+        {/* Unbilled Items — this matter's roll-up, generate invoice from selected unbilled activities/disbursements */}
+        {caseSubTab === 'matterUnbilled' && (() => {
+          const unbilledActs = timeEntries.filter((t: any) => t.caseId === selectedCase.id && t.billable && !t.billed);
+          const unbilledDisb = expenses.filter((e: any) => e.caseId === selectedCase.id && e.billable && !e.billed);
+          const actTotal = unbilledActs.reduce((s: number, t: any) => s + Number(t.hours || 0) * Number(t.rate || 0), 0);
+          const disbTotal = unbilledDisb.reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+          const generateInvoice = () => {
+            if (actTotal + disbTotal <= 0) { showToast('No unbilled items to invoice.'); return; }
+            const invId = getNextSequenceId('invoice');
+            addInvoice({
+              id: invId, clientId: selectedCase.clientId, caseId: selectedCase.id, fileRef: selectedCase.ref,
+              partyType: 'Client', partyName: selectedCase.clientName || clientObj?.name, amount: actTotal + disbTotal, discount: 0, tax: 0, total: actTotal + disbTotal,
+              date: new Date().toISOString().slice(0, 10), dueDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10), status: 'Unpaid',
+            });
+            unbilledActs.forEach((t: any) => updateTimeEntry(t.id, { billed: true, invoiceId: invId }));
+            unbilledDisb.forEach((e: any) => updateExpense(e.id, { billed: true }));
+            showToast(`Invoice ${invId} generated from unbilled items.`);
+          };
+          return (
+            <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-3 text-xs text-[#16223A]">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="font-serif font-bold text-sm text-[#16223A]">Unbilled Items — this matter</h3>
+                <button type="button" onClick={generateInvoice} className="rounded-lg px-3 py-1.5 text-[11px] font-bold text-white" style={{ backgroundColor: palette.navy }}>Generate Invoice</button>
+              </div>
+              <div className="flex flex-wrap gap-6">
+                <span>Activities <strong className="font-mono">RM {actTotal.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</strong></span>
+                <span>Disbursements <strong className="font-mono">RM {disbTotal.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</strong></span>
+                <span style={{ color: palette.navy }}>Total <strong className="font-mono text-sm">RM {(actTotal + disbTotal).toLocaleString('en-MY', { minimumFractionDigits: 2 })}</strong></span>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Invoices — this matter's issued invoices */}
+        {caseSubTab === 'matterInvoices' && (() => {
+          const myInvoices = invoices.filter((i: any) => i.caseId === selectedCase.id).sort((a: any, b: any) => (b.date || '').localeCompare(a.date || ''));
+          return (
+            <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs text-xs text-[#16223A]">
+              <h3 className="mb-3 font-serif font-bold text-sm text-[#16223A]">Invoices</h3>
+              <table className="w-full text-left border-collapse text-[#16223A]">
+                <thead><tr className="border-b border-[#DDE3EB] text-[10px] uppercase text-slate-500"><th className="py-2">Invoice No.</th><th className="py-2">Issued</th><th className="py-2 text-right">Total</th><th className="py-2 text-right">Status</th></tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                  {myInvoices.length === 0 ? <tr><td colSpan={4} className="py-6 text-center text-slate-400">No invoices issued yet.</td></tr> : myInvoices.map((i: any) => (
+                    <tr key={i.id}><td className="py-2 font-mono font-bold" style={{ color: palette.blue }}>{i.id}</td><td className="py-2">{i.date}</td><td className="py-2 text-right font-mono font-bold">{Number(i.total || 0).toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td><td className="py-2 text-right"><StatusBadge label={i.status} tone={i.status === 'Paid' ? 'green' : i.status === 'Unpaid' ? 'red' : 'gold'} /></td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
+
+        {/* Memo — Notes, Status, Court Minutes, File Location */}
+        {caseSubTab === 'memo' && (() => {
+          const myMemos = [...(selectedCase.memos || [])].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+          const tone = (t: string) => (t === 'Court Minutes' ? 'blue' : t === 'File Location' ? 'gold' : t === 'Status' ? 'green' : 'slate') as any;
+          return (
+            <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-4 text-xs text-[#16223A]">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="font-serif font-bold text-sm text-[#16223A]">Memo — Notes, Status, Court Minutes, File Location</h3>
+                <button type="button" onClick={() => setCreateMemoOpen((v) => !v)} className="rounded-lg px-3 py-1.5 text-[11px] font-bold text-white" style={{ backgroundColor: createMemoOpen ? palette.red : palette.blue }}>{createMemoOpen ? 'Cancel' : '+ Create Memo'}</button>
+              </div>
+              {createMemoOpen && (
+                <div className="grid gap-2 rounded-lg border border-[#DDE3EB] bg-[#F6F8FA] p-3 sm:grid-cols-4">
+                  <select value={memoDraft.type} onChange={(e) => setMemoDraft({ ...memoDraft, type: e.target.value as any })} className="rounded border border-[#DDE3EB] px-2 py-1.5">
+                    {['Notes', 'Status', 'Court Minutes', 'File Location'].map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <input type="date" value={memoDraft.date} onChange={(e) => setMemoDraft({ ...memoDraft, date: e.target.value })} className="rounded border border-[#DDE3EB] px-2 py-1.5" />
+                  <textarea placeholder="Description" value={memoDraft.description} onChange={(e) => setMemoDraft({ ...memoDraft, description: e.target.value })} className="rounded border border-[#DDE3EB] px-2 py-1.5 sm:col-span-1" rows={1} />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!memoDraft.description.trim()) return;
+                      updateCase(selectedCase.id, { memos: [...(selectedCase.memos || []), { id: `MEMO-${Date.now()}`, ...memoDraft, description: memoDraft.description.trim() }] });
+                      setMemoDraft({ type: 'Notes', date: new Date().toISOString().slice(0, 10), description: '' });
+                      setCreateMemoOpen(false);
+                    }}
+                    className="rounded-lg px-3 py-1.5 text-[11px] font-bold text-white"
+                    style={{ backgroundColor: palette.navy }}
+                  >
+                    Save Memo
+                  </button>
+                </div>
+              )}
+              <table className="w-full text-left border-collapse text-[#16223A]">
+                <thead><tr className="border-b border-[#DDE3EB] text-[10px] uppercase text-slate-500"><th className="py-2">Date</th><th className="py-2">Type</th><th className="py-2">Description</th></tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                  {myMemos.length === 0 ? <tr><td colSpan={3} className="py-6 text-center text-slate-400">No memo entries yet.</td></tr> : myMemos.map((m) => (
+                    <tr key={m.id}><td className="py-2 align-top">{m.date}</td><td className="py-2 align-top"><StatusBadge label={m.type} tone={tone(m.type)} /></td><td className="py-2">{m.description}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
+
         {/* Tab 6: Client Trust & Cashbook Ledger */}
         {caseSubTab === 'ledger' && (
           <div className="space-y-5 text-xs">
             {/* Header and Add Transaction Control */}
-            <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
                 <h3 className="font-serif font-bold text-base text-[#16223A] flex items-center gap-2">
-                  <CreditCard className="w-4.5 h-4.5 text-[#A9814A]" />
+                  <CreditCard className="w-4.5 h-4.5 text-[#3D6B9C]" />
                   <span>Matter Cashbook &amp; Client Trust Account Ledger</span>
                 </h3>
                 <p className="text-slate-500 text-xs">
@@ -3398,13 +3606,13 @@ export const CasesView: React.FC = () => {
             {/* Account Balances Overview Banner */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Office Disbursement Account Card */}
-              <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-2">
-                <div className="flex justify-between items-start border-b border-[#E1DCCF] pb-2">
+              <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs space-y-2">
+                <div className="flex justify-between items-start border-b border-[#DDE3EB] pb-2">
                   <div>
                     <span className="font-serif font-bold text-sm text-[#16223A] block">1. Office Account (Disbursements)</span>
                     <span className="text-[10.5px] text-slate-500">Firm advanced costs &amp; client billables</span>
                   </div>
-                  <span className="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded font-bold text-[10px]">
+                  <span className="px-2 py-0.5 bg-[#FBF2E9] text-[#8A6D3B] border border-[#8A6D3B] rounded font-bold text-[10px]">
                     Cap: RM {(selectedCase.disbursementCapAmount || 2000).toLocaleString('en-MY', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
@@ -3418,28 +3626,28 @@ export const CasesView: React.FC = () => {
                   </div>
                   <div className="bg-slate-50 p-2.5 rounded border border-slate-200">
                     <div className="text-[9.5px] font-sans font-bold text-slate-500 uppercase">Net Balance</div>
-                    <div className="text-sm font-bold text-emerald-800">
-                      RM {(5000 - totalSpent).toLocaleString('en-MY', { minimumFractionDigits: 2 })}
+                    <div className="text-sm font-bold text-[#2F6F4E]">
+                      RM {((selectedCase.disbursementCapAmount || 2000) - totalSpent).toLocaleString('en-MY', { minimumFractionDigits: 2 })}
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Client Trust Account Card */}
-              <div className="bg-white border border-purple-200 p-4 rounded-xl shadow-xs space-y-2">
-                <div className="flex justify-between items-start border-b border-purple-200 pb-2">
+              <div className="bg-white border border-[#F1EBF6] p-4 rounded-xl shadow-xs space-y-2">
+                <div className="flex justify-between items-start border-b border-[#F1EBF6] pb-2">
                   <div>
-                    <span className="font-serif font-bold text-sm text-purple-950 block">2. Client Account (Trust)</span>
-                    <span className="text-[10.5px] text-purple-800">Client trust deposits held in Bank A/C 1020</span>
+                    <span className="font-serif font-bold text-sm text-[#6B3D8C] block">2. Client Account (Trust)</span>
+                    <span className="text-[10.5px] text-[#6B3D8C]">Client trust deposits held in Bank A/C 1020</span>
                   </div>
-                  <span className="px-2 py-0.5 bg-purple-100 text-purple-900 border border-purple-300 rounded font-bold text-[10px]">
+                  <span className="px-2 py-0.5 bg-[#F1EBF6] text-[#6B3D8C] border border-[#6B3D8C] rounded font-bold text-[10px]">
                     Sol. Act 1970
                   </span>
                 </div>
 
-                <div className="p-3 bg-purple-50 rounded-lg border border-purple-200 flex justify-between items-center">
-                  <span className="font-bold text-purple-900 text-xs">Client Trust Account Balance:</span>
-                  <span className="font-mono font-extrabold text-lg text-purple-950">
+                <div className="p-3 bg-[#F1EBF6] rounded-lg border border-[#F1EBF6] flex justify-between items-center">
+                  <span className="font-bold text-[#6B3D8C] text-xs">Client Trust Account Balance:</span>
+                  <span className="font-mono font-extrabold text-lg text-[#6B3D8C]">
                     RM {trustBalance.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
@@ -3447,15 +3655,15 @@ export const CasesView: React.FC = () => {
             </div>
 
             {/* Office Account Cashbook Table */}
-            <div className="bg-white border border-[#E1DCCF] p-5 rounded-xl shadow-xs space-y-3">
-              <h4 className="font-serif font-bold text-sm text-[#16223A] border-b border-[#E1DCCF] pb-2 flex items-center justify-between">
+            <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-3">
+              <h4 className="font-serif font-bold text-sm text-[#16223A] border-b border-[#DDE3EB] pb-2 flex items-center justify-between">
                 <span>Office Account Cashbook (Disbursements &amp; Expenses)</span>
                 <span className="text-[10px] font-mono font-normal text-slate-500">Ref: {selectedCase.ref}</span>
               </h4>
 
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-[#E1DCCF] text-[10px] uppercase text-slate-500 font-bold bg-[#FAF8F2]">
+                  <tr className="border-b border-[#DDE3EB] text-[10px] uppercase text-slate-500 font-bold bg-[#F6F8FA]">
                     <th className="py-2.5 px-3">Date</th>
                     <th className="py-2.5 px-2">Voucher / Ref</th>
                     <th className="py-2.5 px-3">Description / Particulars</th>
@@ -3465,46 +3673,44 @@ export const CasesView: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-mono">
-                  <tr>
-                    <td className="py-2.5 px-3 text-slate-700">2025-10-15</td>
-                    <td className="py-2.5 px-2 text-slate-600">OR-9912</td>
-                    <td className="py-2.5 px-3 font-sans font-medium text-slate-800">Firm Disbursement Float Allocation</td>
-                    <td className="py-2.5 px-3 text-right text-slate-400">—</td>
-                    <td className="py-2.5 px-3 text-right text-emerald-700 font-bold">2,000.00</td>
-                    <td className="py-2.5 px-3 text-right font-bold text-slate-900">2,000.00</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2.5 px-3 text-slate-700">2025-10-18</td>
-                    <td className="py-2.5 px-2 text-slate-600">PV-1022</td>
-                    <td className="py-2.5 px-3 font-sans font-medium text-slate-800">Court Filing Fee (Writ &amp; Statement of Claim)</td>
-                    <td className="py-2.5 px-3 text-right text-rose-700 font-bold">400.00</td>
-                    <td className="py-2.5 px-3 text-right text-slate-400">—</td>
-                    <td className="py-2.5 px-3 text-right font-bold text-slate-900">1,600.00</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2.5 px-3 text-slate-700">2025-11-02</td>
-                    <td className="py-2.5 px-2 text-slate-600">PV-1088</td>
-                    <td className="py-2.5 px-3 font-sans font-medium text-slate-800">Process Server Travel &amp; Service Expenses</td>
-                    <td className="py-2.5 px-3 text-right text-rose-700 font-bold">150.00</td>
-                    <td className="py-2.5 px-3 text-right text-slate-400">—</td>
-                    <td className="py-2.5 px-3 text-right font-bold text-slate-900">1,450.00</td>
-                  </tr>
+                  {(() => {
+                    const officeRows = [
+                      ...expenses.filter((e) => e.caseId === selectedCase.id).map((e) => ({ date: e.date, ref: e.id, desc: e.description || e.category, amount: e.amount })),
+                      ...travelClaims.filter((t) => t.purposeType === 'Client Matter' && t.fileRef === selectedCase.ref).map((t) => ({ date: t.date, ref: t.id, desc: t.purposeType, amount: t.total })),
+                    ].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+                    let running = 0;
+                    return officeRows.length === 0 ? (
+                      <tr><td colSpan={6} className="py-6 text-center font-sans text-slate-400">No disbursements recorded for this matter yet.</td></tr>
+                    ) : officeRows.map((row, i) => {
+                      running += row.amount;
+                      return (
+                        <tr key={`${row.ref}-${i}`}>
+                          <td className="py-2.5 px-3 text-slate-700">{row.date}</td>
+                          <td className="py-2.5 px-2 text-slate-600">{row.ref}</td>
+                          <td className="py-2.5 px-3 font-sans font-medium text-slate-800">{row.desc}</td>
+                          <td className="py-2.5 px-3 text-right text-[#B23A2E] font-bold">{row.amount.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
+                          <td className="py-2.5 px-3 text-right text-slate-400">—</td>
+                          <td className="py-2.5 px-3 text-right font-bold text-slate-900">{running.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
+                        </tr>
+                      );
+                    });
+                  })()}
                 </tbody>
               </table>
             </div>
 
             {/* Client Account Cashbook Table */}
-            <div className="bg-white border border-purple-200 p-5 rounded-xl shadow-xs space-y-3">
-              <h4 className="font-serif font-bold text-sm text-purple-950 border-b border-purple-200 pb-2 flex items-center justify-between">
+            <div className="bg-white border border-[#F1EBF6] p-5 rounded-xl shadow-xs space-y-3">
+              <h4 className="font-serif font-bold text-sm text-[#6B3D8C] border-b border-[#F1EBF6] pb-2 flex items-center justify-between">
                 <span>Client Account (Trust) Cashbook</span>
-                <span className="text-[10px] font-mono font-bold text-purple-800 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                <span className="text-[10px] font-mono font-bold text-[#6B3D8C] bg-[#F1EBF6] px-2 py-0.5 rounded border border-[#F1EBF6]">
                   Client Bank A/C No. 1020
                 </span>
               </h4>
 
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-purple-200 text-[10px] uppercase text-purple-900 font-bold bg-purple-50/50">
+                  <tr className="border-b border-[#F1EBF6] text-[10px] uppercase text-[#6B3D8C] font-bold bg-[#F1EBF6]/50">
                     <th className="py-2.5 px-3">Date</th>
                     <th className="py-2.5 px-2">Official Receipt / PV</th>
                     <th className="py-2.5 px-3">Particulars / Client Trust Transaction</th>
@@ -3514,26 +3720,28 @@ export const CasesView: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-purple-100 font-mono">
-                  <tr>
-                    <td className="py-2.5 px-3 text-slate-700">2025-10-15</td>
-                    <td className="py-2.5 px-2 text-purple-900 font-bold">OR-TRUST-881</td>
-                    <td className="py-2.5 px-3 font-sans font-medium text-slate-800">
-                      Client Trust Deposit Received ({clientObj?.name || 'Client'})
-                    </td>
-                    <td className="py-2.5 px-3 text-right text-emerald-700 font-bold">5,000.00</td>
-                    <td className="py-2.5 px-3 text-right text-slate-400">—</td>
-                    <td className="py-2.5 px-3 text-right font-bold text-purple-950">5,000.00</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2.5 px-3 text-slate-700">2025-11-10</td>
-                    <td className="py-2.5 px-2 text-purple-900 font-bold">PV-TRUST-042</td>
-                    <td className="py-2.5 px-3 font-sans font-medium text-slate-800">
-                      Transfer to Office Account for Interlocutory Interim Legal Fees
-                    </td>
-                    <td className="py-2.5 px-3 text-right text-slate-400">—</td>
-                    <td className="py-2.5 px-3 text-right text-rose-700 font-bold">1,500.00</td>
-                    <td className="py-2.5 px-3 text-right font-bold text-purple-950">3,500.00</td>
-                  </tr>
+                  {(() => {
+                    const trustRows = [...trustEntries].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+                    let running = 0;
+                    return trustRows.length === 0 ? (
+                      <tr><td colSpan={6} className="py-6 text-center font-sans text-slate-400">No trust ledger entries for this matter yet.</td></tr>
+                    ) : trustRows.map((r) => {
+                      const isDeposit = r.type === 'Deposit';
+                      running += isDeposit ? r.amount : -r.amount;
+                      return (
+                        <tr key={r.id}>
+                          <td className="py-2.5 px-3 text-slate-700">{r.date}</td>
+                          <td className="py-2.5 px-2 text-[#6B3D8C] font-bold">{r.id}</td>
+                          <td className="py-2.5 px-3 font-sans font-medium text-slate-800">
+                            {r.remarks || `${r.type} — ${clientObj?.name || 'Client'}`}
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-[#2F6F4E] font-bold">{isDeposit ? r.amount.toLocaleString('en-MY', { minimumFractionDigits: 2 }) : '—'}</td>
+                          <td className="py-2.5 px-3 text-right text-[#B23A2E] font-bold">{!isDeposit ? r.amount.toLocaleString('en-MY', { minimumFractionDigits: 2 }) : '—'}</td>
+                          <td className="py-2.5 px-3 text-right font-bold text-[#6B3D8C]">{running.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
+                        </tr>
+                      );
+                    });
+                  })()}
                 </tbody>
               </table>
             </div>
@@ -3542,7 +3750,7 @@ export const CasesView: React.FC = () => {
 
         {/* Tab 7: Service Record */}
         {caseSubTab === 'service' && (
-          <div className="bg-white border border-[#E1DCCF] p-5 rounded-xl shadow-xs space-y-4">
+          <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-4">
             <div className="flex justify-between items-center">
               <div>
                 <h3 className="font-serif font-bold text-sm text-[#16223A]">Formal Service Record</h3>
@@ -3555,7 +3763,7 @@ export const CasesView: React.FC = () => {
                   event.stopPropagation();
                   openServiceRecord();
                 }}
-                className="bg-[#16223A] hover:bg-[#1F2E4D] text-white text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1 cursor-pointer"
+                className="bg-[#16223A] hover:bg-[#16223A] text-white text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Service Log</span>
@@ -3564,7 +3772,7 @@ export const CasesView: React.FC = () => {
 
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-[#E1DCCF] text-[10px] uppercase text-slate-500">
+                <tr className="border-b border-[#DDE3EB] text-[10px] uppercase text-slate-500">
                   <th className="py-2">Date Served</th>
                   <th className="py-2">Document</th>
                   <th className="py-2">Served On</th>
@@ -3589,7 +3797,7 @@ export const CasesView: React.FC = () => {
                       <td className="py-2.5">
                         <span
                           className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            s.proofObtained === 'Y' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                            s.proofObtained === 'Y' ? 'bg-[#E6EFE9] text-[#2F6F4E]' : 'bg-[#FBF2E9] text-[#8A6D3B]'
                           }`}
                         >
                           {s.proofObtained === 'Y' ? 'Proof Obtained' : 'Pending Proof'}
@@ -3605,8 +3813,8 @@ export const CasesView: React.FC = () => {
 
         {/* Tab 8: Client Meeting Notes & AI Summarizer */}
         {caseSubTab === 'meetings' && (
-          <div className="bg-white border border-[#E1DCCF] p-5 rounded-xl shadow-xs space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-[#E1DCCF] pb-3">
+          <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-[#DDE3EB] pb-3">
               <div>
                 <h3 className="font-serif font-bold text-sm text-[#16223A]">Client Consultation Minutes &amp; AI Summarizer</h3>
                 <p className="text-xs text-slate-500">Record consultation notes or generate AI summaries saved directly to Google Drive.</p>
@@ -3615,7 +3823,7 @@ export const CasesView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsAiMeetingModalOpen(true)}
-                  className="bg-[#A9814A] hover:bg-[#8E6B3B] text-white text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  className="bg-[#3D6B9C] hover:bg-[#8A6D3B] text-white text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>AI Meeting Summarizer</span>
@@ -3623,7 +3831,7 @@ export const CasesView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsAddMeetingModalOpen(true)}
-                  className="bg-[#16223A] hover:bg-[#1F2E4D] text-white text-xs font-semibold px-3 py-1.5 rounded flex items-center gap-1 cursor-pointer"
+                  className="bg-[#16223A] hover:bg-[#16223A] text-white text-xs font-semibold px-3 py-1.5 rounded flex items-center gap-1 cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>New Meeting Note</span>
@@ -3641,8 +3849,8 @@ export const CasesView: React.FC = () => {
                       <div className="flex items-center gap-2">
                         <span>{m.date}</span>
                         {m.isAiGenerated && (
-                          <span className="px-2 py-0.5 bg-amber-100 text-[#16223A] border border-[#A9814A]/40 rounded text-[9.5px] font-bold flex items-center gap-1">
-                            <Sparkles className="w-3 h-3 text-[#A9814A]" />
+                          <span className="px-2 py-0.5 bg-[#FBF2E9] text-[#16223A] border border-[#3D6B9C]/40 rounded text-[9.5px] font-bold flex items-center gap-1">
+                            <Sparkles className="w-3 h-3 text-[#3D6B9C]" />
                             AI Summarized
                           </span>
                         )}
@@ -3651,7 +3859,7 @@ export const CasesView: React.FC = () => {
                     </div>
 
                     <div className="text-slate-800 leading-relaxed whitespace-pre-line">{m.meetingNotes}</div>
-                    <div className="font-semibold text-emerald-800">Decisions &amp; Directions: {m.decisions}</div>
+                    <div className="font-semibold text-[#2F6F4E]">Decisions &amp; Directions: {m.decisions}</div>
 
                     <div className="flex items-center gap-2 pt-2 flex-wrap">
                       <button
@@ -3661,7 +3869,7 @@ export const CasesView: React.FC = () => {
                             body: `Dear ${clientObj ? clientObj.name : 'Client'},\n\nSummary of our meeting on ${m.date}:\n${m.meetingNotes}\n\nDecisions:\n${m.decisions}\n\nWarm regards,\nSyafiqah Hamizad & Co`,
                           })
                         }
-                        className="px-2.5 py-1 bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded text-[11px] font-medium cursor-pointer"
+                        className="px-2.5 py-1 bg-[#16223A] hover:bg-[#16223A] text-white rounded text-[11px] font-medium cursor-pointer"
                       >
                         Email Recap
                       </button>
@@ -3671,7 +3879,7 @@ export const CasesView: React.FC = () => {
                             `Dear ${clientObj ? clientObj.name : 'Client'},\n\nSummary of our meeting on ${m.date}:\n${m.meetingNotes}\n\nSyafiqah Hamizad & Co`
                           )
                         }
-                        className="px-2.5 py-1 bg-[#2F6F4E] hover:bg-emerald-800 text-white rounded text-[11px] font-medium cursor-pointer"
+                        className="px-2.5 py-1 bg-[#2F6F4E] hover:bg-[#2F6F4E] text-white rounded text-[11px] font-medium cursor-pointer"
                       >
                         WhatsApp Recap
                       </button>
@@ -3680,7 +3888,7 @@ export const CasesView: React.FC = () => {
                           href={m.gdriveDocUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded text-[11px] font-bold flex items-center gap-1"
+                          className="px-2.5 py-1 bg-[#E7EEF6] text-[#3D6B9C] border border-[#E7EEF6] rounded text-[11px] font-bold flex items-center gap-1"
                         >
                           <ExternalLink className="w-3 h-3" />
                           <span>Google Drive Doc</span>
@@ -3698,11 +3906,11 @@ export const CasesView: React.FC = () => {
 
         {/* Tab 9: Legal Research & Central Library */}
         {caseSubTab === 'research' && (
-          <div className="bg-white border border-[#E1DCCF] p-5 rounded-xl shadow-xs space-y-4 text-xs">
-            <div className="flex justify-between items-center border-b border-[#E1DCCF] pb-3">
+          <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-4 text-xs">
+            <div className="flex justify-between items-center border-b border-[#DDE3EB] pb-3">
               <div>
                 <h3 className="font-serif font-bold text-sm text-[#16223A] flex items-center gap-2">
-                  <BookOpen className="w-4 h-4 text-[#A9814A]" />
+                  <BookOpen className="w-4 h-4 text-[#3D6B9C]" />
                   <span>Legal Research &amp; Central Library</span>
                 </h3>
                 <p className="text-slate-500">
@@ -3710,10 +3918,10 @@ export const CasesView: React.FC = () => {
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <a href={selectedCase.gdriveFolderUrl || 'https://drive.google.com/drive/my-drive'} target="_blank" rel="noopener noreferrer" className="px-2.5 py-1.5 bg-amber-50 text-amber-900 border border-amber-200 rounded flex items-center gap-1.5 font-bold">
+                <a href={selectedCase.gdriveFolderUrl || 'https://drive.google.com/drive/my-drive'} target="_blank" rel="noopener noreferrer" className="px-2.5 py-1.5 bg-[#FBF2E9] text-[#8A6D3B] border border-[#FBF2E9] rounded flex items-center gap-1.5 font-bold">
                   <ExternalLink className="w-3.5 h-3.5" /> Library
                 </a>
-                <button type="button" onClick={() => setIsAddResearchModalOpen(true)} className="bg-[#16223A] hover:bg-[#1F2E4D] text-white font-bold px-3 py-1.5 rounded flex items-center gap-1.5 cursor-pointer shadow-xs">
+                <button type="button" onClick={() => setIsAddResearchModalOpen(true)} className="bg-[#16223A] hover:bg-[#16223A] text-white font-bold px-3 py-1.5 rounded flex items-center gap-1.5 cursor-pointer shadow-xs">
                   <Plus className="w-3.5 h-3.5" /> Add Research Note
                 </button>
               </div>
@@ -3726,7 +3934,7 @@ export const CasesView: React.FC = () => {
                 </div>
               ) : (
                 (selectedCase.researchNotes || []).map((res) => (
-                  <div key={res.id} className="p-4 bg-[#FAF8F2] border border-[#E1DCCF] rounded-lg space-y-2">
+                  <div key={res.id} className="p-4 bg-[#F6F8FA] border border-[#DDE3EB] rounded-lg space-y-2">
                     <div className="flex justify-between items-start">
                       <div>
                         <h4 className="font-bold text-sm text-[#16223A]">{res.title}</h4>
@@ -3741,9 +3949,9 @@ export const CasesView: React.FC = () => {
                           href={res.fullCaseDownloadUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="px-2.5 py-1 bg-amber-100 text-[#16223A] border border-[#A9814A]/40 rounded text-[10.5px] font-bold flex items-center gap-1"
+                          className="px-2.5 py-1 bg-[#FBF2E9] text-[#16223A] border border-[#3D6B9C]/40 rounded text-[10.5px] font-bold flex items-center gap-1"
                         >
-                          <ExternalLink className="w-3 h-3 text-[#A9814A]" />
+                          <ExternalLink className="w-3 h-3 text-[#3D6B9C]" />
                           <span>Lexis / CLJ Judgment</span>
                         </a>
                       )}
@@ -3779,7 +3987,7 @@ export const CasesView: React.FC = () => {
 
         {/* Tab 14: Internal Notes */}
         {caseSubTab === 'internal' && (
-          <div className="bg-white border border-[#E1DCCF] p-5 rounded-xl shadow-xs space-y-4">
+          <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-4">
             <div className="flex justify-between items-center">
               <div>
                 <h3 className="font-serif font-bold text-sm text-[#16223A]">Internal Research &amp; Strategy</h3>
@@ -3787,7 +3995,7 @@ export const CasesView: React.FC = () => {
               </div>
               <button
                 onClick={() => setIsAddInternalModalOpen(true)}
-                className="bg-[#16223A] hover:bg-[#1F2E4D] text-white text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1 cursor-pointer"
+                className="bg-[#16223A] hover:bg-[#16223A] text-white text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Note</span>
@@ -3799,7 +4007,7 @@ export const CasesView: React.FC = () => {
                 <div className="py-6 text-center text-slate-500">No internal research notes</div>
               ) : (
                 (selectedCase.internalNotes || []).map((n) => (
-                  <div key={n.id} className="p-3 bg-[#FAF8F2] border border-[#E1DCCF] rounded-lg">
+                  <div key={n.id} className="p-3 bg-[#F6F8FA] border border-[#DDE3EB] rounded-lg">
                     <div className="flex justify-between items-center mb-1 gap-2">
                       <span className="font-bold text-[#16223A]">{n.noteType}</span>
                       <div className="flex items-center gap-1.5"><span className="text-[10px] text-slate-500 font-mono">{n.date}</span><button type="button" onClick={() => printMatterDocument(`Internal Note - ${n.noteType}`, n.content)} className="px-2 py-1 border border-slate-200 rounded text-[10px] font-bold text-slate-600 cursor-pointer">PDF</button><button type="button" onClick={() => exportMatterDocument(`Internal-${n.id}`, `Internal Note - ${n.noteType}`, n.content)} className="px-2 py-1 border border-slate-200 rounded text-[10px] font-bold text-slate-600 cursor-pointer">Word</button></div>
@@ -3815,7 +4023,7 @@ export const CasesView: React.FC = () => {
         {/* Subtab Modals */}
         {isAddHearingModalOpen && (
           <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#E1DCCF]">
+            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#DDE3EB]">
               <h3 className="font-serif text-lg font-bold text-[#16223A] mb-3">Add Court Hearing</h3>
               <form onSubmit={handleSaveHearing} className="space-y-3 text-xs">
                 <div>
@@ -3852,13 +4060,13 @@ export const CasesView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setIsAddHearingModalOpen(false)}
-                    className="px-4 py-2 border border-[#E1DCCF] text-slate-700 hover:bg-slate-100 rounded-md font-semibold cursor-pointer"
+                    className="px-4 py-2 border border-[#DDE3EB] text-slate-700 hover:bg-slate-100 rounded-md font-semibold cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded-md font-semibold cursor-pointer"
+                    className="px-4 py-2 bg-[#16223A] hover:bg-[#16223A] text-white rounded-md font-semibold cursor-pointer"
                   >
                     Save &amp; Sync Calendar
                   </button>
@@ -3870,7 +4078,7 @@ export const CasesView: React.FC = () => {
 
         {isAddDiaryModalOpen && (
           <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 border border-[#E1DCCF] max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 border border-[#DDE3EB] max-h-[90vh] overflow-y-auto">
               <h3 className="font-serif text-lg font-bold text-[#16223A] mb-1">New Court Memo / Court Diary Entry</h3>
               <p className="text-xs text-slate-500 mb-3">Format strictly follows official Syafiqah Hamizad &amp; Co Court Memo standard.</p>
               
@@ -3926,7 +4134,7 @@ export const CasesView: React.FC = () => {
                 <div className="p-3.5 bg-slate-50 border border-slate-300 rounded-xl space-y-3">
                   <div className="font-bold text-xs text-[#16223A] uppercase tracking-wider flex items-center justify-between border-b border-slate-200 pb-1.5">
                     <span className="flex items-center gap-1.5">
-                      <UserCheck className="w-4 h-4 text-[#A9814A]" />
+                      <UserCheck className="w-4 h-4 text-[#3D6B9C]" />
                       Lawyer &amp; Counsel Attendance
                     </span>
                     <span className="text-[10.5px] text-slate-500 font-normal">Pick our SHCO attending lawyer &amp; opposing counsel</span>
@@ -3935,15 +4143,15 @@ export const CasesView: React.FC = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {/* SHCO Lawyer Attendance Dropdown */}
                     <div className="bg-white p-3 rounded-lg border border-slate-200 space-y-2">
-                      <label className="font-bold text-blue-900 block uppercase text-[10.5px] flex items-center gap-1">
-                        <Scale className="w-3.5 h-3.5 text-blue-600" />
+                      <label className="font-bold text-[#3D6B9C] block uppercase text-[10.5px] flex items-center gap-1">
+                        <Scale className="w-3.5 h-3.5 text-[#3D6B9C]" />
                         SHCO Lawyer(s) Attending
                       </label>
                       <div className="flex gap-1.5">
                         <select
                           value={shcoSelectedLawyer}
                           onChange={(e) => setShcoSelectedLawyer(e.target.value)}
-                          className="w-full text-xs font-semibold bg-blue-50/50 border-blue-200"
+                          className="w-full text-xs font-semibold bg-[#E7EEF6]/50 border-[#E7EEF6]"
                         >
                           {SHCO_LAWYER_LIST.map((lawyer) => (
                             <option key={lawyer} value={lawyer}>
@@ -3955,7 +4163,7 @@ export const CasesView: React.FC = () => {
                         <button
                           type="button"
                           onClick={handleAddSHCOAttendance}
-                          className="px-2.5 py-1 bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded font-bold text-xs shrink-0 cursor-pointer flex items-center gap-1"
+                          className="px-2.5 py-1 bg-[#16223A] hover:bg-[#16223A] text-white rounded font-bold text-xs shrink-0 cursor-pointer flex items-center gap-1"
                         >
                           <Plus className="w-3.5 h-3.5" />
                           Add
@@ -3990,14 +4198,14 @@ export const CasesView: React.FC = () => {
                     {/* Opposing Counsel Attendance Quick Select */}
                     <div className="bg-white p-3 rounded-lg border border-slate-200 space-y-2">
                       <div className="flex justify-between items-center">
-                        <label className="font-bold text-purple-900 uppercase text-[10.5px] flex items-center gap-1">
-                          <Briefcase className="w-3.5 h-3.5 text-purple-600" />
+                        <label className="font-bold text-[#6B3D8C] uppercase text-[10.5px] flex items-center gap-1">
+                          <Briefcase className="w-3.5 h-3.5 text-[#6B3D8C]" />
                           Opposing Counsel Attending
                         </label>
                         <button
                           type="button"
                           onClick={handleOpenAddRegOpposing}
-                          className="text-[10px] text-purple-700 hover:text-purple-900 font-bold underline cursor-pointer"
+                          className="text-[10px] text-[#6B3D8C] hover:text-[#6B3D8C] font-bold underline cursor-pointer"
                         >
                           + Add Firm
                         </button>
@@ -4019,12 +4227,12 @@ export const CasesView: React.FC = () => {
                         ).map((reg) => (
                           <div
                             key={reg.id}
-                            className="p-1.5 bg-amber-50/70 rounded border border-amber-200 flex justify-between items-center text-xs"
+                            className="p-1.5 bg-[#FBF2E9]/70 rounded border border-[#FBF2E9] flex justify-between items-center text-xs"
                           >
                             <div>
                               <div className="font-bold text-slate-900 text-[11px] flex items-center gap-1">
                                 <span>{reg.firmName}</span>
-                                <span className="text-[9.5px] text-amber-800 bg-amber-100 px-1 py-0.2 rounded font-semibold">
+                                <span className="text-[9.5px] text-[#8A6D3B] bg-[#FBF2E9] px-1 py-0.2 rounded font-semibold">
                                   {reg.partyRepresented}
                                 </span>
                               </div>
@@ -4035,7 +4243,7 @@ export const CasesView: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => handleQuickInsertOpposing(reg, reg.solicitors, reg.partyRepresented)}
-                              className="px-2 py-0.5 bg-[#16223A] hover:bg-[#1F2E4D] text-white font-bold text-[10px] rounded shrink-0 cursor-pointer flex items-center gap-1"
+                              className="px-2 py-0.5 bg-[#16223A] hover:bg-[#16223A] text-white font-bold text-[10px] rounded shrink-0 cursor-pointer flex items-center gap-1"
                             >
                               <Plus className="w-3 h-3" />
                               <span>Insert</span>
@@ -4064,7 +4272,7 @@ export const CasesView: React.FC = () => {
                 </div>
 
                 {/* Client & Opponent Attendance */}
-                <div className="grid grid-cols-2 gap-3 p-3 bg-amber-50/50 rounded-lg border border-amber-200/80">
+                <div className="grid grid-cols-2 gap-3 p-3 bg-[#FBF2E9]/50 rounded-lg border border-[#FBF2E9]/80">
                   <div>
                     <label className="font-bold text-slate-700 block uppercase mb-1 text-[10px]">
                       Client Status
@@ -4161,13 +4369,13 @@ export const CasesView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setIsAddDiaryModalOpen(false)}
-                    className="px-4 py-2 border border-[#E1DCCF] text-slate-700 hover:bg-slate-100 rounded-md font-semibold cursor-pointer"
+                    className="px-4 py-2 border border-[#DDE3EB] text-slate-700 hover:bg-slate-100 rounded-md font-semibold cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded-md font-semibold cursor-pointer"
+                    className="px-4 py-2 bg-[#16223A] hover:bg-[#16223A] text-white rounded-md font-semibold cursor-pointer"
                   >
                     Save &amp; Generate Court Memo
                   </button>
@@ -4179,7 +4387,7 @@ export const CasesView: React.FC = () => {
 
         {isAddTaskModalOpen && (
           <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#E1DCCF]">
+            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#DDE3EB]">
               <h3 className="font-serif text-lg font-bold text-[#16223A] mb-3">Add Matter Task</h3>
               <form onSubmit={handleSaveTask} className="space-y-3 text-xs">
                 <div>
@@ -4259,13 +4467,13 @@ export const CasesView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setIsAddTaskModalOpen(false)}
-                    className="px-4 py-2 border border-[#E1DCCF] text-slate-700 hover:bg-slate-100 rounded-md font-semibold cursor-pointer"
+                    className="px-4 py-2 border border-[#DDE3EB] text-slate-700 hover:bg-slate-100 rounded-md font-semibold cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded-md font-semibold cursor-pointer"
+                    className="px-4 py-2 bg-[#16223A] hover:bg-[#16223A] text-white rounded-md font-semibold cursor-pointer"
                   >
                     Save Task
                   </button>
@@ -4280,9 +4488,9 @@ export const CasesView: React.FC = () => {
         {/* WhatsApp & Email Quick Share Modals */}
         {waShareText && (
           <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#E1DCCF]">
+            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#DDE3EB]">
               <h3 className="font-serif text-lg font-bold text-[#16223A] mb-2 flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-emerald-700" />
+                <MessageSquare className="w-5 h-5 text-[#2F6F4E]" />
                 WhatsApp Message Preview
               </h3>
               <textarea
@@ -4295,7 +4503,7 @@ export const CasesView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setWaShareText(null)}
-                  className="px-4 py-2 border border-[#E1DCCF] text-slate-700 rounded-md font-semibold cursor-pointer"
+                  className="px-4 py-2 border border-[#DDE3EB] text-slate-700 rounded-md font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -4305,7 +4513,7 @@ export const CasesView: React.FC = () => {
                     showToast('WhatsApp notification sent');
                     setWaShareText(null);
                   }}
-                  className="px-4 py-2 bg-[#2F6F4E] hover:bg-emerald-800 text-white rounded-md font-semibold cursor-pointer"
+                  className="px-4 py-2 bg-[#2F6F4E] hover:bg-[#2F6F4E] text-white rounded-md font-semibold cursor-pointer"
                 >
                   Send via WhatsApp Business
                 </button>
@@ -4316,9 +4524,9 @@ export const CasesView: React.FC = () => {
 
         {emailShareObj && (
           <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#E1DCCF]">
+            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#DDE3EB]">
               <h3 className="font-serif text-lg font-bold text-[#16223A] mb-2 flex items-center gap-2">
-                <Mail className="w-5 h-5 text-blue-700" />
+                <Mail className="w-5 h-5 text-[#3D6B9C]" />
                 Draft Gmail Message
               </h3>
               <div className="space-y-3 text-xs">
@@ -4344,7 +4552,7 @@ export const CasesView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setEmailShareObj(null)}
-                    className="px-4 py-2 border border-[#E1DCCF] text-slate-700 rounded-md font-semibold cursor-pointer"
+                    className="px-4 py-2 border border-[#DDE3EB] text-slate-700 rounded-md font-semibold cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -4354,7 +4562,7 @@ export const CasesView: React.FC = () => {
                       showToast('Email sent via Gmail integration');
                       setEmailShareObj(null);
                     }}
-                    className="px-4 py-2 bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded-md font-semibold cursor-pointer"
+                    className="px-4 py-2 bg-[#16223A] hover:bg-[#16223A] text-white rounded-md font-semibold cursor-pointer"
                   >
                     Send Gmail
                   </button>
@@ -4377,9 +4585,9 @@ export const CasesView: React.FC = () => {
       {/* Change / Substitute Opposing Solicitors Modal */}
       {isChangeOpposingModalOpen && (
         <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 border border-[#E1DCCF] max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 border border-[#DDE3EB] max-h-[90vh] overflow-y-auto">
             <div className="flex items-center gap-2 mb-1">
-              <RefreshCw className="w-5 h-5 text-[#A9814A]" />
+              <RefreshCw className="w-5 h-5 text-[#3D6B9C]" />
               <h3 className="font-serif text-lg font-bold text-[#16223A]">
                 Change Opposing Solicitors
               </h3>
@@ -4390,8 +4598,8 @@ export const CasesView: React.FC = () => {
 
             <form onSubmit={handleSaveChangeOpposing} className="space-y-3 text-xs">
               {lawFirmRegistry.length > 0 && (
-                <div className="p-2.5 bg-purple-50 border border-purple-200 rounded-lg">
-                  <label className="text-[10px] font-bold text-purple-900 block mb-0.5 uppercase">
+                <div className="p-2.5 bg-[#F1EBF6] border border-[#F1EBF6] rounded-lg">
+                  <label className="text-[10px] font-bold text-[#6B3D8C] block mb-0.5 uppercase">
                     Select Pre-Registered Law Firm (Counsel &amp; Firm Registry):
                   </label>
                   <select
@@ -4412,7 +4620,7 @@ export const CasesView: React.FC = () => {
                         showToast(`Selected from Registry: ${selectedFirm.firmName}`);
                       }
                     }}
-                    className="w-full bg-white border border-purple-300 font-semibold text-xs text-purple-950"
+                    className="w-full bg-white border border-[#6B3D8C] font-semibold text-xs text-[#6B3D8C]"
                   >
                     <option value="">-- Choose from Registry --</option>
                     {lawFirmRegistry.map((f) => (
@@ -4514,13 +4722,13 @@ export const CasesView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsChangeOpposingModalOpen(false)}
-                  className="px-4 py-2 border border-[#E1DCCF] text-slate-700 hover:bg-slate-100 rounded-md font-semibold cursor-pointer"
+                  className="px-4 py-2 border border-[#DDE3EB] text-slate-700 hover:bg-slate-100 rounded-md font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#A9814A] hover:bg-[#8E6B3B] text-white rounded-md font-bold cursor-pointer flex items-center gap-1.5"
+                  className="px-4 py-2 bg-[#3D6B9C] hover:bg-[#8A6D3B] text-white rounded-md font-bold cursor-pointer flex items-center gap-1.5"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
                   <span>Update &amp; Record Change</span>
@@ -4534,9 +4742,9 @@ export const CasesView: React.FC = () => {
       {/* Register / Edit Opposing Law Firm & Advocates Modal */}
       {isRegOpposingModalOpen && (
         <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 border border-[#E1DCCF] max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 border border-[#DDE3EB] max-h-[90vh] overflow-y-auto">
             <div className="flex items-center gap-2 mb-1">
-              <Briefcase className="w-5 h-5 text-[#A9814A]" />
+              <Briefcase className="w-5 h-5 text-[#3D6B9C]" />
               <h3 className="font-serif text-lg font-bold text-[#16223A]">
                 {editingRegId ? 'Edit Opposing Law Firm & Advocates' : 'Register Opposing Law Firm & Advocates'}
               </h3>
@@ -4549,8 +4757,8 @@ export const CasesView: React.FC = () => {
 
             <form onSubmit={handleSaveRegOpposing} className="space-y-3 text-xs">
               {lawFirmRegistry.length > 0 && (
-                <div className="p-2.5 bg-purple-50 border border-purple-200 rounded-lg">
-                  <label className="text-[10px] font-bold text-purple-900 block mb-0.5 uppercase">
+                <div className="p-2.5 bg-[#F1EBF6] border border-[#F1EBF6] rounded-lg">
+                  <label className="text-[10px] font-bold text-[#6B3D8C] block mb-0.5 uppercase">
                     Select Pre-Registered Law Firm (Counsel &amp; Firm Registry):
                   </label>
                   <select
@@ -4571,7 +4779,7 @@ export const CasesView: React.FC = () => {
                         showToast(`Selected from Registry: ${selectedFirm.firmName}`);
                       }
                     }}
-                    className="w-full bg-white border border-purple-300 font-semibold text-xs text-purple-950"
+                    className="w-full bg-white border border-[#6B3D8C] font-semibold text-xs text-[#6B3D8C]"
                   >
                     <option value="">-- Choose from Registry --</option>
                     {lawFirmRegistry.map((f) => (
@@ -4625,7 +4833,7 @@ export const CasesView: React.FC = () => {
 
               <div>
                 <label className="font-bold text-slate-700 block uppercase mb-1 flex items-center gap-1">
-                  <UserCheck className="w-3.5 h-3.5 text-blue-600" />
+                  <UserCheck className="w-3.5 h-3.5 text-[#3D6B9C]" />
                   Attending Advocates / Associates / Counsel List
                 </label>
                 <textarea
@@ -4667,13 +4875,13 @@ export const CasesView: React.FC = () => {
                     setIsRegOpposingModalOpen(false);
                     setEditingRegId(null);
                   }}
-                  className="px-4 py-2 border border-[#E1DCCF] text-slate-700 hover:bg-slate-100 rounded-md font-semibold cursor-pointer"
+                  className="px-4 py-2 border border-[#DDE3EB] text-slate-700 hover:bg-slate-100 rounded-md font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded-md font-bold cursor-pointer flex items-center gap-1.5"
+                  className="px-4 py-2 bg-[#16223A] hover:bg-[#16223A] text-white rounded-md font-bold cursor-pointer flex items-center gap-1.5"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>{editingRegId ? 'Save Changes' : 'Register Opposing Firm'}</span>
@@ -4687,9 +4895,9 @@ export const CasesView: React.FC = () => {
       {/* Add / Edit Represented Client Modal (Our Side) */}
       {isClientPartyModalOpen && (
         <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#E1DCCF] my-8">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#DDE3EB] my-8">
             <h3 className="font-serif text-lg font-bold text-[#16223A] mb-1 flex items-center gap-2">
-              <UserCheck className="w-5 h-5 text-blue-600" />
+              <UserCheck className="w-5 h-5 text-[#3D6B9C]" />
               <span>{editingClientPartyId ? 'Edit Represented Client Details' : 'Add Represented Client / Co-Party'}</span>
             </h3>
             <p className="text-xs text-slate-500 mb-4">
@@ -4717,7 +4925,7 @@ export const CasesView: React.FC = () => {
                       setCpEmail('');
                     }
                   }}
-                  className="w-full font-bold text-[#16223A] bg-blue-50/80 border border-blue-300 mb-2"
+                  className="w-full font-bold text-[#16223A] bg-[#E7EEF6]/80 border border-[#3D6B9C] mb-2"
                 >
                   <option value="">-- Choose from Firm Clients Database --</option>
                   {clients.map((c) => (
@@ -4740,7 +4948,7 @@ export const CasesView: React.FC = () => {
                   className="w-full font-bold text-[#16223A]"
                 />
                 {cpSelectedClientId === 'NEW' && (
-                  <p className="text-[10px] text-amber-700 font-semibold mt-1">
+                  <p className="text-[10px] text-[#8A6D3B] font-semibold mt-1">
                     ✨ Entering a new client name here will automatically register them in our central Clients Database.
                   </p>
                 )}
@@ -4799,13 +5007,13 @@ export const CasesView: React.FC = () => {
                     setIsClientPartyModalOpen(false);
                     setEditingClientPartyId(null);
                   }}
-                  className="px-4 py-2 border border-[#E1DCCF] text-slate-700 hover:bg-slate-100 rounded-md font-semibold cursor-pointer"
+                  className="px-4 py-2 border border-[#DDE3EB] text-slate-700 hover:bg-slate-100 rounded-md font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded-md font-bold cursor-pointer flex items-center gap-1.5"
+                  className="px-4 py-2 bg-[#16223A] hover:bg-[#16223A] text-white rounded-md font-bold cursor-pointer flex items-center gap-1.5"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>{editingClientPartyId ? 'Save Changes' : 'Add Client to Matter'}</span>
@@ -4819,9 +5027,9 @@ export const CasesView: React.FC = () => {
       {/* Add / Edit Opposing Party Modal (Opposing Side) */}
       {isOppPartyModalOpen && (
         <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#E1DCCF] my-8">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#DDE3EB] my-8">
             <h3 className="font-serif text-lg font-bold text-[#16223A] mb-1 flex items-center gap-2">
-              <Users className="w-5 h-5 text-rose-600" />
+              <Users className="w-5 h-5 text-[#B23A2E]" />
               <span>{editingOppPartyId ? 'Edit Opposing Party Details' : 'Add Opposing Party / Co-Defendant'}</span>
             </h3>
             <p className="text-xs text-slate-500 mb-4">
@@ -4871,13 +5079,13 @@ export const CasesView: React.FC = () => {
                     setIsOppPartyModalOpen(false);
                     setEditingOppPartyId(null);
                   }}
-                  className="px-4 py-2 border border-[#E1DCCF] text-slate-700 hover:bg-slate-100 rounded-md font-semibold cursor-pointer"
+                  className="px-4 py-2 border border-[#DDE3EB] text-slate-700 hover:bg-slate-100 rounded-md font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded-md font-bold cursor-pointer flex items-center gap-1.5"
+                  className="px-4 py-2 bg-[#16223A] hover:bg-[#16223A] text-white rounded-md font-bold cursor-pointer flex items-center gap-1.5"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>{editingOppPartyId ? 'Save Changes' : 'Add Opposing Party'}</span>
@@ -4922,11 +5130,11 @@ export const CasesView: React.FC = () => {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">Date Served</label>
-                  <input type="date" value={svcDate} onChange={(e) => setSvcDate(e.target.value)} className="w-full p-2 border border-[#E1DCCF] rounded-lg" />
+                  <input type="date" value={svcDate} onChange={(e) => setSvcDate(e.target.value)} className="w-full p-2 border border-[#DDE3EB] rounded-lg" />
                 </div>
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">Proof Status</label>
-                  <select value={svcProof} onChange={(e) => setSvcProof(e.target.value as 'Y' | 'N')} className="w-full p-2 border border-[#E1DCCF] rounded-lg">
+                  <select value={svcProof} onChange={(e) => setSvcProof(e.target.value as 'Y' | 'N')} className="w-full p-2 border border-[#DDE3EB] rounded-lg">
                     <option value="Y">Proof Obtained</option>
                     <option value="N">Pending Proof</option>
                   </select>
@@ -4934,21 +5142,21 @@ export const CasesView: React.FC = () => {
               </div>
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Document Served *</label>
-                <input required value={svcDoc} onChange={(e) => setSvcDoc(e.target.value)} placeholder="e.g. Statement of Claim, Notice of Application" className="w-full p-2 border border-[#E1DCCF] rounded-lg" />
+                <input required value={svcDoc} onChange={(e) => setSvcDoc(e.target.value)} placeholder="e.g. Statement of Claim, Notice of Application" className="w-full p-2 border border-[#DDE3EB] rounded-lg" />
               </div>
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Served On</label>
-                <input value={svcServedOn} onChange={(e) => setSvcServedOn(e.target.value)} placeholder="Party / solicitor served" className="w-full p-2 border border-[#E1DCCF] rounded-lg" />
+                <input value={svcServedOn} onChange={(e) => setSvcServedOn(e.target.value)} placeholder="Party / solicitor served" className="w-full p-2 border border-[#DDE3EB] rounded-lg" />
               </div>
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Served By</label>
-                <input value={svcServedBy} onChange={(e) => setSvcServedBy(e.target.value)} placeholder="Process server / staff name" className="w-full p-2 border border-[#E1DCCF] rounded-lg" />
+                <input value={svcServedBy} onChange={(e) => setSvcServedBy(e.target.value)} placeholder="Process server / staff name" className="w-full p-2 border border-[#DDE3EB] rounded-lg" />
               </div>
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Service Method</label>
-                <input value={svcMethod} onChange={(e) => setSvcMethod(e.target.value)} placeholder="Personal Service, AR Registered Post, e-Filing, etc." className="w-full p-2 border border-[#E1DCCF] rounded-lg" />
+                <input value={svcMethod} onChange={(e) => setSvcMethod(e.target.value)} placeholder="Personal Service, AR Registered Post, e-Filing, etc." className="w-full p-2 border border-[#DDE3EB] rounded-lg" />
               </div>
-              <button type="submit" className="w-full bg-[#16223A] hover:bg-[#1F2E4D] text-white p-2 rounded-lg font-bold cursor-pointer">Log Service Record</button>
+              <button type="submit" className="w-full bg-[#16223A] hover:bg-[#16223A] text-white p-2 rounded-lg font-bold cursor-pointer">Log Service Record</button>
             </form>
           </div>
         </div>
@@ -4965,17 +5173,17 @@ export const CasesView: React.FC = () => {
             <form onSubmit={handleSaveMeeting} className="space-y-3 text-xs">
               <div>
                 <label className="font-bold text-slate-700 block mb-1">SHCO Lawyers Present</label>
-                <div className="rounded-lg border border-[#E1DCCF] p-2 space-y-2">
+                <div className="rounded-lg border border-[#DDE3EB] p-2 space-y-2">
                   <div className="flex flex-wrap gap-1.5">
                     {mnOurLawyers.split(',').map((name) => name.trim()).filter(Boolean).map((name) => (
-                      <button key={name} type="button" onClick={() => setMnOurLawyers(mnOurLawyers.split(',').map((item) => item.trim()).filter((item) => item && item !== name).join(', '))} className="bg-[#16223A] text-amber-200 px-2 py-1 rounded text-[10px] font-bold cursor-pointer">{name} x</button>
+                      <button key={name} type="button" onClick={() => setMnOurLawyers(mnOurLawyers.split(',').map((item) => item.trim()).filter((item) => item && item !== name).join(', '))} className="bg-[#16223A] text-[#FBF2E9] px-2 py-1 rounded text-[10px] font-bold cursor-pointer">{name} x</button>
                     ))}
                   </div>
-                  <input value={mnLawyerSearch} onChange={(e) => setMnLawyerSearch(e.target.value)} placeholder="Search registered SHCO lawyers..." className="w-full p-2 border border-[#E1DCCF] rounded-lg" />
+                  <input value={mnLawyerSearch} onChange={(e) => setMnLawyerSearch(e.target.value)} placeholder="Search registered SHCO lawyers..." className="w-full p-2 border border-[#DDE3EB] rounded-lg" />
                   {mnLawyerSearch.trim() && (
                     <div className="max-h-28 overflow-y-auto border-t border-slate-100 pt-1">
                       {registeredStaff.filter((user) => user.name.toLowerCase().includes(mnLawyerSearch.toLowerCase())).map((user) => (
-                        <button key={user.id} type="button" onClick={() => { setMnOurLawyers(Array.from(new Set([...mnOurLawyers.split(',').map((item) => item.trim()).filter(Boolean), user.name])).join(', ')); setMnLawyerSearch(''); }} className="block w-full text-left px-2 py-1.5 hover:bg-amber-50 text-xs cursor-pointer">{user.name} <span className="text-slate-400">({user.role})</span></button>
+                        <button key={user.id} type="button" onClick={() => { setMnOurLawyers(Array.from(new Set([...mnOurLawyers.split(',').map((item) => item.trim()).filter(Boolean), user.name])).join(', ')); setMnLawyerSearch(''); }} className="block w-full text-left px-2 py-1.5 hover:bg-[#FBF2E9] text-xs cursor-pointer">{user.name} <span className="text-slate-400">({user.role})</span></button>
                       ))}
                     </div>
                   )}
@@ -4983,17 +5191,17 @@ export const CasesView: React.FC = () => {
               </div>
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Client Attendees</label>
-                <input value={mnClientAttendees} onChange={(e) => setMnClientAttendees(e.target.value)} placeholder="Client representatives present" className="w-full p-2 border border-[#E1DCCF] rounded-lg" />
+                <input value={mnClientAttendees} onChange={(e) => setMnClientAttendees(e.target.value)} placeholder="Client representatives present" className="w-full p-2 border border-[#DDE3EB] rounded-lg" />
               </div>
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Meeting Notes *</label>
-                <textarea required value={mnNotes} onChange={(e) => setMnNotes(e.target.value)} placeholder="Discussion summary" className="w-full p-2 border border-[#E1DCCF] rounded-lg" rows={5} />
+                <textarea required value={mnNotes} onChange={(e) => setMnNotes(e.target.value)} placeholder="Discussion summary" className="w-full p-2 border border-[#DDE3EB] rounded-lg" rows={5} />
               </div>
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Decisions &amp; Next Steps</label>
-                <textarea value={mnDecisions} onChange={(e) => setMnDecisions(e.target.value)} placeholder="Agreed action items" className="w-full p-2 border border-[#E1DCCF] rounded-lg" rows={3} />
+                <textarea value={mnDecisions} onChange={(e) => setMnDecisions(e.target.value)} placeholder="Agreed action items" className="w-full p-2 border border-[#DDE3EB] rounded-lg" rows={3} />
               </div>
-              <button type="submit" className="w-full bg-[#16223A] hover:bg-[#1F2E4D] text-white p-2 rounded-lg font-bold cursor-pointer">Save Meeting Note</button>
+              <button type="submit" className="w-full bg-[#16223A] hover:bg-[#16223A] text-white p-2 rounded-lg font-bold cursor-pointer">Save Meeting Note</button>
             </form>
           </div>
         </div>
@@ -5010,9 +5218,9 @@ export const CasesView: React.FC = () => {
             <form onSubmit={handleGenerateAiMeetingNote} className="space-y-3 text-xs">
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Meeting Transcript *</label>
-                <textarea required value={rawMeetingTranscript} onChange={(e) => setRawMeetingTranscript(e.target.value)} placeholder="Paste the meeting transcript here" className="w-full p-2 border border-[#E1DCCF] rounded-lg" rows={8} />
+                <textarea required value={rawMeetingTranscript} onChange={(e) => setRawMeetingTranscript(e.target.value)} placeholder="Paste the meeting transcript here" className="w-full p-2 border border-[#DDE3EB] rounded-lg" rows={8} />
               </div>
-              <button type="submit" disabled={isGeneratingAiMeeting} className="w-full bg-[#16223A] hover:bg-[#1F2E4D] text-white p-2 rounded-lg font-bold cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">{isGeneratingAiMeeting ? 'Generating...' : 'Generate Summary'}</button>
+              <button type="submit" disabled={isGeneratingAiMeeting} className="w-full bg-[#16223A] hover:bg-[#16223A] text-white p-2 rounded-lg font-bold cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">{isGeneratingAiMeeting ? 'Generating...' : 'Generate Summary'}</button>
             </form>
           </div>
         </div>
@@ -5024,10 +5232,10 @@ export const CasesView: React.FC = () => {
       {/* Add Compliance / Activity Log Modal */}
       {isSuperAdmin && isAddActivityModalOpen && selectedCase && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#E1DCCF] space-y-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#DDE3EB] space-y-4">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <h3 className="font-serif font-bold text-sm text-[#16223A] flex items-center gap-2">
-                <Activity className="w-4 h-4 text-[#A9814A]" />
+                <Activity className="w-4 h-4 text-[#3D6B9C]" />
                 <span>Log Compliance &amp; Case Activity Event</span>
               </h3>
               <button
@@ -5047,7 +5255,7 @@ export const CasesView: React.FC = () => {
                   description: actDesc.trim() || 'Recorded by compliance team.',
                   type: actType,
                   actor: currentPartnerCode || 'Compliance Officer',
-                  badgeColor: 'bg-emerald-100 text-emerald-800',
+                  badgeColor: 'bg-[#E6EFE9] text-[#2F6F4E]',
                 });
                 setActTitle('');
                 setActDesc('');
@@ -5060,7 +5268,7 @@ export const CasesView: React.FC = () => {
                 <select
                   value={actType}
                   onChange={(e) => setActType(e.target.value as any)}
-                  className="w-full p-2 border border-[#E1DCCF] rounded-lg font-bold text-[#16223A]"
+                  className="w-full p-2 border border-[#DDE3EB] rounded-lg font-bold text-[#16223A]"
                 >
                   <option value="Compliance Check">Compliance Check / KYC Verification</option>
                   <option value="Document Upload">Document Submission / Filing</option>
@@ -5082,7 +5290,7 @@ export const CasesView: React.FC = () => {
                   placeholder="e.g. SRA Compliance Clearance or Notice of Trial Filed"
                   value={actTitle}
                   onChange={(e) => setActTitle(e.target.value)}
-                  className="w-full p-2 border border-[#E1DCCF] rounded-lg font-medium"
+                  className="w-full p-2 border border-[#DDE3EB] rounded-lg font-medium"
                 />
               </div>
 
@@ -5093,7 +5301,7 @@ export const CasesView: React.FC = () => {
                   placeholder="Enter detailed summary or compliance outcome..."
                   value={actDesc}
                   onChange={(e) => setActDesc(e.target.value)}
-                  className="w-full p-2 border border-[#E1DCCF] rounded-lg font-normal"
+                  className="w-full p-2 border border-[#DDE3EB] rounded-lg font-normal"
                 />
               </div>
 
@@ -5101,15 +5309,15 @@ export const CasesView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsAddActivityModalOpen(false)}
-                  className="px-4 py-2 border border-[#E1DCCF] text-slate-700 hover:bg-slate-100 rounded-lg font-bold"
+                  className="px-4 py-2 border border-[#DDE3EB] text-slate-700 hover:bg-slate-100 rounded-lg font-bold"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#16223A] hover:bg-[#1F2E4D] text-amber-300 rounded-lg font-bold flex items-center gap-1.5 shadow-xs"
+                  className="px-4 py-2 bg-[#16223A] hover:bg-[#16223A] text-[#8A6D3B] rounded-lg font-bold flex items-center gap-1.5 shadow-xs"
                 >
-                  <Plus className="w-3.5 h-3.5 text-amber-300" />
+                  <Plus className="w-3.5 h-3.5 text-[#8A6D3B]" />
                   <span>Save Activity Log</span>
                 </button>
               </div>
@@ -5126,10 +5334,10 @@ export const CasesView: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Top Banner & View Switcher Bar */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
         <div>
           <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-            <Scale className="w-5 h-5 text-[#A9814A]" />
+            <Scale className="w-5 h-5 text-[#3D6B9C]" />
             <span>Firm Legal Matter Registry</span>
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -5141,10 +5349,10 @@ export const CasesView: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsRecycleBinOpen(true)}
-            className="bg-slate-100 hover:bg-slate-200 text-[#16223A] border border-[#E1DCCF] font-bold text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+            className="bg-slate-100 hover:bg-slate-200 text-[#16223A] border border-[#DDE3EB] font-bold text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
             title="Open Data Recovery Vault to retrieve deleted cases and matters"
           >
-            <Archive className="w-4 h-4 text-[#A9814A]" />
+            <Archive className="w-4 h-4 text-[#3D6B9C]" />
             <span>Recycle Bin ({deletedRecords.length})</span>
           </button>
 
@@ -5154,23 +5362,39 @@ export const CasesView: React.FC = () => {
               setNcManualRefOverride('');
               setIsNewCaseModalOpen(true);
             }}
-            className="bg-[#16223A] hover:bg-[#203050] text-amber-300 font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 transition-colors cursor-pointer shadow-md"
+            className="bg-[#16223A] hover:bg-[#16223A] text-[#8A6D3B] font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 transition-colors cursor-pointer shadow-md"
           >
-            <Plus className="w-4 h-4 text-amber-300" />
+            <Plus className="w-4 h-4 text-[#8A6D3B]" />
             <span>Register New Case / Case Intake</span>
           </button>
         </div>
       </div>
 
+      {/* Status summary strip */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        {([
+          ['Active', cases.filter((c) => c.status === 'Active').length, palette.green],
+          ['Pending', cases.filter((c) => c.status === 'Pending').length, palette.gold],
+          ['Closed', cases.filter((c) => c.status === 'Closed').length, '#5B6478'],
+          ['Archive', cases.filter((c) => c.status === 'Archive').length, palette.red],
+        ] as const).map(([label, count, color]) => (
+          <div key={label} className="rounded-lg border-t-4 bg-white p-3 text-xs shadow-2xs" style={{ borderTopColor: color }}>
+            <p className="font-bold uppercase text-[10px] text-slate-500">{label}</p>
+            <p className="mt-1 text-2xl font-bold" style={{ color }}>{count}</p>
+          </div>
+        ))}
+        <StatCard label="Total firm matters" value={cases.length} color={palette.navy} />
+      </div>
+
       {/* Filters Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-[#E1DCCF] p-3 rounded-lg text-xs shadow-2xs">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-[#DDE3EB] p-3 rounded-lg text-xs shadow-2xs">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1.5">
             <span className="font-bold text-slate-600 uppercase text-[10px]">Filter Status:</span>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="text-xs bg-[#FAF8F2] border border-[#E1DCCF] rounded px-2 py-1 font-semibold text-[#16223A] outline-none cursor-pointer"
+              className="text-xs bg-[#F6F8FA] border border-[#DDE3EB] rounded px-2 py-1 font-semibold text-[#16223A] outline-none cursor-pointer"
             >
               <option value="">All Statuses</option>
               <option value="Active">Active</option>
@@ -5185,7 +5409,7 @@ export const CasesView: React.FC = () => {
             <select
               value={statusLawyerFilter}
               onChange={(e) => setStatusLawyerFilter(e.target.value)}
-              className="text-xs bg-[#FAF8F2] border border-[#E1DCCF] rounded px-2 py-1 font-semibold text-[#16223A] outline-none cursor-pointer"
+              className="text-xs bg-[#F6F8FA] border border-[#DDE3EB] rounded px-2 py-1 font-semibold text-[#16223A] outline-none cursor-pointer"
             >
               <option value="ALL">All PICs</option>
               {staffUsersList.map((u) => (
@@ -5204,10 +5428,10 @@ export const CasesView: React.FC = () => {
 
       {/* View Mode 1: Case Status Horizontal Table Layout */}
       {casesViewMode === 'status' ? (
-        <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs">
+        <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs">
           <div className="p-3 bg-[#16223A] text-white flex justify-between items-center text-xs">
             <span className="font-serif font-bold tracking-wide flex items-center gap-2">
-              <Activity className="w-4 h-4 text-emerald-400" />
+              <Activity className="w-4 h-4 text-[#2F6F4E]" />
               <span>Weekly Case Status &amp; Stage Tracking Table</span>
             </span>
             <span className="text-[10px] text-slate-300 italic">
@@ -5217,17 +5441,17 @@ export const CasesView: React.FC = () => {
 
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[1100px] text-xs">
-              <thead className="bg-[#F6F4EE] border-b border-[#E1DCCF] text-[10px] uppercase tracking-wider text-slate-700 font-serif font-bold">
+              <thead className="bg-[#F6F8FA] border-b border-[#DDE3EB] text-[10px] uppercase tracking-wider text-slate-700 font-serif font-bold">
                 <tr>
-                  <th className="p-3 border-r border-[#E1DCCF] min-w-[220px]">Matter Ref &amp; Client Title</th>
-                  <th className="p-3 border-r border-[#E1DCCF] min-w-[150px]">Practice Area</th>
-                  <th className="p-3 border-r border-[#E1DCCF] min-w-[200px] bg-amber-100/50 text-amber-950">
+                  <th className="p-3 border-r border-[#DDE3EB] min-w-[220px]">Matter Ref &amp; Client Title</th>
+                  <th className="p-3 border-r border-[#DDE3EB] min-w-[150px]">Practice Area</th>
+                  <th className="p-3 border-r border-[#DDE3EB] min-w-[200px] bg-[#FBF2E9]/50 text-[#8A6D3B]">
                     Case Stage (Editable Dropdown)
                   </th>
-                  <th className="p-3 border-r border-[#E1DCCF] min-w-[180px]">PIC</th>
-                  <th className="p-3 border-r border-[#E1DCCF] min-w-[110px]">Status</th>
-                  <th className="p-3 border-r border-[#E1DCCF] min-w-[220px]">Completed Actions This Week</th>
-                  <th className="p-3 border-r border-[#E1DCCF] min-w-[220px]">Next Action Plan &amp; Target Dates</th>
+                  <th className="p-3 border-r border-[#DDE3EB] min-w-[180px]">PIC</th>
+                  <th className="p-3 border-r border-[#DDE3EB] min-w-[110px]">Status</th>
+                  <th className="p-3 border-r border-[#DDE3EB] min-w-[220px]">Completed Actions This Week</th>
+                  <th className="p-3 border-r border-[#DDE3EB] min-w-[220px]">Next Action Plan &amp; Target Dates</th>
                   <th className="p-3 text-right min-w-[130px]">Client Update</th>
                 </tr>
               </thead>
@@ -5240,7 +5464,7 @@ export const CasesView: React.FC = () => {
                   </tr>
                 ) : (
                   filteredCasesList.map((cs) => (
-                    <tr key={cs.id} className="hover:bg-amber-50/20 transition-colors">
+                    <tr key={cs.id} className="hover:bg-[#FBF2E9]/20 transition-colors">
                       {/* 1. Matter Ref & Title / Client */}
                       <td className="p-3 border-r border-slate-200 align-top">
                         <div
@@ -5253,7 +5477,7 @@ export const CasesView: React.FC = () => {
                           <span className="ref-seal text-[11px] px-2 py-0.5 group-hover:bg-[#16223A] group-hover:text-white transition-colors">
                             {cs.ref}
                           </span>
-                          <span className="font-bold text-[#16223A] text-xs block mt-1.5 group-hover:text-[#A9814A]">
+                          <span className="font-bold text-[#16223A] text-xs block mt-1.5 group-hover:text-[#3D6B9C]">
                             {cs.title}
                           </span>
                           <span className="text-[10.5px] text-slate-500 block mt-1">
@@ -5266,15 +5490,15 @@ export const CasesView: React.FC = () => {
                       <td className="p-3 border-r border-slate-200 align-top">
                         <span className="font-semibold text-slate-800 text-xs block">{cs.type}</span>
                         {cs.clientRole && (
-                          <span className="mt-1.5 inline-block text-[9.5px] font-extrabold text-[#A9814A] bg-amber-50 border border-[#A9814A]/30 px-1.5 py-0.5 rounded">
+                          <span className="mt-1.5 inline-block text-[9.5px] font-extrabold text-[#3D6B9C] bg-[#FBF2E9] border border-[#3D6B9C]/30 px-1.5 py-0.5 rounded">
                             Side: {cs.clientRole}
                           </span>
                         )}
                       </td>
 
                       {/* 3. Matter Stage (EDITABLE DROPDOWN) */}
-                      <td className="p-3 border-r border-slate-200 align-top bg-amber-50/30">
-                        <label className="text-[9.5px] font-bold text-amber-900 uppercase block mb-1">
+                      <td className="p-3 border-r border-slate-200 align-top bg-[#FBF2E9]/30">
+                        <label className="text-[9.5px] font-bold text-[#8A6D3B] uppercase block mb-1">
                           Current Stage:
                         </label>
                         <select
@@ -5284,7 +5508,7 @@ export const CasesView: React.FC = () => {
                             updateCase(cs.id, { stage: newStage });
                             showToast(`Matter ${cs.ref} stage updated to "${newStage}"`);
                           }}
-                          className="w-full bg-white border border-amber-300 font-extrabold text-amber-950 p-1.5 rounded-md text-xs shadow-2xs focus:ring-2 focus:ring-amber-400 outline-none cursor-pointer"
+                          className="w-full bg-white border border-[#8A6D3B] font-extrabold text-[#8A6D3B] p-1.5 rounded-md text-xs shadow-2xs focus:ring-2 focus:ring-amber-400 outline-none cursor-pointer"
                         >
                           <option value="PTCM">PTCM (Pre-Trial Case Management)</option>
                           <option value="Pleading stage">Pleading Stage (Writ / Defence)</option>
@@ -5334,9 +5558,9 @@ export const CasesView: React.FC = () => {
                           }}
                           className={`w-full px-1.5 py-1 rounded text-[10.5px] font-bold border cursor-pointer ${
                             cs.status === 'Active'
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                              ? 'bg-[#E6EFE9] text-[#2F6F4E] border-[#2F6F4E]'
                               : cs.status === 'Pending'
-                              ? 'bg-amber-50 text-amber-800 border-amber-300'
+                              ? 'bg-[#FBF2E9] text-[#8A6D3B] border-[#8A6D3B]'
                               : 'bg-slate-50 text-slate-700 border-slate-300'
                           }`}
                         >
@@ -5362,7 +5586,7 @@ export const CasesView: React.FC = () => {
                             return completedTasks.map((t) => (
                               <div
                                 key={t.id}
-                                className="bg-emerald-50 p-1.5 rounded border border-emerald-200 text-emerald-950 font-medium text-[10.5px] flex items-start gap-1.5"
+                                className="bg-[#E6EFE9] p-1.5 rounded border border-[#E6EFE9] text-[#2F6F4E] font-medium text-[10.5px] flex items-start gap-1.5"
                               >
                                 <input
                                   type="checkbox"
@@ -5374,11 +5598,11 @@ export const CasesView: React.FC = () => {
                                     updateCase(cs.id, { tasks: updatedTasks });
                                     showToast(`Task "${t.title}" re-opened.`);
                                   }}
-                                  className="mt-0.5 rounded text-emerald-700 cursor-pointer"
+                                  className="mt-0.5 rounded text-[#2F6F4E] cursor-pointer"
                                 />
                                 <div className="flex-1">
                                   <span className="font-bold line-through text-slate-600">{t.title}</span>
-                                  <span className="block text-[9px] text-emerald-700 font-semibold">Done by: {t.assignedTo}</span>
+                                  <span className="block text-[9px] text-[#2F6F4E] font-semibold">Done by: {t.assignedTo}</span>
                                 </div>
                               </div>
                             ));
@@ -5390,7 +5614,7 @@ export const CasesView: React.FC = () => {
                       <td className="p-3 border-r border-slate-200 align-top">
                         <div className="space-y-1.5">
                           {cs.nextHearing && (
-                            <div className="bg-rose-50 p-1.5 rounded border border-rose-200 text-rose-950 font-bold text-[10.5px]">
+                            <div className="bg-[#FBEDE9] p-1.5 rounded border border-[#FBEDE9] text-[#B23A2E] font-bold text-[10.5px]">
                               ⚖️ Next Court Date: {cs.nextHearing}
                             </div>
                           )}
@@ -5406,7 +5630,7 @@ export const CasesView: React.FC = () => {
                             return pendingTasks.map((t) => (
                               <div
                                 key={t.id}
-                                className="bg-blue-50 p-1.5 rounded border border-blue-200 text-blue-950 font-medium text-[10.5px] flex items-start gap-1.5"
+                                className="bg-[#E7EEF6] p-1.5 rounded border border-[#E7EEF6] text-[#3D6B9C] font-medium text-[10.5px] flex items-start gap-1.5"
                               >
                                 <input
                                   type="checkbox"
@@ -5418,11 +5642,11 @@ export const CasesView: React.FC = () => {
                                     updateCase(cs.id, { tasks: updatedTasks });
                                     showToast(`Task "${t.title}" marked completed!`);
                                   }}
-                                  className="mt-0.5 rounded text-blue-700 cursor-pointer"
+                                  className="mt-0.5 rounded text-[#3D6B9C] cursor-pointer"
                                 />
                                 <div className="flex-1">
                                   <span className="font-bold block text-[#16223A]">{t.title}</span>
-                                  <span className="block text-[9px] text-blue-800 font-mono">
+                                  <span className="block text-[9px] text-[#3D6B9C] font-mono">
                                     Due: {t.dueDate} ({t.assignedTo})
                                   </span>
                                 </div>
@@ -5438,7 +5662,7 @@ export const CasesView: React.FC = () => {
                             }}
                             className="w-full mt-1 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded font-bold text-[10px] py-1 flex items-center justify-center gap-1 cursor-pointer"
                           >
-                            <Plus className="w-3 h-3 text-[#A9814A]" />
+                            <Plus className="w-3 h-3 text-[#3D6B9C]" />
                             <span>+ Add Matter Task</span>
                           </button>
                         </div>
@@ -5462,7 +5686,7 @@ export const CasesView: React.FC = () => {
                             const text = `Dear ${cs.clientName || 'Valued Client'},\n\nWeekly Update for Matter ${cs.ref} (${cs.title}):\n\nLAWYER IN CHARGE: ${cs.lawyerInCharge || 'Syafiqah Hamizad'}\nSTAGE: ${cs.stage || 'PTCM'}\n\nACTIONS COMPLETED THIS WEEK:\n${completed}\n\nNEXT ACTIONS & SCHEDULED DATES:\n${upcoming}\n\nShould you have any queries, please feel free to reach out.\n\nWarm regards,\nMessrs. Syafiqah Hamizad & Co`;
                             setWaShareText(text);
                           }}
-                          className="w-full bg-[#2F6F4E] hover:bg-emerald-800 text-white font-bold px-2 py-1 rounded text-[10.5px] flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+                          className="w-full bg-[#2F6F4E] hover:bg-[#2F6F4E] text-white font-bold px-2 py-1 rounded text-[10.5px] flex items-center justify-center gap-1 cursor-pointer shadow-xs"
                         >
                           <MessageSquare className="w-3 h-3" />
                           <span>WhatsApp</span>
@@ -5486,7 +5710,7 @@ export const CasesView: React.FC = () => {
                               body: `Dear ${cs.clientName || 'Valued Client'},\n\nWeekly Status Update for your matter ${cs.ref}:\nLawyer in Charge: ${cs.lawyerInCharge || 'Syafiqah Hamizad'}\nCurrent Stage: ${cs.stage || 'PTCM'}\n\nACTIONS COMPLETED THIS WEEK:\n${completed}\n\nNEXT ACTIONS FOR COMING WEEK:\n${upcoming}\n\nThank you for trusting Messrs Syafiqah Hamizad & Co.`,
                             });
                           }}
-                          className="w-full bg-[#16223A] hover:bg-[#1F2E4D] text-white font-bold px-2 py-1 rounded text-[10.5px] flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+                          className="w-full bg-[#16223A] hover:bg-[#16223A] text-white font-bold px-2 py-1 rounded text-[10.5px] flex items-center justify-center gap-1 cursor-pointer shadow-xs"
                         >
                           <Mail className="w-3 h-3" />
                           <span>Email</span>
@@ -5499,10 +5723,10 @@ export const CasesView: React.FC = () => {
                             e.preventDefault();
                             handleDeleteCase(cs);
                           }}
-                          className="w-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold px-2 py-1 rounded text-[10.5px] flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                          className="w-full bg-[#FBEDE9] hover:bg-[#FBEDE9] text-[#B23A2E] border border-[#FBEDE9] font-bold px-2 py-1 rounded text-[10.5px] flex items-center justify-center gap-1 cursor-pointer transition-colors"
                           title="Delete Matter Record"
                         >
-                          <Trash2 className="w-3 h-3 text-rose-600" />
+                          <Trash2 className="w-3 h-3 text-[#B23A2E]" />
                           <span>Delete</span>
                         </button>
                       </td>
@@ -5515,10 +5739,10 @@ export const CasesView: React.FC = () => {
         </div>
       ) : (
         /* View Mode 2: Standard Master Registry Table */
-        <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs">
+        <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-[#F6F4EE] border-b border-[#E1DCCF] text-[10px] uppercase tracking-wider text-slate-600">
+              <tr className="bg-[#F6F8FA] border-b border-[#DDE3EB] text-[10px] uppercase tracking-wider text-slate-600">
                 <th className="p-3 font-bold">Matter Reference</th>
                 <th className="p-3 font-bold">Title / Matter Subject</th>
                 <th className="p-3 font-bold">Practice Area</th>
@@ -5543,7 +5767,7 @@ export const CasesView: React.FC = () => {
                       setCurrentCaseId(cs.id);
                       setCaseSubTab('overview');
                     }}
-                    className="hover:bg-[#FAF8F2] transition-colors cursor-pointer"
+                    className="hover:bg-[#F6F8FA] transition-colors cursor-pointer"
                   >
                     <td className="p-3">
                       <span className="ref-seal">{cs.ref}</span>
@@ -5553,7 +5777,7 @@ export const CasesView: React.FC = () => {
                       <div className="flex flex-col gap-0.5">
                         <span className="font-medium text-slate-800">{cs.type}</span>
                         {cs.clientRole && (
-                          <span className="text-[9.5px] font-extrabold text-[#A9814A] bg-amber-50 border border-[#A9814A]/30 px-1.5 py-0.2 rounded w-max">
+                          <span className="text-[9.5px] font-extrabold text-[#3D6B9C] bg-[#FBF2E9] border border-[#3D6B9C]/30 px-1.5 py-0.2 rounded w-max">
                             Side: {cs.clientRole}
                           </span>
                         )}
@@ -5569,9 +5793,9 @@ export const CasesView: React.FC = () => {
                       <span
                         className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                           cs.status === 'Active'
-                            ? 'bg-emerald-100 text-emerald-800'
+                            ? 'bg-[#E6EFE9] text-[#2F6F4E]'
                             : cs.status === 'Pending'
-                            ? 'bg-amber-100 text-amber-800'
+                            ? 'bg-[#FBF2E9] text-[#8A6D3B]'
                             : 'bg-slate-100 text-slate-700'
                         }`}
                       >
@@ -5586,10 +5810,10 @@ export const CasesView: React.FC = () => {
                           e.preventDefault();
                           handleDeleteCase(cs);
                         }}
-                        className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-[11px] rounded-md transition-colors cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                        className="px-2.5 py-1 bg-[#FBEDE9] hover:bg-[#FBEDE9] text-[#B23A2E] border border-[#FBEDE9] font-bold text-[11px] rounded-md transition-colors cursor-pointer inline-flex items-center gap-1 shadow-2xs"
                         title="Delete Matter Record"
                       >
-                        <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                        <Trash2 className="w-3.5 h-3.5 text-[#B23A2E]" />
                         <span>Delete</span>
                       </button>
                     </td>
@@ -5604,7 +5828,7 @@ export const CasesView: React.FC = () => {
       {/* New Case Modal handled globally in App.tsx */}
       {false && (
         <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 border border-[#E1DCCF] max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 border border-[#DDE3EB] max-h-[90vh] overflow-y-auto">
             <h3 className="font-serif text-lg font-bold text-[#16223A] mb-3">
               Open New Matter &amp; Generate Reference
             </h3>
@@ -5692,7 +5916,7 @@ export const CasesView: React.FC = () => {
                         prev.map((item, idx) => (idx === 0 ? { ...item, role: newRole } : item))
                       );
                     }}
-                    className="w-full font-bold text-[#16223A] bg-amber-50 border border-amber-300"
+                    className="w-full font-bold text-[#16223A] bg-[#FBF2E9] border border-[#8A6D3B]"
                   >
                     {(PRACTICE_CLIENT_ROLES[ncPracticeArea] || ['Client', 'Other']).map((r) => (
                       <option key={r} value={r}>
@@ -5730,11 +5954,11 @@ export const CasesView: React.FC = () => {
               </div>
 
               {/* SHCO Multi-Client Representation Builder */}
-              <div className="p-3.5 bg-blue-50/60 border border-blue-200 rounded-xl space-y-3">
-                <div className="flex justify-between items-center border-b border-blue-200 pb-2">
+              <div className="p-3.5 bg-[#E7EEF6]/60 border border-[#E7EEF6] rounded-xl space-y-3">
+                <div className="flex justify-between items-center border-b border-[#E7EEF6] pb-2">
                   <div>
                     <label className="font-bold text-xs text-[#16223A] uppercase tracking-wider flex items-center gap-1.5">
-                      <UserCheck className="w-4 h-4 text-blue-600" />
+                      <UserCheck className="w-4 h-4 text-[#3D6B9C]" />
                       Clients Represented by Us (SHCO Multi-Client Roster)
                     </label>
                     <p className="text-[11px] text-slate-500">
@@ -5758,18 +5982,18 @@ export const CasesView: React.FC = () => {
                   ).map((cp, idx) => (
                     <div
                       key={cp.id || idx}
-                      className="bg-white p-2.5 rounded-lg border border-blue-300 flex justify-between items-center text-xs shadow-2xs"
+                      className="bg-white p-2.5 rounded-lg border border-[#3D6B9C] flex justify-between items-center text-xs shadow-2xs"
                     >
                       <div>
                         <div className="font-bold text-[#16223A] flex items-center gap-1.5">
                           <span>{cp.name}</span>
-                          <span className="text-[9.5px] bg-blue-100 text-blue-800 border border-blue-200 px-1.5 py-0.2 rounded font-bold">
+                          <span className="text-[9.5px] bg-[#E7EEF6] text-[#3D6B9C] border border-[#E7EEF6] px-1.5 py-0.2 rounded font-bold">
                             {cp.role}
                           </span>
                         </div>
                         {(cp.phone || cp.email || cp.clientId) && (
                           <div className="text-[10px] text-slate-500 mt-0.5">
-                            {cp.clientId && <span className="font-mono text-blue-700 mr-1">[{cp.clientId}]</span>}
+                            {cp.clientId && <span className="font-mono text-[#3D6B9C] mr-1">[{cp.clientId}]</span>}
                             {cp.phone && `Tel: ${cp.phone} `}
                             {cp.email && `• ${cp.email}`}
                           </div>
@@ -5779,7 +6003,7 @@ export const CasesView: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setNcClientsList(ncClientsList.filter((_, i) => i !== idx))}
-                          className="text-rose-600 hover:text-rose-800 text-[10px] font-bold px-1.5 py-0.5 bg-rose-50 rounded border border-rose-200 cursor-pointer shrink-0"
+                          className="text-[#B23A2E] hover:text-[#B23A2E] text-[10px] font-bold px-1.5 py-0.5 bg-[#FBEDE9] rounded border border-[#FBEDE9] cursor-pointer shrink-0"
                         >
                           Remove
                         </button>
@@ -5789,7 +6013,7 @@ export const CasesView: React.FC = () => {
                 </div>
 
                 {/* Add Additional Client Form (Selected strictly from Client Panel) */}
-                <div className="bg-white p-3 rounded-lg border border-blue-200 space-y-2 text-xs">
+                <div className="bg-white p-3 rounded-lg border border-[#E7EEF6] space-y-2 text-xs">
                   <div className="font-bold text-[11px] text-[#16223A] uppercase flex items-center justify-between">
                     <span>+ Add Represented Client (From Client Panel Registry)</span>
                   </div>
@@ -5866,7 +6090,7 @@ export const CasesView: React.FC = () => {
                         setNcAddClientSelectId('');
                         showToast(`Added client ${existing.name} as ${partyRec.role}!`);
                       }}
-                      className="text-xs bg-[#16223A] hover:bg-[#1F2E4D] text-white font-bold px-3 py-1.5 rounded flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
+                      className="text-xs bg-[#16223A] hover:bg-[#16223A] text-white font-bold px-3 py-1.5 rounded flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>Add Client to Matter Roster</span>
@@ -5903,7 +6127,7 @@ export const CasesView: React.FC = () => {
                 </div>
                 <div>
                   <label className="font-bold text-slate-700 block uppercase mb-1">Partner(s) In Charge * (Select One, Multiple, or All)</label>
-                  <div className="flex flex-wrap items-center gap-2 p-2 bg-amber-50/80 border border-amber-300 rounded-lg text-xs">
+                  <div className="flex flex-wrap items-center gap-2 p-2 bg-[#FBF2E9]/80 border border-[#8A6D3B] rounded-lg text-xs">
                     {[
                       { code: 'SH' as PartnerCode, name: 'Syafiqah Hamizad (Partner)' },
                       { code: 'AH' as PartnerCode, name: 'Amer Haiqal (Partner)' },
@@ -5916,7 +6140,7 @@ export const CasesView: React.FC = () => {
                           className={`flex items-center gap-1.5 font-bold cursor-pointer px-2.5 py-1 rounded border text-xs transition-all ${
                             isSelected
                               ? 'bg-[#16223A] text-white border-[#16223A] shadow-2xs'
-                              : 'bg-white text-slate-700 border-amber-200 hover:bg-amber-100/60'
+                              : 'bg-white text-slate-700 border-[#FBF2E9] hover:bg-[#FBF2E9]/60'
                           }`}
                         >
                           <input
@@ -5958,7 +6182,7 @@ export const CasesView: React.FC = () => {
               </div>
 
               {/* Dynamic Live Reference Preview */}
-              <div className="p-3 bg-[#FAF8F2] border border-[#E1DCCF] rounded-lg space-y-2">
+              <div className="p-3 bg-[#F6F8FA] border border-[#DDE3EB] rounded-lg space-y-2">
                 <span className="text-[10px] font-bold text-slate-500 uppercase block">
                   Generated Reference Format Preview:
                 </span>
@@ -5974,7 +6198,7 @@ export const CasesView: React.FC = () => {
                     value={ncManualRefOverride || generateRefString(ncPracticeArea, ncMatterCode === 'CUSTOM' ? ncSubtype : ncMatterCode, ncSelectedPartners, ncLawyerInCharge, ncClientTag)}
                     onChange={(e) => setNcManualRefOverride(e.target.value.trim())}
                     placeholder="Leave blank to use generated format"
-                    className="w-full font-mono text-xs bg-white border border-[#E1DCCF] rounded-lg p-2"
+                    className="w-full font-mono text-xs bg-white border border-[#DDE3EB] rounded-lg p-2"
                   />
                 </div>
               </div>
@@ -5987,9 +6211,9 @@ export const CasesView: React.FC = () => {
 
                 if (isConv) {
                   return (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-emerald-50/60 p-3.5 rounded-xl border border-emerald-200">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#E6EFE9]/60 p-3.5 rounded-xl border border-[#E6EFE9]">
                       <div>
-                        <label className="font-bold text-emerald-900 block uppercase mb-1 text-[10px]">Property Title / Lot No.</label>
+                        <label className="font-bold text-[#2F6F4E] block uppercase mb-1 text-[10px]">Property Title / Lot No.</label>
                         <input
                           type="text"
                           placeholder="e.g. H.S.(D) 10492 / Lot 8812"
@@ -5999,7 +6223,7 @@ export const CasesView: React.FC = () => {
                         />
                       </div>
                       <div>
-                        <label className="font-bold text-emerald-900 block uppercase mb-1 text-[10px]">Property Address</label>
+                        <label className="font-bold text-[#2F6F4E] block uppercase mb-1 text-[10px]">Property Address</label>
                         <input
                           type="text"
                           placeholder="e.g. No. 18, Jalan Astaka 3, BRP"
@@ -6009,7 +6233,7 @@ export const CasesView: React.FC = () => {
                         />
                       </div>
                       <div>
-                        <label className="font-bold text-emerald-900 block uppercase mb-1 text-[10px]">Purchase Price / Consideration</label>
+                        <label className="font-bold text-[#2F6F4E] block uppercase mb-1 text-[10px]">Purchase Price / Consideration</label>
                         <input
                           type="text"
                           placeholder="e.g. RM 650,000.00"
@@ -6019,7 +6243,7 @@ export const CasesView: React.FC = () => {
                         />
                       </div>
                       <div>
-                        <label className="font-bold text-emerald-900 block uppercase mb-1 text-[10px]">Financier / Loan Bank</label>
+                        <label className="font-bold text-[#2F6F4E] block uppercase mb-1 text-[10px]">Financier / Loan Bank</label>
                         <input
                           type="text"
                           placeholder="e.g. Maybank Islamic Berhad"
@@ -6034,9 +6258,9 @@ export const CasesView: React.FC = () => {
 
                 if (isCorp) {
                   return (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-purple-50/60 p-3.5 rounded-xl border border-purple-200">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#F1EBF6]/60 p-3.5 rounded-xl border border-[#F1EBF6]">
                       <div>
-                        <label className="font-bold text-purple-900 block uppercase mb-1 text-[10px]">Corporate Advisory Nature</label>
+                        <label className="font-bold text-[#6B3D8C] block uppercase mb-1 text-[10px]">Corporate Advisory Nature</label>
                         <input
                           type="text"
                           placeholder="e.g. Share Sale Agreement & Advisory"
@@ -6046,7 +6270,7 @@ export const CasesView: React.FC = () => {
                         />
                       </div>
                       <div>
-                        <label className="font-bold text-purple-900 block uppercase mb-1 text-[10px]">Contract / Transaction Value</label>
+                        <label className="font-bold text-[#6B3D8C] block uppercase mb-1 text-[10px]">Contract / Transaction Value</label>
                         <input
                           type="text"
                           placeholder="e.g. RM 2,500,000.00"
@@ -6056,7 +6280,7 @@ export const CasesView: React.FC = () => {
                         />
                       </div>
                       <div>
-                        <label className="font-bold text-purple-900 block uppercase mb-1 text-[10px]">Regulatory Authority</label>
+                        <label className="font-bold text-[#6B3D8C] block uppercase mb-1 text-[10px]">Regulatory Authority</label>
                         <input
                           type="text"
                           placeholder="e.g. SSM / Securities Commission"
@@ -6066,7 +6290,7 @@ export const CasesView: React.FC = () => {
                         />
                       </div>
                       <div>
-                        <label className="font-bold text-purple-900 block uppercase mb-1 text-[10px]">Governing Law &amp; Forum</label>
+                        <label className="font-bold text-[#6B3D8C] block uppercase mb-1 text-[10px]">Governing Law &amp; Forum</label>
                         <input
                           type="text"
                           placeholder="e.g. Laws of Malaysia"
@@ -6080,9 +6304,9 @@ export const CasesView: React.FC = () => {
                 }
 
                 return (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-amber-50/60 p-3.5 rounded-xl border border-amber-200">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#FBF2E9]/60 p-3.5 rounded-xl border border-[#FBF2E9]">
                     <div>
-                      <label className="font-bold text-amber-950 block uppercase mb-1 text-[10px]">Court Case No.</label>
+                      <label className="font-bold text-[#8A6D3B] block uppercase mb-1 text-[10px]">Court Case No.</label>
                       <input
                         type="text"
                         placeholder="e.g. TA-A51NCvC-16-10/2025"
@@ -6092,7 +6316,7 @@ export const CasesView: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="font-bold text-amber-950 block uppercase mb-1 text-[10px]">Court / Forum</label>
+                      <label className="font-bold text-[#8A6D3B] block uppercase mb-1 text-[10px]">Court / Forum</label>
                       <input
                         type="text"
                         placeholder="e.g. High Court of Malaya"
@@ -6102,7 +6326,7 @@ export const CasesView: React.FC = () => {
                       />
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="font-bold text-amber-950 block uppercase mb-1 text-[10px]">Presiding Judge / Magistrate</label>
+                      <label className="font-bold text-[#8A6D3B] block uppercase mb-1 text-[10px]">Presiding Judge / Magistrate</label>
                       <input
                         type="text"
                         placeholder="e.g. Y.A. Dato' Justice S. Ramanathan"
@@ -6116,11 +6340,11 @@ export const CasesView: React.FC = () => {
               })()}
 
               {/* Multi-Opposing Party Section */}
-              <div className="p-3.5 bg-rose-50/60 border border-rose-200 rounded-xl space-y-3">
-                <div className="flex justify-between items-center border-b border-rose-200 pb-2">
+              <div className="p-3.5 bg-[#FBEDE9]/60 border border-[#FBEDE9] rounded-xl space-y-3">
+                <div className="flex justify-between items-center border-b border-[#FBEDE9] pb-2">
                   <div>
                     <label className="font-bold text-xs text-[#16223A] uppercase tracking-wider flex items-center gap-1.5">
-                      <Users className="w-4 h-4 text-rose-600" />
+                      <Users className="w-4 h-4 text-[#B23A2E]" />
                       Opposing Parties Roster (Multi-Opposing Party Support)
                     </label>
                     <p className="text-[11px] text-slate-500">
@@ -6143,12 +6367,12 @@ export const CasesView: React.FC = () => {
                   ).map((op, idx) => (
                     <div
                       key={op.id || idx}
-                      className="bg-white p-2.5 rounded-lg border border-rose-300 flex justify-between items-center text-xs shadow-2xs"
+                      className="bg-white p-2.5 rounded-lg border border-[#B23A2E] flex justify-between items-center text-xs shadow-2xs"
                     >
                       <div>
                         <div className="font-bold text-[#16223A] flex items-center gap-1.5">
                           <span>{op.name}</span>
-                          <span className="text-[9.5px] bg-rose-100 text-rose-800 border border-rose-200 px-1.5 py-0.2 rounded font-bold">
+                          <span className="text-[9.5px] bg-[#FBEDE9] text-[#B23A2E] border border-[#FBEDE9] px-1.5 py-0.2 rounded font-bold">
                             {op.role}
                           </span>
                         </div>
@@ -6157,7 +6381,7 @@ export const CasesView: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setNcOpposingPartiesList(ncOpposingPartiesList.filter((_, i) => i !== idx))}
-                          className="text-rose-600 hover:text-rose-800 text-[10px] font-bold px-1.5 py-0.5 bg-rose-50 rounded border border-rose-200 cursor-pointer shrink-0"
+                          className="text-[#B23A2E] hover:text-[#B23A2E] text-[10px] font-bold px-1.5 py-0.5 bg-[#FBEDE9] rounded border border-[#FBEDE9] cursor-pointer shrink-0"
                         >
                           Remove
                         </button>
@@ -6167,7 +6391,7 @@ export const CasesView: React.FC = () => {
                 </div>
 
                 {/* Add Opposing Party Form */}
-                <div className="bg-white p-3 rounded-lg border border-rose-200 space-y-2 text-xs">
+                <div className="bg-white p-3 rounded-lg border border-[#FBEDE9] space-y-2 text-xs">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
                       <label className="font-semibold text-slate-600 text-[10px] block mb-0.5">
@@ -6224,7 +6448,7 @@ export const CasesView: React.FC = () => {
                         setNcAddOppPartyName('');
                         showToast(`Added opposing party ${partyRec.name}!`);
                       }}
-                      className="text-xs bg-[#16223A] hover:bg-[#1F2E4D] text-white font-bold px-3 py-1.5 rounded flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
+                      className="text-xs bg-[#16223A] hover:bg-[#16223A] text-white font-bold px-3 py-1.5 rounded flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>Add Opposing Party</span>
@@ -6234,11 +6458,11 @@ export const CasesView: React.FC = () => {
               </div>
 
               {/* Unified Opposing Legal Representatives Roster Section */}
-              <div className="p-3.5 bg-amber-50/80 border border-amber-300 rounded-xl space-y-3">
-                <div className="flex justify-between items-center border-b border-amber-200 pb-2">
+              <div className="p-3.5 bg-[#FBF2E9]/80 border border-[#8A6D3B] rounded-xl space-y-3">
+                <div className="flex justify-between items-center border-b border-[#FBF2E9] pb-2">
                   <div>
                     <div className="font-bold text-xs text-[#16223A] uppercase tracking-wider flex items-center gap-1.5">
-                      <Briefcase className="w-4 h-4 text-[#A9814A]" />
+                      <Briefcase className="w-4 h-4 text-[#3D6B9C]" />
                       <span>Opposing Legal Representatives (Law Firm Roster)</span>
                     </div>
                     <p className="text-[11px] text-slate-500">
@@ -6246,7 +6470,7 @@ export const CasesView: React.FC = () => {
                     </p>
                   </div>
                   {lawFirmRegistry.length > 0 && (
-                    <span className="text-[10px] font-semibold text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full shrink-0">
+                    <span className="text-[10px] font-semibold text-[#8A6D3B] bg-[#FBF2E9] border border-[#8A6D3B] px-2 py-0.5 rounded-full shrink-0">
                       Linked with Registry
                     </span>
                   )}
@@ -6259,12 +6483,12 @@ export const CasesView: React.FC = () => {
                       {ncOpposingRegistry.map((reg, idx) => (
                         <div
                           key={reg.id || idx}
-                          className="bg-white p-2.5 rounded-lg border border-amber-300 text-xs flex justify-between items-center shadow-2xs"
+                          className="bg-white p-2.5 rounded-lg border border-[#8A6D3B] text-xs flex justify-between items-center shadow-2xs"
                         >
                           <div className="space-y-0.5">
                             <div className="font-bold text-[#16223A] flex items-center gap-1.5 flex-wrap">
                               <span>{reg.firmName}</span>
-                              <span className="text-[9.5px] bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.2 rounded font-bold">
+                              <span className="text-[9.5px] bg-[#FBF2E9] text-[#8A6D3B] border border-[#8A6D3B] px-1.5 py-0.2 rounded font-bold">
                                 {reg.partyRepresented}
                               </span>
                             </div>
@@ -6277,7 +6501,7 @@ export const CasesView: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => setNcOpposingRegistry(ncOpposingRegistry.filter((_, i) => i !== idx))}
-                            className="text-rose-600 hover:text-rose-800 text-[10px] font-bold px-1.5 py-0.5 bg-rose-50 rounded border border-rose-200 cursor-pointer shrink-0 ml-2"
+                            className="text-[#B23A2E] hover:text-[#B23A2E] text-[10px] font-bold px-1.5 py-0.5 bg-[#FBEDE9] rounded border border-[#FBEDE9] cursor-pointer shrink-0 ml-2"
                           >
                             Remove
                           </button>
@@ -6285,11 +6509,11 @@ export const CasesView: React.FC = () => {
                       ))}
                     </div>
                   ) : ncOpposingFirm.trim() ? (
-                    <div className="bg-white p-2.5 rounded-lg border border-amber-300 text-xs flex justify-between items-center shadow-2xs">
+                    <div className="bg-white p-2.5 rounded-lg border border-[#8A6D3B] text-xs flex justify-between items-center shadow-2xs">
                       <div>
                         <div className="font-bold text-[#16223A] flex items-center gap-1.5">
                           <span>{ncOpposingFirm}</span>
-                          <span className="text-[9.5px] bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.2 rounded font-bold">
+                          <span className="text-[9.5px] bg-[#FBF2E9] text-[#8A6D3B] border border-[#8A6D3B] px-1.5 py-0.2 rounded font-bold">
                             1st Defendant / Opposing Representative
                           </span>
                         </div>
@@ -6300,18 +6524,18 @@ export const CasesView: React.FC = () => {
                 </div>
 
                 {/* Inline Builder & Quick Select Form */}
-                <div className="bg-white p-3 rounded-lg border border-amber-200 space-y-2.5 text-xs">
-                  <div className="font-semibold text-slate-700 text-[11px] uppercase flex items-center justify-between border-b border-amber-100 pb-1">
+                <div className="bg-white p-3 rounded-lg border border-[#FBF2E9] space-y-2.5 text-xs">
+                  <div className="font-semibold text-slate-700 text-[11px] uppercase flex items-center justify-between border-b border-[#FBF2E9] pb-1">
                     <span>+ Add / Select Opposing Law Firm</span>
                     {lawFirmRegistry.length > 0 && (
-                      <span className="text-[10px] text-amber-800 font-normal">Select pre-registered firm or enter details</span>
+                      <span className="text-[10px] text-[#8A6D3B] font-normal">Select pre-registered firm or enter details</span>
                     )}
                   </div>
 
                   {/* Quick Select from Law Firm Registry */}
                   {lawFirmRegistry.length > 0 && (
                     <div>
-                      <label className="text-[10px] font-semibold text-amber-900 block mb-0.5">
+                      <label className="text-[10px] font-semibold text-[#8A6D3B] block mb-0.5">
                         Quick Select Pre-Registered Law Firm:
                       </label>
                       <select
@@ -6327,7 +6551,7 @@ export const CasesView: React.FC = () => {
                             showToast(`Auto-selected firm: ${selectedFirm.firmName}`);
                           }
                         }}
-                        className="w-full bg-amber-50/50 border border-amber-300 text-amber-950 font-semibold text-xs py-1 px-2 rounded"
+                        className="w-full bg-[#FBF2E9]/50 border border-[#8A6D3B] text-[#8A6D3B] font-semibold text-xs py-1 px-2 rounded"
                       >
                         <option value="">-- Choose from Firm Registry --</option>
                         {lawFirmRegistry.map((f) => (
@@ -6407,7 +6631,7 @@ export const CasesView: React.FC = () => {
                         setNcAddPartyRep('2nd Defendant');
                         showToast(`Added ${newRecord.firmName} (${newRecord.partyRepresented}) to matter roster!`);
                       }}
-                      className="text-xs bg-[#16223A] hover:bg-[#1F2E4D] text-white font-bold px-3.5 py-1.5 rounded flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
+                      className="text-xs bg-[#16223A] hover:bg-[#16223A] text-white font-bold px-3.5 py-1.5 rounded flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>Add Opposing Representative</span>
@@ -6420,13 +6644,13 @@ export const CasesView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsNewCaseModalOpen(false)}
-                  className="px-4 py-2 border border-[#E1DCCF] text-slate-700 hover:bg-slate-100 rounded-md font-semibold cursor-pointer"
+                  className="px-4 py-2 border border-[#DDE3EB] text-slate-700 hover:bg-slate-100 rounded-md font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded-md font-semibold cursor-pointer"
+                  className="px-4 py-2 bg-[#16223A] hover:bg-[#16223A] text-white rounded-md font-semibold cursor-pointer"
                 >
                   Create Matter
                 </button>

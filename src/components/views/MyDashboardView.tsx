@@ -22,22 +22,26 @@ import {
   Scale,
   Search,
   ShieldCheck,
+  Target,
   Timer,
   User,
   X,
+  Zap,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Case, Task } from '../../types';
 import { identityTokens, isMine } from '../../lib/identity';
 import { DashboardTabs } from '../DashboardTabs';
+import { StatCard, Donut, MiniBarChart, ProgressBar } from '../ui';
+import { palette } from '../../lib/designTokens';
 
 const TONE = {
   navy: '#16223A',
-  slate: '#33415C',
-  brass: '#A9814A',
-  clay: '#8C4A32',
+  slate: '#16223A',
+  brass: '#3D6B9C',
+  clay: '#B23A2E',
   forest: '#2F6F4E',
-  cream: '#F7F4EE',
+  cream: '#F6F8FA',
 };
 
 type Bucket = 'overdue' | 'today' | 'week' | 'later';
@@ -95,11 +99,15 @@ export const MyDashboardView: React.FC = () => {
     travelClaims,
     quotations,
     invoices,
+    payments,
+    leads,
+    referralPartners,
     leaveApplications,
     currentUser,
     setCurrentView,
     setCurrentCaseId,
     updateCase,
+    updateUserStaffProfile,
     currentView,
   } = useApp() as any;
 
@@ -112,6 +120,7 @@ export const MyDashboardView: React.FC = () => {
   const [composing, setComposing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [draft, setDraft] = useState({ title: '', caseId: '', dueDate: '', assignedTo: '' });
+  const [editingTargets, setEditingTargets] = useState(false);
 
   const todayStr = iso(new Date());
   const weekStr = iso(new Date(Date.now() + 7 * 86400000));
@@ -386,6 +395,93 @@ export const MyDashboardView: React.FC = () => {
     return g;
   }, [rows, todayStr, weekStr]);
 
+  const monthStr = todayStr.slice(0, 7); // YYYY-MM
+
+  // Today's task completion + this-week completion streak, from real Task.status/dueDate/completedAt.
+  const productivity = useMemo(() => {
+    const myTaskList: Task[] = [];
+    myCases.forEach((c) => (c.tasks || []).forEach((t) => myTaskList.push(t)));
+    const dueToday = myTaskList.filter((t) => t.dueDate === todayStr);
+    const doneToday = dueToday.filter((t) => DONE.includes(t.status));
+    const pct = dueToday.length ? Math.round((doneToday.length / dueToday.length) * 100) : 100;
+
+    const monday = new Date();
+    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+    const days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((label, i) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      const dStr = iso(d);
+      const due = myTaskList.filter((t) => t.dueDate === dStr);
+      const done = due.filter((t) => DONE.includes(t.status));
+      const state: 'done' | 'partial' | 'none' = due.length === 0 ? 'none' : done.length === due.length ? 'done' : 'partial';
+      return { label, state, isFuture: dStr > todayStr };
+    });
+    let streak = 0;
+    for (let i = days.length - 1; i >= 0; i--) {
+      if (days[i].isFuture) continue;
+      if (days[i].state !== 'done') break;
+      streak++;
+    }
+    return { pct, dueToday: dueToday.length, doneToday: doneToday.length, days, streak };
+  }, [myCases, todayStr]);
+
+  // My billed / collected / aging receivables — this month, from real invoices + payments on my matters.
+  const billing = useMemo(() => {
+    const myCaseIds = new Set(myCases.map((c) => c.id));
+    const myInvoices = (invoices || []).filter((i: any) => myCaseIds.has(i.caseId));
+    const paidFor = (invId: string) => (payments || []).filter((p: any) => p.invoiceId === invId).reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
+
+    const billedThisMonth = myInvoices.filter((i: any) => (i.date || '').startsWith(monthStr)).reduce((s: number, i: any) => s + Number(i.total || 0), 0);
+    const collectedThisMonth = (payments || [])
+      .filter((p: any) => myInvoices.some((i: any) => i.id === p.invoiceId) && (p.date || '').startsWith(monthStr))
+      .reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
+
+    const buckets = { current: 0, d31: 0, d61: 0, d91: 0, over120: 0 };
+    myInvoices.forEach((i: any) => {
+      if (i.status === 'Paid' || i.status === 'Voided') return;
+      const balance = Number(i.total || 0) - paidFor(i.id);
+      if (balance <= 0) return;
+      const due = i.dueDate || i.date;
+      const days = due ? Math.floor((new Date(todayStr).getTime() - new Date(due).getTime()) / 86400000) : 0;
+      if (days <= 30) buckets.current += balance;
+      else if (days <= 60) buckets.d31 += balance;
+      else if (days <= 90) buckets.d61 += balance;
+      else if (days <= 120) buckets.d91 += balance;
+      else buckets.over120 += balance;
+    });
+
+    const totalBilled = myInvoices.reduce((s: number, i: any) => s + Number(i.total || 0), 0);
+    const totalCollected = myInvoices.reduce((s: number, i: any) => s + paidFor(i.id), 0);
+    const collectionRate = totalBilled ? Math.round((totalCollected / totalBilled) * 100) : 0;
+
+    return { billedThisMonth, collectedThisMonth, buckets, totalBilled, totalCollected, collectionRate };
+  }, [myCases, invoices, payments, monthStr, todayStr]);
+
+  // My referrals — Lead.assignedTo (mine) grouped by real referralSourceCategory, converted = stage === 'Converted'.
+  const myReferrals = useMemo(() => {
+    const myLeads = (leads || []).filter((l: any) => mine(l.assignedTo));
+    const converted = myLeads.filter((l: any) => l.stage === 'Converted');
+    const bySource = new Map<string, number>();
+    myLeads.forEach((l: any) => {
+      const src = l.referralSourceCategory || 'Other';
+      bySource.set(src, (bySource.get(src) || 0) + 1);
+    });
+    return {
+      broughtIn: myLeads.length,
+      converted: converted.length,
+      rate: myLeads.length ? Math.round((converted.length / myLeads.length) * 100) : 0,
+      bySource: Array.from(bySource.entries()).sort((a, b) => b[1] - a[1]),
+    };
+  }, [leads, me]);
+
+  const filesBroughtIn = useMemo(() => myCases.filter((c) => c.referredBy && mine(c.lawyerInCharge)).length, [myCases, me]);
+
+  const targets = currentUser?.staffProfile?.targets || { billed: 50000, collected: 30000, files: 25, referrals: 10 };
+  const setTargets = (patch: Partial<typeof targets>) => {
+    if (!currentUser?.id) return;
+    updateUserStaffProfile(currentUser.id, { ...(currentUser.staffProfile || {}), targets: { ...targets, ...patch } } as any);
+  };
+
   const openMatter = (r: Row) => {
     if (r.caseId) setCurrentCaseId(r.caseId);
     setCurrentView(r.view);
@@ -432,7 +528,7 @@ export const MyDashboardView: React.FC = () => {
     }).length === 0 ? (
       <p className="px-4 py-6 text-center text-[11px] text-slate-400">{emptyLabel}</p>
     ) : (
-      <div className="divide-y divide-[#F1EDE4]">
+      <div className="divide-y divide-[#F6F8FA]">
         {list.filter((row) => {
           const query = searchQuery.trim().toLowerCase();
           return !query || [row.title, row.matterRef, row.matterTitle, row.status].some((value) => value?.toLowerCase().includes(query));
@@ -454,7 +550,7 @@ export const MyDashboardView: React.FC = () => {
                 </p>
               </div>
               <span className="shrink-0 text-[10.5px] font-semibold text-[#5B6478]">{row.dueDate || 'Undated'}</span>
-              <button type="button" onClick={() => openMatter(row)} className="shrink-0 text-[10.5px] font-bold text-[#8A6534] hover:underline">Open</button>
+              <button type="button" onClick={() => openMatter(row)} className="shrink-0 text-[10.5px] font-bold text-[#8A6D3B] hover:underline">Open</button>
             </div>
           );
         })}
@@ -464,7 +560,7 @@ export const MyDashboardView: React.FC = () => {
 
   return (
     <div className="space-y-[18px] pb-8 text-[12px]">
-      <div className="my-dashboard-dark-panel flex flex-col gap-2.5 overflow-hidden rounded-2xl border border-[#304362] bg-[#16223A] px-[18px] py-3.5 text-white shadow-lg">
+      <div className="my-dashboard-dark-panel flex flex-col gap-2.5 overflow-hidden rounded-2xl border border-[#16223A] bg-[#16223A] px-[18px] py-3.5 text-white shadow-lg">
         <div className="min-w-0">
           <h1 className="truncate font-serif text-[19px] font-bold">My Dashboard</h1>
           <p className="mt-0.5 text-[11.5px] text-slate-300">Your week at a glance - to-do, deadlines, hearings and matters</p>
@@ -472,12 +568,12 @@ export const MyDashboardView: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2">
           <label className="relative min-w-[160px] max-w-[240px] flex-1">
             <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
-            <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search matters, clients, docs..." className="w-full rounded-md border border-[#E8D9CE] bg-[#F1F3F5] py-1.5 pl-8 pr-2 text-[11px] text-[#2C241F] outline-none focus:border-[#A9814A]" />
+            <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search matters, clients, docs..." className="w-full rounded-md border border-[#DDE3EB] bg-[#F6F8FA] py-1.5 pl-8 pr-2 text-[11px] text-[#16223A] outline-none focus:border-[#3D6B9C]" />
           </label>
           <button type="button" title="Refresh dashboard" onClick={() => window.location.reload()} className="p-1.5 text-slate-300 hover:text-white"><RefreshCw className="h-4 w-4" /></button>
-          <button type="button" title="Open activity notifications" onClick={() => setCurrentView('activityLogs')} className="rounded-md border border-white/20 bg-white/10 p-1.5 text-[#C98D70] hover:bg-white/20"><Bell className="h-4 w-4" /></button>
+          <button type="button" title="Open activity notifications" onClick={() => setCurrentView('activityLogs')} className="rounded-md border border-white/20 bg-white/10 p-1.5 text-[#8A6D3B] hover:bg-white/20"><Bell className="h-4 w-4" /></button>
           <div className="ml-auto flex min-w-0 items-center gap-2 rounded-md border border-white/20 bg-white/10 px-2 py-1.5">
-            <div className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/15"><ShieldCheck className="h-3 w-3 text-[#B97755]" /></div>
+            <div className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/15"><ShieldCheck className="h-3 w-3 text-[#8A6D3B]" /></div>
             <span className="truncate text-[11px] font-bold">{currentUser?.name || 'Team member'}</span>
           </div>
         </div>
@@ -486,11 +582,11 @@ export const MyDashboardView: React.FC = () => {
       <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         {[
           ['My active matters', myCases.filter((c) => c.status === 'Active').length, 'assigned', FolderOpen, '#16223A'],
-          ['Deadlines this week', grouped.overdue.length + grouped.today.length + grouped.week.length, `${overdueCount} overdue`, Flag, '#9B1C1C'],
-          ['My hearings', rows.filter((r) => r.stream === 'hearing').length, 'this week', Gavel, '#4A2B5C'],
-          ['To-do open', rows.filter((r) => r.stream === 'task').length, 'tasks', CheckCircle2, '#0E4C55'],
-          ['Waiting on you', waitingCount, 'approvals', Inbox, '#8A5A20'],
-          ['Unbilled time', unbilledRows.length, 'matters', Timer, '#14532D'],
+          ['Deadlines this week', grouped.overdue.length + grouped.today.length + grouped.week.length, `${overdueCount} overdue`, Flag, '#B23A2E'],
+          ['My hearings', rows.filter((r) => r.stream === 'hearing').length, 'this week', Gavel, '#6B3D8C'],
+          ['To-do open', rows.filter((r) => r.stream === 'task').length, 'tasks', CheckCircle2, '#3D6B9C'],
+          ['Waiting on you', waitingCount, 'approvals', Inbox, '#8A6D3B'],
+          ['Unbilled time', unbilledRows.length, 'matters', Timer, '#2F6F4E'],
         ].map(([label, value, note, Icon, color]) => {
           const MetricIcon = Icon as React.ElementType;
           return <div key={String(label)} className="my-dashboard-dark-panel flex min-h-[142px] flex-col gap-2 rounded-xl p-4 text-white shadow-lg ring-1 ring-black/5" style={{ backgroundColor: String(color) }}><span className="flex items-center gap-2"><span className="grid h-8 w-8 place-items-center rounded-md bg-white/15"><MetricIcon className="h-4 w-4" /></span><span className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-white/85">{String(label)}</span></span><span className="flex items-baseline gap-1.5 font-serif text-[30px] font-bold leading-none">{String(value)} <small className="font-sans text-[10.5px] font-normal text-white/75">{String(note)}</small></span><span className="text-[10.5px] leading-relaxed text-white/80">{label === 'My active matters' ? 'Assigned to your current practice queue' : label === 'Unbilled time' ? 'Billable write-ups awaiting billing' : 'Requires your attention this week'}</span></div>;
@@ -498,7 +594,7 @@ export const MyDashboardView: React.FC = () => {
       </section>
 
       {composing && (
-        <div className="border-b border-[#E8E2D5] bg-[#F6F4EF] p-3.5">
+        <div className="border-b border-[#DDE3EB] bg-[#F6F8FA] p-3.5">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="font-serif text-sm font-bold" style={{ color: TONE.navy }}>
               New task
@@ -553,17 +649,154 @@ export const MyDashboardView: React.FC = () => {
       )}
 
       <section className="grid gap-3.5 xl:grid-cols-2">
-        {[['Matter to-do', grouped.overdue.concat(grouped.today, grouped.week), TONE.navy, 'All matter tasks', Scale, true], ['Private to-do', [], '#0E4C55', 'Open in Google Tasks', User, false]].map(([title, list, color, link, Icon, canAdd]) => {
+        {[['Matter to-do', grouped.overdue.concat(grouped.today, grouped.week), TONE.navy, 'All matter tasks', Scale, true], ['Private to-do', [], '#3D6B9C', 'Open in Google Tasks', User, false]].map(([title, list, color, link, Icon, canAdd]) => {
           const PanelIcon = Icon as React.ElementType;
-          return <div key={String(title)} className="overflow-hidden rounded-xl border border-[#D9D3C4] bg-white shadow-sm"><div className="my-dashboard-dark-panel flex items-center gap-2.5 px-3.5 py-3 text-white" style={{ backgroundColor: String(color) }}><PanelIcon className="h-4 w-4 text-[#E4C79A]" /><div><strong className="block font-serif text-[14.5px]">{String(title)}</strong><span className="text-[10.5px] text-white/70">{canAdd ? 'Tied to a file · two-way sync with Google Tasks' : 'No file attached · yours only · Google Tasks'}</span></div>{canAdd && <button type="button" onClick={() => setComposing((v) => !v)} className="ml-auto flex items-center gap-1 rounded-md bg-[#A9814A] px-2.5 py-1.5 text-[11px] font-bold"><Plus className="h-3 w-3" /> Add</button>}</div>{canAdd && composing ? null : renderRows(list as Row[], 'Nothing here.')}<div className="flex items-center gap-2 border-t border-[#E8E2D5] bg-[#F9F7F2] px-3.5 py-2.5 text-[10.5px] text-[#5B6478]"><CheckCircle2 className="h-3.5 w-3.5 text-[#14532D]" /><span>{(list as Row[]).length} open items</span><button type="button" onClick={() => setCurrentView(canAdd ? 'tasks' : 'activityLogs')} className="ml-auto font-bold text-[#8A6534]">{String(link)} -&gt;</button></div></div>;
+          return <div key={String(title)} className="overflow-hidden rounded-xl border border-[#DDE3EB] bg-white shadow-sm"><div className="my-dashboard-dark-panel flex items-center gap-2.5 px-3.5 py-3 text-white" style={{ backgroundColor: String(color) }}><PanelIcon className="h-4 w-4 text-[#FBF2E9]" /><div><strong className="block font-serif text-[14.5px]">{String(title)}</strong><span className="text-[10.5px] text-white/70">{canAdd ? 'Tied to a file · two-way sync with Google Tasks' : 'No file attached · yours only · Google Tasks'}</span></div>{canAdd && <button type="button" onClick={() => setComposing((v) => !v)} className="ml-auto flex items-center gap-1 rounded-md bg-[#3D6B9C] px-2.5 py-1.5 text-[11px] font-bold"><Plus className="h-3 w-3" /> Add</button>}</div>{canAdd && composing ? null : renderRows(list as Row[], 'Nothing here.')}<div className="flex items-center gap-2 border-t border-[#DDE3EB] bg-[#F6F8FA] px-3.5 py-2.5 text-[10.5px] text-[#5B6478]"><CheckCircle2 className="h-3.5 w-3.5 text-[#2F6F4E]" /><span>{(list as Row[]).length} open items</span><button type="button" onClick={() => setCurrentView(canAdd ? 'tasks' : 'activityLogs')} className="ml-auto font-bold text-[#8A6D3B]">{String(link)} -&gt;</button></div></div>;
         })}
       </section>
 
       <section className="grid gap-3.5 xl:grid-cols-2">
-        {[['Deadlines this week', grouped.overdue.concat(grouped.today, grouped.week), '#9B1C1C', Flag], ['My hearings', rows.filter((r) => r.stream === 'hearing'), '#4A2B5C', Gavel]].map(([title, list, color, Icon]) => { const PanelIcon = Icon as React.ElementType; return <div key={String(title)} className="overflow-hidden rounded-xl border border-[#D9D3C4] bg-white shadow-sm"><div className="my-dashboard-dark-panel flex items-center gap-2.5 px-3.5 py-2.5 text-white" style={{ backgroundColor: String(color) }}><PanelIcon className="h-4 w-4" /><strong className="font-serif text-[14px]">{String(title)}</strong><button type="button" onClick={() => setCurrentView(String(title).startsWith('My') ? 'hearings' : 'deadlines')} className="ml-auto text-[10.5px] font-bold text-white/80 hover:underline">Open -&gt;</button></div>{renderRows(list as Row[], 'No items scheduled.')}</div>; })}
+        {[['Deadlines this week', grouped.overdue.concat(grouped.today, grouped.week), '#B23A2E', Flag], ['My hearings', rows.filter((r) => r.stream === 'hearing'), '#6B3D8C', Gavel]].map(([title, list, color, Icon]) => { const PanelIcon = Icon as React.ElementType; return <div key={String(title)} className="overflow-hidden rounded-xl border border-[#DDE3EB] bg-white shadow-sm"><div className="my-dashboard-dark-panel flex items-center gap-2.5 px-3.5 py-2.5 text-white" style={{ backgroundColor: String(color) }}><PanelIcon className="h-4 w-4" /><strong className="font-serif text-[14px]">{String(title)}</strong><button type="button" onClick={() => setCurrentView(String(title).startsWith('My') ? 'hearings' : 'deadlines')} className="ml-auto text-[10.5px] font-bold text-white/80 hover:underline">Open -&gt;</button></div>{renderRows(list as Row[], 'No items scheduled.')}</div>; })}
       </section>
 
-      <section className="overflow-hidden rounded-xl border border-[#D9D3C4] bg-white shadow-sm"><div className="flex items-center gap-2.5 border-b border-[#E8E2D5] bg-[#F9F7F2] px-3.5 py-2.5"><Clock className="h-4 w-4 text-[#8A6534]" /><strong className="font-serif text-[14px] text-[#16223A]">Recently accessed matters</strong><button type="button" onClick={() => setCurrentView('cases')} className="ml-auto text-[10.5px] font-bold text-[#8A6534]">My matters -&gt;</button></div>{renderRows(myCases.filter((c) => c.lastAccessed).slice(0, 5).map((c) => ({ id: c.id, stream: 'matter', title: c.title, matterRef: c.ref, matterTitle: c.practiceArea || c.stage, caseId: c.id, dueDate: '', status: c.status, view: 'cases' })), 'No recently accessed matters.')}</section>
+      <section className="overflow-hidden rounded-xl border border-[#DDE3EB] bg-white shadow-sm"><div className="flex items-center gap-2.5 border-b border-[#DDE3EB] bg-[#F6F8FA] px-3.5 py-2.5"><Clock className="h-4 w-4 text-[#8A6D3B]" /><strong className="font-serif text-[14px] text-[#16223A]">Recently accessed matters</strong><button type="button" onClick={() => setCurrentView('cases')} className="ml-auto text-[10.5px] font-bold text-[#8A6D3B]">My matters -&gt;</button></div>{renderRows(myCases.filter((c) => c.lastAccessed).slice(0, 5).map((c) => ({ id: c.id, stream: 'matter', title: c.title, matterRef: c.ref, matterTitle: c.practiceArea || c.stage, caseId: c.id, dueDate: '', status: c.status, view: 'cases' })), 'No recently accessed matters.')}</section>
+
+      <section className="grid gap-3.5 xl:grid-cols-2">
+        <div className="rounded-xl border border-[#DDE3EB] bg-white p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 text-[13px] font-bold text-[#16223A]"><Zap className="h-3.5 w-3.5 text-[#8A6D3B]" /> My productivity rate</span>
+            <span className="rounded-full px-2.5 py-0.5 text-[10.5px] font-bold" style={{ backgroundColor: '#E6EFE9', color: palette.green }}>
+              {productivity.pct >= 100 ? 'On track today' : `${productivity.pct}% today`}
+            </span>
+          </div>
+          <div className="mt-3 flex items-center gap-3.5">
+            <Donut segments={[{ label: 'Done', value: productivity.pct, color: palette.green }]} size={64} thickness={10} centerLabel={`${productivity.pct}%`} />
+            <p className="text-[11px] text-[#5B6478]">{productivity.doneToday} of {productivity.dueToday} tasks due today<br />completed</p>
+          </div>
+        </div>
+        <div className="rounded-xl border border-[#DDE3EB] bg-white p-4">
+          <span className="text-[13px] font-bold text-[#16223A]">🔥 Completion streak — this week</span>
+          <div className="mt-3 flex gap-1.5">
+            {productivity.days.map((d, i) => (
+              <span
+                key={i}
+                className="flex flex-1 items-center justify-center rounded-md py-1.5 text-[10.5px] font-bold"
+                style={{
+                  backgroundColor: d.state === 'done' ? palette.green : d.state === 'partial' ? palette.gold : '#F0F2F5',
+                  color: d.state === 'none' ? '#9AA3AE' : '#fff',
+                }}
+              >
+                {d.label}
+              </span>
+            ))}
+          </div>
+          <p className="mt-2 text-[10.5px] text-[#5B6478]">{productivity.streak}-day streak — green days finished 100% of tasks due.</p>
+        </div>
+      </section>
+
+      <section>
+        <h2 className="font-serif text-[15px] font-bold" style={{ color: palette.navy }}>My Performance</h2>
+        <div className="mt-2.5 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <StatCard label="My billed (RM)" value={billing.billedThisMonth.toLocaleString()} color={palette.gold} />
+          <StatCard label="My collected (RM)" value={billing.collectedThisMonth.toLocaleString()} color={palette.green} />
+          <StatCard label="Files I brought" value={filesBroughtIn} color={palette.blue} />
+          <StatCard label="My collection rate" value={`${billing.collectionRate}%`} color={palette.navy} />
+        </div>
+        <div className="mt-3 grid gap-3.5 xl:grid-cols-2">
+          <div className="rounded-xl border border-[#DDE3EB] bg-white p-4 text-center">
+            <p className="mb-2.5 text-[12.5px] font-bold text-[#16223A]">My collection rate</p>
+            <Donut
+              segments={[{ label: 'Collected', value: billing.collectionRate, color: palette.green }]}
+              size={110}
+              centerLabel={`${billing.collectionRate}%`}
+            />
+            <p className="mt-2.5 text-[11px] text-[#5B6478]">RM {billing.totalCollected.toLocaleString()} collected of RM {billing.totalBilled.toLocaleString()} billed</p>
+          </div>
+          <div className="rounded-xl border border-[#DDE3EB] bg-white p-4">
+            <p className="mb-2.5 text-[12.5px] font-bold text-[#16223A]">My aging receivables</p>
+            <MiniBarChart
+              data={[
+                { label: 'Current', value: billing.buckets.current, color: palette.blue },
+                { label: '31-60', value: billing.buckets.d31, color: palette.blue },
+                { label: '61-90', value: billing.buckets.d61, color: palette.blue },
+                { label: '91-120', value: billing.buckets.d91, color: palette.blue },
+                { label: 'Above 120', value: billing.buckets.over120, color: palette.red },
+              ]}
+              formatValue={(v) => `RM ${v.toLocaleString()}`}
+            />
+          </div>
+        </div>
+
+        <div className="mt-3 rounded-xl border border-[#DDE3EB] bg-white p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-[12.5px] font-bold text-[#16223A]"><Target className="mr-1 inline h-3.5 w-3.5 text-[#8A6D3B]" />My progress to target — {new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' })}</span>
+            <button
+              type="button"
+              onClick={() => setEditingTargets((v) => !v)}
+              className="rounded-md border border-[#DDE3EB] px-2.5 py-1 text-[11px] font-bold text-[#3D6B9C]"
+            >
+              {editingTargets ? 'Done' : '✎ Edit targets'}
+            </button>
+          </div>
+          <div className="mt-3 flex flex-col gap-3">
+            {([
+              ['Billed', billing.billedThisMonth, targets.billed, palette.gold, (v: number) => setTargets({ billed: v }), 'RM'],
+              ['Collected', billing.collectedThisMonth, targets.collected, palette.green, (v: number) => setTargets({ collected: v }), 'RM'],
+              ['New files brought', filesBroughtIn, targets.files, palette.blue, (v: number) => setTargets({ files: v }), ''],
+              ['Referrals converted', myReferrals.converted, targets.referrals, palette.purple, (v: number) => setTargets({ referrals: v }), ''],
+            ] as const).map(([label, value, target, color, onSet, prefix]) => (
+              <ProgressBar
+                key={label}
+                label={label}
+                pct={target ? (value / target) * 100 : 0}
+                color={color}
+                valueLabel={
+                  <>
+                    <strong>{prefix}{value.toLocaleString()}</strong>
+                    <span className="text-[#5B6478]"> / {prefix}</span>
+                    {editingTargets ? (
+                      <input
+                        type="number"
+                        defaultValue={target}
+                        onBlur={(e) => onSet(Number(e.target.value) || 0)}
+                        className="w-16 rounded border border-[#DDE3EB] px-1.5 py-0.5 text-[11px]"
+                      />
+                    ) : (
+                      <strong>{target.toLocaleString()}</strong>
+                    )}
+                  </>
+                }
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-3 rounded-xl border border-[#DDE3EB] bg-white p-4">
+          <span className="text-[12.5px] font-bold text-[#16223A]">🔗 My referrals</span>
+          <div className="mt-2.5 grid grid-cols-2 gap-3">
+            <div className="rounded-lg bg-[#F6F8FA] px-3 py-2.5">
+              <p className="text-[10px] font-bold uppercase text-[#5B6478]">Leads brought in</p>
+              <p className="mt-1 text-lg font-bold">{myReferrals.broughtIn}</p>
+            </div>
+            <div className="rounded-lg bg-[#F6F8FA] px-3 py-2.5">
+              <p className="text-[10px] font-bold uppercase text-[#5B6478]">Converted</p>
+              <p className="mt-1 text-lg font-bold" style={{ color: palette.green }}>{myReferrals.converted} <span className="text-[11px] font-normal text-[#5B6478]">({myReferrals.rate}%)</span></p>
+            </div>
+          </div>
+          {myReferrals.bySource.length === 0 ? (
+            <p className="mt-3 text-center text-[11px] text-slate-400">No leads attributed to you yet.</p>
+          ) : (
+            <div className="mt-2.5 flex flex-col">
+              {myReferrals.bySource.map(([source, count], i) => (
+                <div key={source} className="flex justify-between border-t border-[#F0F2F5] py-1.5 text-[12px] first:border-t-0">
+                  <span><span className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: [palette.blue, palette.gold, palette.purple, palette.green, palette.red][i % 5] }} />{source}</span>
+                  <span>{count} lead{count === 1 ? '' : 's'}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
 
       {rows.length === 0 && (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center">

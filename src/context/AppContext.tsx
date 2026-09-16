@@ -434,16 +434,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(STORAGE_KEY + '_theme', newTheme);
   };
 
-  // Synchronize document theme class for accessibility and dark mode support
+  // Synchronize document theme class for accessibility and dark mode support.
+  // Dark/system mode are disabled for now (day mode only, matching the redesign
+  // mockup, which has no dark variant) — the toggle is removed from the UI and
+  // this ignores any 'dark'/'system' value left over in localStorage from before.
   useEffect(() => {
     const root = document.documentElement;
     const applyTheme = () => {
-      let isDark = false;
-      if (theme === 'dark') {
-        isDark = true;
-      } else if (theme === 'system') {
-        isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      }
+      const isDark = false;
       if (isDark) {
         root.classList.add('dark');
         root.setAttribute('data-theme', 'dark');

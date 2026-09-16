@@ -398,6 +398,7 @@ export interface Case {
   meetingNotes: MeetingNote[];
   internalNotes: InternalNote[];
   researchNotes?: ResearchNote[];
+  memos?: { id: string; type: 'Notes' | 'Status' | 'Court Minutes' | 'File Location'; date: string; description: string }[];
   activityLogs?: CaseActivityLog[];
   disbursementCapAmount?: number;
   disbursementAgreedWithClient?: number;
@@ -534,6 +535,7 @@ export interface TimeEntry {
   rate: number;
   billable: boolean;
   billed?: boolean;
+  writtenOff?: boolean;
   invoiceId?: string;
   description?: string;
   approvalStatus?: 'Draft' | 'Pending Approval' | 'Approved' | 'Billed' | 'Rejected';
@@ -561,6 +563,7 @@ export interface Expense {
   amount: number;
   billable: boolean;
   billed?: boolean;
+  writtenOff?: boolean;
   description?: string;
   claimant?: string;
   isClaimantAdvance?: boolean;
@@ -783,6 +786,13 @@ export interface StaffProfile {
   birthday?: string;
   callToBarDate?: string;
   celebrationOptOut?: boolean;
+  /** Monthly performance targets this person sets for themselves (My Dashboard -> My Performance). */
+  targets?: {
+    billed: number;
+    collected: number;
+    files: number;
+    referrals: number;
+  };
 }
 
 export interface AttendanceRecord {

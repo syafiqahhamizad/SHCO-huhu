@@ -28,6 +28,7 @@ const ReferralView = React.lazy(() => PracticeViews.then((module) => ({ default:
 const FileClosingView = React.lazy(() => PracticeViews.then((module) => ({ default: module.FileClosingView })));
 const SimplifiedAccountingView = React.lazy(() => import('./components/views/SimplifiedAccountingView').then((module) => ({ default: module.SimplifiedAccountingView })));
 const SimplifiedAccountingCentreView = React.lazy(() => import('./components/views/SimplifiedAccountingCentreView').then((module) => ({ default: module.SimplifiedAccountingCentreView })));
+const AccountingCentreView = React.lazy(() => import('./components/views/AccountingCentreView').then((module) => ({ default: module.AccountingCentreView })));
 const SystemViews = import('./components/views/SystemViews');
 const WorkspaceView = React.lazy(() => SystemViews.then((module) => ({ default: module.WorkspaceView })));
 const SecurityView = React.lazy(() => SystemViews.then((module) => ({ default: module.SecurityView })));
@@ -150,11 +151,29 @@ const MainContent: React.FC = () => {
       case 'file-closing':
         return <FileClosingView />;
 
-      // Accounting & Finance (Simplified)
+      // Accounting & Finance — redesigned Accounting Centre (design/shco-portal-redesign).
+      // Covers the mockup's 7-tab IA (Dashboard/Unbilled Items/Time Billing/Staff Claims/
+      // Client Trust/Office Account/Receipts & Payments). Routes outside that IA (bank
+      // accounts/reconciliation, reimbursements, travel claims, expenses, statements,
+      // balance sheet, cash flow, the *Reports views) are untouched — still SimplifiedAccountingView.
       case 'accountingCentre':
       case 'accounting-centre':
       case 'accounting':
-        return <SimplifiedAccountingCentreView />;
+        return <AccountingCentreView initialTab="dashboard" />;
+      case 'paymentVouchers':
+      case 'pv':
+        return <AccountingCentreView initialTab="claims" />;
+      case 'time':
+        return <AccountingCentreView initialTab="timebilling" />;
+      case 'retainers':
+        return <AccountingCentreView initialTab="trust" />;
+      case 'officeAccounts':
+      case 'office-accounts':
+      case 'coa':
+      case 'gl':
+      case 'tb':
+      case 'trialBalance':
+        return <AccountingCentreView initialTab="office" />;
       case 'bankAccounts':
       case 'bank-accounts':
       case 'bankReconciliation':
@@ -166,17 +185,7 @@ const MainContent: React.FC = () => {
       case 'travelClaims':
       case 'travel-claims':
       case 'expenses':
-      case 'paymentVouchers':
-      case 'pv':
-      case 'time':
-      case 'retainers':
       case 'statement':
-      case 'officeAccounts':
-      case 'office-accounts':
-      case 'coa':
-      case 'gl':
-      case 'tb':
-      case 'trialBalance':
       case 'balanceSheet':
       case 'balance-sheet':
       case 'cashFlow':
@@ -188,7 +197,7 @@ const MainContent: React.FC = () => {
       case 'officeReports':
       case 'reports-office':
         return <SimplifiedAccountingView />;
-      
+
       case 'trustAuditLogs':
       case 'trust-audit-logs':
         return <TrustAuditLogsView />;
@@ -225,10 +234,10 @@ const MainContent: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F6F4EE] dark:bg-[#0A0E1A] text-slate-800 dark:text-[#E8ECFF] font-sans antialiased">
+    <div className="flex min-h-screen bg-[#F6F8FA] dark:bg-[#0A0E1A] text-slate-800 dark:text-[#E8ECFF] font-sans antialiased">
       <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#F6F4EE] dark:bg-[#0A0E1A]">
-        <main className="flex-1 p-4 pt-16 sm:p-6 sm:pt-6 overflow-y-auto bg-[#F6F4EE] dark:bg-[#0A0E1A]">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#F6F8FA] dark:bg-[#0A0E1A]">
+        <main className="flex-1 p-4 pt-16 sm:p-6 sm:pt-6 overflow-y-auto bg-[#F6F8FA] dark:bg-[#0A0E1A]">
           <Header />
           {DASHBOARD_TAB_VIEWS.includes(currentView) && (
             <div className="mt-4 sm:mt-6">

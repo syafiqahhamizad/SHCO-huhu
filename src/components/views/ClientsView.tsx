@@ -279,11 +279,11 @@ export const ClientsView: React.FC = () => {
     return (
       <div className="space-y-4 text-xs">
         {/* Detail Header Bar */}
-        <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl flex items-center justify-between shadow-xs">
+        <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSelectedClientId(null)}
-              className="p-1.5 hover:bg-slate-100 text-slate-600 rounded-lg border border-[#E1DCCF] transition-colors cursor-pointer"
+              className="p-1.5 hover:bg-slate-100 text-slate-600 rounded-lg border border-[#DDE3EB] transition-colors cursor-pointer"
               title="Back to Client Directory"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -293,7 +293,7 @@ export const ClientsView: React.FC = () => {
                 <input
                   value={selectedClient.name}
                   onChange={(e) => updateClient(selectedClient.id, { name: e.target.value })}
-                  className="font-serif text-base font-bold text-[#16223A] bg-transparent border-0 border-b border-transparent focus:border-[#A9814A] focus:ring-0 p-0"
+                  className="font-serif text-base font-bold text-[#16223A] bg-transparent border-0 border-b border-transparent focus:border-[#3D6B9C] focus:ring-0 p-0"
                   aria-label="Client official name"
                 />
                 <select
@@ -328,7 +328,7 @@ export const ClientsView: React.FC = () => {
               onClick={() => {
                 sendClientPortalInvite(selectedClient.id);
               }}
-              className="bg-[#16223A] hover:bg-[#1F2E4D] text-amber-300 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer text-xs shadow-xs"
+              className="bg-[#16223A] hover:bg-[#16223A] text-amber-300 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer text-xs shadow-xs"
               title="Send secure automated portal access email invitation to client"
             >
               <Send className="w-3.5 h-3.5 text-amber-300" />
@@ -346,7 +346,7 @@ export const ClientsView: React.FC = () => {
         </div>
 
         {/* Sub Navigation Tabs */}
-        <div className="flex border-b border-[#E1DCCF] space-x-2">
+        <div className="flex border-b border-[#DDE3EB] space-x-2">
           <button
             onClick={() => setSubTab('profile')}
             className={`px-4 py-2 font-bold text-xs border-b-2 cursor-pointer transition-colors ${
@@ -391,11 +391,11 @@ export const ClientsView: React.FC = () => {
 
         {/* Subtab 1: Client Profile Details */}
         {subTab === 'profile' && (
-          <div className="bg-white border border-[#E1DCCF] p-5 rounded-xl shadow-xs space-y-4">
+          <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-4">
             {/* Conflict Screening Status Banner */}
-            <div className="p-3.5 bg-[#FAF8F2] border border-[#E1DCCF] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="p-3.5 bg-[#F6F8FA] border border-[#DDE3EB] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <ShieldCheck className="w-5 h-5 text-[#A9814A] shrink-0" />
+                <ShieldCheck className="w-5 h-5 text-[#3D6B9C] shrink-0" />
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-[#16223A] uppercase text-xs">Conflict Check Status:</span>
@@ -425,14 +425,14 @@ export const ClientsView: React.FC = () => {
               <button
                 type="button"
                 onClick={(e) => handleOpenConflictModal(e, selectedClient)}
-                className="px-3 py-1.5 bg-[#16223A] hover:bg-[#203050] text-amber-300 rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0"
+                className="px-3 py-1.5 bg-[#16223A] hover:bg-[#16223A] text-amber-300 rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0"
               >
                 Review / Update Determination
               </button>
             </div>
 
             {/* Client Portal Access & Login Tracker Card */}
-            <div className="p-4 bg-[#16223A] text-white rounded-2xl border border-[#A9814A]/40 shadow-sm space-y-3">
+            <div className="p-4 bg-[#16223A] text-white rounded-2xl border border-[#3D6B9C]/40 shadow-sm space-y-3">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-amber-400/20 text-amber-300 rounded-xl border border-amber-400/30">
@@ -489,7 +489,7 @@ export const ClientsView: React.FC = () => {
             {selectedClient.type === 'Corporate' ? (
               <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-xl space-y-3">
                 <div className="font-serif font-bold text-[#16223A] flex items-center gap-1.5 text-xs">
-                  <Building2 className="w-4 h-4 text-[#A9814A]" />
+                  <Building2 className="w-4 h-4 text-[#3D6B9C]" />
                   <span>Corporate Particulars &amp; SSM Registration Records</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
@@ -620,7 +620,7 @@ export const ClientsView: React.FC = () => {
             </div>
 
             {/* Emergency Contact Fields */}
-            <div className="p-[#FAF8F2] p-4 border border-[#E1DCCF] rounded-xl space-y-3">
+            <div className="p-[#F6F8FA] p-4 border border-[#DDE3EB] rounded-xl space-y-3">
               <div className="font-bold text-[#16223A] flex items-center gap-1.5 uppercase text-[10.5px]">
                 <ShieldAlert className="w-4 h-4 text-amber-600" />
                 <span>Emergency &amp; Secondary Contact Point</span>
@@ -670,7 +670,7 @@ export const ClientsView: React.FC = () => {
 
         {/* Subtab 2: KYC Documents */}
         {subTab === 'kyc' && (
-          <div className="bg-white border border-[#E1DCCF] p-5 rounded-xl shadow-xs space-y-4">
+          <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-4">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-serif font-bold text-[#16223A]">KYC Compliance Files</h3>
@@ -678,18 +678,18 @@ export const ClientsView: React.FC = () => {
               </div>
               <button
                 onClick={() => setIsKycModalOpen(true)}
-                className="bg-[#16223A] hover:bg-[#1F2E4D] text-amber-300 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer text-xs shadow-2xs"
+                className="bg-[#16223A] hover:bg-[#16223A] text-amber-300 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer text-xs shadow-2xs"
               >
                 <Upload className="w-3.5 h-3.5" />
                 <span>Upload KYC Document</span>
               </button>
             </div>
 
-            <div className="divide-y divide-slate-100 border border-[#E1DCCF] rounded-lg overflow-hidden">
+            <div className="divide-y divide-slate-100 border border-[#DDE3EB] rounded-lg overflow-hidden">
               {(selectedClient.kyc || []).map((k) => (
-                <div key={k.id} className="p-3 flex items-center justify-between hover:bg-[#FAF8F2]">
+                <div key={k.id} className="p-3 flex items-center justify-between hover:bg-[#F6F8FA]">
                   <div className="flex items-center gap-3">
-                    <Folder className="w-5 h-5 text-[#A9814A]" />
+                    <Folder className="w-5 h-5 text-[#3D6B9C]" />
                     <div>
                       {k.dataUrl ? (
                         <a href={k.dataUrl} download={k.name} target="_blank" rel="noreferrer" className="font-bold text-blue-800 underline hover:text-blue-950 text-xs">
@@ -717,12 +717,12 @@ export const ClientsView: React.FC = () => {
 
         {/* Subtab 3: Associated Cases */}
         {subTab === 'cases' && (
-          <div className="bg-white border border-[#E1DCCF] p-5 rounded-xl shadow-xs space-y-3">
+          <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="font-serif font-bold text-[#16223A]">Active &amp; Historical Legal Cases</h3>
               <button
                 onClick={() => setCurrentView('cases')}
-                className="px-3 py-1.5 bg-[#16223A] hover:bg-[#203050] text-amber-300 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
+                className="px-3 py-1.5 bg-[#16223A] hover:bg-[#16223A] text-amber-300 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
               >
                 <Briefcase className="w-3.5 h-3.5 text-amber-300" />
                 <span>Go to Legal Matters Registry</span>
@@ -737,10 +737,10 @@ export const ClientsView: React.FC = () => {
                     setCurrentCaseId(cs.id);
                     setCurrentView('cases');
                   }}
-                  className="p-3 bg-[#FAF8F2] hover:bg-[#F3EFE6] border border-[#E1DCCF] rounded-lg flex items-center justify-between text-xs cursor-pointer transition-colors"
+                  className="p-3 bg-[#F6F8FA] hover:bg-[#F6F8FA] border border-[#DDE3EB] rounded-lg flex items-center justify-between text-xs cursor-pointer transition-colors"
                 >
                   <div>
-                    <span className="font-mono font-bold text-[#A9814A] mr-2">{cs.ref}</span>
+                    <span className="font-mono font-bold text-[#3D6B9C] mr-2">{cs.ref}</span>
                     <span className="font-bold text-[#16223A]">{cs.title}</span>
                   </div>
                   <span className="px-2 py-0.5 bg-[#16223A] text-amber-300 rounded text-[10px] font-bold">
@@ -757,11 +757,11 @@ export const ClientsView: React.FC = () => {
 
         {/* Subtab 4: Compliance & History Audit Logs */}
         {subTab === 'history' && (
-          <div className="bg-white border border-[#E1DCCF] p-5 rounded-xl shadow-xs space-y-4">
+          <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div>
                 <h3 className="font-serif font-bold text-[#16223A] text-sm flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-[#A9814A]" />
+                  <ShieldCheck className="w-4 h-4 text-[#3D6B9C]" />
                   <span>Compliance Audit Trail &amp; Record History</span>
                 </h3>
                 <p className="text-[11px] text-slate-500 mt-0.5">
@@ -778,7 +778,7 @@ export const ClientsView: React.FC = () => {
               {/* Event 1: Master Registration */}
               <div className="relative">
                 <div className="absolute -left-[27px] top-0.5 w-3.5 h-3.5 rounded-full bg-[#16223A] border-2 border-white ring-2 ring-amber-300/60" />
-                <div className="bg-[#FAF8F2] p-3.5 rounded-xl border border-[#E1DCCF] space-y-1">
+                <div className="bg-[#F6F8FA] p-3.5 rounded-xl border border-[#DDE3EB] space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-[#16223A] text-xs">Master Client Profile Registered</span>
                     <span className="text-[10px] font-mono text-slate-500">Intake Timestamp: 2026-08-18</span>
@@ -889,10 +889,10 @@ export const ClientsView: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Top Banner Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
         <div>
           <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-            <Users className="w-5 h-5 text-[#A9814A]" />
+            <Users className="w-5 h-5 text-[#3D6B9C]" />
             Client Directory &amp; Registry
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -903,9 +903,9 @@ export const ClientsView: React.FC = () => {
           <button
             type="button"
             onClick={handleExportClients}
-            className="border border-[#E1DCCF] hover:bg-slate-50 text-slate-800 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+            className="border border-[#DDE3EB] hover:bg-slate-50 text-slate-800 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
           >
-            <Download className="w-3.5 h-3.5 text-[#A9814A]" />
+            <Download className="w-3.5 h-3.5 text-[#3D6B9C]" />
             <span>Export Excel</span>
           </button>
 
@@ -920,7 +920,7 @@ export const ClientsView: React.FC = () => {
 
           <button
             onClick={() => setIsRegisterClientModalOpen(true)}
-            className="bg-[#16223A] hover:bg-[#203050] text-amber-300 font-bold text-xs px-3.5 py-2 rounded-lg flex items-center gap-1.5 shadow-md cursor-pointer transition-all border border-[#16223A]"
+            className="bg-[#16223A] hover:bg-[#16223A] text-amber-300 font-bold text-xs px-3.5 py-2 rounded-lg flex items-center gap-1.5 shadow-md cursor-pointer transition-all border border-[#16223A]"
           >
             <UserPlus className="w-4 h-4 text-amber-300" />
             <span>+ Register New Client</span>
@@ -929,7 +929,7 @@ export const ClientsView: React.FC = () => {
       </div>
 
       {/* --- FILTER & GLOBAL SEARCH TOOLBAR --- */}
-      <div className="bg-white border border-[#E1DCCF] p-3.5 rounded-xl shadow-2xs space-y-3 text-xs">
+      <div className="bg-white border border-[#DDE3EB] p-3.5 rounded-xl shadow-2xs space-y-3 text-xs">
         {/* Global Search Bar */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="relative w-full sm:w-96">
@@ -939,7 +939,7 @@ export const ClientsView: React.FC = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search Client Name, Client ID, NRIC, SSM, Email, Phone, Tags..."
-              className="w-full pl-9 pr-8 py-2 border border-[#E1DCCF] rounded-lg bg-white text-xs focus:ring-1 focus:ring-[#16223A] shadow-2xs"
+              className="w-full pl-9 pr-8 py-2 border border-[#DDE3EB] rounded-lg bg-white text-xs focus:ring-1 focus:ring-[#16223A] shadow-2xs"
             />
             {searchTerm && (
               <button
@@ -971,9 +971,9 @@ export const ClientsView: React.FC = () => {
         </div>
 
         {/* Filter Controls Row 1: Entity Classification */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-2 border-t border-[#E1DCCF]">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-2 border-t border-[#DDE3EB]">
           <div className="flex items-center gap-1.5 min-w-max">
-            <Filter className="w-3.5 h-3.5 text-[#A9814A]" />
+            <Filter className="w-3.5 h-3.5 text-[#3D6B9C]" />
             <span className="font-bold text-slate-600 text-[10.5px] uppercase">Entity Structure:</span>
           </div>
           <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
@@ -1044,10 +1044,10 @@ export const ClientsView: React.FC = () => {
       </div>
 
       {/* --- CLIENTS MASTER TABLE --- */}
-      <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
-            <tr className="bg-[#F6F4EE] border-b border-[#E1DCCF] text-[10px] uppercase tracking-wider text-slate-600">
+            <tr className="bg-[#F6F8FA] border-b border-[#DDE3EB] text-[10px] uppercase tracking-wider text-slate-600">
               <th className="p-3 font-bold">Client ID</th>
               <th className="p-3 font-bold">Client Name &amp; Profile Tags</th>
               <th className="p-3 font-bold">Classification / Structure</th>
@@ -1063,7 +1063,7 @@ export const ClientsView: React.FC = () => {
               <tr
                 key={c.id}
                 onClick={() => setSelectedClientId(c.id)}
-                className="hover:bg-[#FAF8F2] transition-colors cursor-pointer group"
+                className="hover:bg-[#F6F8FA] transition-colors cursor-pointer group"
               >
                 <td className="p-3 font-mono font-medium text-slate-700">{c.id}</td>
                 <td className="p-3">
@@ -1089,7 +1089,7 @@ export const ClientsView: React.FC = () => {
                       className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                         c.type === 'Corporate'
                           ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                          : 'bg-[#16223A] text-white border border-[#304362]'
+                          : 'bg-[#16223A] text-white border border-[#16223A]'
                       }`}
                     >
                       {c.type}
@@ -1150,7 +1150,7 @@ export const ClientsView: React.FC = () => {
                         e.stopPropagation();
                         setSelectedClientId(c.id);
                       }}
-                      className="px-2.5 py-1 bg-[#16223A] hover:bg-[#203050] text-amber-300 rounded text-[11px] font-bold shadow-2xs inline-flex items-center gap-1 cursor-pointer"
+                      className="px-2.5 py-1 bg-[#16223A] hover:bg-[#16223A] text-amber-300 rounded text-[11px] font-bold shadow-2xs inline-flex items-center gap-1 cursor-pointer"
                     >
                       <span>View</span>
                     </button>
@@ -1229,7 +1229,7 @@ export const ClientsView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setClientToDelete(null)}
-                className="px-4 py-2 border border-[#E1DCCF] text-slate-700 hover:bg-slate-100 rounded-lg font-bold text-xs cursor-pointer transition-colors"
+                className="px-4 py-2 border border-[#DDE3EB] text-slate-700 hover:bg-slate-100 rounded-lg font-bold text-xs cursor-pointer transition-colors"
               >
                 Cancel Keep Record
               </button>
@@ -1249,7 +1249,7 @@ export const ClientsView: React.FC = () => {
       {/* --- PERMISSION DENIED MODAL --- */}
       {showPermissionDeniedModal && (
         <div className="fixed inset-0 bg-[#16223A]/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#E1DCCF]">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#DDE3EB]">
             <div className="flex items-start gap-3">
               <div className="p-3 bg-amber-100 text-amber-800 rounded-full shrink-0">
                 <Lock className="w-6 h-6" />
@@ -1284,7 +1284,7 @@ export const ClientsView: React.FC = () => {
       {/* --- KYC UPLOAD MODAL --- */}
       {isKycModalOpen && selectedClient && (
         <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#E1DCCF]">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#DDE3EB]">
             <h3 className="font-serif text-base font-bold text-[#16223A] mb-3">Upload KYC Compliance Document</h3>
             <form onSubmit={handleSaveKyc} className="space-y-3 text-xs">
               <div>
@@ -1329,13 +1329,13 @@ export const ClientsView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsKycModalOpen(false)}
-                  className="px-4 py-2 border border-[#E1DCCF] text-slate-700 hover:bg-slate-100 rounded-md font-semibold cursor-pointer"
+                  className="px-4 py-2 border border-[#DDE3EB] text-slate-700 hover:bg-slate-100 rounded-md font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded-md font-semibold cursor-pointer"
+                  className="px-4 py-2 bg-[#16223A] hover:bg-[#16223A] text-white rounded-md font-semibold cursor-pointer"
                 >
                   Upload
                 </button>
@@ -1348,7 +1348,7 @@ export const ClientsView: React.FC = () => {
       {/* Conflict Review Modal (Leads Concept) */}
       {conflictClient && (
         <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#E1DCCF] space-y-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#DDE3EB] space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="font-serif text-base font-bold text-[#16223A]">
                 Conflict of Interest Check — {conflictClient.name}
@@ -1442,14 +1442,14 @@ export const ClientsView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setConflictClient(null)}
-                  className="px-4 py-2 border border-[#E1DCCF] text-slate-700 hover:bg-slate-100 rounded-md font-semibold text-xs cursor-pointer"
+                  className="px-4 py-2 border border-[#DDE3EB] text-slate-700 hover:bg-slate-100 rounded-md font-semibold text-xs cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={handleSaveClientConflictCheck}
-                  className="px-4 py-2 bg-[#16223A] hover:bg-[#1F2E4D] text-amber-300 rounded-md font-bold text-xs cursor-pointer shadow-sm"
+                  className="px-4 py-2 bg-[#16223A] hover:bg-[#16223A] text-amber-300 rounded-md font-bold text-xs cursor-pointer shadow-sm"
                 >
                   Save Determination
                 </button>

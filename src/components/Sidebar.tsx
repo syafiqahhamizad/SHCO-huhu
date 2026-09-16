@@ -156,7 +156,7 @@ export const Sidebar: React.FC = () => {
       {/* Mobile Menu Toggle Button - Visible only on small screens */}
       <button
         onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
-        className="md:hidden fixed top-3 left-3 z-50 p-2.5 bg-[#A9814A] text-white rounded-lg hover:bg-[#C29A5A] transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#A9814A]"
+        className="md:hidden fixed top-3 left-3 z-50 p-2.5 bg-[#3D6B9C] text-white rounded-lg hover:bg-[#3D6B9C] transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#3D6B9C]"
         aria-label={isMobileSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
         aria-expanded={isMobileSidebarOpen}
         aria-controls="sidebar-nav"
@@ -175,7 +175,7 @@ export const Sidebar: React.FC = () => {
       {/* Sidebar - Hidden on mobile by default, visible on desktop */}
       <aside
         id="sidebar-nav"
-        className={`fixed md:relative w-[min(86vw,280px)] md:w-[242px] shrink-0 bg-[#16223A] dark:bg-[#16223A] text-[#EDE9DD] dark:text-[#E8ECFF] p-5 min-h-screen overflow-visible flex flex-col justify-between border-r border-amber-900/20 dark:border-[#2D3748] shadow-xl select-none transition-all duration-300 ease-in-out ${
+        className={`fixed md:relative w-[min(86vw,280px)] md:w-[242px] shrink-0 bg-[#16223A] dark:bg-[#16223A] text-[#DDE3EB] dark:text-[#E7EEF6] p-5 min-h-screen overflow-visible flex flex-col justify-between border-r border-amber-900/20 dark:border-[#16223A] shadow-xl select-none transition-all duration-300 ease-in-out ${
           isMobileSidebarOpen
             ? 'translate-x-0 z-40'
             : '-translate-x-full md:translate-x-0'
@@ -185,15 +185,15 @@ export const Sidebar: React.FC = () => {
       >
         <div>
           {/* Brand Header */}
-          <div className="flex items-center gap-2.5 mb-3 pb-3 border-b border-white/10 dark:border-[#2D3748] group">
-            <div className="w-8 h-8 rounded-full border-[1.5px] border-[#A9814A] dark:border-[#B7925A] flex items-center justify-center font-serif font-bold text-xs text-[#A9814A] dark:text-[#D5B07A] bg-[#A9814A]/10 dark:bg-[#B7925A]/10 shrink-0 shadow-inner group-hover:shadow-md group-hover:border-[#D4AF37] dark:group-hover:border-[#C89A63] transition-all">
+          <div className="flex items-center gap-2.5 mb-3 pb-3 border-b border-white/10 dark:border-[#16223A] group">
+            <div className="w-8 h-8 rounded-full border-[1.5px] border-[#3D6B9C] dark:border-[#3D6B9C] flex items-center justify-center font-serif font-bold text-xs text-[#3D6B9C] dark:text-[#3D6B9C] bg-[#3D6B9C]/10 dark:bg-[#3D6B9C]/10 shrink-0 shadow-inner group-hover:shadow-md group-hover:border-[#3D6B9C] dark:group-hover:border-[#3D6B9C] transition-all">
               SH
             </div>
             <div>
-              <div className="shco-brand-name font-roxborough text-[13px] font-bold leading-tight text-[#ffd29e] dark:text-[#ffd29e] tracking-wide uppercase" style={{ color: '#ffd29e' }}>
+              <div className="shco-brand-name font-roxborough text-[13px] font-bold leading-tight text-[#8FB3DE] dark:text-[#8FB3DE] tracking-wide uppercase" style={{ color: '#8FB3DE' }}>
                 SYAFIQAH HAMIZAD &amp; CO
               </div>
-              <div className="shco-brand-subtitle font-termes text-[10px] text-[#ffd29e] dark:text-[#ffd29e] tracking-tight font-medium italic flex items-center gap-1 mt-0.5" style={{ color: '#ffd29e' }}>
+              <div className="shco-brand-subtitle font-termes text-[10px] text-[#8FB3DE] dark:text-[#8FB3DE] tracking-tight font-medium italic flex items-center gap-1 mt-0.5" style={{ color: '#8FB3DE' }}>
                 Advocates &amp; Solicitors | Syarie Counsel
               </div>
             </div>
@@ -212,7 +212,7 @@ export const Sidebar: React.FC = () => {
 
               return (
                 <div key={group.group}>
-                  <div className="w-full flex items-center text-[9.5px] uppercase tracking-widest text-[#7A8296] dark:text-[#A3ADC3] px-2 py-2 mb-1 font-bold">
+                  <div className="w-full flex items-center text-[9.5px] uppercase tracking-widest text-[#5B6478] dark:text-[#5B6478] px-2 py-2 mb-1 font-bold">
                     <span>{group.group}</span>
                   </div>
                   <div id={`group-${group.group}`} className="space-y-0.5">
@@ -223,10 +223,10 @@ export const Sidebar: React.FC = () => {
                         <button
                           key={item.id}
                           onClick={() => handleNavItemClick(item.id)}
-                          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[12px] font-medium transition-all duration-150 text-left focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#A9814A] dark:focus:ring-[#B7925A] focus:ring-offset-[#16223A] dark:focus:ring-offset-[#121821] ${
+                          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[12px] font-medium transition-all duration-150 text-left focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#3D6B9C] dark:focus:ring-[#3D6B9C] focus:ring-offset-[#16223A] dark:focus:ring-offset-[#16223A] ${
                             isActive
-                              ? 'bg-[#A9814A] dark:bg-[#B7925A] text-[#1A1204] dark:text-[#121821] font-semibold shadow-md'
-                              : 'text-[#C7CCDC] dark:text-[#C3CDE3] hover:bg-white/10 dark:hover:bg-[#1B2330] hover:text-white dark:hover:text-[#EEF3FF] focus:text-white dark:focus:text-[#EEF3FF]'
+                              ? 'bg-[#3D6B9C] dark:bg-[#3D6B9C] text-[#16223A] dark:text-[#16223A] font-semibold shadow-md'
+                              : 'text-[#DDE3EB] dark:text-[#DDE3EB] hover:bg-white/10 dark:hover:bg-[#16223A] hover:text-white dark:hover:text-[#E7EEF6] focus:text-white dark:focus:text-[#E7EEF6]'
                           }`}
                           role="menuitem"
                           aria-current={isActive ? 'page' : undefined}
@@ -274,7 +274,7 @@ export const Sidebar: React.FC = () => {
           ) : currentUser.isSuperAdmin ? (
             <>
               <div>
-                <label htmlFor="role-select" className="text-[9.5px] uppercase tracking-wider text-[#8B93A8] block mb-1 font-semibold">
+                <label htmlFor="role-select" className="text-[9.5px] uppercase tracking-wider text-[#5B6478] block mb-1 font-semibold">
                   Viewing as Role
                 </label>
                 <select
@@ -290,7 +290,7 @@ export const Sidebar: React.FC = () => {
                       setCurrentView('dashboard');
                     }
                   }}
-                  className="w-full bg-white/8 text-white border border-white/20 rounded-md px-2 py-1 text-[11.5px] focus:outline-none focus:border-[#A9814A] focus:ring-1 focus:ring-[#A9814A]/50 disabled:opacity-70 disabled:cursor-not-allowed transition-all"
+                  className="w-full bg-white/8 text-white border border-white/20 rounded-md px-2 py-1 text-[11.5px] focus:outline-none focus:border-[#3D6B9C] focus:ring-1 focus:ring-[#3D6B9C]/50 disabled:opacity-70 disabled:cursor-not-allowed transition-all"
                   aria-label="Select your viewing role"
                 >
                   <option value="Partner" className="bg-[#16223A]">Partner (Full Firm Oversight)</option>
@@ -301,26 +301,26 @@ export const Sidebar: React.FC = () => {
                 </select>
               </div>
 
-              <label className="flex items-center gap-2 text-[11px] text-[#C7CCDC] cursor-pointer hover:text-white transition-colors focus-within:text-white">
+              <label className="flex items-center gap-2 text-[11px] text-[#DDE3EB] cursor-pointer hover:text-white transition-colors focus-within:text-white">
                 <input
                   type="checkbox"
                   checked={isAdmin}
                   onChange={(e) => setIsAdmin(e.target.checked)}
-                  className="rounded border-white/20 text-[#A9814A] focus:ring-1 focus:ring-[#A9814A]/50 accent-[#A9814A] cursor-pointer"
+                  className="rounded border-white/20 text-[#3D6B9C] focus:ring-1 focus:ring-[#3D6B9C]/50 accent-[#3D6B9C] cursor-pointer"
                   aria-label="Enable admin overlay access"
                 />
                 <span>Also has Admin overlay access</span>
               </label>
 
               <div>
-                <label htmlFor="partner-select" className="text-[9.5px] uppercase tracking-wider text-[#8B93A8] block mb-1 font-semibold">
+                <label htmlFor="partner-select" className="text-[9.5px] uppercase tracking-wider text-[#5B6478] block mb-1 font-semibold">
                   Partner Identity ("My Cases")
                 </label>
                 <select
                   id="partner-select"
                   value={currentPartnerCode}
                   onChange={(e) => setCurrentPartnerCode(e.target.value as PartnerCode)}
-                  className="w-full bg-white/8 text-white border border-white/20 rounded-md px-2 py-1 text-[11.5px] focus:outline-none focus:border-[#A9814A] focus:ring-1 focus:ring-[#A9814A]/50 transition-all"
+                  className="w-full bg-white/8 text-white border border-white/20 rounded-md px-2 py-1 text-[11.5px] focus:outline-none focus:border-[#3D6B9C] focus:ring-1 focus:ring-[#3D6B9C]/50 transition-all"
                   aria-label="Select your partner identity"
                 >
                   <option value="SH" className="bg-[#16223A]">SH — Syafiqah Hamizad</option>
@@ -329,7 +329,7 @@ export const Sidebar: React.FC = () => {
                 </select>
               </div>
 
-              <div className="text-[9.5px] text-[#7A8296] leading-snug pt-1">
+              <div className="text-[9.5px] text-[#5B6478] leading-snug pt-1">
                 Malaysian Law compliant. Admin overlay reveals firm-wide cases & system views. Reviewer = read-only auditor view.
               </div>
             </>

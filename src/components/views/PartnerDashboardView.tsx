@@ -49,6 +49,9 @@ import {
   Pie,
   Cell,
 } from 'recharts';
+import { identityTokens, isMine, partnerCode as toPartnerCode } from '../../lib/identity';
+import { ProgressBar } from '../ui';
+import { palette } from '../../lib/designTokens';
 
 export const PartnerDashboardView: React.FC = () => {
   const {
@@ -63,6 +66,7 @@ export const PartnerDashboardView: React.FC = () => {
     paymentVouchers,
     receipts,
     referralPartners,
+    users,
     showToast,
   } = useApp();
 
@@ -79,7 +83,7 @@ export const PartnerDashboardView: React.FC = () => {
   if (!isPartner) {
     return (
       <div className="bg-white border border-[#E1DCCF] p-8 rounded-xl shadow-xs text-center space-y-4 max-w-xl mx-auto my-12">
-        <div className="w-16 h-16 bg-rose-50 text-rose-700 rounded-full flex items-center justify-center mx-auto border border-rose-200">
+        <div className="w-16 h-16 bg-[#FBEDE9] text-[#B23A2E] rounded-full flex items-center justify-center mx-auto border border-[#FBEDE9]">
           <Lock className="w-8 h-8" />
         </div>
         <div>
@@ -97,19 +101,37 @@ export const PartnerDashboardView: React.FC = () => {
     );
   }
 
+  // Case lookup, used to attribute invoices/receipts to a partner via the real
+  // Case.partners array instead of parsing partner codes out of ref strings
+  // (a matter's ref segment [1] can be a combined code like "SH-AH").
+  const caseById = useMemo(() => new Map(cases.map((c) => [c.id, c])), [cases]);
+
+  const dateInTimeframe = (dateStr?: string) => {
+    if (timeframe === 'ALL') return true;
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return false;
+    const now = new Date();
+    if (timeframe === 'MTD') return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    if (timeframe === 'QTD') {
+      const q = Math.floor(now.getMonth() / 3);
+      return d.getFullYear() === now.getFullYear() && Math.floor(d.getMonth() / 3) === q;
+    }
+    return d.getFullYear() === now.getFullYear(); // YTD
+  };
+
   // 1. Calculate totals based on partner filter
   const partnerFilteredCases = cases.filter(
-    (cs) =>
-      effectivePartnerFilter === 'ALL' ||
-      cs.ref.includes(`/${effectivePartnerFilter}/`) ||
-      cs.partners?.includes(effectivePartnerFilter as any)
+    (cs) => effectivePartnerFilter === 'ALL' || cs.partners?.includes(effectivePartnerFilter as any)
   );
 
-  const partnerFilteredInvoices = invoices.filter(
-    (i) =>
-      effectivePartnerFilter === 'ALL' ||
-      i.fileRef?.includes(`/${effectivePartnerFilter}/`)
-  );
+  const partnerFilteredInvoices = invoices.filter((i) => {
+    if (effectivePartnerFilter !== 'ALL') {
+      const cs = caseById.get(i.caseId);
+      if (!cs?.partners?.includes(effectivePartnerFilter as any)) return false;
+    }
+    return dateInTimeframe(i.date);
+  });
 
   const totalInvoiced = partnerFilteredInvoices.reduce((acc, inv) => acc + (inv.total || 0), 0);
   const totalPaidInvoices = partnerFilteredInvoices
@@ -117,6 +139,16 @@ export const PartnerDashboardView: React.FC = () => {
     .reduce((acc, inv) => acc + (inv.total || 0), 0);
   const totalUnpaidInvoices = Math.max(0, totalInvoiced - totalPaidInvoices);
   const collectionRatePct = totalInvoiced > 0 ? Math.round((totalPaidInvoices / totalInvoiced) * 100) : 0;
+
+  const over30DaysOutstanding = partnerFilteredInvoices
+    .filter((inv) => {
+      if (inv.status === 'Paid' || inv.status === 'Voided') return false;
+      const due = inv.dueDate || inv.date;
+      if (!due) return false;
+      const days = Math.floor((Date.now() - new Date(due).getTime()) / 86400000);
+      return days > 30;
+    })
+    .reduce((acc, inv) => acc + (inv.total || 0), 0);
 
   // 2. Monthly Revenue & Collection Analytics Data Generation
   const monthlyData = useMemo(() => {
@@ -148,11 +180,7 @@ export const PartnerDashboardView: React.FC = () => {
   const rawCollections = useMemo(() => {
     return (receipts || []).map((r) => {
       const matchCase = cases.find((c) => c.id === r.caseId || c.ref === r.fileRef);
-      const partner = r.fileRef
-        ? r.fileRef.split('/')[2] || 'SH'
-        : matchCase?.ref
-        ? matchCase.ref.split('/')[2] || 'SH'
-        : 'SH';
+      const partners = matchCase?.partners?.length ? matchCase.partners : ['SH'];
       return {
         id: r.id,
         date: r.date,
@@ -161,7 +189,8 @@ export const PartnerDashboardView: React.FC = () => {
         amount: r.amount || 0,
         bank: r.accountSet === 'CLIENT' ? '1020 Client Trust Account' : '1010 Office General',
         method: r.bankRef || 'Bank Transfer',
-        partner,
+        partners,
+        partner: partners.join('/'),
         type: r.description || 'Collection',
       };
     });
@@ -169,7 +198,8 @@ export const PartnerDashboardView: React.FC = () => {
 
   // Filtered collections
   const filteredCollections = rawCollections.filter((c) => {
-    if (effectivePartnerFilter !== 'ALL' && c.partner !== effectivePartnerFilter) return false;
+    if (effectivePartnerFilter !== 'ALL' && !c.partners.includes(effectivePartnerFilter as any)) return false;
+    if (!dateInTimeframe(c.date)) return false;
     if (
       collectionSearch &&
       !c.client.toLowerCase().includes(collectionSearch.toLowerCase()) &&
@@ -179,35 +209,42 @@ export const PartnerDashboardView: React.FC = () => {
     return true;
   });
 
-  // 4. Referral Sources Breakdown Data derived from leads
-  const referralCategories = [
-    { category: 'Other Law Firms / Bar Alumni', shortName: 'Bar Alumni', icon: Building2 },
-    { category: 'Existing Satisfied Clients', shortName: 'Clients', icon: Users },
-    { category: 'Bank Panels & Financial Ins.', shortName: 'Bank Panels', icon: DollarSign },
-    { category: 'Personal & Network Alliances', shortName: 'Networks', icon: Award },
-    { category: 'Digital / Web & Social Media', shortName: 'Digital / Web', icon: Sparkles },
-  ];
+  // 4. Referral Sources Breakdown Data — real Lead.referralSourceCategory / stage / quoteAmount
+  //    (the enum on the Lead type; previous version matched fields — l.status, l.estimatedValue,
+  //    l.source as a free string — that don't exist on Lead and always evaluated to zero).
+  const REFERRAL_CATEGORY_META: Record<string, { shortName: string; icon: React.ElementType }> = {
+    'Referral Partner': { shortName: 'Referral Partners', icon: Building2 },
+    'Existing Client': { shortName: 'Existing Clients', icon: Users },
+    'Social Media': { shortName: 'Social Media', icon: Sparkles },
+    Website: { shortName: 'Website', icon: Sparkles },
+    'Walk-In': { shortName: 'Walk-In', icon: Award },
+    'Event / Seminar': { shortName: 'Events', icon: Award },
+    Other: { shortName: 'Other', icon: DollarSign },
+  };
 
   const referralSourcesData = useMemo(() => {
-    return referralCategories.map((cat) => {
-      const catLeads = (leads || []).filter(
-        (l) => l.source === cat.category || (cat.category.includes('Digital') && (l.source === 'Website' || l.source === 'Social Media'))
-      );
+    const cats = Array.from(new Set((leads || []).map((l) => l.referralSourceCategory || 'Other')));
+    if (cats.length === 0) cats.push('Other');
+    return cats.map((categoryRaw) => {
+      const category = String(categoryRaw);
+      const meta = REFERRAL_CATEGORY_META[category] || { shortName: category, icon: DollarSign };
+      const catLeads = (leads || []).filter((l) => (l.referralSourceCategory || 'Other') === category);
       const total = catLeads.length;
-      const converted = catLeads.filter((l) => l.status === 'Converted').length;
-      const lost = catLeads.filter((l) => l.status === 'Lost').length;
+      const converted = catLeads.filter((l) => l.stage === 'Converted').length;
+      const lost = catLeads.filter((l) => l.stage === 'Lost').length;
       const pending = total - converted - lost;
-      const value = catLeads.reduce((acc, l) => acc + (l.estimatedValue || 0), 0);
+      const value = catLeads.reduce((acc, l) => acc + (l.quoteAmount || 0), 0);
       const rate = total > 0 ? Math.round((converted / total) * 100) : 0;
       return {
-        ...cat,
+        category,
+        ...meta,
         total,
         converted,
         lost,
         pending,
         value,
         conversionRate: rate,
-        topSource: catLeads[0]?.referrer || catLeads[0]?.contact || 'None',
+        topSource: catLeads[0]?.referralDetail || catLeads[0]?.socialMediaPlatform || category,
       };
     });
   }, [leads]);
@@ -218,38 +255,38 @@ export const PartnerDashboardView: React.FC = () => {
   const overallReferralConversionRate =
     totalReferralsCount > 0 ? Math.round((totalConvertedReferrals / totalReferralsCount) * 100) : 0;
 
-  const PIE_COLORS = ['#16223A', '#10B981', '#D97706', '#2563EB', '#8B5CF6'];
+  const PIE_COLORS = [palette.navy, palette.green, palette.gold, palette.blue, palette.purple, palette.red];
 
-  // 5. Per-Partner KPI Matrix Data
+  // 5. Per-Partner KPI Matrix Data — roster is the real `users` list (role === 'Partner'),
+  //    attribution via Case.partners (invoices/matters) and identity-token matching on
+  //    Lead.assignedTo (referrals), not string-parsed ref segments or non-existent Lead fields.
   const partnersKPIMatrix = useMemo(() => {
-    const partnerList = [
-      { code: 'SH', name: 'Syafiqah Hamizad', shortName: 'SH (Syafiqah)', role: 'Managing Partner' },
-      { code: 'AH', name: 'Amer Haiqal', shortName: 'AH (Amer)', role: 'Senior Litigation Partner' },
-      { code: 'ZA', name: 'Zulaikha Afendi', shortName: 'ZA (Zulaikha)', role: 'Conveyancing & Corporate Partner' },
-    ];
+    const partnerUsers = (users || []).filter((u) => u.role === 'Partner');
+    return partnerUsers.map((u) => {
+      const code = toPartnerCode(u) || 'SH';
+      const tokens = identityTokens(u);
 
-    return partnerList.map((p) => {
-      const pInvoices = invoices.filter((i) => i.fileRef?.includes(`/${p.code}/`));
+      const pInvoices = invoices.filter((i) => caseById.get(i.caseId)?.partners?.includes(code as any));
       const billed = pInvoices.reduce((acc, i) => acc + (i.total || 0), 0);
       const collected = pInvoices.filter((i) => i.status === 'Paid').reduce((acc, i) => acc + (i.total || 0), 0);
       const unpaid = Math.max(0, billed - collected);
       const efficiency = billed > 0 ? Math.round((collected / billed) * 100) : 0;
 
-      const pLeads = leads.filter((l) => l.partnerPIC === p.code || l.referredBy === p.code);
+      const pLeads = leads.filter((l) => isMine(l.assignedTo, tokens));
       const referralsSourced = pLeads.length;
-      const referralsConverted = pLeads.filter((l) => l.status === 'Converted').length;
+      const referralsConverted = pLeads.filter((l) => l.stage === 'Converted').length;
       const conversionRate = referralsSourced > 0 ? Math.round((referralsConverted / referralsSourced) * 100) : 0;
 
-      const activeMatters = cases.filter(
-        (c) => (c.ref?.includes(`/${p.code}/`) || c.partners?.includes(p.code as any)) && c.status === 'Active'
-      ).length;
+      const partnerCases = cases.filter((c) => c.partners?.includes(code as any));
+      const activeMatters = partnerCases.filter((c) => c.status === 'Active').length;
 
-      const pendingPVs = paymentVouchers.filter(
-        (pv) => !pv.approved && (pv.preparedBy === p.code || (!pv.approvedBy && p.code === 'SH'))
-      ).length;
+      const pendingPVs = paymentVouchers.filter((pv) => !pv.approved && (pv.preparedBy === code || (!pv.approvedBy && code === 'SH'))).length;
 
       return {
-        ...p,
+        code,
+        name: u.name,
+        shortName: `${code} (${u.name.split(' ')[0]})`,
+        role: u.staffProfile?.designation || u.role,
         billed,
         collected,
         unpaid,
@@ -257,31 +294,55 @@ export const PartnerDashboardView: React.FC = () => {
         referralsSourced,
         referralsConverted,
         referralConversionRate: conversionRate,
-        convertedRetainersValue: pLeads
-          .filter((l) => l.status === 'Converted')
-          .reduce((acc, l) => acc + (l.estimatedValue || 0), 0),
+        convertedRetainersValue: pLeads.filter((l) => l.stage === 'Converted').reduce((acc, l) => acc + (l.quoteAmount || 0), 0),
         activeMatters,
-        resolutionRate: cases.filter((c) => c.ref?.includes(`/${p.code}/`)).length > 0 ? 100 : 0,
+        resolutionRate: partnerCases.length > 0 ? Math.round((partnerCases.filter((c) => c.status === 'Closed').length / partnerCases.length) * 100) : 0,
         pendingPVs,
+        targets: u.staffProfile?.targets || { billed: 50000, collected: 30000, files: 25, referrals: 10 },
+        filesBrought: partnerCases.filter((c) => c.referredBy).length,
       };
     });
-  }, [invoices, leads, cases, paymentVouchers]);
+  }, [invoices, leads, cases, paymentVouchers, users, caseById]);
 
-  // 6. Referral Details Leads List
+  // Target achievement — real, from each partner's own StaffProfile.targets (My Dashboard -> Edit targets),
+  // not the previous hardcoded "108%" literal.
+  const targetAchievementPct = useMemo(() => {
+    if (effectivePartnerFilter !== 'ALL') {
+      const row = partnersKPIMatrix.find((p) => p.code === effectivePartnerFilter);
+      return row && row.targets.billed ? Math.round((row.billed / row.targets.billed) * 100) : 0;
+    }
+    const totalTarget = partnersKPIMatrix.reduce((s, p) => s + (p.targets.billed || 0), 0);
+    return totalTarget ? Math.round((totalInvoiced / totalTarget) * 100) : 0;
+  }, [partnersKPIMatrix, effectivePartnerFilter, totalInvoiced]);
+
+  // 6. Referral Details Leads List — real fields: name, referralSourceCategory,
+  //    referralDetail, assignedTo, quoteAmount, stage, followupDate.
+  const partnerTokensByCode = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    (users || []).filter((u) => u.role === 'Partner').forEach((u) => {
+      const code = toPartnerCode(u);
+      if (code) map.set(code, identityTokens(u));
+    });
+    return map;
+  }, [users]);
+
   const referralLeadsList = useMemo(() => {
-    return (leads || []).map((l) => ({
-      id: l.id,
-      name: l.clientName || 'Lead Client',
-      referrer: l.referrer || l.source || 'Direct',
-      category: l.source || 'General',
-      partnerPIC: l.partnerPIC || 'SH',
-      quoted: l.estimatedValue || 0,
-      stage: l.status === 'Converted' ? 'Converted' : 'In Progress',
-      status: l.status,
-      date: l.date || '2026-08-01',
-      notes: l.notes || l.areaOfLaw || '',
-    }));
-  }, [leads]);
+    return (leads || []).map((l) => {
+      const picCode = (['SH', 'AH', 'ZA'] as const).find((code) => isMine(l.assignedTo, partnerTokensByCode.get(code) || new Set())) || 'SH';
+      return {
+        id: l.id,
+        name: l.name || 'Lead',
+        referrer: l.referralDetail || l.socialMediaPlatform || l.referralSourceCategory || 'Direct',
+        category: l.referralSourceCategory || 'Other',
+        partnerPIC: picCode,
+        quoted: l.quoteAmount || 0,
+        stage: l.stage === 'Converted' ? 'Converted' : l.stage === 'Lost' ? 'Lost' : 'In Progress',
+        status: l.stage,
+        date: l.followupDate || '',
+        notes: l.practiceArea || '',
+      };
+    });
+  }, [leads, partnerTokensByCode]);
 
   const filteredReferrals = referralLeadsList.filter((r) => {
     if (effectivePartnerFilter !== 'ALL' && r.partnerPIC !== effectivePartnerFilter) return false;
@@ -299,8 +360,8 @@ export const PartnerDashboardView: React.FC = () => {
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-[#16223A] text-white p-3 rounded-xl border border-amber-400/40 shadow-xl text-xs space-y-1.5 font-sans z-50">
-          <p className="font-serif font-bold text-amber-300 border-b border-slate-700 pb-1">{label}</p>
+        <div className="bg-[#16223A] text-white p-3 rounded-xl border border-[#8A6D3B]/40 shadow-xl text-xs space-y-1.5 font-sans z-50">
+          <p className="font-serif font-bold text-[#8A6D3B] border-b border-slate-700 pb-1">{label}</p>
           {payload.map((entry: any, index: number) => {
             const nameLower = entry.name.toLowerCase();
             const isCurrency = nameLower.includes('revenue') || nameLower.includes('billed') || nameLower.includes('collected') || nameLower.includes('retainer') || nameLower.includes('value') || nameLower.includes('target');
@@ -334,16 +395,16 @@ export const PartnerDashboardView: React.FC = () => {
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-400 text-[#16223A] uppercase tracking-wider shadow-2xs">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-[#8A6D3B] text-[#16223A] uppercase tracking-wider shadow-2xs">
                 CONFIDENTIAL PARTNER PORTAL
               </span>
-              <span className="text-[10.5px] text-amber-200/90 font-mono font-semibold flex items-center gap-1">
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-[10.5px] text-[#FBF2E9]/90 font-mono font-semibold flex items-center gap-1">
+                <Sparkles className="w-3.5 h-3.5 text-[#8A6D3B]" />
                 Messrs Syafiqah Hamizad &amp; Co Analytics Engine
               </span>
             </div>
             <h1 className="font-serif text-2xl font-bold text-white flex items-center gap-2">
-              <BarChart3 className="w-6 h-6 text-amber-400" />
+              <BarChart3 className="w-6 h-6 text-[#8A6D3B]" />
               Executive Partner Dashboard &amp; Interactive Charts
             </h1>
             <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">
@@ -355,7 +416,7 @@ export const PartnerDashboardView: React.FC = () => {
             <button
               type="button"
               onClick={() => showToast('Generating confidential Partner Executive Financial PDF Report...')}
-              className="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-[#16223A] font-extrabold text-xs rounded-xl shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
+              className="px-3 py-2 bg-[#8A6D3B] hover:bg-[#8A6D3B] text-[#16223A] font-extrabold text-xs rounded-xl shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
             >
               <Download className="w-4 h-4" />
               <span>Export Executive Report</span>
@@ -368,7 +429,7 @@ export const PartnerDashboardView: React.FC = () => {
           {/* Partner Selector */}
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1">
-              <Filter className="w-3.5 h-3.5 text-amber-400" />
+              <Filter className="w-3.5 h-3.5 text-[#8A6D3B]" />
               <span>{isAdmin ? 'Partner Filter:' : 'Assigned Partner:'}</span>
             </span>
             <div className="bg-slate-800/90 p-1 rounded-xl border border-slate-700 flex items-center gap-1">
@@ -386,7 +447,7 @@ export const PartnerDashboardView: React.FC = () => {
                   onClick={() => isAdmin && setSelectedPartnerFilter(p.code)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isAdmin ? 'cursor-pointer' : 'cursor-default'} ${
                     effectivePartnerFilter === p.code
-                      ? 'bg-amber-400 text-[#16223A] shadow-xs font-extrabold'
+                      ? 'bg-[#8A6D3B] text-[#16223A] shadow-xs font-extrabold'
                       : 'text-slate-300 hover:text-white hover:bg-slate-700'
                   }`}
                 >
@@ -427,7 +488,7 @@ export const PartnerDashboardView: React.FC = () => {
             <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">
               {effectivePartnerFilter === 'ALL' ? 'Firm Revenue Billed' : `${effectivePartnerFilter} Billed Revenue`}
             </span>
-            <span className="p-2 bg-blue-50 text-blue-800 rounded-lg border border-blue-200">
+            <span className="p-2 bg-[#E7EEF6] text-[#3D6B9C] rounded-lg border border-[#E7EEF6]">
               <DollarSign className="w-4 h-4" />
             </span>
           </div>
@@ -436,8 +497,8 @@ export const PartnerDashboardView: React.FC = () => {
           </div>
           <div className="flex items-center justify-between text-[11px] text-slate-600 mt-2 pt-2 border-t border-slate-100">
             <span>Target Achievement:</span>
-            <span className="font-bold text-emerald-700 flex items-center gap-0.5">
-              <TrendingUp className="w-3.5 h-3.5" /> 108%
+            <span className={`font-bold flex items-center gap-0.5 ${targetAchievementPct >= 100 ? 'text-[#2F6F4E]' : 'text-[#8A6D3B]'}`}>
+              <TrendingUp className="w-3.5 h-3.5" /> {targetAchievementPct}%
             </span>
           </div>
         </div>
@@ -448,16 +509,16 @@ export const PartnerDashboardView: React.FC = () => {
             <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">
               {effectivePartnerFilter === 'ALL' ? 'Total Collected Cash' : `${effectivePartnerFilter} Cash Collected`}
             </span>
-            <span className="p-2 bg-emerald-50 text-emerald-800 rounded-lg border border-emerald-200">
+            <span className="p-2 bg-[#E6EFE9] text-[#2F6F4E] rounded-lg border border-[#E6EFE9]">
               <TrendingUp className="w-4 h-4" />
             </span>
           </div>
-          <div className="font-mono text-2xl font-extrabold text-emerald-900 mt-1">
+          <div className="font-mono text-2xl font-extrabold text-[#2F6F4E] mt-1">
             RM {totalPaidInvoices.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
           </div>
           <div className="flex items-center justify-between text-[11px] text-slate-600 mt-2 pt-2 border-t border-slate-100">
             <span>Collection Efficiency:</span>
-            <span className="font-extrabold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+            <span className="font-extrabold text-[#2F6F4E] bg-[#E6EFE9] px-1.5 py-0.2 rounded border border-[#E6EFE9]">
               {collectionRatePct}% Rate
             </span>
           </div>
@@ -469,17 +530,17 @@ export const PartnerDashboardView: React.FC = () => {
             <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">
               Aged Debtors Outstanding
             </span>
-            <span className="p-2 bg-rose-50 text-rose-800 rounded-lg border border-rose-200">
+            <span className="p-2 bg-[#FBEDE9] text-[#B23A2E] rounded-lg border border-[#FBEDE9]">
               <Clock className="w-4 h-4" />
             </span>
           </div>
-          <div className="font-mono text-2xl font-extrabold text-rose-900 mt-1">
+          <div className="font-mono text-2xl font-extrabold text-[#B23A2E] mt-1">
             RM {totalUnpaidInvoices.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
           </div>
           <div className="flex items-center justify-between text-[11px] text-slate-600 mt-2 pt-2 border-t border-slate-100">
             <span>Over 30 Days:</span>
-            <span className="font-bold text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200">
-              RM 12,000.00
+            <span className="font-bold text-[#B23A2E] bg-[#FBEDE9] px-1.5 py-0.2 rounded border border-[#FBEDE9]">
+              RM {over30DaysOutstanding.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
             </span>
           </div>
         </div>
@@ -490,7 +551,7 @@ export const PartnerDashboardView: React.FC = () => {
             <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">
               Referrals Retainer Value
             </span>
-            <span className="p-2 bg-amber-50 text-amber-800 rounded-lg border border-amber-200">
+            <span className="p-2 bg-[#FBF2E9] text-[#8A6D3B] rounded-lg border border-[#FBF2E9]">
               <Award className="w-4 h-4" />
             </span>
           </div>
@@ -499,11 +560,56 @@ export const PartnerDashboardView: React.FC = () => {
           </div>
           <div className="flex items-center justify-between text-[11px] text-slate-600 mt-2 pt-2 border-t border-slate-100">
             <span>Overall Conversion:</span>
-            <span className="font-extrabold text-amber-900 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+            <span className="font-extrabold text-[#8A6D3B] bg-[#FBF2E9] px-1.5 py-0.2 rounded border border-[#FBF2E9]">
               {overallReferralConversionRate}% ({totalConvertedReferrals}/{totalReferralsCount} converted)
             </span>
           </div>
         </div>
+      </div>
+
+      {/* Targets — everyone's progress, from each partner's own StaffProfile.targets */}
+      <div className="bg-white border border-[#E1DCCF] rounded-2xl p-5 shadow-xs space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-serif text-base font-bold flex items-center gap-2" style={{ color: palette.navy }}>
+            <Target className="w-4.5 h-4.5" style={{ color: palette.gold }} />
+            Targets — everyone's progress
+            <span className="text-[10px] font-normal text-slate-400">· {timeframe === 'MTD' ? 'This Month' : timeframe === 'QTD' ? 'This Quarter' : timeframe === 'YTD' ? 'YTD' : 'All Time'}</span>
+          </h2>
+        </div>
+        <div className="space-y-4">
+          {partnersKPIMatrix.map((p) => (
+            <div key={p.code} className="border-b border-slate-100 pb-4 last:border-0 last:pb-0">
+              <p className="mb-2 text-[12.5px] font-bold text-[#16223A]">{p.name}</p>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <ProgressBar
+                  label="Billed"
+                  pct={p.targets.billed ? (p.billed / p.targets.billed) * 100 : 0}
+                  color={palette.gold}
+                  valueLabel={<span className="text-[11px] text-[#5B6478]">RM {p.billed.toLocaleString()} / {p.targets.billed.toLocaleString()}</span>}
+                />
+                <ProgressBar
+                  label="Collected"
+                  pct={p.targets.collected ? (p.collected / p.targets.collected) * 100 : 0}
+                  color={palette.green}
+                  valueLabel={<span className="text-[11px] text-[#5B6478]">RM {p.collected.toLocaleString()} / {p.targets.collected.toLocaleString()}</span>}
+                />
+                <ProgressBar
+                  label="Files brought"
+                  pct={p.targets.files ? (p.filesBrought / p.targets.files) * 100 : 0}
+                  color={palette.blue}
+                  valueLabel={<span className="text-[11px] text-[#5B6478]">{p.filesBrought} / {p.targets.files}</span>}
+                />
+                <ProgressBar
+                  label="Referrals converted"
+                  pct={p.targets.referrals ? (p.referralsConverted / p.targets.referrals) * 100 : 0}
+                  color={palette.purple}
+                  valueLabel={<span className="text-[11px] text-[#5B6478]">{p.referralsConverted} / {p.targets.referrals}</span>}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="text-[10.5px] text-slate-400">Targets are set per partner in My Dashboard → My Performance → Edit targets.</p>
       </div>
 
       {/* SECTION 1: Firm-wide Revenue & Collection Visual Breakdown with Recharts */}
@@ -513,7 +619,7 @@ export const PartnerDashboardView: React.FC = () => {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 pb-3">
             <div>
               <h3 className="font-serif text-base font-bold text-[#16223A] flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-amber-600" />
+                <BarChart3 className="w-5 h-5 text-[#8A6D3B]" />
                 <span>Monthly Collection Trends &amp; Revenue Chart (2026 YTD)</span>
               </h3>
               <p className="text-[11px] text-slate-500">
@@ -521,7 +627,7 @@ export const PartnerDashboardView: React.FC = () => {
               </p>
             </div>
             <div className="flex items-center gap-2 text-[10.5px]">
-              <span className="bg-emerald-50 text-emerald-900 border border-emerald-200 font-extrabold px-2 py-0.5 rounded">
+              <span className="bg-[#E6EFE9] text-[#2F6F4E] border border-[#E6EFE9] font-extrabold px-2 py-0.5 rounded">
                 YTD Avg Efficiency: 92.1%
               </span>
             </div>
@@ -537,8 +643,8 @@ export const PartnerDashboardView: React.FC = () => {
                 <YAxis yAxisId="right" orientation="right" domain={[70, 100]} tick={{ fontSize: 11, fill: '#D97706' }} tickFormatter={(val) => `${val}%`} />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
-                <Bar yAxisId="left" dataKey="billed" name="Billed Revenue (RM)" fill="#16223A" radius={[4, 4, 0, 0]} barSize={20} />
-                <Bar yAxisId="left" dataKey="collected" name="Cash Collected (RM)" fill="#10B981" radius={[4, 4, 0, 0]} barSize={20} />
+                <Bar yAxisId="left" dataKey="billed" name="Billed Revenue (RM)" fill={palette.navy} radius={[4, 4, 0, 0]} barSize={20} />
+                <Bar yAxisId="left" dataKey="collected" name="Cash Collected (RM)" fill={palette.green} radius={[4, 4, 0, 0]} barSize={20} />
                 <Line yAxisId="left" type="monotone" dataKey="target" name="Monthly Target (RM)" stroke="#F59E0B" strokeWidth={2} strokeDasharray="4 4" dot={false} />
                 <Line yAxisId="right" type="monotone" dataKey="collectionRate" name="Collection Efficiency (%)" stroke="#2563EB" strokeWidth={2.5} dot={{ r: 4, fill: '#2563EB' }} />
               </ComposedChart>
@@ -552,7 +658,7 @@ export const PartnerDashboardView: React.FC = () => {
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
                 <h3 className="font-serif text-base font-bold text-[#16223A] flex items-center gap-2">
-                  <Activity className="w-4.5 h-4.5 text-emerald-700" />
+                  <Activity className="w-4.5 h-4.5 text-[#2F6F4E]" />
                   <span>Date-wise Collections Audit</span>
                 </h3>
                 <p className="text-[10.5px] text-slate-500">Live ledger of incoming office &amp; client account receipts.</p>
@@ -574,19 +680,19 @@ export const PartnerDashboardView: React.FC = () => {
             {/* Collection Items List */}
             <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
               {filteredCollections.map((col) => (
-                <div key={col.id} className="p-3 bg-slate-50 hover:bg-amber-50/50 border border-slate-200 rounded-xl transition-all space-y-1 shadow-2xs">
+                <div key={col.id} className="p-3 bg-slate-50 hover:bg-[#FBF2E9]/50 border border-slate-200 rounded-xl transition-all space-y-1 shadow-2xs">
                   <div className="flex justify-between items-center">
                     <span className="font-mono text-[10px] font-bold text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">
                       {col.date}
                     </span>
-                    <span className="font-mono font-extrabold text-emerald-900 text-xs">
+                    <span className="font-mono font-extrabold text-[#2F6F4E] text-xs">
                       +RM {col.amount.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
                   <div className="font-bold text-xs text-[#16223A] truncate">{col.client}</div>
                   <div className="flex justify-between items-center text-[10px] text-slate-500 pt-0.5">
                     <span className="truncate max-w-[140px]">{col.ref}</span>
-                    <span className="font-semibold text-amber-900 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                    <span className="font-semibold text-[#8A6D3B] bg-[#FBF2E9] px-1.5 py-0.2 rounded border border-[#FBF2E9]">
                       PIC: {col.partner}
                     </span>
                   </div>
@@ -612,10 +718,10 @@ export const PartnerDashboardView: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-                <Share2 className="w-5 h-5 text-amber-600" />
+                <Share2 className="w-5 h-5 text-[#8A6D3B]" />
                 Referral Sources &amp; Conversion Performance Analytics
               </h2>
-              <span className="bg-amber-100 text-amber-900 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full border border-amber-300">
+              <span className="bg-[#FBF2E9] text-[#8A6D3B] font-extrabold text-[10px] px-2.5 py-0.5 rounded-full border border-[#8A6D3B]">
                 {overallReferralConversionRate}% Conversion Rate
               </span>
             </div>
@@ -646,8 +752,8 @@ export const PartnerDashboardView: React.FC = () => {
                   <YAxis tick={{ fontSize: 11, fill: '#475569' }} />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} />
-                  <Bar dataKey="total" name="Total Referred Leads" fill="#16223A" radius={[4, 4, 0, 0]} barSize={24} />
-                  <Bar dataKey="converted" name="Converted Files" fill="#10B981" radius={[4, 4, 0, 0]} barSize={24} />
+                  <Bar dataKey="total" name="Total Referred Leads" fill={palette.navy} radius={[4, 4, 0, 0]} barSize={24} />
+                  <Bar dataKey="converted" name="Converted Files" fill={palette.green} radius={[4, 4, 0, 0]} barSize={24} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -657,10 +763,10 @@ export const PartnerDashboardView: React.FC = () => {
           <div className="bg-slate-50/70 border border-slate-200 rounded-xl p-4 flex flex-col justify-between space-y-3">
             <div className="flex justify-between items-center">
               <h3 className="font-serif text-sm font-bold text-[#16223A] flex items-center gap-1.5">
-                <LucidePieChart className="w-4 h-4 text-amber-600" />
+                <LucidePieChart className="w-4 h-4 text-[#8A6D3B]" />
                 <span>Retainer Value Share</span>
               </h3>
-              <span className="font-mono text-xs font-bold text-amber-900">
+              <span className="font-mono text-xs font-bold text-[#8A6D3B]">
                 RM {(totalReferralValue / 1000).toFixed(0)}k
               </span>
             </div>
@@ -704,7 +810,7 @@ export const PartnerDashboardView: React.FC = () => {
         <div className="pt-2 space-y-3">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
             <h3 className="font-serif text-sm font-bold text-[#16223A] flex items-center gap-1.5">
-              <Briefcase className="w-4 h-4 text-amber-600" />
+              <Briefcase className="w-4 h-4 text-[#8A6D3B]" />
               <span>Referrals Register &amp; Lead Conversion Tracking</span>
             </h3>
 
@@ -741,7 +847,7 @@ export const PartnerDashboardView: React.FC = () => {
                     </td>
                     <td className="p-3">
                       <div className="font-semibold text-slate-800">{refItem.referrer}</div>
-                      <div className="text-[10px] text-amber-800 font-medium">{refItem.category}</div>
+                      <div className="text-[10px] text-[#8A6D3B] font-medium">{refItem.category}</div>
                     </td>
                     <td className="p-3 text-center font-bold">
                       <span className="ref-seal">{refItem.partnerPIC}</span>
@@ -753,10 +859,10 @@ export const PartnerDashboardView: React.FC = () => {
                       <span
                         className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
                           refItem.status === 'Converted'
-                            ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                            : refItem.status === 'In Progress'
-                            ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                            : 'bg-rose-100 text-rose-900 border border-rose-300'
+                            ? 'bg-[#E6EFE9] text-[#2F6F4E] border border-[#2F6F4E]'
+                            : refItem.status === 'Lost'
+                            ? 'bg-[#FBEDE9] text-[#B23A2E] border border-[#B23A2E]'
+                            : 'bg-[#FBF2E9] text-[#8A6D3B] border border-[#8A6D3B]'
                         }`}
                       >
                         {refItem.status}
@@ -784,7 +890,7 @@ export const PartnerDashboardView: React.FC = () => {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 pb-3">
           <div>
             <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-              <Users className="w-5 h-5 text-amber-600" />
+              <Users className="w-5 h-5 text-[#8A6D3B]" />
               Comparative Partner KPI Benchmarks &amp; Performance Matrix
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -839,8 +945,8 @@ export const PartnerDashboardView: React.FC = () => {
                   <YAxis tick={{ fontSize: 11, fill: '#475569' }} tickFormatter={(val) => `RM ${(val / 1000).toFixed(0)}k`} />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} />
-                  <Bar dataKey="billed" name="Billed Revenue (RM)" fill="#16223A" radius={[4, 4, 0, 0]} barSize={28} />
-                  <Bar dataKey="collected" name="Cash Collected (RM)" fill="#10B981" radius={[4, 4, 0, 0]} barSize={28} />
+                  <Bar dataKey="billed" name="Billed Revenue (RM)" fill={palette.navy} radius={[4, 4, 0, 0]} barSize={28} />
+                  <Bar dataKey="collected" name="Cash Collected (RM)" fill={palette.green} radius={[4, 4, 0, 0]} barSize={28} />
                 </BarChart>
               ) : partnerBenchmarkMetric === 'REFERRALS' ? (
                 <BarChart data={partnersKPIMatrix} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
@@ -849,8 +955,8 @@ export const PartnerDashboardView: React.FC = () => {
                   <YAxis tick={{ fontSize: 11, fill: '#475569' }} />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} />
-                  <Bar dataKey="referralsSourced" name="Referrals Sourced" fill="#2563EB" radius={[4, 4, 0, 0]} barSize={28} />
-                  <Bar dataKey="referralsConverted" name="Converted Files" fill="#10B981" radius={[4, 4, 0, 0]} barSize={28} />
+                  <Bar dataKey="referralsSourced" name="Referrals Sourced" fill={palette.blue} radius={[4, 4, 0, 0]} barSize={28} />
+                  <Bar dataKey="referralsConverted" name="Converted Files" fill={palette.green} radius={[4, 4, 0, 0]} barSize={28} />
                 </BarChart>
               ) : (
                 <BarChart data={partnersKPIMatrix} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
@@ -859,8 +965,8 @@ export const PartnerDashboardView: React.FC = () => {
                   <YAxis domain={[50, 100]} tick={{ fontSize: 11, fill: '#475569' }} tickFormatter={(val) => `${val}%`} />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} />
-                  <Bar dataKey="collectionEfficiency" name="Collection Efficiency (%)" fill="#D97706" radius={[4, 4, 0, 0]} barSize={28} />
-                  <Bar dataKey="resolutionRate" name="Matter Resolution Rate (%)" fill="#059669" radius={[4, 4, 0, 0]} barSize={28} />
+                  <Bar dataKey="collectionEfficiency" name="Collection Efficiency (%)" fill={palette.gold} radius={[4, 4, 0, 0]} barSize={28} />
+                  <Bar dataKey="resolutionRate" name="Matter Resolution Rate (%)" fill={palette.blue} radius={[4, 4, 0, 0]} barSize={28} />
                 </BarChart>
               )}
             </ResponsiveContainer>
@@ -894,20 +1000,20 @@ export const PartnerDashboardView: React.FC = () => {
                     <td className="p-3 text-right font-mono font-bold text-slate-800">
                       RM {p.billed.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
                     </td>
-                    <td className="p-3 text-right font-mono font-extrabold text-emerald-800">
+                    <td className="p-3 text-right font-mono font-extrabold text-[#2F6F4E]">
                       RM {p.collected.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
                     </td>
                     <td className="p-3 text-center font-bold">
-                      <span className="bg-emerald-50 text-emerald-900 border border-emerald-200 px-2 py-0.5 rounded text-[11px]">
+                      <span className="bg-[#E6EFE9] text-[#2F6F4E] border border-[#E6EFE9] px-2 py-0.5 rounded text-[11px]">
                         {p.collectionEfficiency}%
                       </span>
                     </td>
                     <td className="p-3 text-center font-bold text-slate-800">{p.referralsSourced}</td>
-                    <td className="p-3 text-center font-bold text-amber-900">{p.referralConversionRate}%</td>
+                    <td className="p-3 text-center font-bold text-[#8A6D3B]">{p.referralConversionRate}%</td>
                     <td className="p-3 text-right font-mono font-bold text-[#16223A]">
                       RM {p.convertedRetainersValue.toLocaleString()}
                     </td>
-                    <td className="p-3 text-center font-bold text-blue-900">{p.activeMatters}</td>
+                    <td className="p-3 text-center font-bold text-[#3D6B9C]">{p.activeMatters}</td>
                   </tr>
                 ))}
               </tbody>
@@ -922,10 +1028,10 @@ export const PartnerDashboardView: React.FC = () => {
         <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-3">
           <div className="flex justify-between items-center border-b border-slate-100 pb-2">
             <h3 className="font-serif text-sm font-bold text-[#16223A] flex items-center gap-2">
-              <AlertTriangle className="w-4.5 h-4.5 text-rose-700" />
+              <AlertTriangle className="w-4.5 h-4.5 text-[#B23A2E]" />
               <span>High Risk Litigation Deadlines &amp; Limitation Audit</span>
             </h3>
-            <span className="text-[10px] text-rose-700 bg-rose-50 px-2 py-0.5 rounded font-bold border border-rose-200">
+            <span className="text-[10px] text-[#B23A2E] bg-[#FBEDE9] px-2 py-0.5 rounded font-bold border border-[#FBEDE9]">
               Partner Oversight
             </span>
           </div>
@@ -936,11 +1042,11 @@ export const PartnerDashboardView: React.FC = () => {
               return (
                 <div
                   key={d.id}
-                  className="p-3 bg-rose-50/70 border border-rose-200 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 shadow-2xs"
+                  className="p-3 bg-[#FBEDE9]/70 border border-[#FBEDE9] rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 shadow-2xs"
                 >
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-rose-900 text-xs">{d.title}</span>
+                      <span className="font-bold text-[#B23A2E] text-xs">{d.title}</span>
                       <span className="ref-seal">{cs ? cs.ref : '—'}</span>
                     </div>
                     <p className="text-[11px] text-slate-600 mt-0.5">
@@ -949,13 +1055,13 @@ export const PartnerDashboardView: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="font-mono text-rose-900 font-bold text-xs bg-white px-2 py-0.5 rounded border border-rose-300">
+                    <span className="font-mono text-[#B23A2E] font-bold text-xs bg-white px-2 py-0.5 rounded border border-[#B23A2E]">
                       Due: {d.dueDate}
                     </span>
                     <button
                       type="button"
                       onClick={() => showToast(`Opened deadline review for ${d.title}`)}
-                      className="px-2.5 py-1 bg-rose-800 hover:bg-rose-900 text-white font-bold text-[10.5px] rounded-lg cursor-pointer"
+                      className="px-2.5 py-1 bg-[#B23A2E] hover:bg-[#B23A2E] text-white font-bold text-[10.5px] rounded-lg cursor-pointer"
                     >
                       Review
                     </button>
@@ -970,10 +1076,10 @@ export const PartnerDashboardView: React.FC = () => {
         <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-3">
           <div className="flex justify-between items-center border-b border-slate-100 pb-2">
             <h3 className="font-serif text-sm font-bold text-[#16223A] flex items-center gap-2">
-              <FileCheck className="w-4.5 h-4.5 text-amber-600" />
+              <FileCheck className="w-4.5 h-4.5 text-[#8A6D3B]" />
               <span>Pending Payment Voucher Sign-Offs ({paymentVouchers.filter((pv) => !pv.approved).length})</span>
             </h3>
-            <span className="text-[10px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded font-bold border border-amber-300">
+            <span className="text-[10px] text-[#8A6D3B] bg-[#FBF2E9] px-2 py-0.5 rounded font-bold border border-[#8A6D3B]">
               SAR 1990 Approval
             </span>
           </div>
@@ -985,11 +1091,11 @@ export const PartnerDashboardView: React.FC = () => {
               paymentVouchers
                 .filter((pv) => !pv.approved)
                 .map((pv) => (
-                  <div key={pv.id} className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 shadow-2xs">
+                  <div key={pv.id} className="p-3 bg-[#FBF2E9]/70 border border-[#FBF2E9] rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 shadow-2xs">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-amber-950 text-xs">{pv.id}</span>
-                        <span className="text-[10px] font-bold bg-amber-200 text-amber-950 px-1.5 py-0.2 rounded uppercase">
+                        <span className="font-bold text-[#8A6D3B] text-xs">{pv.id}</span>
+                        <span className="text-[10px] font-bold bg-[#FBF2E9] text-[#8A6D3B] px-1.5 py-0.2 rounded uppercase">
                           {pv.accountSet} ACCOUNT
                         </span>
                       </div>
@@ -1003,7 +1109,7 @@ export const PartnerDashboardView: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => showToast(`Payment Voucher ${pv.id} approved by Partner.`)}
-                        className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-[#16223A] font-extrabold text-[10.5px] rounded-lg cursor-pointer"
+                        className="px-2.5 py-1 bg-[#8A6D3B] hover:bg-[#8A6D3B] text-[#16223A] font-extrabold text-[10.5px] rounded-lg cursor-pointer"
                       >
                         Sign Off
                       </button>

@@ -7,9 +7,11 @@ import { DocPreviewModal } from '../modals/DocPreviewModal';
 import { getPracticeSettings } from '../../services/templateService';
 import { FileText, Plus, Calculator, Search, ArrowRight, Eye, CheckCircle2, CalendarDays, Video, Receipt, Upload, Send, Save, X, Mail, MessageSquare, ExternalLink, ChevronRight } from 'lucide-react';
 import { LineItemsEditor } from '../LineItemsEditor';
+import { TabPills } from '../ui';
+import { palette } from '../../lib/designTokens';
 
 export const QuotationsView: React.FC = () => {
-  const { quotations, clients, leads, quoteTemplates, invoices, receipts, addQuotation, updateQuotation, addInvoice, currentPartnerCode, currentUser, addClientPortalUpdate, showToast, setCurrentView } = useApp();
+  const { quotations, clients, leads, quoteTemplates, invoices, receipts, addQuotation, updateQuotation, addInvoice, getNextSequenceId, currentPartnerCode, currentUser, addClientPortalUpdate, showToast, setCurrentView } = useApp();
 
   const [previewDocId, setPreviewDocId] = useState<string | null>(null);
   const [isNewQuoteOpen, setIsNewQuoteOpen] = useState(false);
@@ -148,7 +150,7 @@ export const QuotationsView: React.FC = () => {
       showToast('Mark the quotation as agreed before creating an invoice.');
       return;
     }
-    const invId = `INV-${Math.floor(1000 + Math.random() * 9000)}`;
+    const invId = getNextSequenceId('invoice');
     const newInv: Invoice = {
       id: invId,
       clientId: q.partyId || q.leadId || 'PROSPECT-UNREGISTERED',
@@ -168,7 +170,6 @@ export const QuotationsView: React.FC = () => {
     };
 
     addInvoice(newInv);
-    q.status = 'Accepted';
     showToast(`Quotation ${q.id} converted to Tax Invoice ${newInv.id}`);
   };
 
@@ -430,19 +431,18 @@ export const QuotationsView: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Top Banner Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 rounded-xl p-4 text-white shadow-md" style={{ backgroundColor: palette.navy }}>
         <div>
-          <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-            <FileText className="w-5 h-5 text-[#A9814A]" />
-            Fee Quotations &amp; SRO 2023 Fee Engine
+          <h2 className="font-serif text-lg font-bold flex items-center gap-2">
+            <FileText className="w-5 h-5" style={{ color: palette.gold }} />
+            Quotations &amp; Billing
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Compliant with Solicitors' Remuneration Order (SRO 2023) First Schedule scale fees.
+          <p className="text-xs text-slate-300 mt-0.5">
+            Quotation → Proforma → Invoice → Receipt pipeline. SRO 2023 First Schedule scale fees built in.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Search Box */}
           <div className="relative">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
@@ -450,13 +450,14 @@ export const QuotationsView: React.FC = () => {
               placeholder="Search Client Name / Quote ID..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 pr-3 py-1.5 bg-[#FAF8F2] border border-[#E1DCCF] rounded-lg text-xs w-56 focus:outline-none focus:border-[#A9814A]"
+              className="pl-8 pr-3 py-1.5 bg-white/10 border border-white/20 rounded-lg text-xs w-56 text-white placeholder:text-slate-400 focus:outline-none focus:border-white/40"
             />
           </div>
 
           <button
             onClick={() => setIsNewQuoteOpen(true)}
-            className="bg-[#16223A] hover:bg-[#1F2E4D] text-[#F6F4EE] text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs whitespace-nowrap"
+            className="text-white text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs whitespace-nowrap"
+            style={{ backgroundColor: palette.blue }}
           >
             <Plus className="w-4 h-4" />
             <span>New Quotation</span>
@@ -464,33 +465,45 @@ export const QuotationsView: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 border-b border-[#E1DCCF] pb-2 sm:grid-cols-4">
+      {/* Pipeline stat cards — 01 Quotations / 02 Proforma / 03 Invoices / 04 Receipts */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {([
-          ['quotations', 'Quotation', FileText, quotationRecords.length],
-          ['proforma', 'Proforma Invoices', FileText, proformaRecords.length],
-          ['invoices', 'Invoices', Receipt, invoices.length],
-          ['receipts', 'Official Receipt', CheckCircle2, receipts.length],
-        ] as const).map(([tab, label, Icon, count]) => (
-          <button type="button" key={tab} onClick={() => { setActiveTab(tab); setStatusFilter('All'); }} className={`flex items-center justify-between rounded-lg border px-3 py-2 text-left text-xs font-bold cursor-pointer ${activeTab === tab ? 'border-[#16223A] bg-[#16223A] text-white' : 'border-[#E1DCCF] bg-white text-slate-600'}`}>
-            <span><Icon className="mr-1 inline h-3.5 w-3.5" />{label}</span>
-            <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${activeTab === tab ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-500'}`}>{count}</span>
-          </button>
+          ['01', 'Quotations', quotationRecords.length, palette.blue],
+          ['02', 'Proforma', proformaRecords.length, '#6E96C0'],
+          ['03', 'Invoices', invoices.length, palette.navy],
+          ['04', 'Receipts', receipts.length, palette.green],
+        ] as const).map(([num, label, count, color]) => (
+          <div key={label} className="rounded-lg border-t-4 bg-white p-3 shadow-xs" style={{ borderTopColor: color }}>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-[#5B6478]">{num} · {label}</p>
+            <p className="mt-1 text-2xl font-bold" style={{ color }}>{count}</p>
+          </div>
         ))}
       </div>
 
+      <TabPills
+        activeId={activeTab}
+        onSelect={(id) => { setActiveTab(id as typeof activeTab); setStatusFilter('All'); }}
+        items={[
+          { id: 'quotations', label: `Quotations (${quotationRecords.length})` },
+          { id: 'proforma', label: `Proforma Invoices (${proformaRecords.length})` },
+          { id: 'invoices', label: `Invoices (${invoices.length})` },
+          { id: 'receipts', label: `Receipts (${receipts.length})` },
+        ]}
+      />
+
       {(activeTab === 'quotations' || activeTab === 'proforma') && <>
-      <div className="flex flex-col gap-3 rounded-xl border border-[#E1DCCF] bg-[#FAF8F2] p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div><p className="text-[10px] font-bold uppercase tracking-widest text-[#A9814A]">Billing stage {activeTab === 'quotations' ? '01' : '02'}</p><h3 className="font-serif text-lg font-bold text-[#16223A]">{activeTab === 'quotations' ? 'Quotations' : 'Proforma Invoices'}</h3><p className="text-[11px] text-slate-500">Move records forward only after the current stage is approved.</p></div>
+      <div className="flex flex-col gap-3 rounded-xl border border-[#DDE3EB] bg-[#F6F8FA] p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div><p className="text-[10px] font-bold uppercase tracking-widest text-[#3D6B9C]">Billing stage {activeTab === 'quotations' ? '01' : '02'}</p><h3 className="font-serif text-lg font-bold text-[#16223A]">{activeTab === 'quotations' ? 'Quotations' : 'Proforma Invoices'}</h3><p className="text-[11px] text-slate-500">Move records forward only after the current stage is approved.</p></div>
         <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="w-full sm:w-48">
           <option value="All">All statuses</option>
           {['Draft', 'Pending Approval', 'Ready', 'Sent', 'Accepted', 'Declined'].map((status) => <option key={status} value={status}>{status}</option>)}
         </select>
       </div>
       {/* Quotations Table */}
-      <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
-            <tr className="bg-[#F6F4EE] border-b border-[#E1DCCF] text-[10px] uppercase tracking-wider text-slate-600">
+            <tr className="bg-[#F6F8FA] border-b border-[#DDE3EB] text-[10px] uppercase tracking-wider text-slate-600">
               <th className="p-3 font-bold">Document No</th>
               <th className="p-3 font-bold">Date</th>
               <th className="p-3 font-bold">Client / Lead</th>
@@ -511,8 +524,8 @@ export const QuotationsView: React.FC = () => {
               </tr>
             ) : (
               visibleQuotationRecords.map((q) => (
-                <tr key={q.id} className="hover:bg-[#FAF8F2] transition-colors">
-                  <td className="p-3 font-mono font-medium text-slate-800"><div>{q.id}</div><span className={`text-[9px] font-bold uppercase ${q.documentType === 'Proforma' ? 'text-amber-700' : 'text-blue-700'}`}>{q.documentType || 'Quotation'}</span></td>
+                <tr key={q.id} className="hover:bg-[#F6F8FA] transition-colors">
+                  <td className="p-3 font-mono font-medium text-slate-800"><div>{q.id}</div><span className={`text-[9px] font-bold uppercase ${q.documentType === 'Proforma' ? 'text-[#8A6D3B]' : 'text-[#3D6B9C]'}`}>{q.documentType || 'Quotation'}</span></td>
                   <td className="p-3 font-mono text-slate-600">{q.date}</td>
                   <td className="p-3 font-bold text-[#16223A]">{q.clientName}</td>
                   <td className="p-3 font-medium text-slate-800">{q.practiceArea}</td>
@@ -524,15 +537,15 @@ export const QuotationsView: React.FC = () => {
                     <span
                       className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                         q.status === 'Sent'
-                          ? 'bg-blue-100 text-blue-800'
+                          ? 'bg-[#E7EEF6] text-[#3D6B9C]'
                           : q.status === 'Pending Approval'
-                          ? 'bg-amber-100 text-amber-800'
+                          ? 'bg-[#FBF2E9] text-[#8A6D3B]'
                           : q.status === 'Ready'
-                          ? 'bg-indigo-100 text-indigo-800'
+                          ? 'bg-[#F1EBF6] text-[#6B3D8C]'
                           : q.status === 'Accepted'
-                          ? 'bg-emerald-100 text-emerald-800'
+                          ? 'bg-[#E6EFE9] text-[#2F6F4E]'
                           : q.status === 'Declined'
-                          ? 'bg-rose-100 text-rose-800'
+                          ? 'bg-[#FBEDE9] text-[#B23A2E]'
                           : 'bg-slate-100 text-slate-700'
                       }`}
                     >
@@ -542,13 +555,13 @@ export const QuotationsView: React.FC = () => {
                   <td className="p-3 text-[10px] text-slate-600">
                     <div className="font-semibold">{q.lastEditedBy || 'Not recorded'}</div>
                     {q.lastEditedAt && <div>{new Date(q.lastEditedAt).toLocaleString()}</div>}
-                    {q.documents?.length ? <div className="text-amber-700">{q.documents.length} attachment{q.documents.length === 1 ? '' : 's'}</div> : null}
+                    {q.documents?.length ? <div className="text-[#8A6D3B]">{q.documents.length} attachment{q.documents.length === 1 ? '' : 's'}</div> : null}
                   </td>
                   <td className="p-3 text-right">
                     <div className="flex flex-wrap items-center justify-end gap-1.5">
                       <button
                         onClick={() => setPreviewDocId(q.id)}
-                        className="px-2 py-1 text-[11px] font-semibold border border-[#E1DCCF] text-slate-800 hover:bg-slate-100 rounded-md transition-colors cursor-pointer flex items-center gap-1"
+                        className="px-2 py-1 text-[11px] font-semibold border border-[#DDE3EB] text-slate-800 hover:bg-slate-100 rounded-md transition-colors cursor-pointer flex items-center gap-1"
                         title="View Official PDF / Doc"
                       >
                         <Eye className="w-3.5 h-3.5 text-slate-500" />
@@ -556,27 +569,27 @@ export const QuotationsView: React.FC = () => {
                       </button>
 
                       {q.status === 'Draft' && (
-                        <button type="button" onClick={() => handleSubmitForApproval(q)} className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-bold text-amber-900 hover:bg-amber-100 cursor-pointer">Submit for Approval</button>
+                        <button type="button" onClick={() => handleSubmitForApproval(q)} className="rounded-md border border-[#8A6D3B] bg-[#FBF2E9] px-2 py-1 text-[11px] font-bold text-[#8A6D3B] hover:bg-[#FBF2E9] cursor-pointer">Submit for Approval</button>
                       )}
 
                       {q.status === 'Pending Approval' && (
                         <>
-                          <button type="button" onClick={() => handleApproveQuotation(q)} className="rounded-md bg-emerald-700 px-2 py-1 text-[11px] font-bold text-white hover:bg-emerald-800 cursor-pointer"><CheckCircle2 className="mr-1 inline h-3.5 w-3.5" />Approve</button>
-                          <button type="button" onClick={() => handleRejectQuotation(q)} className="rounded-md border border-rose-300 bg-rose-50 px-2 py-1 text-[11px] font-bold text-rose-800 hover:bg-rose-100 cursor-pointer"><X className="mr-1 inline h-3.5 w-3.5" />Reject</button>
+                          <button type="button" onClick={() => handleApproveQuotation(q)} className="rounded-md bg-[#2F6F4E] px-2 py-1 text-[11px] font-bold text-white hover:bg-[#2F6F4E] cursor-pointer"><CheckCircle2 className="mr-1 inline h-3.5 w-3.5" />Approve</button>
+                          <button type="button" onClick={() => handleRejectQuotation(q)} className="rounded-md border border-[#B23A2E] bg-[#FBEDE9] px-2 py-1 text-[11px] font-bold text-[#B23A2E] hover:bg-[#FBEDE9] cursor-pointer"><X className="mr-1 inline h-3.5 w-3.5" />Reject</button>
                         </>
                       )}
 
                       {q.status === 'Ready' && (
                         <>
                           <button type="button" onClick={() => handleSaveInternalRecord(q)} className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"><Save className="mr-1 inline h-3.5 w-3.5" />Save Internal</button>
-                          <button type="button" onClick={() => handleSendToClient(q)} className="rounded-md bg-[#16223A] px-2 py-1 text-[11px] font-bold text-white hover:bg-[#1F2E4D] cursor-pointer"><Send className="mr-1 inline h-3.5 w-3.5" />Send to Client</button>
+                          <button type="button" onClick={() => handleSendToClient(q)} className="rounded-md bg-[#16223A] px-2 py-1 text-[11px] font-bold text-white hover:bg-[#16223A] cursor-pointer"><Send className="mr-1 inline h-3.5 w-3.5" />Send to Client</button>
                         </>
                       )}
 
                       {q.status === 'Sent' && (
                         <>
-                          <button type="button" onClick={() => handleMarkAgreed(q)} className="rounded-md bg-emerald-700 px-2 py-1 text-[11px] font-bold text-white hover:bg-emerald-800 cursor-pointer">Mark as Agreed</button>
-                          <button type="button" onClick={() => handleMarkDeclined(q)} className="rounded-md border border-rose-300 bg-rose-50 px-2 py-1 text-[11px] font-bold text-rose-800 hover:bg-rose-100 cursor-pointer">Decline</button>
+                          <button type="button" onClick={() => handleMarkAgreed(q)} className="rounded-md bg-[#2F6F4E] px-2 py-1 text-[11px] font-bold text-white hover:bg-[#2F6F4E] cursor-pointer">Mark as Agreed</button>
+                          <button type="button" onClick={() => handleMarkDeclined(q)} className="rounded-md border border-[#B23A2E] bg-[#FBEDE9] px-2 py-1 text-[11px] font-bold text-[#B23A2E] hover:bg-[#FBEDE9] cursor-pointer">Decline</button>
                         </>
                       )}
 
@@ -590,7 +603,7 @@ export const QuotationsView: React.FC = () => {
                       {q.documentType !== 'Proforma' && q.status === 'Accepted' && (
                         <button
                           onClick={() => handleCreateProforma(q)}
-                          className="px-2 py-1 text-[11px] font-bold border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 rounded-md transition-colors cursor-pointer flex items-center gap-1"
+                          className="px-2 py-1 text-[11px] font-bold border border-[#8A6D3B] bg-[#FBF2E9] text-[#8A6D3B] hover:bg-[#FBF2E9] rounded-md transition-colors cursor-pointer flex items-center gap-1"
                           title="Create a proforma quotation from this quotation"
                         >
                           <FileText className="w-3.5 h-3.5" />
@@ -612,7 +625,7 @@ export const QuotationsView: React.FC = () => {
                       {q.status === 'Accepted' && (
                         <button
                           onClick={() => handleConvertToInvoice(q)}
-                          className="px-2 py-1 text-[11px] font-bold bg-[#A9814A] hover:bg-[#8e6b3b] text-white rounded-md transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
+                          className="px-2 py-1 text-[11px] font-bold bg-[#3D6B9C] hover:bg-[#2f5680] text-white rounded-md transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
                           title="Convert quotation directly to Tax Invoice"
                         >
                           <ArrowRight className="w-3.5 h-3.5" />
@@ -620,9 +633,9 @@ export const QuotationsView: React.FC = () => {
                         </button>
                       )}
 
-                      <button type="button" onClick={() => notifyBillingStage(q, `${q.documentType === 'Proforma' ? 'Proforma invoice' : 'Quotation'} update`, `Your ${q.documentType === 'Proforma' ? 'proforma invoice' : 'quotation'} ${q.id} is currently ${q.status}. Total: RM ${q.total.toLocaleString('en-MY', { minimumFractionDigits: 2 })}.`)} className="rounded-md border border-emerald-300 px-2 py-1 text-[11px] font-bold text-emerald-800 hover:bg-emerald-50 cursor-pointer" title="Update Client Portal"><ExternalLink className="mr-1 inline h-3.5 w-3.5" />Portal</button>
-                      <button type="button" onClick={() => notifyClient(q.partyId || clients.find((client) => client.name === q.clientName)?.id, `${q.documentType === 'Proforma' ? 'Proforma invoice' : 'Quotation'} update`, `Your document ${q.id} is currently ${q.status}. Total: RM ${q.total.toLocaleString('en-MY', { minimumFractionDigits: 2 })}.`, 'email')} className="rounded-md border border-blue-300 px-2 py-1 text-[11px] font-bold text-blue-800 hover:bg-blue-50 cursor-pointer" title="Email client"><Mail className="mr-1 inline h-3.5 w-3.5" />Email</button>
-                      <button type="button" onClick={() => notifyClient(q.partyId || clients.find((client) => client.name === q.clientName)?.id, `${q.documentType === 'Proforma' ? 'Proforma invoice' : 'Quotation'} update`, `Your document ${q.id} is currently ${q.status}. Total: RM ${q.total.toLocaleString('en-MY', { minimumFractionDigits: 2 })}.`, 'whatsapp')} className="rounded-md border border-green-300 px-2 py-1 text-[11px] font-bold text-green-800 hover:bg-green-50 cursor-pointer" title="WhatsApp client"><MessageSquare className="mr-1 inline h-3.5 w-3.5" />WhatsApp</button>
+                      <button type="button" onClick={() => notifyBillingStage(q, `${q.documentType === 'Proforma' ? 'Proforma invoice' : 'Quotation'} update`, `Your ${q.documentType === 'Proforma' ? 'proforma invoice' : 'quotation'} ${q.id} is currently ${q.status}. Total: RM ${q.total.toLocaleString('en-MY', { minimumFractionDigits: 2 })}.`)} className="rounded-md border border-[#2F6F4E] px-2 py-1 text-[11px] font-bold text-[#2F6F4E] hover:bg-[#E6EFE9] cursor-pointer" title="Update Client Portal"><ExternalLink className="mr-1 inline h-3.5 w-3.5" />Portal</button>
+                      <button type="button" onClick={() => notifyClient(q.partyId || clients.find((client) => client.name === q.clientName)?.id, `${q.documentType === 'Proforma' ? 'Proforma invoice' : 'Quotation'} update`, `Your document ${q.id} is currently ${q.status}. Total: RM ${q.total.toLocaleString('en-MY', { minimumFractionDigits: 2 })}.`, 'email')} className="rounded-md border border-[#3D6B9C] px-2 py-1 text-[11px] font-bold text-[#3D6B9C] hover:bg-[#E7EEF6] cursor-pointer" title="Email client"><Mail className="mr-1 inline h-3.5 w-3.5" />Email</button>
+                      <button type="button" onClick={() => notifyClient(q.partyId || clients.find((client) => client.name === q.clientName)?.id, `${q.documentType === 'Proforma' ? 'Proforma invoice' : 'Quotation'} update`, `Your document ${q.id} is currently ${q.status}. Total: RM ${q.total.toLocaleString('en-MY', { minimumFractionDigits: 2 })}.`, 'whatsapp')} className="rounded-md border border-[#2F6F4E] px-2 py-1 text-[11px] font-bold text-[#2F6F4E] hover:bg-[#E6EFE9] cursor-pointer" title="WhatsApp client"><MessageSquare className="mr-1 inline h-3.5 w-3.5" />WhatsApp</button>
                     </div>
                   </td>
                 </tr>
@@ -634,21 +647,21 @@ export const QuotationsView: React.FC = () => {
       </>}
 
       {activeTab === 'invoices' && <div className="space-y-4">
-        <div className="flex flex-col gap-3 rounded-xl border border-[#E1DCCF] bg-[#FAF8F2] p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#A9814A]">Billing stage 03</p><h3 className="font-serif text-lg font-bold text-[#16223A]">Invoices</h3><p className="text-[11px] text-slate-500">Invoices update here when a proforma or agreed quotation is transferred.</p></div><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="w-full sm:w-48"><option value="All">All statuses</option>{['Draft', 'Pending Review', 'Ready', 'Unpaid', 'Partial', 'Paid', 'Voided'].map((status) => <option key={status} value={status}>{status}</option>)}</select></div>
-        <div className="overflow-x-auto rounded-xl border border-[#E1DCCF] bg-white"><table className="w-full text-left text-xs"><thead><tr className="border-b border-[#E1DCCF] bg-[#F6F4EE] text-[10px] uppercase text-slate-600"><th className="p-3">Invoice</th><th className="p-3">Client / Matter</th><th className="p-3">Date</th><th className="p-3 text-right">Total</th><th className="p-3">Status</th><th className="p-3 text-right">Client update</th></tr></thead><tbody className="divide-y divide-slate-100">{invoiceRecords.length ? invoiceRecords.map((invoice) => { const message = `Your invoice ${invoice.id} is now ${invoice.status}. Total: RM ${invoice.total.toLocaleString('en-MY', { minimumFractionDigits: 2 })}.`; return <tr key={invoice.id}><td className="p-3 font-mono font-bold text-[#16223A]">{invoice.id}<div className="text-[10px] text-slate-500">Due {invoice.dueDate}</div></td><td className="p-3 font-bold">{invoice.partyName || 'Client'}<div className="text-[10px] text-slate-500">{invoice.fileRef || 'General matter'}</div></td><td className="p-3 font-mono text-slate-600">{invoice.date}</td><td className="p-3 text-right font-mono font-bold">RM {invoice.total.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td><td className="p-3"><span className="rounded bg-slate-100 px-2 py-1 text-[10px] font-bold">{invoice.status}</span></td><td className="p-3"><div className="flex justify-end gap-1"><button type="button" onClick={() => notifyBillingStage(invoice, 'Invoice update', message)} className="rounded border border-emerald-300 px-2 py-1 text-[10px] font-bold text-emerald-800 cursor-pointer" title="Update Client Portal"><ExternalLink className="mr-1 inline h-3 w-3" />Portal</button><button type="button" onClick={() => notifyClient(invoice.clientId, 'Invoice update', message, 'email')} className="rounded border border-blue-300 px-2 py-1 text-[10px] font-bold text-blue-800 cursor-pointer" title="Email client"><Mail className="mr-1 inline h-3 w-3" />Email</button><button type="button" onClick={() => notifyClient(invoice.clientId, 'Invoice update', message, 'whatsapp')} className="rounded border border-green-300 px-2 py-1 text-[10px] font-bold text-green-800 cursor-pointer" title="WhatsApp client"><MessageSquare className="mr-1 inline h-3 w-3" />WhatsApp</button></div></td></tr>; }) : <tr><td colSpan={6} className="p-8 text-center text-slate-500">No invoices match this status.</td></tr>}</tbody></table></div>
+        <div className="flex flex-col gap-3 rounded-xl border border-[#DDE3EB] bg-[#F6F8FA] p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#3D6B9C]">Billing stage 03</p><h3 className="font-serif text-lg font-bold text-[#16223A]">Invoices</h3><p className="text-[11px] text-slate-500">Invoices update here when a proforma or agreed quotation is transferred.</p></div><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="w-full sm:w-48"><option value="All">All statuses</option>{['Draft', 'Pending Review', 'Ready', 'Unpaid', 'Partial', 'Paid', 'Voided'].map((status) => <option key={status} value={status}>{status}</option>)}</select></div>
+        <div className="overflow-x-auto rounded-xl border border-[#DDE3EB] bg-white"><table className="w-full text-left text-xs"><thead><tr className="border-b border-[#DDE3EB] bg-[#F6F8FA] text-[10px] uppercase text-slate-600"><th className="p-3">Invoice</th><th className="p-3">Client / Matter</th><th className="p-3">Date</th><th className="p-3 text-right">Total</th><th className="p-3">Status</th><th className="p-3 text-right">Client update</th></tr></thead><tbody className="divide-y divide-slate-100">{invoiceRecords.length ? invoiceRecords.map((invoice) => { const message = `Your invoice ${invoice.id} is now ${invoice.status}. Total: RM ${invoice.total.toLocaleString('en-MY', { minimumFractionDigits: 2 })}.`; return <tr key={invoice.id}><td className="p-3 font-mono font-bold text-[#16223A]">{invoice.id}<div className="text-[10px] text-slate-500">Due {invoice.dueDate}</div></td><td className="p-3 font-bold">{invoice.partyName || 'Client'}<div className="text-[10px] text-slate-500">{invoice.fileRef || 'General matter'}</div></td><td className="p-3 font-mono text-slate-600">{invoice.date}</td><td className="p-3 text-right font-mono font-bold">RM {invoice.total.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td><td className="p-3"><span className="rounded bg-slate-100 px-2 py-1 text-[10px] font-bold">{invoice.status}</span></td><td className="p-3"><div className="flex justify-end gap-1"><button type="button" onClick={() => notifyBillingStage(invoice, 'Invoice update', message)} className="rounded border border-[#2F6F4E] px-2 py-1 text-[10px] font-bold text-[#2F6F4E] cursor-pointer" title="Update Client Portal"><ExternalLink className="mr-1 inline h-3 w-3" />Portal</button><button type="button" onClick={() => notifyClient(invoice.clientId, 'Invoice update', message, 'email')} className="rounded border border-[#3D6B9C] px-2 py-1 text-[10px] font-bold text-[#3D6B9C] cursor-pointer" title="Email client"><Mail className="mr-1 inline h-3 w-3" />Email</button><button type="button" onClick={() => notifyClient(invoice.clientId, 'Invoice update', message, 'whatsapp')} className="rounded border border-[#2F6F4E] px-2 py-1 text-[10px] font-bold text-[#2F6F4E] cursor-pointer" title="WhatsApp client"><MessageSquare className="mr-1 inline h-3 w-3" />WhatsApp</button></div></td></tr>; }) : <tr><td colSpan={6} className="p-8 text-center text-slate-500">No invoices match this status.</td></tr>}</tbody></table></div>
       </div>}
 
       {activeTab === 'receipts' && <div className="space-y-4">
-        <div className="rounded-xl border border-[#E1DCCF] bg-[#FAF8F2] p-4"><p className="text-[10px] font-bold uppercase tracking-widest text-[#A9814A]">Billing stage 04</p><h3 className="font-serif text-lg font-bold text-[#16223A]">Official Receipts</h3><p className="text-[11px] text-slate-500">Official receipts appear automatically when invoice payments are recorded.</p></div>
-        <div className="overflow-x-auto rounded-xl border border-[#E1DCCF] bg-white"><table className="w-full text-left text-xs"><thead><tr className="border-b border-[#E1DCCF] bg-[#F6F4EE] text-[10px] uppercase text-slate-600"><th className="p-3">Receipt</th><th className="p-3">Received from</th><th className="p-3">Date</th><th className="p-3 text-right">Amount</th><th className="p-3">Received by</th><th className="p-3 text-right">Client update</th></tr></thead><tbody className="divide-y divide-slate-100">{receiptRecords.length ? receiptRecords.map((receipt) => { const message = `Official Receipt ${receipt.id} has been issued for your payment of RM ${receipt.amount.toLocaleString('en-MY', { minimumFractionDigits: 2 })}.`; return <tr key={receipt.id}><td className="p-3 font-mono font-bold text-[#16223A]">{receipt.id}<div className="text-[10px] text-slate-500">{receipt.bankRef}</div></td><td className="p-3 font-bold">{receipt.receivedFrom}<div className="text-[10px] text-slate-500">{receipt.fileRef || 'General matter'}</div></td><td className="p-3 font-mono text-slate-600">{receipt.date}</td><td className="p-3 text-right font-mono font-bold text-emerald-800">RM {receipt.amount.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td><td className="p-3 text-slate-600">{receipt.receivedBy}</td><td className="p-3"><div className="flex justify-end gap-1"><button type="button" onClick={() => notifyBillingStage(receipt, 'Official receipt issued', message)} className="rounded border border-emerald-300 px-2 py-1 text-[10px] font-bold text-emerald-800 cursor-pointer"><ExternalLink className="mr-1 inline h-3 w-3" />Portal</button><button type="button" onClick={() => notifyClient(receipt.clientId, 'Official receipt issued', message, 'email')} className="rounded border border-blue-300 px-2 py-1 text-[10px] font-bold text-blue-800 cursor-pointer"><Mail className="mr-1 inline h-3 w-3" />Email</button><button type="button" onClick={() => notifyClient(receipt.clientId, 'Official receipt issued', message, 'whatsapp')} className="rounded border border-green-300 px-2 py-1 text-[10px] font-bold text-green-800 cursor-pointer"><MessageSquare className="mr-1 inline h-3 w-3" />WhatsApp</button></div></td></tr>; }) : <tr><td colSpan={6} className="p-8 text-center text-slate-500">No official receipts issued yet.</td></tr>}</tbody></table></div>
+        <div className="rounded-xl border border-[#DDE3EB] bg-[#F6F8FA] p-4"><p className="text-[10px] font-bold uppercase tracking-widest text-[#3D6B9C]">Billing stage 04</p><h3 className="font-serif text-lg font-bold text-[#16223A]">Official Receipts</h3><p className="text-[11px] text-slate-500">Official receipts appear automatically when invoice payments are recorded.</p></div>
+        <div className="overflow-x-auto rounded-xl border border-[#DDE3EB] bg-white"><table className="w-full text-left text-xs"><thead><tr className="border-b border-[#DDE3EB] bg-[#F6F8FA] text-[10px] uppercase text-slate-600"><th className="p-3">Receipt</th><th className="p-3">Received from</th><th className="p-3">Date</th><th className="p-3 text-right">Amount</th><th className="p-3">Received by</th><th className="p-3 text-right">Client update</th></tr></thead><tbody className="divide-y divide-slate-100">{receiptRecords.length ? receiptRecords.map((receipt) => { const message = `Official Receipt ${receipt.id} has been issued for your payment of RM ${receipt.amount.toLocaleString('en-MY', { minimumFractionDigits: 2 })}.`; return <tr key={receipt.id}><td className="p-3 font-mono font-bold text-[#16223A]">{receipt.id}<div className="text-[10px] text-slate-500">{receipt.bankRef}</div></td><td className="p-3 font-bold">{receipt.receivedFrom}<div className="text-[10px] text-slate-500">{receipt.fileRef || 'General matter'}</div></td><td className="p-3 font-mono text-slate-600">{receipt.date}</td><td className="p-3 text-right font-mono font-bold text-[#2F6F4E]">RM {receipt.amount.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td><td className="p-3 text-slate-600">{receipt.receivedBy}</td><td className="p-3"><div className="flex justify-end gap-1"><button type="button" onClick={() => notifyBillingStage(receipt, 'Official receipt issued', message)} className="rounded border border-[#2F6F4E] px-2 py-1 text-[10px] font-bold text-[#2F6F4E] cursor-pointer"><ExternalLink className="mr-1 inline h-3 w-3" />Portal</button><button type="button" onClick={() => notifyClient(receipt.clientId, 'Official receipt issued', message, 'email')} className="rounded border border-[#3D6B9C] px-2 py-1 text-[10px] font-bold text-[#3D6B9C] cursor-pointer"><Mail className="mr-1 inline h-3 w-3" />Email</button><button type="button" onClick={() => notifyClient(receipt.clientId, 'Official receipt issued', message, 'whatsapp')} className="rounded border border-[#2F6F4E] px-2 py-1 text-[10px] font-bold text-[#2F6F4E] cursor-pointer"><MessageSquare className="mr-1 inline h-3 w-3" />WhatsApp</button></div></td></tr>; }) : <tr><td colSpan={6} className="p-8 text-center text-slate-500">No official receipts issued yet.</td></tr>}</tbody></table></div>
       </div>}
 
       {/* New Quote Modal */}
       {isNewQuoteOpen && (
         <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-xl w-full p-6 border border-[#E1DCCF] max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl max-w-xl w-full p-6 border border-[#DDE3EB] max-h-[90vh] overflow-y-auto">
             <h3 className="font-serif text-lg font-bold text-[#16223A] mb-3 flex items-center gap-2">
-              <Calculator className="w-5 h-5 text-[#A9814A]" />
+              <Calculator className="w-5 h-5 text-[#3D6B9C]" />
               New Quotation &amp; SRO Scale Calculator
             </h3>
 
@@ -673,15 +686,15 @@ export const QuotationsView: React.FC = () => {
                     {(['Client', 'Prospect'] as const).map((type) => <button key={type} type="button" onClick={() => { setPartyType(type); setSelectedPartyId(''); setClientName(''); setClientSearchQuery(''); }} className={`rounded-md border px-2.5 py-1 text-[10px] font-bold cursor-pointer ${partyType === type ? 'border-[#16223A] bg-[#16223A] text-white' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>{type}</button>)}
                   </div>
                   {clientSearchQuery.trim() && <div className="max-h-32 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-sm">
-                    {partyType === 'Client' ? matchingClients.slice(0, 8).map((client) => <button key={client.id} type="button" onClick={() => { setClientName(client.name); setSelectedPartyId(client.id); setClientSearchQuery(''); }} className="block w-full border-b border-slate-100 px-3 py-2 text-left hover:bg-amber-50 cursor-pointer"><strong>{client.name}</strong><span className="ml-2 font-mono text-[10px] text-slate-500">{client.id}</span></button>) : matchingLeads.slice(0, 8).map((lead) => <button key={lead.id} type="button" onClick={() => { setClientName(lead.name); setSelectedPartyId(lead.id); setClientSearchQuery(''); }} className="block w-full border-b border-slate-100 px-3 py-2 text-left hover:bg-amber-50 cursor-pointer"><strong>{lead.name}</strong><span className="ml-2 font-mono text-[10px] text-slate-500">{lead.id} · {lead.stage}</span></button>)}
-                    {partyType === 'Prospect' && matchingLeads.length === 0 && <div className="px-3 py-2 text-[11px] text-amber-700 bg-amber-50">Prospect must come from an existing lead record. Search for a lead and select it.</div>}
+                    {partyType === 'Client' ? matchingClients.slice(0, 8).map((client) => <button key={client.id} type="button" onClick={() => { setClientName(client.name); setSelectedPartyId(client.id); setClientSearchQuery(''); }} className="block w-full border-b border-slate-100 px-3 py-2 text-left hover:bg-[#FBF2E9] cursor-pointer"><strong>{client.name}</strong><span className="ml-2 font-mono text-[10px] text-slate-500">{client.id}</span></button>) : matchingLeads.slice(0, 8).map((lead) => <button key={lead.id} type="button" onClick={() => { setClientName(lead.name); setSelectedPartyId(lead.id); setClientSearchQuery(''); }} className="block w-full border-b border-slate-100 px-3 py-2 text-left hover:bg-[#FBF2E9] cursor-pointer"><strong>{lead.name}</strong><span className="ml-2 font-mono text-[10px] text-slate-500">{lead.id} · {lead.stage}</span></button>)}
+                    {partyType === 'Prospect' && matchingLeads.length === 0 && <div className="px-3 py-2 text-[11px] text-[#8A6D3B] bg-[#FBF2E9]">Prospect must come from an existing lead record. Search for a lead and select it.</div>}
                     {partyType === 'Client' && matchingClients.length === 0 && <div className="px-3 py-2 text-[11px] text-slate-500">No client found. You can continue with this name as an unregistered client.</div>}
                   </div>}
                   <p className="text-[10px] text-slate-500">Prospects must be selected from an existing lead record before a quotation can be generated.</p>
                 </div>
               </div>
 
-              <div className="rounded-xl border border-[#E1DCCF] bg-[#FAF8F2] p-3 space-y-2">
+              <div className="rounded-xl border border-[#DDE3EB] bg-[#F6F8FA] p-3 space-y-2">
                 <div className="flex items-center justify-between gap-2"><label className="font-bold text-slate-700 block uppercase">Billing format</label><span className="text-[10px] text-slate-500">Choose the document structure</span></div>
                 <div className="flex gap-2">
                   {(['Standard', 'General'] as const).map((mode) => <button key={mode} type="button" onClick={() => setFormatMode(mode)} className={`rounded-lg border px-3 py-1.5 text-xs font-bold cursor-pointer ${formatMode === mode ? 'border-[#16223A] bg-[#16223A] text-white' : 'border-slate-200 bg-white text-slate-700'}`}>{mode} format</button>)}
@@ -704,9 +717,9 @@ export const QuotationsView: React.FC = () => {
 
               {/* SRO 2023 Interactive Calculator Box for Conveyancing */}
               {practiceArea === 'Conveyancing' && (
-                <div className="bg-[#FAF8F2] border border-[#E1DCCF] p-4 rounded-xl space-y-3">
-                  <div className="font-bold text-[#16223A] text-xs flex items-center gap-1.5 border-b border-[#E1DCCF] pb-2">
-                    <Calculator className="w-4 h-4 text-[#A9814A]" />
+                <div className="bg-[#F6F8FA] border border-[#DDE3EB] p-4 rounded-xl space-y-3">
+                  <div className="font-bold text-[#16223A] text-xs flex items-center gap-1.5 border-b border-[#DDE3EB] pb-2">
+                    <Calculator className="w-4 h-4 text-[#3D6B9C]" />
                     SRO 2023 First Schedule Scale Fee Breakdown
                   </div>
 
@@ -729,7 +742,7 @@ export const QuotationsView: React.FC = () => {
                           type="checkbox"
                           checked={isDiscounted}
                           onChange={(e) => setIsDiscounted(e.target.checked)}
-                          className="rounded text-[#A9814A]"
+                          className="rounded text-[#3D6B9C]"
                         />
                         <span>SRO Discount Rule (Max 25%)</span>
                       </label>
@@ -773,7 +786,7 @@ export const QuotationsView: React.FC = () => {
                     </div>
                     <div className="flex justify-between font-bold text-[#16223A] pt-2 border-t border-slate-300 text-xs">
                       <span>Total Estimated Scale &amp; Disbursements:</span>
-                      <span className="font-mono text-emerald-800 text-sm">
+                      <span className="font-mono text-[#2F6F4E] text-sm">
                         RM {sroResult.totalWithDisbursements.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
                       </span>
                     </div>
@@ -829,14 +842,14 @@ export const QuotationsView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsNewQuoteOpen(false)}
-                  className="px-4 py-2 border border-[#E1DCCF] text-slate-700 rounded-md font-semibold cursor-pointer"
+                  className="px-4 py-2 border border-[#DDE3EB] text-slate-700 rounded-md font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={partyType === 'Prospect' && !selectedPartyId}
-                  className={`px-4 py-2 rounded-md font-semibold cursor-pointer ${partyType === 'Prospect' && !selectedPartyId ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-[#16223A] hover:bg-[#1F2E4D] text-white'}`}
+                  className={`px-4 py-2 rounded-md font-semibold cursor-pointer ${partyType === 'Prospect' && !selectedPartyId ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-[#16223A] hover:bg-[#16223A] text-white'}`}
                 >
                   Generate Quotation
                 </button>
@@ -851,7 +864,7 @@ export const QuotationsView: React.FC = () => {
         <DocPreviewModal type="quotation" docId={previewDocId} onClose={() => setPreviewDocId(null)} />
       )}
 
-      {isConsultationOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#16223A]/60 p-4"><div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl border border-[#E1DCCF] bg-white p-6 shadow-2xl"><div className="mb-4 flex items-center justify-between border-b border-[#E1DCCF] pb-3"><div><h3 className="font-serif text-lg font-bold text-[#16223A]">New Consultation Billing</h3><p className="mt-1 text-xs text-slate-500">Direct invoice or proforma for a consultation.</p></div><button type="button" onClick={() => setIsConsultationOpen(false)} className="text-xl text-slate-500 cursor-pointer">×</button></div><form onSubmit={handleSaveConsultation} className="space-y-3 text-xs"><div className="flex gap-2">{(['Invoice', 'Proforma'] as const).map((mode) => <button key={mode} type="button" onClick={() => setConsultationMode(mode)} className={`rounded-lg border px-3 py-2 font-bold cursor-pointer ${consultationMode === mode ? 'border-[#16223A] bg-[#16223A] text-white' : 'border-slate-200 bg-white text-slate-700'}`}>{mode === 'Invoice' ? 'Direct Invoice' : 'Proforma First'}</button>)}</div><div className="flex gap-2">{(['Client', 'Prospect'] as const).map((type) => <button key={type} type="button" onClick={() => { setPartyType(type); setClientName(''); setClientSearchQuery(''); setSelectedPartyId(''); }} className={`rounded-md border px-2.5 py-1 font-bold cursor-pointer ${partyType === type ? 'border-[#16223A] bg-[#16223A] text-white' : 'border-slate-200 bg-white text-slate-600'}`}>{type}</button>)}</div><input required value={clientName} onChange={(e) => { setClientName(e.target.value); setClientSearchQuery(e.target.value); }} placeholder={`Search ${partyType.toLowerCase()} by name or reference`} className="w-full" />{clientSearchQuery && <div className="max-h-28 overflow-y-auto rounded border border-slate-200">{(partyType === 'Client' ? matchingClients : matchingLeads).slice(0, 8).map((party) => <button key={party.id} type="button" onClick={() => { setClientName(partyType === 'Client' ? party.name : party.name); setSelectedPartyId(party.id); setClientSearchQuery(''); }} className="block w-full border-b border-slate-100 p-2 text-left hover:bg-amber-50 cursor-pointer"><strong>{party.name}</strong> <span className="font-mono text-[10px] text-slate-500">{party.id}</span></button>)}</div>}<div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="font-bold">Consultation date<input required type="date" value={consultationDate} onChange={(e) => setConsultationDate(e.target.value)} className="mt-1 w-full" /></label><label className="font-bold">Duration (minutes)<input required type="number" min="15" value={consultationDuration} onChange={(e) => setConsultationDuration(Number(e.target.value))} className="mt-1 w-full" /></label></div><label className="font-bold">Consultation type<select value={consultationType} onChange={(e) => setConsultationType(e.target.value as Quotation['consultationType'])} className="mt-1 w-full"><option>Initial Consultation</option><option>Follow-up Consultation</option><option>Urgent Consultation</option><option>Document Review</option><option>Video Consultation</option></select></label><label className="font-bold">Fee (RM)<input required type="number" min="0.01" step="0.01" value={consultationFee} onChange={(e) => setConsultationFee(Number(e.target.value))} className="mt-1 w-full" /></label><label className="font-bold">Description / scope<input required value={consultationDescription} onChange={(e) => setConsultationDescription(e.target.value)} className="mt-1 w-full" /></label><div className="flex justify-end gap-2 pt-3"><button type="button" onClick={() => setIsConsultationOpen(false)} className="rounded-lg border border-slate-200 px-3 py-2 font-bold cursor-pointer">Cancel</button><button type="submit" className="rounded-lg bg-[#16223A] px-3 py-2 font-bold text-white cursor-pointer">{consultationMode === 'Invoice' ? 'Issue consultation invoice' : 'Create consultation proforma'}</button></div></form></div></div>}
+      {isConsultationOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#16223A]/60 p-4"><div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl border border-[#DDE3EB] bg-white p-6 shadow-2xl"><div className="mb-4 flex items-center justify-between border-b border-[#DDE3EB] pb-3"><div><h3 className="font-serif text-lg font-bold text-[#16223A]">New Consultation Billing</h3><p className="mt-1 text-xs text-slate-500">Direct invoice or proforma for a consultation.</p></div><button type="button" onClick={() => setIsConsultationOpen(false)} className="text-xl text-slate-500 cursor-pointer">×</button></div><form onSubmit={handleSaveConsultation} className="space-y-3 text-xs"><div className="flex gap-2">{(['Invoice', 'Proforma'] as const).map((mode) => <button key={mode} type="button" onClick={() => setConsultationMode(mode)} className={`rounded-lg border px-3 py-2 font-bold cursor-pointer ${consultationMode === mode ? 'border-[#16223A] bg-[#16223A] text-white' : 'border-slate-200 bg-white text-slate-700'}`}>{mode === 'Invoice' ? 'Direct Invoice' : 'Proforma First'}</button>)}</div><div className="flex gap-2">{(['Client', 'Prospect'] as const).map((type) => <button key={type} type="button" onClick={() => { setPartyType(type); setClientName(''); setClientSearchQuery(''); setSelectedPartyId(''); }} className={`rounded-md border px-2.5 py-1 font-bold cursor-pointer ${partyType === type ? 'border-[#16223A] bg-[#16223A] text-white' : 'border-slate-200 bg-white text-slate-600'}`}>{type}</button>)}</div><input required value={clientName} onChange={(e) => { setClientName(e.target.value); setClientSearchQuery(e.target.value); }} placeholder={`Search ${partyType.toLowerCase()} by name or reference`} className="w-full" />{clientSearchQuery && <div className="max-h-28 overflow-y-auto rounded border border-slate-200">{(partyType === 'Client' ? matchingClients : matchingLeads).slice(0, 8).map((party) => <button key={party.id} type="button" onClick={() => { setClientName(partyType === 'Client' ? party.name : party.name); setSelectedPartyId(party.id); setClientSearchQuery(''); }} className="block w-full border-b border-slate-100 p-2 text-left hover:bg-[#FBF2E9] cursor-pointer"><strong>{party.name}</strong> <span className="font-mono text-[10px] text-slate-500">{party.id}</span></button>)}</div>}<div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="font-bold">Consultation date<input required type="date" value={consultationDate} onChange={(e) => setConsultationDate(e.target.value)} className="mt-1 w-full" /></label><label className="font-bold">Duration (minutes)<input required type="number" min="15" value={consultationDuration} onChange={(e) => setConsultationDuration(Number(e.target.value))} className="mt-1 w-full" /></label></div><label className="font-bold">Consultation type<select value={consultationType} onChange={(e) => setConsultationType(e.target.value as Quotation['consultationType'])} className="mt-1 w-full"><option>Initial Consultation</option><option>Follow-up Consultation</option><option>Urgent Consultation</option><option>Document Review</option><option>Video Consultation</option></select></label><label className="font-bold">Fee (RM)<input required type="number" min="0.01" step="0.01" value={consultationFee} onChange={(e) => setConsultationFee(Number(e.target.value))} className="mt-1 w-full" /></label><label className="font-bold">Description / scope<input required value={consultationDescription} onChange={(e) => setConsultationDescription(e.target.value)} className="mt-1 w-full" /></label><div className="flex justify-end gap-2 pt-3"><button type="button" onClick={() => setIsConsultationOpen(false)} className="rounded-lg border border-slate-200 px-3 py-2 font-bold cursor-pointer">Cancel</button><button type="submit" className="rounded-lg bg-[#16223A] px-3 py-2 font-bold text-white cursor-pointer">{consultationMode === 'Invoice' ? 'Issue consultation invoice' : 'Create consultation proforma'}</button></div></form></div></div>}
     </div>
   );
 };
