@@ -11,6 +11,9 @@ import {
   AlertTriangle,
   Play,
   Square,
+  CreditCard,
+  BadgeCheck,
+  ArrowRight,
 } from 'lucide-react';
 import { StatCard, Donut, MiniBarChart, TabPills } from '../ui';
 import { palette, tint, tintText } from '../../lib/designTokens';
@@ -40,7 +43,7 @@ export const AccountingCentreView: React.FC<{ initialTab?: AccTab }> = ({ initia
 
   return (
     <div className="space-y-4 pb-10 text-xs text-[#16223A]">
-      <div className="rounded-2xl p-5 text-white shadow-md" style={{ backgroundColor: palette.navy }}>
+      <div className="rounded-2xl p-5 text-white shadow-md bg-transparent" style={{ backgroundColor: palette.navy }}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="font-serif text-xl font-bold">Accounting</h1>
@@ -63,6 +66,8 @@ export const AccountingCentreView: React.FC<{ initialTab?: AccTab }> = ({ initia
         </div>
       </div>
 
+      <QuickActionsPanel onNavigate={setTab} />
+
       <TabPills items={TABS} activeId={tab} onSelect={(id) => setTab(id as AccTab)} />
 
       {tab === 'dashboard' && <AccountingDashboardTab period={period} />}
@@ -77,6 +82,101 @@ export const AccountingCentreView: React.FC<{ initialTab?: AccTab }> = ({ initia
         </div>
       )}
       {tab === 'vouchers' && <ReceiptsView />}
+    </div>
+  );
+};
+
+/* ================= Quick Actions — "start here" guided entry points ================= */
+/** Answers "which of the 7 tabs do I open?" for the most common tasks, instead of making
+ *  the user know the Accounting Centre's structure. "Bill a client" is a full inline guided
+ *  flow (pick matter -> see its unbilled total -> generate invoice) rather than a bare link,
+ *  since that's the task people actually get stuck on. */
+const QuickActionsPanel: React.FC<{ onNavigate: (tab: AccTab) => void }> = ({ onNavigate }) => {
+  const { cases, timeEntries, expenses, invoices, getNextSequenceId, addInvoice, updateTimeEntry, updateExpense, showToast, clients } = useApp() as any;
+  const [billOpen, setBillOpen] = useState(false);
+  const [caseId, setCaseId] = useState('');
+
+  const billableCases = useMemo(() => {
+    return (cases || [])
+      .map((c: any) => {
+        const acts = (timeEntries || []).filter((t: any) => t.caseId === c.id && t.billable && !t.billed);
+        const disb = (expenses || []).filter((e: any) => e.caseId === c.id && e.billable && !e.billed);
+        const total = acts.reduce((s: number, t: any) => s + Number(t.hours || 0) * Number(t.rate || 0), 0) + disb.reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+        return { case: c, acts, disb, total };
+      })
+      .filter((row: any) => row.total > 0)
+      .sort((a: any, b: any) => b.total - a.total);
+  }, [cases, timeEntries, expenses]);
+
+  const selected = billableCases.find((row: any) => row.case.id === caseId) || billableCases[0];
+
+  const generateInvoice = () => {
+    if (!selected) return;
+    const invId = getNextSequenceId('invoice');
+    const clientObj = (clients || []).find((c: any) => c.id === selected.case.clientId);
+    addInvoice({
+      id: invId, clientId: selected.case.clientId, caseId: selected.case.id, fileRef: selected.case.ref,
+      partyType: 'Client', partyName: selected.case.clientName || clientObj?.name, amount: selected.total, discount: 0, tax: 0, total: selected.total,
+      date: new Date().toISOString().slice(0, 10), dueDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10), status: 'Unpaid',
+    });
+    selected.acts.forEach((t: any) => updateTimeEntry(t.id, { billed: true, invoiceId: invId }));
+    selected.disb.forEach((e: any) => updateExpense(e.id, { billed: true }));
+    showToast?.(`Invoice ${invId} generated for ${selected.case.ref}.`);
+    setBillOpen(false);
+    setCaseId('');
+  };
+
+  const actions = [
+    { id: 'bill', label: 'Bill a client', note: `${billableCases.length} matter${billableCases.length === 1 ? '' : 's'} with unbilled work`, icon: CreditCard, color: palette.gold, onClick: () => setBillOpen((v) => !v) },
+    { id: 'payment', label: 'Record a payment', note: 'Issue a receipt or payment voucher', icon: Wallet, color: palette.green, onClick: () => onNavigate('vouchers') },
+    { id: 'claim', label: 'Approve a staff claim', note: 'Review pending disbursement vouchers', icon: BadgeCheck, color: palette.blue, onClick: () => onNavigate('claims') },
+    { id: 'trust', label: 'Check trust balance', note: 'SAR 1990 client trust ledger', icon: Landmark, color: palette.purple, onClick: () => onNavigate('trust') },
+  ];
+
+  return (
+    <div className="rounded-xl border border-[#DDE3EB] bg-white p-4">
+      <p className="mb-3 text-[12px] font-bold uppercase tracking-wide text-[#5B6478]">Start here</p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {actions.map(({ id, label, note, icon: Icon, color, onClick }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={onClick}
+            className="flex flex-col items-start gap-2 rounded-lg border border-[#DDE3EB] p-3 text-left transition hover:-translate-y-0.5 hover:shadow-md"
+          >
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg text-white bg-transparent" style={{ backgroundColor: color }}>
+              <Icon className="h-4 w-4" />
+            </span>
+            <span className="text-[12px] font-bold text-[#16223A]">{label}</span>
+            <span className="text-[10.5px] text-[#5B6478]">{note}</span>
+          </button>
+        ))}
+      </div>
+
+      {billOpen && (
+        <div className="mt-4 rounded-lg border border-[#DDE3EB] bg-[#F6F8FA] p-3.5">
+          {billableCases.length === 0 ? (
+            <p className="text-center text-[11.5px] text-slate-400">No matters have unbilled work right now.</p>
+          ) : (
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="flex-1 min-w-[220px] text-[11px] font-bold text-[#5B6478]">
+                Matter
+                <select value={selected?.case.id || ''} onChange={(e) => setCaseId(e.target.value)} className="mt-1 w-full rounded-lg border border-[#DDE3EB] px-2.5 py-1.5 text-[12px] font-normal text-[#16223A]">
+                  {billableCases.map((row: any) => (
+                    <option key={row.case.id} value={row.case.id}>{row.case.ref} — {row.case.title} ({fmt(row.total)} unbilled)</option>
+                  ))}
+                </select>
+              </label>
+              <div className="text-[11px] text-[#5B6478]">
+                Unbilled total<br /><span className="text-[16px] font-bold text-[#16223A]">{fmt(selected?.total || 0)}</span>
+              </div>
+              <button type="button" onClick={generateInvoice} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-[12px] font-bold text-white bg-transparent" style={{ backgroundColor: palette.navy }}>
+                Generate Invoice <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -401,10 +501,10 @@ const TimeBillingTab: React.FC = () => {
         </select>
         <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" className="mb-3 w-full rounded-lg border border-[#DDE3EB] px-2.5 py-1.5 text-[11.5px]" />
         <div className="flex gap-2">
-          <button type="button" onClick={toggle} className="flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-[11.5px] font-bold text-white" style={{ backgroundColor: palette.green }}>
+          <button type="button" onClick={toggle} className="flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-[11.5px] font-bold text-white bg-transparent" style={{ backgroundColor: palette.green }}>
             {running ? <Square className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />} {running ? 'Stop' : 'Start'}
           </button>
-          <button type="button" onClick={submit} disabled={!caseId || seconds === 0} className="flex-1 rounded-lg py-2 text-[11.5px] font-bold text-white disabled:opacity-40" style={{ backgroundColor: palette.navy }}>
+          <button type="button" onClick={submit} disabled={!caseId || seconds === 0} className="flex-1 rounded-lg py-2 text-[11.5px] font-bold text-white disabled:opacity-40 bg-transparent" style={{ backgroundColor: palette.navy }}>
             Submit
           </button>
         </div>

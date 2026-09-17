@@ -431,7 +431,7 @@ export const QuotationsView: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Top Banner Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 rounded-xl p-4 text-white shadow-md" style={{ backgroundColor: palette.navy }}>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 rounded-xl p-4 text-white shadow-md bg-transparent" style={{ backgroundColor: palette.navy }}>
         <div>
           <h2 className="font-serif text-lg font-bold flex items-center gap-2">
             <FileText className="w-5 h-5" style={{ color: palette.gold }} />
@@ -456,7 +456,7 @@ export const QuotationsView: React.FC = () => {
 
           <button
             onClick={() => setIsNewQuoteOpen(true)}
-            className="text-white text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs whitespace-nowrap"
+            className="text-white text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs whitespace-nowrap bg-transparent"
             style={{ backgroundColor: palette.blue }}
           >
             <Plus className="w-4 h-4" />

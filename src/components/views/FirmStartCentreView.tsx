@@ -661,7 +661,7 @@ export const FirmStartCentreView: React.FC = () => {
               <div className="grid min-w-0 flex-1 basis-[300px] grid-cols-[repeat(auto-fill,minmax(112px,1fr))] content-start gap-2">
                 {tiles.map(({ label, view, icon: Icon, bg }) => (
                   <div key={label} className="relative" title={`Opens app view: ${view}`}>
-                    <button type="button" onClick={() => setCurrentView(view)} style={{ backgroundColor: bg }} className="!text-white flex min-h-[82px] w-full cursor-pointer flex-col gap-2 rounded-xl p-3 text-left text-white transition hover:-translate-y-0.5 hover:shadow-lg">
+                    <button type="button" onClick={() => setCurrentView(view)} style={{ backgroundColor: bg }} className="!text-white flex min-h-[82px] w-full cursor-pointer flex-col gap-2 rounded-xl bg-transparent p-3 text-left text-white transition hover:-translate-y-0.5 hover:shadow-lg">
                       <span className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-white/20"><Icon className="h-3.5 w-3.5" /></span>
                       <strong className="text-xs font-bold leading-tight !text-white">{label}</strong>
                       {canEditStartCentre && editMode && <span className="text-[9px] font-semibold !text-white/80">Target: {view}</span>}

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { AttendanceRecord, LeaveApplication, StaffProfile } from '../../types';
 import { BadgeCheck, CalendarDays, Check, Clock3, FileUser, MapPin, Send, Users, X } from 'lucide-react';
+import { StatusBadge } from '../ui';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const timeNow = () => new Date().toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' });
@@ -94,14 +95,14 @@ export const StaffPortalView: React.FC = () => {
 
   return (
     <div className="space-y-5 text-xs pb-10">
-      <section className="bg-[#16223A] text-white rounded-2xl p-5 shadow-lg border border-[#A9814A]/40 flex flex-col lg:flex-row lg:items-end justify-between gap-5">
+      <section className="bg-[#16223A] text-white rounded-2xl p-5 shadow-lg border border-[#3D6B9C]/40 flex flex-col lg:flex-row lg:items-end justify-between gap-5">
         <div>
-          <div className="text-[10px] uppercase tracking-[0.18em] text-amber-300 font-bold">People &amp; Operations</div>
+          <div className="text-[10px] uppercase tracking-[0.18em] text-[#8A6D3B] font-bold">People &amp; Operations</div>
           <h2 className="font-serif text-2xl font-bold mt-1">Staff Portal</h2>
           <p className="text-slate-300 mt-1 max-w-xl">Your staff identity, attendance, leave, and internal profile in one secure workspace.</p>
         </div>
         <div className="flex items-center gap-3 bg-white/10 border border-white/15 rounded-xl p-3 min-w-[230px]">
-          <div className="w-10 h-10 rounded-full bg-[#A9814A] text-[#16223A] flex items-center justify-center font-serif font-bold">{currentUser.name.slice(0, 1)}</div>
+          <div className="w-10 h-10 rounded-full bg-[#3D6B9C] text-[#16223A] flex items-center justify-center font-serif font-bold">{currentUser.name.slice(0, 1)}</div>
           <div>
             <div className="font-bold text-sm">{currentUser.name}</div>
             <div className="text-[10px] text-slate-300">{profile.staffId} &bull; {currentUser.role}</div>
@@ -109,15 +110,15 @@ export const StaffPortalView: React.FC = () => {
         </div>
       </section>
 
-      <div className="flex flex-wrap gap-2 border-b border-[#E1DCCF] pb-2">
+      <div className="flex flex-wrap gap-2 border-b border-[#DDE3EB] pb-2">
         {[
           ['overview', 'Overview', BadgeCheck],
           ['profile', 'My Profile', FileUser],
           ['attendance', 'Attendance', Clock3],
           ['leave', 'Leave', CalendarDays],
         ].map(([tab, label, Icon]) => (
-          <button key={tab as string} onClick={() => setActiveTab(tab as typeof activeTab)} className={`px-3 py-2 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer ${activeTab === tab ? 'bg-[#16223A] text-white' : 'bg-white text-slate-600 border border-[#E1DCCF]'}`}>
-            <Icon className="w-3.5 h-3.5 text-[#A9814A]" /> {label as string}
+          <button key={tab as string} onClick={() => setActiveTab(tab as typeof activeTab)} className={`px-3 py-2 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer ${activeTab === tab ? 'bg-[#16223A] text-white' : 'bg-white text-slate-600 border border-[#DDE3EB]'}`}>
+            <Icon className="w-3.5 h-3.5 text-[#3D6B9C]" /> {label as string}
           </button>
         ))}
       </div>
@@ -125,33 +126,33 @@ export const StaffPortalView: React.FC = () => {
       {activeTab === 'overview' && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="bg-white border border-[#E1DCCF] rounded-xl p-4"><div className="text-slate-500 uppercase text-[10px] font-bold">Today</div><div className="font-serif text-xl font-bold text-[#16223A] mt-1">{todayAttendance ? todayAttendance.status : 'Not recorded'}</div><div className="text-[11px] text-slate-500 mt-1">{todayAttendance ? `${todayAttendance.checkIn}${todayAttendance.checkOut ? ` - ${todayAttendance.checkOut}` : ''}` : 'Record your attendance below.'}</div></div>
-            <div className="bg-white border border-[#E1DCCF] rounded-xl p-4"><div className="text-slate-500 uppercase text-[10px] font-bold">Leave Balance</div><div className="font-serif text-xl font-bold text-[#16223A] mt-1">{20 - myLeave.filter((l) => l.status === 'Approved' && l.leaveType === 'Annual').reduce((sum, l) => sum + l.days, 0)} days</div><div className="text-[11px] text-slate-500 mt-1">Annual leave estimate</div></div>
-            <div className="bg-white border border-[#E1DCCF] rounded-xl p-4"><div className="text-slate-500 uppercase text-[10px] font-bold">Open Applications</div><div className="font-serif text-xl font-bold text-[#16223A] mt-1">{myLeave.filter((l) => l.status === 'Pending').length}</div><div className="text-[11px] text-slate-500 mt-1">Awaiting administrator review</div></div>
+            <div className="bg-white border border-[#DDE3EB] rounded-xl p-4"><div className="text-slate-500 uppercase text-[10px] font-bold">Today</div><div className="font-serif text-xl font-bold text-[#16223A] mt-1">{todayAttendance ? todayAttendance.status : 'Not recorded'}</div><div className="text-[11px] text-slate-500 mt-1">{todayAttendance ? `${todayAttendance.checkIn}${todayAttendance.checkOut ? ` - ${todayAttendance.checkOut}` : ''}` : 'Record your attendance below.'}</div></div>
+            <div className="bg-white border border-[#DDE3EB] rounded-xl p-4"><div className="text-slate-500 uppercase text-[10px] font-bold">Leave Balance</div><div className="font-serif text-xl font-bold text-[#16223A] mt-1">{20 - myLeave.filter((l) => l.status === 'Approved' && l.leaveType === 'Annual').reduce((sum, l) => sum + l.days, 0)} days</div><div className="text-[11px] text-slate-500 mt-1">Annual leave estimate</div></div>
+            <div className="bg-white border border-[#DDE3EB] rounded-xl p-4"><div className="text-slate-500 uppercase text-[10px] font-bold">Open Applications</div><div className="font-serif text-xl font-bold text-[#16223A] mt-1">{myLeave.filter((l) => l.status === 'Pending').length}</div><div className="text-[11px] text-slate-500 mt-1">Awaiting administrator review</div></div>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="bg-white border border-[#E1DCCF] rounded-xl p-4 space-y-3">
-              <h3 className="font-serif font-bold text-base text-[#16223A] flex items-center gap-2"><Clock3 className="w-4 h-4 text-[#A9814A]" /> Quick attendance</h3>
+            <div className="bg-white border border-[#DDE3EB] rounded-xl p-4 space-y-3">
+              <h3 className="font-serif font-bold text-base text-[#16223A] flex items-center gap-2"><Clock3 className="w-4 h-4 text-[#3D6B9C]" /> Quick attendance</h3>
               <p className="text-slate-500">Mark your office presence for {today()}.</p>
-              <div className="flex gap-2"><button onClick={() => recordAttendance('Present')} className="px-3 py-2 rounded-lg bg-emerald-700 text-white font-bold cursor-pointer"><Check className="w-3.5 h-3.5 inline mr-1" /> Check in / out</button><button onClick={() => recordAttendance('Remote')} className="px-3 py-2 rounded-lg bg-[#16223A] text-white font-bold cursor-pointer"><MapPin className="w-3.5 h-3.5 inline mr-1" /> Working remotely</button></div>
+              <div className="flex gap-2"><button onClick={() => recordAttendance('Present')} className="px-3 py-2 rounded-lg bg-[#2F6F4E] text-white font-bold cursor-pointer"><Check className="w-3.5 h-3.5 inline mr-1" /> Check in / out</button><button onClick={() => recordAttendance('Remote')} className="px-3 py-2 rounded-lg bg-[#16223A] text-white font-bold cursor-pointer"><MapPin className="w-3.5 h-3.5 inline mr-1" /> Working remotely</button></div>
             </div>
-            <div className="bg-white border border-[#E1DCCF] rounded-xl p-4 space-y-3">
-              <h3 className="font-serif font-bold text-base text-[#16223A] flex items-center gap-2"><CalendarDays className="w-4 h-4 text-[#A9814A]" /> Leave applications</h3>
-              {myLeave.slice(0, 3).map((leave) => <div key={leave.id} className="flex items-center justify-between border-b border-slate-100 pb-2"><span className="font-semibold">{leave.leaveType} <span className="text-slate-400">{leave.startDate} - {leave.endDate}</span></span><span className={`font-bold ${leave.status === 'Approved' ? 'text-emerald-700' : leave.status === 'Rejected' ? 'text-rose-700' : 'text-amber-700'}`}>{leave.status}</span></div>)}
+            <div className="bg-white border border-[#DDE3EB] rounded-xl p-4 space-y-3">
+              <h3 className="font-serif font-bold text-base text-[#16223A] flex items-center gap-2"><CalendarDays className="w-4 h-4 text-[#3D6B9C]" /> Leave applications</h3>
+              {myLeave.slice(0, 3).map((leave) => <div key={leave.id} className="flex items-center justify-between border-b border-slate-100 pb-2"><span className="font-semibold">{leave.leaveType} <span className="text-slate-400">{leave.startDate} - {leave.endDate}</span></span><span className={`font-bold ${leave.status === 'Approved' ? 'text-[#2F6F4E]' : leave.status === 'Rejected' ? 'text-[#B23A2E]' : 'text-[#8A6D3B]'}`}>{leave.status}</span></div>)}
               {!myLeave.length && <p className="text-slate-500">No leave applications yet.</p>}
             </div>
           </div>
-          {isAdmin && <div className="bg-white border border-[#E1DCCF] rounded-xl p-4"><h3 className="font-serif font-bold text-base text-[#16223A] flex items-center gap-2"><Users className="w-4 h-4 text-[#A9814A]" /> Pending approvals ({pendingLeaves.length})</h3>{pendingLeaves.map((leave) => <div key={leave.id} className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-100 py-3"><div><b>{userName(leave.userId)}</b> requested {leave.leaveType} for {leave.days} day(s), {leave.startDate} to {leave.endDate}<div className="text-slate-500 mt-0.5">{leave.reason}</div></div><div className="flex gap-2"><button onClick={() => updateLeaveApplication(leave.id, { status: 'Approved', reviewedBy: currentUser.name, reviewedAt: new Date().toISOString() })} className="px-3 py-1.5 bg-emerald-700 text-white rounded-lg font-bold cursor-pointer">Approve</button><button onClick={() => updateLeaveApplication(leave.id, { status: 'Rejected', reviewedBy: currentUser.name, reviewedAt: new Date().toISOString() })} className="px-3 py-1.5 bg-rose-700 text-white rounded-lg font-bold cursor-pointer">Reject</button></div></div>)}</div>}
+          {isAdmin && <div className="bg-white border border-[#DDE3EB] rounded-xl p-4"><h3 className="font-serif font-bold text-base text-[#16223A] flex items-center gap-2"><Users className="w-4 h-4 text-[#3D6B9C]" /> Pending approvals ({pendingLeaves.length})</h3>{pendingLeaves.map((leave) => <div key={leave.id} className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-100 py-3"><div><b>{userName(leave.userId)}</b> requested {leave.leaveType} for {leave.days} day(s), {leave.startDate} to {leave.endDate}<div className="text-slate-500 mt-0.5">{leave.reason}</div></div><div className="flex gap-2"><button onClick={() => updateLeaveApplication(leave.id, { status: 'Approved', reviewedBy: currentUser.name, reviewedAt: new Date().toISOString() })} className="px-3 py-1.5 bg-[#2F6F4E] text-white rounded-lg font-bold cursor-pointer">Approve</button><button onClick={() => updateLeaveApplication(leave.id, { status: 'Rejected', reviewedBy: currentUser.name, reviewedAt: new Date().toISOString() })} className="px-3 py-1.5 bg-[#B23A2E] text-white rounded-lg font-bold cursor-pointer">Reject</button></div></div>)}</div>}
           {isAdmin && <div className="text-[11px] text-slate-500">Active staff accounts: {activeStaff.length}. Review access and profiles from Users.</div>}
         </>
       )}
 
-      {activeTab === 'profile' && <form onSubmit={saveProfile} className="bg-white border border-[#E1DCCF] rounded-xl p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+      {activeTab === 'profile' && <form onSubmit={saveProfile} className="bg-white border border-[#DDE3EB] rounded-xl p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="md:col-span-2"><h3 className="font-serif text-lg font-bold text-[#16223A]">Staff profile &amp; staff record</h3><p className="text-slate-500 mt-1">This record is maintained by an administrator for staff operations and internal directory use.</p></div>
-        {!canEditProfile && <div className="md:col-span-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] text-blue-900">View-only profile. Ask an administrator to update staff details or milestones.</div>}
+        {!canEditProfile && <div className="md:col-span-2 rounded-lg border border-[#E7EEF6] bg-[#E7EEF6] px-3 py-2 text-[11px] text-[#3D6B9C]">View-only profile. Ask an administrator to update staff details or milestones.</div>}
         {[['staffId', 'Staff ID'], ['designation', 'Designation'], ['department', 'Department'], ['phone', 'Phone'], ['emergencyContact', 'Emergency contact'], ['joinDate', 'Join date'], ['officeLocation', 'Office location']].map(([key, label]) => <label key={key} className="font-bold text-slate-700">{label}<input readOnly={!canEditProfile} type={key === 'joinDate' ? 'date' : 'text'} value={profile[key as keyof StaffProfile] as string} onChange={(e) => setProfile({ ...profile, [key]: e.target.value })} className="w-full mt-1" /></label>)}
         <label className="font-bold text-slate-700">Employment type<select disabled={!canEditProfile} value={profile.employmentType} onChange={(e) => setProfile({ ...profile, employmentType: e.target.value as StaffProfile['employmentType'] })} className="w-full mt-1"><option>Permanent</option><option>Contract</option><option>Freelance</option><option>Intern</option></select></label>
-        <div className="md:col-span-2 rounded-xl border border-amber-200 bg-amber-50/50 p-4 space-y-3">
+        <div className="md:col-span-2 rounded-xl border border-[#FBF2E9] bg-[#FBF2E9]/50 p-4 space-y-3">
           <div><h4 className="font-serif font-bold text-sm text-[#16223A]">Staff milestones</h4><p className="text-[11px] text-slate-600 mt-0.5">These dates appear automatically in the internal Firm Start Centre. Birth year is not displayed.</p></div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="font-bold text-slate-700">Birthday<input readOnly={!canEditProfile} type="date" value={profile.birthday || ''} onChange={(e) => setProfile({ ...profile, birthday: e.target.value })} className="w-full mt-1" /></label>
@@ -163,9 +164,80 @@ export const StaffPortalView: React.FC = () => {
         {canEditProfile && <div className="md:col-span-2"><button className="px-4 py-2 bg-[#16223A] text-white rounded-lg font-bold cursor-pointer"><Send className="w-3.5 h-3.5 inline mr-1" /> Save staff record</button></div>}
       </form>}
 
-      {activeTab === 'attendance' && <div className="bg-white border border-[#E1DCCF] rounded-xl p-5 space-y-4"><div className="flex items-center justify-between"><div><h3 className="font-serif text-lg font-bold text-[#16223A]">Attendance history</h3><p className="text-slate-500 mt-1">Record office, remote, leave, or absence status.</p></div><div className="flex gap-2"><button onClick={() => recordAttendance('Present')} className="px-3 py-2 bg-emerald-700 text-white rounded-lg font-bold cursor-pointer">Check in / out</button><button onClick={() => recordAttendance('Remote')} className="px-3 py-2 bg-[#16223A] text-white rounded-lg font-bold cursor-pointer">Remote</button></div></div>{myAttendance.map((record) => <div key={record.id} className="grid grid-cols-2 md:grid-cols-5 gap-2 border-t border-slate-100 py-3"><span className="font-bold">{record.date}</span><span>{record.status}</span><span>In: {record.checkIn}</span><span>Out: {record.checkOut || '-'}</span><span className="text-slate-500">{record.notes}</span></div>)}{!myAttendance.length && <p className="text-slate-500 py-6 text-center">No attendance records yet.</p>}</div>}
+      {activeTab === 'attendance' && (
+        <div className="rounded-xl border border-[#DDE3EB] bg-white p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="font-serif text-lg font-bold text-[#16223A]">Attendance history</h3>
+              <p className="mt-1 text-slate-500">Record office, remote, leave, or absence status.</p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => recordAttendance('Present')} className="rounded-lg bg-[#2F6F4E] px-3 py-2 font-bold text-white cursor-pointer">
+                <Check className="mr-1 inline h-3.5 w-3.5" /> Check in / out
+              </button>
+              <button onClick={() => recordAttendance('Remote')} className="rounded-lg bg-[#16223A] px-3 py-2 font-bold text-white cursor-pointer">
+                <MapPin className="mr-1 inline h-3.5 w-3.5" /> Remote
+              </button>
+            </div>
+          </div>
 
-      {activeTab === 'leave' && <div className="grid grid-cols-1 lg:grid-cols-2 gap-4"><form onSubmit={submitLeave} className="bg-white border border-[#E1DCCF] rounded-xl p-5 space-y-3"><h3 className="font-serif text-lg font-bold text-[#16223A]">Apply for leave</h3><label className="font-bold text-slate-700">Leave type<select value={leaveType} onChange={(e) => setLeaveType(e.target.value as LeaveApplication['leaveType'])} className="w-full mt-1"><option>Annual</option><option>Medical</option><option>Emergency</option><option>Unpaid</option><option>Replacement</option></select></label><div className="grid grid-cols-2 gap-3"><label className="font-bold text-slate-700">From<input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full mt-1" /></label><label className="font-bold text-slate-700">To<input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full mt-1" /></label></div><div className="text-slate-500">Requested days: <b>{daysRequested || 'Invalid dates'}</b></div><label className="font-bold text-slate-700">Reason<textarea required rows={4} value={reason} onChange={(e) => setReason(e.target.value)} className="w-full mt-1" /></label><button className="px-4 py-2 bg-[#16223A] text-white rounded-lg font-bold cursor-pointer"><Send className="w-3.5 h-3.5 inline mr-1" /> Submit application</button></form><div className="bg-white border border-[#E1DCCF] rounded-xl p-5"><h3 className="font-serif text-lg font-bold text-[#16223A]">My applications</h3>{myLeave.map((leave) => <div key={leave.id} className="border-b border-slate-100 py-3"><div className="flex justify-between"><b>{leave.leaveType} &bull; {leave.days} day(s)</b><span className="font-bold">{leave.status}</span></div><div className="text-slate-500">{leave.startDate} to {leave.endDate}</div><div className="mt-1">{leave.reason}</div></div>)}{!myLeave.length && <p className="text-slate-500 mt-3">No applications submitted.</p>}</div></div>}
+          {myAttendance.length === 0 ? (
+            <p className="py-10 text-center text-slate-400">No attendance records yet.</p>
+          ) : (
+            <div className="mt-4 divide-y divide-slate-100">
+              {myAttendance.map((record) => (
+                <div key={record.id} className="flex flex-wrap items-center gap-x-6 gap-y-1 py-3">
+                  <span className="w-24 font-bold text-[#16223A]">{record.date}</span>
+                  <StatusBadge label={record.status} tone={record.status === 'Present' ? 'green' : record.status === 'Remote' ? 'blue' : record.status === 'Leave' ? 'purple' : 'slate'} />
+                  <span className="text-slate-500">In {record.checkIn}{record.checkOut ? ` — Out ${record.checkOut}` : ''}</span>
+                  {record.notes && <span className="ml-auto text-[11px] text-slate-400">{record.notes}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'leave' && (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <form onSubmit={submitLeave} className="space-y-3.5 rounded-xl border border-[#DDE3EB] bg-white p-5">
+            <h3 className="font-serif text-lg font-bold text-[#16223A]">Apply for leave</h3>
+            <label className="block font-bold text-slate-700">
+              Leave type
+              <select value={leaveType} onChange={(e) => setLeaveType(e.target.value as LeaveApplication['leaveType'])} className="mt-1 w-full">
+                <option>Annual</option><option>Medical</option><option>Emergency</option><option>Unpaid</option><option>Replacement</option>
+              </select>
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block font-bold text-slate-700">From<input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="mt-1 w-full" /></label>
+              <label className="block font-bold text-slate-700">To<input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="mt-1 w-full" /></label>
+            </div>
+            <div className="rounded-lg bg-[#F6F8FA] px-3 py-2 text-slate-600">Requested: <b className="text-[#16223A]">{daysRequested ? `${daysRequested} day${daysRequested === 1 ? '' : 's'}` : 'Invalid dates'}</b></div>
+            <label className="block font-bold text-slate-700">Reason<textarea required rows={4} value={reason} onChange={(e) => setReason(e.target.value)} className="mt-1 w-full" /></label>
+            <button className="rounded-lg bg-[#16223A] px-4 py-2 font-bold text-white cursor-pointer"><Send className="mr-1 inline h-3.5 w-3.5" /> Submit application</button>
+          </form>
+
+          <div className="rounded-xl border border-[#DDE3EB] bg-white p-5">
+            <h3 className="font-serif text-lg font-bold text-[#16223A]">My applications</h3>
+            {myLeave.length === 0 ? (
+              <p className="py-10 text-center text-slate-400">No applications submitted.</p>
+            ) : (
+              <div className="mt-3 divide-y divide-slate-100">
+                {myLeave.map((leave) => (
+                  <div key={leave.id} className="py-3.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-bold text-[#16223A]">{leave.leaveType} &bull; {leave.days} day{leave.days === 1 ? '' : 's'}</span>
+                      <StatusBadge label={leave.status} tone={leave.status === 'Approved' ? 'green' : leave.status === 'Rejected' ? 'red' : 'gold'} />
+                    </div>
+                    <p className="mt-0.5 text-slate-500">{leave.startDate} to {leave.endDate}</p>
+                    <p className="mt-1 text-slate-600">{leave.reason}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

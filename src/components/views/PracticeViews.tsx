@@ -70,18 +70,18 @@ export const HearingsView: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
         <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-          <Clock className="w-5 h-5 text-[#A9814A]" />
+          <Clock className="w-5 h-5 text-[#3D6B9C]" />
           All Court Hearings &amp; Appearances
         </h2>
         <p className="text-xs text-slate-500 mt-0.5">Firm-wide list of scheduled court management sessions and trials.</p>
       </div>
 
-      <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
-            <tr className="bg-[#F6F4EE] border-b border-[#E1DCCF] text-[10px] uppercase tracking-wider text-slate-600">
+            <tr className="bg-[#F6F8FA] border-b border-[#DDE3EB] text-[10px] uppercase tracking-wider text-slate-600">
               <th className="p-3 font-bold">Date</th>
               <th className="p-3 font-bold">Time</th>
               <th className="p-3 font-bold">Matter Reference</th>
@@ -101,7 +101,7 @@ export const HearingsView: React.FC = () => {
                     setCurrentCaseId(h.caseId);
                     setCurrentView('cases');
                   }}
-                  className="hover:bg-[#FAF8F2] transition-colors cursor-pointer"
+                  className="hover:bg-[#F6F8FA] transition-colors cursor-pointer"
                 >
                   <td className="p-3 font-mono font-semibold text-slate-800">{h.date}</td>
                   <td className="p-3 font-semibold text-slate-800">{h.time}</td>
@@ -109,7 +109,7 @@ export const HearingsView: React.FC = () => {
                     <div className="flex flex-col gap-0.5">
                       <span className="ref-seal">{h.caseRef}</span>
                       {h.clientRole && (
-                        <span className="text-[9.5px] font-extrabold text-[#A9814A] bg-amber-50 border border-[#A9814A]/30 px-1.5 py-0.2 rounded w-max">
+                        <span className="text-[9.5px] font-extrabold text-[#3D6B9C] bg-[#FBF2E9] border border-[#3D6B9C]/30 px-1.5 py-0.2 rounded w-max">
                           Representing: {h.clientRole}
                         </span>
                       )}
@@ -120,10 +120,10 @@ export const HearingsView: React.FC = () => {
                     <span
                       className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                         isToday
-                          ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                          ? 'bg-[#FBF2E9] text-[#8A6D3B] border border-[#8A6D3B]'
                           : isPast
                           ? 'bg-slate-100 text-slate-600'
-                          : 'bg-blue-100 text-blue-800'
+                          : 'bg-[#E7EEF6] text-[#3D6B9C]'
                       }`}
                     >
                       {isToday ? 'Today' : isPast ? 'Past' : 'Upcoming'}
@@ -159,18 +159,18 @@ export const CalendarView: React.FC = () => {
   const getEventLabel = (purpose: string) => {
     const p = (purpose || '').toLowerCase();
     if (p.includes('trial') || p.includes('bicara')) {
-      return { tag: 'Trial / Bicara', color: 'bg-rose-100 text-rose-800 border-rose-300' };
+      return { tag: 'Trial / Bicara', color: 'bg-[#FBEDE9] text-[#B23A2E] border-[#B23A2E]' };
     }
     if (p.includes('hearing') || p.includes('pendengaran') || p.includes('injunction') || p.includes('appeal')) {
-      return { tag: 'Hearing', color: 'bg-amber-100 text-amber-900 border-amber-300' };
+      return { tag: 'Hearing', color: 'bg-[#FBF2E9] text-[#8A6D3B] border-[#8A6D3B]' };
     }
     if (p.includes('ptcm') || p.includes('mention') || p.includes('sebutan') || p.includes('case management')) {
-      return { tag: 'PTCM / Mention', color: 'bg-blue-100 text-blue-900 border-blue-300' };
+      return { tag: 'PTCM / Mention', color: 'bg-[#E7EEF6] text-[#3D6B9C] border-[#3D6B9C]' };
     }
     if (p.includes('deadline') || p.includes('filing') || p.includes('compliance') || p.includes('had masa')) {
-      return { tag: 'Filing Deadline', color: 'bg-purple-100 text-purple-900 border-purple-300' };
+      return { tag: 'Filing Deadline', color: 'bg-[#F1EBF6] text-[#6B3D8C] border-[#6B3D8C]' };
     }
-    return { tag: 'Consultation', color: 'bg-emerald-100 text-emerald-900 border-emerald-300' };
+    return { tag: 'Consultation', color: 'bg-[#E6EFE9] text-[#2F6F4E] border-[#2F6F4E]' };
   };
 
   const eventsByDate: Record<string, { ref: string; fullRef: string; time: string; purpose: string }[]> = {};
@@ -196,14 +196,14 @@ export const CalendarView: React.FC = () => {
     cells.push(
       <div
         key={d}
-        className={`cal-cell flex flex-col justify-between p-2 min-h-[90px] border border-[#E1DCCF]/60 rounded-lg ${
-          isToday ? 'bg-amber-50/80 border-amber-400 ring-2 ring-amber-300 font-bold' : 'bg-white hover:bg-slate-50'
+        className={`cal-cell flex flex-col justify-between p-2 min-h-[90px] border border-[#DDE3EB]/60 rounded-lg ${
+          isToday ? 'bg-[#FBF2E9]/80 border-[#8A6D3B] ring-2 ring-amber-300 font-bold' : 'bg-white hover:bg-slate-50'
         }`}
       >
         <div className="flex justify-between items-center mb-1">
           <span className="font-mono text-slate-700 font-bold text-xs">{d}</span>
           {evs.length > 0 && (
-            <span className="text-[9px] font-extrabold px-1.5 py-0.2 bg-purple-100 text-purple-900 rounded border border-purple-200">
+            <span className="text-[9px] font-extrabold px-1.5 py-0.2 bg-[#F1EBF6] text-[#6B3D8C] rounded border border-[#F1EBF6]">
               {evs.length} Event{evs.length > 1 ? 's' : ''}
             </span>
           )}
@@ -214,7 +214,7 @@ export const CalendarView: React.FC = () => {
             return (
               <div
                 key={idx}
-                className="bg-[#16223A]/8 hover:bg-[#16223A]/15 border border-[#A9814A]/30 p-1 rounded text-[9.5px] font-bold text-[#16223A] transition-colors"
+                className="bg-[#16223A]/8 hover:bg-[#16223A]/15 border border-[#3D6B9C]/30 p-1 rounded text-[9.5px] font-bold text-[#16223A] transition-colors"
                 title={`${e.fullRef} — ${e.purpose}`}
               >
                 <div className="flex items-center justify-between gap-1">
@@ -237,10 +237,10 @@ export const CalendarView: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Top Banner with Google Calendar Status Label */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
         <div>
           <div className="flex items-center gap-2">
-            <CalendarIcon className="w-5 h-5 text-[#A9814A]" />
+            <CalendarIcon className="w-5 h-5 text-[#3D6B9C]" />
             <h2 className="font-serif text-lg font-bold text-[#16223A]">
               Messrs Syafiqah Hamizad &amp; Co — Official Firm Google Calendar
             </h2>
@@ -253,7 +253,7 @@ export const CalendarView: React.FC = () => {
         {/* Action Controls & Mode Switcher */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Mode Switcher */}
-          <div className="flex items-center gap-1 bg-[#FAF8F2] p-1 rounded-lg border border-[#E1DCCF]">
+          <div className="flex items-center gap-1 bg-[#F6F8FA] p-1 rounded-lg border border-[#DDE3EB]">
             <button
               type="button"
               onClick={() => setCalendarMode('embed')}
@@ -263,7 +263,7 @@ export const CalendarView: React.FC = () => {
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <CalendarIcon className="w-3.5 h-3.5 text-amber-400" />
+              <CalendarIcon className="w-3.5 h-3.5 text-[#8A6D3B]" />
               <span>Live Google Calendar</span>
             </button>
             <button
@@ -275,7 +275,7 @@ export const CalendarView: React.FC = () => {
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Clock className="w-3.5 h-3.5 text-blue-400" />
+              <Clock className="w-3.5 h-3.5 text-[#3D6B9C]" />
               <span>Court Diary Grid</span>
             </button>
           </div>
@@ -284,9 +284,9 @@ export const CalendarView: React.FC = () => {
             href={firmCalendarSubscribeUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="bg-[#2F6F4E] hover:bg-emerald-800 text-white text-xs font-bold px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+            className="bg-[#2F6F4E] hover:bg-[#2F6F4E] text-white text-xs font-bold px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
           >
-            <ExternalLink className="w-3.5 h-3.5 text-emerald-200" />
+            <ExternalLink className="w-3.5 h-3.5 text-[#E6EFE9]" />
             <span>Add / Open in Signed-In Google Calendar</span>
           </a>
         </div>
@@ -294,13 +294,13 @@ export const CalendarView: React.FC = () => {
 
       {/* Main Content Area: Embedded Google Calendar vs Interactive Grid */}
       {calendarMode === 'embed' ? (
-        <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs space-y-3 p-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-[#FAF8F2] p-3 rounded-lg border border-[#E1DCCF] text-xs gap-2">
+        <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs space-y-3 p-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-[#F6F8FA] p-3 rounded-lg border border-[#DDE3EB] text-xs gap-2">
             <span className="font-bold text-[#16223A] flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-              Connected Google Calendar: <code className="font-mono text-[11px] text-blue-900 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">c_b32b26462773cfca7a5a2ac79d0c94db962a8f67d4731072016fdb853b7f9668@group.calendar.google.com</code>
+              <span className="w-2.5 h-2.5 rounded-full bg-[#2F6F4E] animate-pulse" />
+              Connected Google Calendar: <code className="font-mono text-[11px] text-[#3D6B9C] bg-[#E7EEF6] px-1.5 py-0.5 rounded border border-[#E7EEF6]">c_b32b26462773cfca7a5a2ac79d0c94db962a8f67d4731072016fdb853b7f9668@group.calendar.google.com</code>
             </span>
-            <span className="text-slate-600 text-[11px] font-semibold bg-amber-100 text-amber-900 px-2 py-0.5 rounded border border-amber-300">
+            <span className="text-slate-600 text-[11px] font-semibold bg-[#FBF2E9] text-[#8A6D3B] px-2 py-0.5 rounded border border-[#8A6D3B]">
               Timezone: Asia/Kuala_Lumpur
             </span>
           </div>
@@ -312,19 +312,19 @@ export const CalendarView: React.FC = () => {
               <span className="text-[10.5px] font-normal text-slate-500">(Colors display as set in your signed-in Google Calendar UI)</span>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold">
-              <span className="px-2 py-0.5 rounded bg-rose-100 text-rose-900 border border-rose-300">
+              <span className="px-2 py-0.5 rounded bg-[#FBEDE9] text-[#B23A2E] border border-[#B23A2E]">
                 🔴 Trial / Bicara (Flamingo Red)
               </span>
-              <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300">
+              <span className="px-2 py-0.5 rounded bg-[#FBF2E9] text-[#8A6D3B] border border-[#8A6D3B]">
                 🟡 Hearing / Pendengaran (Banana Amber)
               </span>
-              <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-900 border border-blue-300">
+              <span className="px-2 py-0.5 rounded bg-[#E7EEF6] text-[#3D6B9C] border border-[#3D6B9C]">
                 🔵 PTCM / Mention (Peacock Blue)
               </span>
-              <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-900 border border-purple-300">
+              <span className="px-2 py-0.5 rounded bg-[#F1EBF6] text-[#6B3D8C] border border-[#6B3D8C]">
                 🟣 Filing Deadline (Grape Purple)
               </span>
-              <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-300">
+              <span className="px-2 py-0.5 rounded bg-[#E6EFE9] text-[#2F6F4E] border border-[#2F6F4E]">
                 🟢 Client Consultation (Sage Green)
               </span>
             </div>
@@ -343,7 +343,7 @@ export const CalendarView: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-3">
+        <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs space-y-3">
           <div className="flex flex-wrap justify-between items-center text-xs font-bold text-[#16223A] gap-2">
             <span className="font-serif text-sm">
               {now.toLocaleDateString('en-MY', { month: 'long', year: 'numeric' })}
@@ -351,19 +351,19 @@ export const CalendarView: React.FC = () => {
 
             {/* Color-Coded Google Calendar Label Badges */}
             <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold">
-              <span className="px-2 py-0.5 rounded bg-rose-100 text-rose-900 border border-rose-300">
+              <span className="px-2 py-0.5 rounded bg-[#FBEDE9] text-[#B23A2E] border border-[#B23A2E]">
                 🔴 Trial / Bicara
               </span>
-              <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300">
+              <span className="px-2 py-0.5 rounded bg-[#FBF2E9] text-[#8A6D3B] border border-[#8A6D3B]">
                 🟡 Hearing / Pendengaran
               </span>
-              <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-900 border border-blue-300">
+              <span className="px-2 py-0.5 rounded bg-[#E7EEF6] text-[#3D6B9C] border border-[#3D6B9C]">
                 🔵 PTCM / Mention
               </span>
-              <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-900 border border-purple-300">
+              <span className="px-2 py-0.5 rounded bg-[#F1EBF6] text-[#6B3D8C] border border-[#6B3D8C]">
                 🟣 Filing Deadline
               </span>
-              <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-300">
+              <span className="px-2 py-0.5 rounded bg-[#E6EFE9] text-[#2F6F4E] border border-[#2F6F4E]">
                 🟢 Consultation
               </span>
             </div>
@@ -626,35 +626,35 @@ export const DocumentsView: React.FC = () => {
     >
       {/* Drag & Drop Overlay Indicator for Desktop Files */}
       {isDragOverDropzone && (
-        <div className="fixed inset-0 z-50 bg-[#16223A]/85 backdrop-blur-xs flex flex-col items-center justify-center text-white border-4 border-dashed border-amber-400 p-8 rounded-2xl transition-all animate-pulse">
-          <CloudUpload className="w-16 h-16 text-amber-400 mb-3 animate-bounce" />
+        <div className="fixed inset-0 z-50 bg-[#16223A]/85 backdrop-blur-xs flex flex-col items-center justify-center text-white border-4 border-dashed border-[#8A6D3B] p-8 rounded-2xl transition-all animate-pulse">
+          <CloudUpload className="w-16 h-16 text-[#8A6D3B] mb-3 animate-bounce" />
           <h2 className="font-serif text-2xl font-bold">Drop Local Files Here to Upload</h2>
-          <p className="text-amber-200 text-sm mt-1 font-mono">
+          <p className="text-[#FBF2E9] text-sm mt-1 font-mono">
             Directly syncs to Google Drive Shared Folder (ID: 0ANq_mzZTq_HeUk9PVA)
           </p>
-          <span className="mt-4 px-3 py-1 bg-amber-400 text-[#16223A] font-extrabold text-xs rounded-full">
+          <span className="mt-4 px-3 py-1 bg-[#8A6D3B] text-[#16223A] font-extrabold text-xs rounded-full">
             Auto-Detects Matter &amp; Legal Folder Category
           </span>
         </div>
       )}
 
       {/* Top Banner with Google Drive Live Connection Status */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
         <div>
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span className="bg-emerald-700 text-white font-extrabold text-[10px] px-2 py-0.5 rounded uppercase tracking-wider flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
+            <span className="bg-[#2F6F4E] text-white font-extrabold text-[10px] px-2 py-0.5 rounded uppercase tracking-wider flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-[#2F6F4E] animate-pulse" />
               100% Live Google Drive Active
             </span>
             <span className="text-[10px] text-slate-500 font-mono bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
               OAuth Scope: https://www.googleapis.com/auth/drive
             </span>
-            <span className="text-[10px] text-amber-900 bg-amber-50 font-bold px-2 py-0.5 rounded border border-amber-200">
+            <span className="text-[10px] text-[#8A6D3B] bg-[#FBF2E9] font-bold px-2 py-0.5 rounded border border-[#FBF2E9]">
               Folder ID: 0ANq_mzZTq_HeUk9PVA
             </span>
           </div>
           <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-            <FolderOpen className="w-5 h-5 text-[#A9814A]" />
+            <FolderOpen className="w-5 h-5 text-[#3D6B9C]" />
             Messrs Syafiqah Hamizad &amp; Co — Live Cloud Document Directory
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -671,7 +671,7 @@ export const DocumentsView: React.FC = () => {
             disabled={isSyncing}
             className="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
           >
-            <RefreshCw className={`w-3.5 h-3.5 text-amber-700 ${isSyncing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 text-[#8A6D3B] ${isSyncing ? 'animate-spin' : ''}`} />
             <span>{isSyncing ? 'Syncing...' : 'Sync GDrive'}</span>
           </button>
 
@@ -679,9 +679,9 @@ export const DocumentsView: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsUploadOpen(true)}
-            className="bg-[#16223A] hover:bg-[#1F2E4D] text-white font-bold text-xs px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+            className="bg-[#16223A] hover:bg-[#16223A] text-white font-bold text-xs px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
           >
-            <CloudUpload className="w-4 h-4 text-amber-400" />
+            <CloudUpload className="w-4 h-4 text-[#8A6D3B]" />
             <span>Upload to GDrive</span>
           </button>
 
@@ -690,28 +690,28 @@ export const DocumentsView: React.FC = () => {
             href={firmGDriveFolderUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="bg-[#2F6F4E] hover:bg-emerald-800 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+            className="bg-[#2F6F4E] hover:bg-[#2F6F4E] text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
           >
-            <ExternalLink className="w-3.5 h-3.5 text-emerald-200" />
+            <ExternalLink className="w-3.5 h-3.5 text-[#E6EFE9]" />
             <span>Open in GDrive</span>
           </a>
         </div>
       </div>
 
       {/* Sync Status Info Bar & Mode Switcher */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-[#FAF8F2] p-3 rounded-xl border border-[#E1DCCF]">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-[#F6F8FA] p-3 rounded-xl border border-[#DDE3EB]">
         <div className="flex items-center gap-3 text-[11px] font-semibold text-slate-700 flex-wrap">
           <span className="flex items-center gap-1.5">
-            <Cloud className="w-4 h-4 text-blue-600" />
+            <Cloud className="w-4 h-4 text-[#3D6B9C]" />
             Total Cloud Files: <strong className="text-[#16223A]">{allDocs.length}</strong>
           </span>
           <span className="text-slate-300">|</span>
           <span>
-            Last Synced: <strong className="font-mono text-emerald-900">{lastSyncedAt}</strong>
+            Last Synced: <strong className="font-mono text-[#2F6F4E]">{lastSyncedAt}</strong>
           </span>
           <span className="text-slate-300">|</span>
           <span className="text-slate-500">
-            Latency: <strong className="font-mono text-blue-800">18ms (Socket Active)</strong>
+            Latency: <strong className="font-mono text-[#3D6B9C]">18ms (Socket Active)</strong>
           </span>
         </div>
 
@@ -726,7 +726,7 @@ export const DocumentsView: React.FC = () => {
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <List className="w-3.5 h-3.5 text-amber-400" />
+            <List className="w-3.5 h-3.5 text-[#8A6D3B]" />
             <span>Document List</span>
           </button>
           <button
@@ -738,7 +738,7 @@ export const DocumentsView: React.FC = () => {
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Folder className="w-3.5 h-3.5 text-amber-400" />
+            <Folder className="w-3.5 h-3.5 text-[#8A6D3B]" />
             <span>Folder Bento</span>
           </button>
           <button
@@ -750,7 +750,7 @@ export const DocumentsView: React.FC = () => {
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
+            <ExternalLink className="w-3.5 h-3.5 text-[#3D6B9C]" />
             <span>Live GDrive Frame</span>
           </button>
         </div>
@@ -758,7 +758,7 @@ export const DocumentsView: React.FC = () => {
 
       {/* Filter & Search Toolbar (Only for file-list & folder-grid) */}
       {viewMode !== 'gdrive-embed' && (
-        <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-2 bg-white p-3 rounded-xl border border-[#E1DCCF] shadow-2xs">
+        <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-2 bg-white p-3 rounded-xl border border-[#DDE3EB] shadow-2xs">
           <div className="flex flex-1 items-center gap-2 flex-wrap">
             {/* Search Input */}
             <div className="relative flex-1 min-w-[200px]">
@@ -768,7 +768,7 @@ export const DocumentsView: React.FC = () => {
                 placeholder="Search documents by title, ref, client..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:bg-white focus:ring-1 focus:ring-[#A9814A]"
+                className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:bg-white focus:ring-1 focus:ring-[#3D6B9C]"
               />
             </div>
 
@@ -814,7 +814,7 @@ export const DocumentsView: React.FC = () => {
           <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-2">
             <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
               <span className="flex items-center gap-1.5">
-                <GripVertical className="w-3.5 h-3.5 text-amber-700" />
+                <GripVertical className="w-3.5 h-3.5 text-[#8A6D3B]" />
                 Intra-App Drag Target Categories (Drag rows onto tabs to relocate in Google Drive):
               </span>
               <span className="text-slate-400 text-[10px] font-mono">Live Folder Move</span>
@@ -831,11 +831,11 @@ export const DocumentsView: React.FC = () => {
                   onDrop={(e) => handleAppDocDropOnCategory(e, cat)}
                   className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                     dropTargetCategory === cat
-                      ? 'bg-amber-400 text-[#16223A] border-amber-500 ring-2 ring-amber-300 scale-105'
-                      : 'bg-white text-slate-700 border-slate-300 hover:border-amber-500'
+                      ? 'bg-[#8A6D3B] text-[#16223A] border-[#8A6D3B] ring-2 ring-amber-300 scale-105'
+                      : 'bg-white text-slate-700 border-slate-300 hover:border-[#8A6D3B]'
                   }`}
                 >
-                  <Folder className="w-3.5 h-3.5 text-amber-700" />
+                  <Folder className="w-3.5 h-3.5 text-[#8A6D3B]" />
                   <span>{cat}</span>
                   <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded-full font-mono">
                     {allDocs.filter((d) => d.category === cat).length}
@@ -846,16 +846,16 @@ export const DocumentsView: React.FC = () => {
           </div>
 
           {/* Document Table */}
-          <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs">
+          <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse min-w-[950px]">
                 <thead>
                   <tr className="bg-[#16223A] text-white text-[10.5px] uppercase font-bold tracking-wider">
-                    <th className="p-3 border-r border-[#1F2E4D] w-[40px] text-center">Drag</th>
-                    <th className="p-3 border-r border-[#1F2E4D] w-[220px]">Matter Reference &amp; Client</th>
-                    <th className="p-3 border-r border-[#1F2E4D] min-w-[280px]">Document Title &amp; Cloud Path</th>
-                    <th className="p-3 border-r border-[#1F2E4D] w-[180px]">Google Drive Category</th>
-                    <th className="p-3 border-r border-[#1F2E4D] w-[110px]">Uploaded Date</th>
+                    <th className="p-3 border-r border-[#16223A] w-[40px] text-center">Drag</th>
+                    <th className="p-3 border-r border-[#16223A] w-[220px]">Matter Reference &amp; Client</th>
+                    <th className="p-3 border-r border-[#16223A] min-w-[280px]">Document Title &amp; Cloud Path</th>
+                    <th className="p-3 border-r border-[#16223A] w-[180px]">Google Drive Category</th>
+                    <th className="p-3 border-r border-[#16223A] w-[110px]">Uploaded Date</th>
                     <th className="p-3 text-center w-[160px]">Cloud Actions</th>
                   </tr>
                 </thead>
@@ -898,12 +898,12 @@ export const DocumentsView: React.FC = () => {
                         {/* Title & Path */}
                         <td className="p-3 border-r border-slate-200 align-top space-y-1">
                           <div className="font-serif font-bold text-sm text-[#16223A] flex items-center gap-1.5">
-                            <FileText className="w-4 h-4 text-amber-700 shrink-0" />
+                            <FileText className="w-4 h-4 text-[#8A6D3B] shrink-0" />
                             <span>{d.docName}</span>
                           </div>
                           <div className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
                             <span>path:</span>
-                            <span className="text-blue-900 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">
+                            <span className="text-[#3D6B9C] bg-[#E7EEF6] px-1.5 py-0.2 rounded border border-[#E7EEF6]">
                               /Firm Shared Drive/0ANq_mzZTq_HeUk9PVA/{d.caseRef}/{d.category}/{d.docName}
                             </span>
                           </div>
@@ -914,7 +914,7 @@ export const DocumentsView: React.FC = () => {
                           <select
                             value={d.category}
                             onChange={(e) => handleMoveDocCategory(d.caseId, d.docId, e.target.value)}
-                            className="w-full text-xs font-bold text-amber-950 bg-amber-50 border border-amber-300 rounded px-2 py-1"
+                            className="w-full text-xs font-bold text-[#8A6D3B] bg-[#FBF2E9] border border-[#8A6D3B] rounded px-2 py-1"
                           >
                             {CATEGORIES_LIST.map((cat) => (
                               <option key={cat} value={cat}>
@@ -946,9 +946,9 @@ export const DocumentsView: React.FC = () => {
                               href={d.driveUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-900 font-bold rounded text-[10.5px] border border-blue-200 flex items-center gap-1 cursor-pointer"
+                              className="px-2 py-1 bg-[#E7EEF6] hover:bg-[#E7EEF6] text-[#3D6B9C] font-bold rounded text-[10.5px] border border-[#E7EEF6] flex items-center gap-1 cursor-pointer"
                             >
-                              <ExternalLink className="w-3 h-3 text-blue-700" />
+                              <ExternalLink className="w-3 h-3 text-[#3D6B9C]" />
                               <span>GDrive</span>
                             </a>
                           </div>
@@ -974,12 +974,12 @@ export const DocumentsView: React.FC = () => {
                 key={cs.id}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => handleDesktopFileDrop(e, cs.id)}
-                className="bg-white border border-[#E1DCCF] hover:border-[#A9814A] rounded-xl p-4 shadow-xs space-y-3 transition-all flex flex-col justify-between"
+                className="bg-white border border-[#DDE3EB] hover:border-[#3D6B9C] rounded-xl p-4 shadow-xs space-y-3 transition-all flex flex-col justify-between"
               >
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <span className="ref-seal font-mono text-[11px]">{cs.ref}</span>
-                    <span className="bg-amber-100 text-amber-900 font-bold text-[10px] px-2 py-0.5 rounded border border-amber-300">
+                    <span className="bg-[#FBF2E9] text-[#8A6D3B] font-bold text-[10px] px-2 py-0.5 rounded border border-[#8A6D3B]">
                       {csDocs.length} Docs
                     </span>
                   </div>
@@ -989,7 +989,7 @@ export const DocumentsView: React.FC = () => {
                       setCurrentCaseId(cs.id);
                       setCurrentView('cases');
                     }}
-                    className="font-serif font-bold text-sm text-[#16223A] hover:text-amber-800 hover:underline cursor-pointer leading-snug"
+                    className="font-serif font-bold text-sm text-[#16223A] hover:text-[#8A6D3B] hover:underline cursor-pointer leading-snug"
                   >
                     {cs.title}
                   </h3>
@@ -1014,7 +1014,7 @@ export const DocumentsView: React.FC = () => {
                             className="flex items-center justify-between bg-slate-50 p-1.5 rounded border border-slate-200 text-[11px]"
                           >
                             <span className="font-semibold text-slate-700 flex items-center gap-1.5">
-                              <Folder className="w-3.5 h-3.5 text-amber-700" />
+                              <Folder className="w-3.5 h-3.5 text-[#8A6D3B]" />
                               <span>{cat}</span>
                             </span>
                             <span className="font-mono font-bold text-slate-500">{count}</span>
@@ -1026,7 +1026,7 @@ export const DocumentsView: React.FC = () => {
                 </div>
 
                 {/* Drop Zone Box inside Card */}
-                <div className="p-3 bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg text-center text-slate-500 text-[10.5px] font-bold hover:bg-amber-50 hover:border-amber-400 transition-colors cursor-pointer">
+                <div className="p-3 bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg text-center text-slate-500 text-[10.5px] font-bold hover:bg-[#FBF2E9] hover:border-[#8A6D3B] transition-colors cursor-pointer">
                   Drop local files here to upload to this Matter Folder on GDrive
                 </div>
               </div>
@@ -1037,11 +1037,11 @@ export const DocumentsView: React.FC = () => {
 
       {/* ================= VIEW MODE 3: EMBEDDED GDRIVE FRAME ================= */}
       {viewMode === 'gdrive-embed' && (
-        <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs space-y-3 p-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-[#FAF8F2] p-3 rounded-lg border border-[#E1DCCF] text-xs gap-2">
+        <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs space-y-3 p-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-[#F6F8FA] p-3 rounded-lg border border-[#DDE3EB] text-xs gap-2">
             <span className="font-bold text-[#16223A] flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-              Direct Live Shared Google Drive Folder ID: <code className="font-mono text-[11px] text-blue-900 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">0ANq_mzZTq_HeUk9PVA</code>
+              <span className="w-2.5 h-2.5 rounded-full bg-[#2F6F4E] animate-pulse" />
+              Direct Live Shared Google Drive Folder ID: <code className="font-mono text-[11px] text-[#3D6B9C] bg-[#E7EEF6] px-1.5 py-0.5 rounded border border-[#E7EEF6]">0ANq_mzZTq_HeUk9PVA</code>
             </span>
             <a
               href={firmGDriveFolderUrl}
@@ -1050,7 +1050,7 @@ export const DocumentsView: React.FC = () => {
               className="px-2.5 py-1 bg-[#16223A] text-white font-bold rounded flex items-center gap-1"
             >
               <span>Open in Full Browser Window</span>
-              <ExternalLink className="w-3 h-3 text-amber-400" />
+              <ExternalLink className="w-3 h-3 text-[#8A6D3B]" />
             </a>
           </div>
 
@@ -1071,10 +1071,10 @@ export const DocumentsView: React.FC = () => {
       {/* ================= UPLOAD MODAL ================= */}
       {isUploadOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-[#E1DCCF] rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-4">
+          <div className="bg-white border border-[#DDE3EB] rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-4">
             <div className="flex justify-between items-center border-b border-slate-200 pb-3">
               <div className="flex items-center gap-2">
-                <CloudUpload className="w-5 h-5 text-amber-700" />
+                <CloudUpload className="w-5 h-5 text-[#8A6D3B]" />
                 <h3 className="font-serif font-bold text-base text-[#16223A]">
                   Upload File to Google Drive
                 </h3>
@@ -1147,7 +1147,7 @@ export const DocumentsView: React.FC = () => {
                   </div>
                   <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
                     <div
-                      className="bg-amber-500 h-2 rounded-full transition-all duration-300"
+                      className="bg-[#8A6D3B] h-2 rounded-full transition-all duration-300"
                       style={{ width: `${uploadProgress}%` }}
                     />
                   </div>
@@ -1167,7 +1167,7 @@ export const DocumentsView: React.FC = () => {
                   disabled={isUploading}
                   className="px-4 py-2 bg-[#16223A] text-white font-bold rounded-lg flex items-center gap-1.5 cursor-pointer shadow-2xs"
                 >
-                  <CloudUpload className="w-4 h-4 text-amber-400" />
+                  <CloudUpload className="w-4 h-4 text-[#8A6D3B]" />
                   <span>{isUploading ? 'Uploading...' : 'Confirm Upload'}</span>
                 </button>
               </div>
@@ -1179,10 +1179,10 @@ export const DocumentsView: React.FC = () => {
       {/* ================= PREVIEW MODAL ================= */}
       {previewDoc && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-[#E1DCCF] rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-4">
+          <div className="bg-white border border-[#DDE3EB] rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-4">
             <div className="flex justify-between items-center border-b border-slate-200 pb-3">
               <div className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-amber-700" />
+                <FileText className="w-5 h-5 text-[#8A6D3B]" />
                 <h3 className="font-serif font-bold text-base text-[#16223A]">
                   Document Preview &amp; Cloud Details
                 </h3>
@@ -1204,22 +1204,22 @@ export const DocumentsView: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-[11px]">
-                <div className="bg-amber-50 p-2 rounded border border-amber-200">
+                <div className="bg-[#FBF2E9] p-2 rounded border border-[#FBF2E9]">
                   <span className="text-slate-400 block font-bold uppercase text-[9px]">Folder Category</span>
-                  <span className="font-bold text-amber-900">📁 {previewDoc.category}</span>
+                  <span className="font-bold text-[#8A6D3B]">📁 {previewDoc.category}</span>
                 </div>
-                <div className="bg-blue-50 p-2 rounded border border-blue-200">
+                <div className="bg-[#E7EEF6] p-2 rounded border border-[#E7EEF6]">
                   <span className="text-slate-400 block font-bold uppercase text-[9px]">Uploaded Date</span>
-                  <span className="font-mono font-bold text-blue-900">{previewDoc.uploadedDate}</span>
+                  <span className="font-mono font-bold text-[#3D6B9C]">{previewDoc.uploadedDate}</span>
                 </div>
               </div>
 
               <div className="p-3 bg-slate-100 rounded-lg text-[10.5px] font-mono text-slate-700 space-y-1">
                 <span className="font-bold text-slate-500 block uppercase text-[9px]">Google Drive Cloud URI:</span>
-                <div className="truncate text-blue-800 underline">{previewDoc.driveUrl}</div>
+                <div className="truncate text-[#3D6B9C] underline">{previewDoc.driveUrl}</div>
               </div>
 
-              <div className="p-3 bg-emerald-50 rounded-lg text-[10.5px] text-emerald-900 font-bold border border-emerald-200">
+              <div className="p-3 bg-[#E6EFE9] rounded-lg text-[10.5px] text-[#2F6F4E] font-bold border border-[#E6EFE9]">
                 ✓ Live Sync Active — Any modification to this file in Google Drive updates in real time.
               </div>
             </div>
@@ -1242,7 +1242,7 @@ export const DocumentsView: React.FC = () => {
                 rel="noopener noreferrer"
                 className="px-4 py-2 bg-[#16223A] text-white font-bold rounded-lg flex items-center gap-1.5 cursor-pointer shadow-2xs"
               >
-                <ExternalLink className="w-4 h-4 text-amber-400" />
+                <ExternalLink className="w-4 h-4 text-[#8A6D3B]" />
                 <span>Open in Google Drive</span>
               </a>
             </div>
@@ -1259,9 +1259,9 @@ export const TemplatesView: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
         <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-          <FileSignature className="w-5 h-5 text-[#A9814A]" />
+          <FileSignature className="w-5 h-5 text-[#3D6B9C]" />
           Document Merge Templates Library
         </h2>
         <p className="text-xs text-slate-500 mt-0.5">Automated merge fields for Client Engagement Letters, Legal Demand Notices &amp; Court Filings.</p>
@@ -1269,10 +1269,10 @@ export const TemplatesView: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {docTemplates.map((t) => (
-          <div key={t.id} className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-2">
+          <div key={t.id} className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs space-y-2">
             <div className="flex justify-between items-center">
               <span className="font-bold text-slate-900 text-xs">{t.name}</span>
-              <span className="px-2 py-0.5 bg-purple-100 text-purple-900 font-bold text-[10px] rounded">
+              <span className="px-2 py-0.5 bg-[#F1EBF6] text-[#6B3D8C] font-bold text-[10px] rounded">
                 {t.category}
               </span>
             </div>
@@ -1388,14 +1388,14 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
 
   // Color palette for assignee badges
   const ASSIGNEE_COLORS = [
-    'bg-blue-500',
-    'bg-purple-500',
+    'bg-[#3D6B9C]',
+    'bg-[#6B3D8C]',
     'bg-pink-500',
-    'bg-green-500',
+    'bg-[#2F6F4E]',
     'bg-orange-500',
     'bg-cyan-500',
-    'bg-indigo-500',
-    'bg-rose-500',
+    'bg-[#6B3D8C]',
+    'bg-[#B23A2E]',
   ];
 
   const getColorForAssignee = (name: string, index: number): string => {
@@ -1811,7 +1811,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
             }
             if (e.key === 'Escape') setEditingStageTagTaskId(null);
           }}
-          className="text-[9.5px] font-extrabold px-1.5 py-0.5 rounded border bg-white text-purple-900 border-purple-300 w-28 outline-none"
+          className="text-[9.5px] font-extrabold px-1.5 py-0.5 rounded border bg-white text-[#6B3D8C] border-[#6B3D8C] w-28 outline-none"
         />
       );
     }
@@ -1823,7 +1823,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
           setStageTagDraft(task.stageTag || '');
           setEditingStageTagTaskId(task.id);
         }}
-        className="text-[9.5px] font-extrabold px-1.5 py-0.5 rounded border bg-purple-50 text-purple-900 border-purple-200 cursor-pointer hover:bg-purple-100"
+        className="text-[9.5px] font-extrabold px-1.5 py-0.5 rounded border bg-[#F1EBF6] text-[#6B3D8C] border-[#F1EBF6] cursor-pointer hover:bg-[#F1EBF6]"
         title="Click to type a custom stage tag"
       >
         {task.stageTag ? task.stageTag : '+ Tag Stage'}
@@ -1838,7 +1838,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
       <div className="rounded-md border border-slate-200 bg-slate-50 p-3 space-y-2">
         <div className="flex justify-between items-center">
           <span className="text-[10px] font-bold uppercase text-slate-600">Checklist</span>
-          <span className="text-[10px] font-bold text-emerald-600">{task.checklist.filter((item) => item.completed).length}/{task.checklist.length} done</span>
+          <span className="text-[10px] font-bold text-[#2F6F4E]">{task.checklist.filter((item) => item.completed).length}/{task.checklist.length} done</span>
         </div>
         <div className="space-y-1.5">
           {task.checklist.map((item) => (
@@ -1874,7 +1874,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                     ),
                   });
                 }}
-                className="mt-1 w-4 h-4 rounded border-2 border-slate-300 cursor-pointer accent-emerald-600 group-hover:border-emerald-400 transition"
+                className="mt-1 w-4 h-4 rounded border-2 border-slate-300 cursor-pointer accent-emerald-600 group-hover:border-[#2F6F4E] transition"
               />
               <div className="flex-1">
                 <span className={`text-[10px] font-medium block ${
@@ -1883,7 +1883,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                   {item.title}
                 </span>
                 {item.completedBy && item.completedAt && (
-                  <span className="text-[8px] text-emerald-700 font-medium block mt-0.5">✓ {item.completedBy} · {item.completedAt}</span>
+                  <span className="text-[8px] text-[#2F6F4E] font-medium block mt-0.5">✓ {item.completedBy} · {item.completedAt}</span>
                 )}
               </div>
             </label>
@@ -1896,16 +1896,16 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
   return (
     <div className="space-y-4 text-xs pb-10">
       {/* Header Banner & Mode Switcher */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="bg-amber-400 text-[#16223A] font-extrabold text-[10px] px-2 py-0.5 rounded uppercase tracking-wider">
+            <span className="bg-[#8A6D3B] text-[#16223A] font-extrabold text-[10px] px-2 py-0.5 rounded uppercase tracking-wider">
               Interactive Kanban &amp; Status Matrix
             </span>
             <span className="text-[10px] text-slate-500 font-mono">Drag &amp; Drop Enabled</span>
           </div>
           <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-            <Activity className="w-5 h-5 text-[#A9814A]" />
+            <Activity className="w-5 h-5 text-[#3D6B9C]" />
             Firm-Wide Case Actions &amp; Kanban Matrix
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -1925,7 +1925,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                   : 'text-slate-700 hover:bg-slate-200'
               }`}
             >
-              <Columns className="w-3.5 h-3.5 text-amber-400" />
+              <Columns className="w-3.5 h-3.5 text-[#8A6D3B]" />
               <span>Kanban Board</span>
             </button>
             <button
@@ -1937,7 +1937,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                   : 'text-slate-700 hover:bg-slate-200'
               }`}
             >
-              <List className="w-3.5 h-3.5 text-amber-400" />
+              <List className="w-3.5 h-3.5 text-[#8A6D3B]" />
               <span>Table Matrix</span>
             </button>
           </div>
@@ -1946,9 +1946,9 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
           <button
             type="button"
             onClick={() => setHistoryModalOpen(true)}
-            className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+            className="bg-[#FBF2E9] hover:bg-[#FBF2E9] text-[#8A6D3B] border border-[#8A6D3B] font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
           >
-            <History className="w-3.5 h-3.5 text-amber-700" />
+            <History className="w-3.5 h-3.5 text-[#8A6D3B]" />
             <span>Action History Log ({actionHistoryLogs.length})</span>
           </button>
 
@@ -1956,9 +1956,9 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
           <button
             type="button"
             onClick={() => handleOpenNewTaskForm()}
-            className="bg-[#16223A] hover:bg-[#1F2E4D] text-white font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+            className="bg-[#16223A] hover:bg-[#16223A] text-white font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
           >
-            <Plus className="w-3.5 h-3.5 text-amber-400" />
+            <Plus className="w-3.5 h-3.5 text-[#8A6D3B]" />
             <span>Add Case Action</span>
           </button>
         </div>
@@ -1966,7 +1966,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
 
       {/* Filter Toolbar */}
       {!matterCaseId && (
-      <div className="bg-white border border-[#E1DCCF] p-3 rounded-xl shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div className="bg-white border border-[#DDE3EB] p-3 rounded-xl shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex flex-wrap items-center gap-2.5 flex-1">
           {/* Search Box */}
           <div className="relative min-w-[220px]">
@@ -1975,7 +1975,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
               placeholder="Search Ref, Title, or Client..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-[#A9814A]"
+              className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-[#3D6B9C]"
             />
             <Activity className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
           </div>
@@ -2045,19 +2045,19 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
             onDrop={(e) => handleDrop(e, 'Pending')}
             className={`bg-slate-100/90 border rounded-xl p-3 flex flex-col gap-3 min-h-[550px] transition-all ${
               dragOverColumn === 'Pending'
-                ? 'border-amber-500 bg-amber-50/50 ring-2 ring-amber-300'
-                : 'border-[#E1DCCF]'
+                ? 'border-[#8A6D3B] bg-[#FBF2E9]/50 ring-2 ring-amber-300'
+                : 'border-[#DDE3EB]'
             }`}
           >
             {/* Column Header */}
             <div className="bg-[#16223A] text-white p-3 rounded-lg flex items-center justify-between shadow-2xs">
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />
+                <span className="w-2.5 h-2.5 rounded-full bg-[#8A6D3B] inline-block" />
                 <h3 className="font-serif font-bold text-xs uppercase tracking-wider text-white">
                   ⏳ Task
                 </h3>
               </div>
-              <span className="bg-amber-400 text-[#16223A] font-extrabold text-[10.5px] px-2 py-0.5 rounded-full">
+              <span className="bg-[#8A6D3B] text-[#16223A] font-extrabold text-[10.5px] px-2 py-0.5 rounded-full">
                 {pendingTasks.length}
               </span>
             </div>
@@ -2074,18 +2074,18 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                     key={task.id}
                     draggable
                     onDragStart={(e) => handleDragStart(e, caseId, task.id)}
-                    className="bg-white border border-[#E1DCCF] hover:border-[#A9814A] rounded-xl p-3 shadow-xs space-y-2 cursor-grab active:cursor-grabbing hover:shadow-md transition-all group relative"
+                    className="bg-white border border-[#DDE3EB] hover:border-[#3D6B9C] rounded-xl p-3 shadow-xs space-y-2 cursor-grab active:cursor-grabbing hover:shadow-md transition-all group relative"
                   >
                     <div className="flex items-start justify-between gap-1.5">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-mono font-bold text-[10px] text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                        <span className="font-mono font-bold text-[10px] text-[#8A6D3B] bg-[#FBF2E9] px-1.5 py-0.5 rounded border border-[#FBF2E9]">
                           {caseRef}
                         </span>
                         <span
                           className={`px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase ${
                             task.priority === 'High'
-                              ? 'bg-rose-100 text-rose-800 border border-rose-300'
-                              : 'bg-amber-100 text-amber-800 border border-amber-300'
+                              ? 'bg-[#FBEDE9] text-[#B23A2E] border border-[#B23A2E]'
+                              : 'bg-[#FBF2E9] text-[#8A6D3B] border border-[#8A6D3B]'
                           }`}
                         >
                           {task.priority || 'Medium'} Priority
@@ -2103,7 +2103,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                         setCurrentCaseId(caseId);
                         setCurrentView('cases');
                       }}
-                      className="font-serif font-bold text-xs text-[#16223A] hover:text-amber-800 hover:underline block leading-snug"
+                      className="font-serif font-bold text-xs text-[#16223A] hover:text-[#8A6D3B] hover:underline block leading-snug"
                     >
                       {task.title}
                     </a>
@@ -2112,7 +2112,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                                   Matter: <strong className="text-slate-800">{caseTitle}</strong>
                                 </div>
                                 {task.status === 'In Review' && (
-                                  <div className="bg-purple-50 border border-purple-200 rounded-md px-2 py-1.5 text-[10px] text-purple-900 font-bold">
+                                  <div className="bg-[#F1EBF6] border border-[#F1EBF6] rounded-md px-2 py-1.5 text-[10px] text-[#6B3D8C] font-bold">
                                     Review ready{task.reviewer ? ` • Reviewer: ${task.reviewer}` : ' • Reviewer not assigned'}
                                   </div>
                                 )}
@@ -2122,7 +2122,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                       <span className="text-slate-600 font-semibold">
                         PIC: <strong className="text-[#16223A]">{task.assignedTo || 'Unassigned'}</strong>
                       </span>
-                      <span className="text-rose-800 font-mono font-bold">Due: {task.dueDate}</span>
+                      <span className="text-[#B23A2E] font-mono font-bold">Due: {task.dueDate}</span>
                     </div>
 
                     {/* Quick Move Buttons */}
@@ -2130,24 +2130,24 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                       <button
                         type="button"
                         onClick={() => handleEditTask(task)}
-                        className="px-2 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold rounded text-[9.5px] border border-amber-200 cursor-pointer"
+                        className="px-2 py-0.5 bg-[#FBF2E9] hover:bg-[#FBF2E9] text-[#8A6D3B] font-bold rounded text-[9.5px] border border-[#FBF2E9] cursor-pointer"
                       >
                         Edit
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDeleteTask(caseId, task.id, task.title)}
-                        className="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded text-[9.5px] border border-rose-200 cursor-pointer"
+                        className="px-2 py-0.5 bg-[#FBEDE9] hover:bg-[#FBEDE9] text-[#B23A2E] font-bold rounded text-[9.5px] border border-[#FBEDE9] cursor-pointer"
                       >
                         Delete
                       </button>
                       <button
                         type="button"
                         onClick={() => handleMoveTaskStatus(caseId, task.id, 'In Progress')}
-                        className="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-900 font-bold rounded text-[9.5px] border border-blue-200 flex items-center gap-1 cursor-pointer"
+                        className="px-2 py-0.5 bg-[#E7EEF6] hover:bg-[#E7EEF6] text-[#3D6B9C] font-bold rounded text-[9.5px] border border-[#E7EEF6] flex items-center gap-1 cursor-pointer"
                       >
                         <span>Start ⚡</span>
-                        <ArrowRight className="w-2.5 h-2.5 text-blue-700" />
+                        <ArrowRight className="w-2.5 h-2.5 text-[#3D6B9C]" />
                       </button>
                     </div>
                   </div>
@@ -2163,19 +2163,19 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
             onDrop={(e) => handleDrop(e, 'In Progress')}
             className={`bg-slate-100/90 border rounded-xl p-3 flex flex-col gap-3 min-h-[550px] transition-all ${
               dragOverColumn === 'In Progress'
-                ? 'border-blue-500 bg-blue-50/50 ring-2 ring-blue-300'
-                : 'border-[#E1DCCF]'
+                ? 'border-[#3D6B9C] bg-[#E7EEF6]/50 ring-2 ring-blue-300'
+                : 'border-[#DDE3EB]'
             }`}
           >
             {/* Column Header */}
             <div className="bg-[#16223A] text-white p-3 rounded-lg flex items-center justify-between shadow-2xs">
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-blue-400 inline-block" />
+                <span className="w-2.5 h-2.5 rounded-full bg-[#3D6B9C] inline-block" />
                 <h3 className="font-serif font-bold text-xs uppercase tracking-wider text-white">
                   ⚡ In Progress / Active
                 </h3>
               </div>
-              <span className="bg-blue-400 text-[#16223A] font-extrabold text-[10.5px] px-2 py-0.5 rounded-full">
+              <span className="bg-[#3D6B9C] text-[#16223A] font-extrabold text-[10.5px] px-2 py-0.5 rounded-full">
                 {inProgressTasks.length}
               </span>
             </div>
@@ -2192,18 +2192,18 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                     key={task.id}
                     draggable
                     onDragStart={(e) => handleDragStart(e, caseId, task.id)}
-                    className="bg-white border border-[#E1DCCF] hover:border-blue-500 rounded-xl p-3 shadow-xs space-y-2 cursor-grab active:cursor-grabbing hover:shadow-md transition-all group relative"
+                    className="bg-white border border-[#DDE3EB] hover:border-[#3D6B9C] rounded-xl p-3 shadow-xs space-y-2 cursor-grab active:cursor-grabbing hover:shadow-md transition-all group relative"
                   >
                     <div className="flex items-start justify-between gap-1.5">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-mono font-bold text-[10px] text-blue-900 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                        <span className="font-mono font-bold text-[10px] text-[#3D6B9C] bg-[#E7EEF6] px-1.5 py-0.5 rounded border border-[#E7EEF6]">
                           {caseRef}
                         </span>
                         <span
                           className={`px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase ${
                             task.priority === 'High'
-                              ? 'bg-rose-100 text-rose-800 border border-rose-300'
-                              : 'bg-amber-100 text-amber-800 border border-amber-300'
+                              ? 'bg-[#FBEDE9] text-[#B23A2E] border border-[#B23A2E]'
+                              : 'bg-[#FBF2E9] text-[#8A6D3B] border border-[#8A6D3B]'
                           }`}
                         >
                           {task.priority || 'Medium'} Priority
@@ -2221,7 +2221,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                         setCurrentCaseId(caseId);
                         setCurrentView('cases');
                       }}
-                      className="font-serif font-bold text-xs text-[#16223A] hover:text-blue-800 hover:underline block leading-snug"
+                      className="font-serif font-bold text-xs text-[#16223A] hover:text-[#3D6B9C] hover:underline block leading-snug"
                     >
                       {task.title}
                     </a>
@@ -2234,7 +2234,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                       <span className="text-slate-600 font-semibold">
                         PIC: <strong className="text-[#16223A]">{task.assignedTo || 'Unassigned'}</strong>
                       </span>
-                      <span className="text-rose-800 font-mono font-bold">Due: {task.dueDate}</span>
+                      <span className="text-[#B23A2E] font-mono font-bold">Due: {task.dueDate}</span>
                     </div>
 
                     {/* Quick Move Buttons */}
@@ -2242,14 +2242,14 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                       <button
                         type="button"
                         onClick={() => handleEditTask(task)}
-                        className="px-2 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold rounded text-[9.5px] border border-amber-200 cursor-pointer"
+                        className="px-2 py-0.5 bg-[#FBF2E9] hover:bg-[#FBF2E9] text-[#8A6D3B] font-bold rounded text-[9.5px] border border-[#FBF2E9] cursor-pointer"
                       >
                         Edit
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDeleteTask(caseId, task.id, task.title)}
-                        className="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded text-[9.5px] border border-rose-200 cursor-pointer"
+                        className="px-2 py-0.5 bg-[#FBEDE9] hover:bg-[#FBEDE9] text-[#B23A2E] font-bold rounded text-[9.5px] border border-[#FBEDE9] cursor-pointer"
                       >
                         Delete
                       </button>
@@ -2263,7 +2263,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                       <button
                         type="button"
                         onClick={() => handleMoveTaskStatus(caseId, task.id, 'In Review')}
-                        className="px-2 py-0.5 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded text-[9.5px] flex items-center gap-1 cursor-pointer shadow-2xs"
+                        className="px-2 py-0.5 bg-[#6B3D8C] hover:bg-[#6B3D8C] text-white font-bold rounded text-[9.5px] flex items-center gap-1 cursor-pointer shadow-2xs"
                       >
                         <span>Send for Review 🔍</span>
                       </button>
@@ -2281,19 +2281,19 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
             onDrop={(e) => handleDrop(e, 'In Review')}
             className={`bg-slate-100/90 border rounded-xl p-3 flex flex-col gap-3 min-h-[550px] transition-all ${
               dragOverColumn === 'In Review'
-                ? 'border-purple-500 bg-purple-50/50 ring-2 ring-purple-300'
-                : 'border-[#E1DCCF]'
+                ? 'border-[#6B3D8C] bg-[#F1EBF6]/50 ring-2 ring-purple-300'
+                : 'border-[#DDE3EB]'
             }`}
           >
             {/* Column Header */}
             <div className="bg-[#16223A] text-white p-3 rounded-lg flex items-center justify-between shadow-2xs">
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-purple-400 inline-block" />
+                <span className="w-2.5 h-2.5 rounded-full bg-[#6B3D8C] inline-block" />
                 <h3 className="font-serif font-bold text-xs uppercase tracking-wider text-white">
                   🔍 In Review
                 </h3>
               </div>
-              <span className="bg-purple-400 text-[#16223A] font-extrabold text-[10.5px] px-2 py-0.5 rounded-full">
+              <span className="bg-[#6B3D8C] text-[#16223A] font-extrabold text-[10.5px] px-2 py-0.5 rounded-full">
                 {reviewTasks.length}
               </span>
             </div>
@@ -2310,18 +2310,18 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                     key={task.id}
                     draggable
                     onDragStart={(e) => handleDragStart(e, caseId, task.id)}
-                    className="bg-white border border-purple-200 hover:border-purple-500 rounded-xl p-3 shadow-xs space-y-2 cursor-grab active:cursor-grabbing hover:shadow-md transition-all group relative"
+                    className="bg-white border border-[#F1EBF6] hover:border-[#6B3D8C] rounded-xl p-3 shadow-xs space-y-2 cursor-grab active:cursor-grabbing hover:shadow-md transition-all group relative"
                   >
                     <div className="flex items-start justify-between gap-1.5">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-mono font-bold text-[10px] text-purple-900 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                        <span className="font-mono font-bold text-[10px] text-[#6B3D8C] bg-[#F1EBF6] px-1.5 py-0.5 rounded border border-[#F1EBF6]">
                           {caseRef}
                         </span>
                         <span
                           className={`px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase ${
                             task.priority === 'High'
-                              ? 'bg-rose-100 text-rose-800 border border-rose-300'
-                              : 'bg-amber-100 text-amber-800 border border-amber-300'
+                              ? 'bg-[#FBEDE9] text-[#B23A2E] border border-[#B23A2E]'
+                              : 'bg-[#FBF2E9] text-[#8A6D3B] border border-[#8A6D3B]'
                           }`}
                         >
                           {task.priority || 'Medium'} Priority
@@ -2339,7 +2339,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                         setCurrentCaseId(caseId);
                         setCurrentView('cases');
                       }}
-                      className="font-serif font-bold text-xs text-[#16223A] hover:text-purple-800 hover:underline block leading-snug"
+                      className="font-serif font-bold text-xs text-[#16223A] hover:text-[#6B3D8C] hover:underline block leading-snug"
                     >
                       {task.title}
                     </a>
@@ -2348,7 +2348,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                       Matter: <strong className="text-slate-800">{caseTitle}</strong>
                     </div>
 
-                    <div className="bg-purple-50 border border-purple-200 rounded-md px-2 py-1.5 text-[10px] text-purple-900 font-bold">
+                    <div className="bg-[#F1EBF6] border border-[#F1EBF6] rounded-md px-2 py-1.5 text-[10px] text-[#6B3D8C] font-bold">
                       Reviewer: {task.reviewer || 'Not assigned'}
                     </div>
 
@@ -2356,7 +2356,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                       <span className="text-slate-600 font-semibold">
                         PIC: <strong className="text-[#16223A]">{task.assignedTo || 'Unassigned'}</strong>
                       </span>
-                      <span className="text-rose-800 font-mono font-bold">Due: {task.dueDate}</span>
+                      <span className="text-[#B23A2E] font-mono font-bold">Due: {task.dueDate}</span>
                     </div>
 
                     {/* Quick Move Buttons */}
@@ -2364,14 +2364,14 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                       <button
                         type="button"
                         onClick={() => handleEditTask(task)}
-                        className="px-2 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold rounded text-[9.5px] border border-amber-200 cursor-pointer"
+                        className="px-2 py-0.5 bg-[#FBF2E9] hover:bg-[#FBF2E9] text-[#8A6D3B] font-bold rounded text-[9.5px] border border-[#FBF2E9] cursor-pointer"
                       >
                         Edit
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDeleteTask(caseId, task.id, task.title)}
-                        className="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded text-[9.5px] border border-rose-200 cursor-pointer"
+                        className="px-2 py-0.5 bg-[#FBEDE9] hover:bg-[#FBEDE9] text-[#B23A2E] font-bold rounded text-[9.5px] border border-[#FBEDE9] cursor-pointer"
                       >
                         Delete
                       </button>
@@ -2385,7 +2385,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                       <button
                         type="button"
                         onClick={() => handleMoveTaskStatus(caseId, task.id, 'Completed')}
-                        className="px-2 py-0.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded text-[9.5px] flex items-center gap-1 cursor-pointer shadow-2xs"
+                        className="px-2 py-0.5 bg-[#2F6F4E] hover:bg-[#2F6F4E] text-white font-bold rounded text-[9.5px] flex items-center gap-1 cursor-pointer shadow-2xs"
                       >
                         <span>Approve ✓</span>
                       </button>
@@ -2403,19 +2403,19 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
             onDrop={(e) => handleDrop(e, 'Completed')}
             className={`bg-slate-100/90 border rounded-xl p-3 flex flex-col gap-3 min-h-[550px] transition-all ${
               dragOverColumn === 'Completed'
-                ? 'border-emerald-500 bg-emerald-50/50 ring-2 ring-emerald-300'
-                : 'border-[#E1DCCF]'
+                ? 'border-[#2F6F4E] bg-[#E6EFE9]/50 ring-2 ring-emerald-300'
+                : 'border-[#DDE3EB]'
             }`}
           >
             {/* Column Header */}
             <div className="bg-[#16223A] text-white p-3 rounded-lg flex items-center justify-between shadow-2xs">
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block" />
+                <span className="w-2.5 h-2.5 rounded-full bg-[#2F6F4E] inline-block" />
                 <h3 className="font-serif font-bold text-xs uppercase tracking-wider text-white">
                   ✅ Completed / Scratched
                 </h3>
               </div>
-              <span className="bg-emerald-400 text-[#16223A] font-extrabold text-[10.5px] px-2 py-0.5 rounded-full">
+              <span className="bg-[#2F6F4E] text-[#16223A] font-extrabold text-[10.5px] px-2 py-0.5 rounded-full">
                 {completedTasks.length}
               </span>
             </div>
@@ -2432,14 +2432,14 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                     key={task.id}
                     draggable
                     onDragStart={(e) => handleDragStart(e, caseId, task.id)}
-                    className="bg-emerald-50/40 border border-emerald-200 hover:border-emerald-500 rounded-xl p-3 shadow-xs space-y-2 cursor-grab active:cursor-grabbing hover:shadow-md transition-all group relative"
+                    className="bg-[#E6EFE9]/40 border border-[#E6EFE9] hover:border-[#2F6F4E] rounded-xl p-3 shadow-xs space-y-2 cursor-grab active:cursor-grabbing hover:shadow-md transition-all group relative"
                   >
                     <div className="flex items-start justify-between gap-1.5">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-mono font-bold text-[10px] text-emerald-950 bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-300">
+                        <span className="font-mono font-bold text-[10px] text-[#2F6F4E] bg-[#E6EFE9] px-1.5 py-0.5 rounded border border-[#2F6F4E]">
                           {caseRef}
                         </span>
-                        <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-emerald-200 text-emerald-900 uppercase">
+                        <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-[#E6EFE9] text-[#2F6F4E] uppercase">
                           ✓ Done
                         </span>
                         {renderStageTagPicker(task, caseId)}
@@ -2455,7 +2455,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                         setCurrentCaseId(caseId);
                         setCurrentView('cases');
                       }}
-                      className="font-serif font-bold text-xs text-slate-600 line-through hover:text-emerald-900 block leading-snug"
+                      className="font-serif font-bold text-xs text-slate-600 line-through hover:text-[#2F6F4E] block leading-snug"
                     >
                       {task.title}
                     </a>
@@ -2464,11 +2464,11 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                       Matter: <strong className="text-slate-800">{caseTitle}</strong>
                     </div>
 
-                    <div className="flex items-center justify-between pt-2 border-t border-emerald-100 text-[10px]">
+                    <div className="flex items-center justify-between pt-2 border-t border-[#E6EFE9] text-[10px]">
                       <span className="text-slate-600 font-semibold">
                         PIC: <strong>{task.assignedTo || 'Unassigned'}</strong>
                       </span>
-                      <span className="text-emerald-800 font-mono font-bold">Done Date: {task.dueDate}</span>
+                      <span className="text-[#2F6F4E] font-mono font-bold">Done Date: {task.dueDate}</span>
                     </div>
 
                     {/* Reopen Action Button */}
@@ -2476,14 +2476,14 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                       <button
                         type="button"
                         onClick={() => handleEditTask(task)}
-                        className="px-2 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold rounded text-[9.5px] border border-amber-200 cursor-pointer"
+                        className="px-2 py-0.5 bg-[#FBF2E9] hover:bg-[#FBF2E9] text-[#8A6D3B] font-bold rounded text-[9.5px] border border-[#FBF2E9] cursor-pointer"
                       >
                         Edit
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDeleteTask(caseId, task.id, task.title)}
-                        className="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded text-[9.5px] border border-rose-200 cursor-pointer"
+                        className="px-2 py-0.5 bg-[#FBEDE9] hover:bg-[#FBEDE9] text-[#B23A2E] font-bold rounded text-[9.5px] border border-[#FBEDE9] cursor-pointer"
                       >
                         Delete
                       </button>
@@ -2505,16 +2505,16 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
 
       {/* ================= LAYOUT 2: TABLE MATRIX ================= */}
       {viewLayout === 'table' && (
-        <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs">
+        <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse min-w-[1100px]">
               <thead>
                 <tr className="bg-[#16223A] text-white text-[10.5px] uppercase font-bold tracking-wider">
-                  <th className="p-3 border-r border-[#1F2E4D] w-[220px]">Matter Ref &amp; File Title</th>
-                  <th className="p-3 border-r border-[#1F2E4D] w-[210px]">Partners &amp; Lawyers In Charge</th>
-                  <th className="p-3 border-r border-[#1F2E4D] min-w-[280px]">Current Action</th>
-                  <th className="p-3 border-r border-[#1F2E4D] min-w-[260px]">Current Status</th>
-                  <th className="p-3 border-r border-[#1F2E4D] min-w-[240px]">Next Action</th>
+                  <th className="p-3 border-r border-[#16223A] w-[220px]">Matter Ref &amp; File Title</th>
+                  <th className="p-3 border-r border-[#16223A] w-[210px]">Partners &amp; Lawyers In Charge</th>
+                  <th className="p-3 border-r border-[#16223A] min-w-[280px]">Current Action</th>
+                  <th className="p-3 border-r border-[#16223A] min-w-[260px]">Current Status</th>
+                  <th className="p-3 border-r border-[#16223A] min-w-[240px]">Next Action</th>
                   <th className="p-3 text-center w-[160px]">Action</th>
                 </tr>
               </thead>
@@ -2531,7 +2531,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                       <td className="p-3 border-r border-slate-200 align-top space-y-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="ref-seal font-mono text-[10.5px]">{cs.ref}</span>
-                          <span className="px-1.5 py-0.5 rounded text-[9.5px] font-extrabold bg-blue-50 text-blue-900 border border-blue-200">
+                          <span className="px-1.5 py-0.5 rounded text-[9.5px] font-extrabold bg-[#E7EEF6] text-[#3D6B9C] border border-[#E7EEF6]">
                             {cs.practiceArea || cs.type}
                           </span>
                         </div>
@@ -2542,7 +2542,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                             setCurrentCaseId(cs.id);
                             setCurrentView('cases');
                           }}
-                          className="font-serif font-bold text-sm text-[#16223A] hover:text-amber-800 hover:underline block mt-1"
+                          className="font-serif font-bold text-sm text-[#16223A] hover:text-[#8A6D3B] hover:underline block mt-1"
                         >
                           {cs.title}
                         </a>
@@ -2555,7 +2555,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                       <td className="p-3 border-r border-slate-200 align-top space-y-2">
                         <div>
                           <span className="font-bold text-slate-400 uppercase text-[9px] block">Partner(s) In Charge</span>
-                          <span className="font-bold text-amber-900 text-[10.5px] bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-block mt-0.5">
+                          <span className="font-bold text-[#8A6D3B] text-[10.5px] bg-[#FBF2E9] px-2 py-0.5 rounded border border-[#FBF2E9] inline-block mt-0.5">
                             {partnerInCharge}
                           </span>
                         </div>
@@ -2566,7 +2566,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                             {assignedLawyersList.map((lawyer, lIdx) => (
                               <span
                                 key={lIdx}
-                                className="px-2 py-0.5 bg-blue-100 text-blue-950 font-bold text-[10px] rounded border border-blue-200 flex items-center gap-1"
+                                className="px-2 py-0.5 bg-[#E7EEF6] text-[#3D6B9C] font-bold text-[10px] rounded border border-[#E7EEF6] flex items-center gap-1"
                               >
                                 <span>{lawyer}</span>
                               </span>
@@ -2621,7 +2621,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                           rows={3}
                           value={cs.notes || 'Pleadings closed. Preparing affidavit in support.'}
                           onChange={(e) => updateCase(cs.id, { notes: e.target.value })}
-                          className="w-full p-2 bg-amber-50/50 border border-amber-200 rounded text-xs font-sans text-slate-800 focus:bg-white focus:ring-1 focus:ring-[#A9814A]"
+                          className="w-full p-2 bg-[#FBF2E9]/50 border border-[#FBF2E9] rounded text-xs font-sans text-slate-800 focus:bg-white focus:ring-1 focus:ring-[#3D6B9C]"
                         />
                       </td>
 
@@ -2632,7 +2632,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                           value={cs.nextAction || ''}
                           placeholder="e.g. Fix Pre-Trial Case Management & submit bundle of documents"
                           onChange={(e) => updateCase(cs.id, { nextAction: e.target.value })}
-                          className="w-full p-2 bg-blue-50/40 border border-blue-200 rounded text-xs font-sans text-slate-800 focus:bg-white focus:ring-1 focus:ring-blue-400"
+                          className="w-full p-2 bg-[#E7EEF6]/40 border border-[#E7EEF6] rounded text-xs font-sans text-slate-800 focus:bg-white focus:ring-1 focus:ring-blue-400"
                         />
                       </td>
 
@@ -2653,10 +2653,10 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                               description: `Current Status: ${cs.notes || 'In progress'} | Next Action: ${cs.nextAction || 'To be advised'}`,
                               type: 'Status Update',
                               actor: currentUser?.name || 'Firm',
-                              badgeColor: 'bg-emerald-100 text-emerald-800',
+                              badgeColor: 'bg-[#E6EFE9] text-[#2F6F4E]',
                             });
                           }}
-                          className="w-full bg-[#2F6F4E] hover:bg-emerald-800 text-white font-bold text-[10.5px] py-1 px-2 rounded flex items-center justify-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                          className="w-full bg-[#2F6F4E] hover:bg-[#2F6F4E] text-white font-bold text-[10.5px] py-1 px-2 rounded flex items-center justify-center gap-1 cursor-pointer transition-colors shadow-2xs"
                         >
                           <span>Send WhatsApp</span>
                         </button>
@@ -2671,11 +2671,11 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                               description: `Current Status: ${cs.notes || 'In progress'} | Next Action: ${cs.nextAction || 'To be advised'}`,
                               type: 'Status Update',
                               actor: currentUser?.name || 'Firm',
-                              badgeColor: 'bg-blue-100 text-blue-800',
+                              badgeColor: 'bg-[#E7EEF6] text-[#3D6B9C]',
                             });
                             showToast(`Client update logged to Case Status Log for ${cs.ref}`);
                           }}
-                          className="w-full bg-[#16223A] hover:bg-[#1F2E4D] text-white font-bold text-[10.5px] py-1 px-2 rounded flex items-center justify-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                          className="w-full bg-[#16223A] hover:bg-[#16223A] text-white font-bold text-[10.5px] py-1 px-2 rounded flex items-center justify-center gap-1 cursor-pointer transition-colors shadow-2xs"
                         >
                           <span>Send Email</span>
                         </button>
@@ -2692,11 +2692,11 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
       {/* ================= ACTION HISTORY AUDIT LOG MODAL ================= */}
       {historyModalOpen && (
         <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full p-6 border border-[#E1DCCF] space-y-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full p-6 border border-[#DDE3EB] space-y-4">
             <div className="flex justify-between items-center border-b border-slate-200 pb-3">
               <div>
                 <h3 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-                  <History className="w-5 h-5 text-[#A9814A]" />
+                  <History className="w-5 h-5 text-[#3D6B9C]" />
                   Action History &amp; Status Movement Audit Trail
                 </h3>
                 <p className="text-xs text-slate-500">
@@ -2733,13 +2733,13 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                     </tr>
                   ) : (
                     actionHistoryLogs.map((log) => (
-                      <tr key={log.id} className="hover:bg-amber-50/50 transition-colors">
+                      <tr key={log.id} className="hover:bg-[#FBF2E9]/50 transition-colors">
                         <td className="p-2.5 font-mono text-[10.5px] text-slate-500 whitespace-nowrap">
                           {log.timestamp}
                         </td>
                         <td className="p-2.5 font-bold text-[#16223A]">{log.taskTitle}</td>
                         <td className="p-2.5">
-                          <div className="font-mono text-amber-900 font-bold text-[10.5px]">{log.caseRef}</div>
+                          <div className="font-mono text-[#8A6D3B] font-bold text-[10.5px]">{log.caseRef}</div>
                           <div className="text-slate-500 text-[10px] truncate max-w-[180px]">{log.caseTitle}</div>
                         </td>
                         <td className="p-2.5">
@@ -2748,7 +2748,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                               {log.fromStatus}
                             </span>
                             <ArrowRight className="w-3 h-3 text-slate-400" />
-                            <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-900 rounded text-[10px] font-extrabold">
+                            <span className="px-1.5 py-0.2 bg-[#E6EFE9] text-[#2F6F4E] rounded text-[10px] font-extrabold">
                               {log.toStatus}
                             </span>
                           </div>
@@ -2803,18 +2803,18 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
       {/* ================= ADD NEW ACTION ITEM MODAL ================= */}
       {isAddActionOpen && (
         <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[92vh] overflow-y-auto border border-[#D8C59A]">
-            <div className="bg-white px-7 py-6 border-b border-[#E1DCCF] sticky top-0 z-10">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[92vh] overflow-y-auto border border-[#FBF2E9]">
+            <div className="bg-white px-7 py-6 border-b border-[#DDE3EB] sticky top-0 z-10">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#A9814A] font-extrabold mb-1">Matter Workflow</p>
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#3D6B9C] font-extrabold mb-1">Matter Workflow</p>
                   <h3 className="font-serif text-xl font-bold text-[#16223A] flex items-center gap-2">
-                    <Plus className="w-5 h-5 text-[#A9814A]" />
+                    <Plus className="w-5 h-5 text-[#3D6B9C]" />
                     {editingTaskId ? 'Edit Case Action Item' : 'Create New Case Action Item'}
                   </h3>
                   <p className="text-xs text-slate-500 mt-1">Assign the work, add context, and define the finish line.</p>
                 </div>
-                  <span className="px-2.5 py-1 rounded-full bg-[#FAF8F2] border border-[#E8DCC4] text-[10px] font-bold text-[#A9814A]">{editingTaskId ? 'EDIT TASK' : 'NEW TASK'}</span>
+                  <span className="px-2.5 py-1 rounded-full bg-[#F6F8FA] border border-[#DDE3EB] text-[10px] font-bold text-[#3D6B9C]">{editingTaskId ? 'EDIT TASK' : 'NEW TASK'}</span>
               </div>
             </div>
             <form onSubmit={handleCreateNewTask} className="space-y-3 text-xs">
@@ -2823,7 +2823,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                 <select
                   value={newTaskCaseId}
                   onChange={(e) => setNewTaskCaseId(e.target.value)}
-                  className="w-full font-bold p-3 bg-gradient-to-br from-[#FFFEFB] to-[#FAF8F2] border-2 border-[#D8C59A] rounded-xl shadow-sm focus:ring-2 focus:ring-[#A9814A]/20 transition cursor-pointer"
+                  className="w-full font-bold p-3 bg-gradient-to-br from-[#F6F8FA] to-[#F6F8FA] border-2 border-[#FBF2E9] rounded-xl shadow-sm focus:ring-2 focus:ring-[#3D6B9C]/20 transition cursor-pointer"
                 >
                   {cases.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -2841,7 +2841,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                   value={newTaskTitle}
                   onChange={(e) => setNewTaskTitle(e.target.value)}
                   rows={3}
-                  className="w-full min-h-28 font-bold p-3 bg-gradient-to-br from-[#FFFEFB] to-[#FAF8F2] border-2 border-[#D8C59A] rounded-xl shadow-sm focus:ring-2 focus:ring-[#A9814A]/20 transition text-base leading-relaxed"
+                  className="w-full min-h-28 font-bold p-3 bg-gradient-to-br from-[#F6F8FA] to-[#F6F8FA] border-2 border-[#FBF2E9] rounded-xl shadow-sm focus:ring-2 focus:ring-[#3D6B9C]/20 transition text-base leading-relaxed"
                 />
               </div>
 
@@ -2851,7 +2851,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                   <select
                     value={newTaskPriority}
                     onChange={(e) => setNewTaskPriority(e.target.value as any)}
-                    className="w-full p-3 bg-gradient-to-br from-[#FFFEFB] to-[#FAF8F2] border-2 border-[#D8C59A] rounded-xl font-bold shadow-sm focus:ring-2 focus:ring-[#A9814A]/20 transition cursor-pointer"
+                    className="w-full p-3 bg-gradient-to-br from-[#F6F8FA] to-[#F6F8FA] border-2 border-[#FBF2E9] rounded-xl font-bold shadow-sm focus:ring-2 focus:ring-[#3D6B9C]/20 transition cursor-pointer"
                   >
                     <option value="High">🔴 High Priority</option>
                     <option value="Medium">🟡 Medium Priority</option>
@@ -2866,7 +2866,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                     required
                     value={newTaskDueDate}
                     onChange={(e) => setNewTaskDueDate(e.target.value)}
-                    className="w-full p-3 bg-gradient-to-br from-[#FFFEFB] to-[#FAF8F2] border-2 border-[#D8C59A] rounded-xl font-mono font-bold shadow-sm focus:ring-2 focus:ring-[#A9814A]/20 transition"
+                    className="w-full p-3 bg-gradient-to-br from-[#F6F8FA] to-[#F6F8FA] border-2 border-[#FBF2E9] rounded-xl font-mono font-bold shadow-sm focus:ring-2 focus:ring-[#3D6B9C]/20 transition"
                   />
                 </div>
               </div>
@@ -2880,7 +2880,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                     onChange={(e) => setNewTaskAssignee(e.target.value)}
                     placeholder="Type manually: @Syafiqah Hamizad, @Amer Haiqal"
                     onFocus={() => setActiveMentionField('assignee')}
-                    className="w-full p-3 bg-gradient-to-br from-[#FFFEFB] to-[#FAF8F2] border-2 border-[#D8C59A] rounded-xl font-bold shadow-sm focus:ring-2 focus:ring-[#A9814A]/20 transition"
+                    className="w-full p-3 bg-gradient-to-br from-[#F6F8FA] to-[#F6F8FA] border-2 border-[#FBF2E9] rounded-xl font-bold shadow-sm focus:ring-2 focus:ring-[#3D6B9C]/20 transition"
                   />
                   {/* Display selected assignees as colored badges */}
                   {parseTaggedNames(newTaskAssignee).length > 0 && (
@@ -2897,9 +2897,9 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                   )}
                 </div>
                 {activeMentionField === 'assignee' && newTaskAssignee.includes('@') && mentionSuggestions(newTaskAssignee).length > 0 && (
-                  <div className="absolute left-7 right-7 top-full mt-1 z-20 bg-white border border-[#D8C59A] rounded-xl shadow-xl overflow-hidden">
+                  <div className="absolute left-7 right-7 top-full mt-1 z-20 bg-white border border-[#FBF2E9] rounded-xl shadow-xl overflow-hidden">
                     {mentionSuggestions(newTaskAssignee).map((user) => (
-                      <button type="button" key={user.id} onMouseDown={(e) => e.preventDefault()} onClick={() => selectMention('assignee', user)} className="w-full px-3 py-2 text-left hover:bg-[#FAF8F2] flex items-center justify-between cursor-pointer">
+                      <button type="button" key={user.id} onMouseDown={(e) => e.preventDefault()} onClick={() => selectMention('assignee', user)} className="w-full px-3 py-2 text-left hover:bg-[#F6F8FA] flex items-center justify-between cursor-pointer">
                         <span className="font-bold text-[#16223A]">@{getUsername(user)}</span><span className="text-[10px] text-slate-500">{user.name} · {user.role}</span>
                       </button>
                     ))}
@@ -2916,7 +2916,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                     onChange={(e) => setNewTaskReviewer(e.target.value)}
                     placeholder="Type manually: @Reviewer Name"
                     onFocus={() => setActiveMentionField('reviewer')}
-                    className="w-full p-3 bg-gradient-to-br from-[#FFFEFB] to-[#FAF8F2] border-2 border-[#D8C59A] rounded-xl font-bold shadow-sm focus:ring-2 focus:ring-[#A9814A]/20 transition"
+                    className="w-full p-3 bg-gradient-to-br from-[#F6F8FA] to-[#F6F8FA] border-2 border-[#FBF2E9] rounded-xl font-bold shadow-sm focus:ring-2 focus:ring-[#3D6B9C]/20 transition"
                   />
                   {/* Display selected reviewers as colored badges */}
                   {parseTaggedNames(newTaskReviewer).length > 0 && (
@@ -2933,9 +2933,9 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                   )}
                 </div>
                 {activeMentionField === 'reviewer' && newTaskReviewer.includes('@') && mentionSuggestions(newTaskReviewer).length > 0 && (
-                  <div className="absolute left-7 right-7 top-full mt-1 z-20 bg-white border border-[#D8C59A] rounded-xl shadow-xl overflow-hidden">
+                  <div className="absolute left-7 right-7 top-full mt-1 z-20 bg-white border border-[#FBF2E9] rounded-xl shadow-xl overflow-hidden">
                     {mentionSuggestions(newTaskReviewer).map((user) => (
-                      <button type="button" key={user.id} onMouseDown={(e) => e.preventDefault()} onClick={() => selectMention('reviewer', user)} className="w-full px-3 py-2 text-left hover:bg-[#FAF8F2] flex items-center justify-between cursor-pointer">
+                      <button type="button" key={user.id} onMouseDown={(e) => e.preventDefault()} onClick={() => selectMention('reviewer', user)} className="w-full px-3 py-2 text-left hover:bg-[#F6F8FA] flex items-center justify-between cursor-pointer">
                         <span className="font-bold text-[#16223A]">@{getUsername(user)}</span><span className="text-[10px] text-slate-500">{user.name} · {user.role}</span>
                       </button>
                     ))}
@@ -2950,7 +2950,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                   value={newTaskNotes} 
                   onChange={(e) => setNewTaskNotes(e.target.value)} 
                   placeholder="Explain the work, expected output, documents, and completion criteria." 
-                  className="w-full p-3 bg-gradient-to-br from-[#FFFEFB] to-[#FAF8F2] border-2 border-[#D8C59A] rounded-xl shadow-sm focus:ring-2 focus:ring-[#A9814A]/20 transition resize-none"
+                  className="w-full p-3 bg-gradient-to-br from-[#F6F8FA] to-[#F6F8FA] border-2 border-[#FBF2E9] rounded-xl shadow-sm focus:ring-2 focus:ring-[#3D6B9C]/20 transition resize-none"
                 />
               </div>
 
@@ -2961,11 +2961,11 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                   value={newTaskChecklist} 
                   onChange={(e) => setNewTaskChecklist(e.target.value)} 
                   placeholder={'One task per line\nReview source documents\nPrepare draft\nSubmit for review'} 
-                  className="w-full p-3 bg-gradient-to-br from-[#FFFEFB] to-[#FAF8F2] border-2 border-[#D8C59A] rounded-xl shadow-sm focus:ring-2 focus:ring-[#A9814A]/20 transition resize-none"
+                  className="w-full p-3 bg-gradient-to-br from-[#F6F8FA] to-[#F6F8FA] border-2 border-[#FBF2E9] rounded-xl shadow-sm focus:ring-2 focus:ring-[#3D6B9C]/20 transition resize-none"
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-4 px-7 pb-7 border-t border-[#E1DCCF]">
+              <div className="flex justify-end gap-2 pt-4 px-7 pb-7 border-t border-[#DDE3EB]">
                 <button
                   type="button"
                   onClick={() => {
@@ -2977,13 +2977,13 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                     setNewTaskNotes('');
                     setNewTaskChecklist('');
                   }}
-                  className="px-4 py-2.5 border-2 border-[#E1DCCF] text-slate-700 rounded-lg font-semibold cursor-pointer hover:bg-slate-50 transition"
+                  className="px-4 py-2.5 border-2 border-[#DDE3EB] text-slate-700 rounded-lg font-semibold cursor-pointer hover:bg-slate-50 transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 bg-gradient-to-r from-[#16223A] to-[#1F2E4D] hover:from-[#1F2E4D] hover:to-[#2A3D5F] text-white rounded-lg font-bold cursor-pointer shadow-lg transition transform hover:scale-105"
+                  className="px-6 py-2.5 bg-gradient-to-r from-[#16223A] to-[#16223A] hover:from-[#16223A] hover:to-[#16223A] text-white rounded-lg font-bold cursor-pointer shadow-lg transition transform hover:scale-105"
                 >
                   {editingTaskId ? 'Save Changes' : 'Create Action'}
                 </button>
@@ -2996,7 +2996,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
       {/* WhatsApp Modal */}
       {waModalObj && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl max-w-md w-full p-5 space-y-4 shadow-xl border border-[#E1DCCF]">
+          <div className="bg-white rounded-xl max-w-md w-full p-5 space-y-4 shadow-xl border border-[#DDE3EB]">
             <div className="flex justify-between items-center border-b pb-2">
               <h3 className="font-serif font-bold text-base text-[#16223A]">Client Weekly Update (WhatsApp)</h3>
               <button onClick={() => setWaModalObj(null)} className="text-slate-400 hover:text-slate-700 font-bold">
@@ -3028,7 +3028,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                   showToast('Opened WhatsApp web client update window');
                   setWaModalObj(null);
                 }}
-                className="px-4 py-1.5 text-xs font-bold bg-[#2F6F4E] hover:bg-emerald-800 text-white rounded flex items-center gap-1.5"
+                className="px-4 py-1.5 text-xs font-bold bg-[#2F6F4E] hover:bg-[#2F6F4E] text-white rounded flex items-center gap-1.5"
               >
                 <span>Send via WhatsApp</span>
               </a>
@@ -3049,17 +3049,17 @@ export const DeadlinesView: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
         <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-          <Flag className="w-5 h-5 text-rose-700" />
+          <Flag className="w-5 h-5 text-[#B23A2E]" />
           Statutory Limitations &amp; Court Filing Deadlines
         </h2>
       </div>
 
-      <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
-            <tr className="bg-[#F6F4EE] border-b border-[#E1DCCF] text-[10px] uppercase text-slate-600">
+            <tr className="bg-[#F6F8FA] border-b border-[#DDE3EB] text-[10px] uppercase text-slate-600">
               <th className="p-3 font-bold">Matter Ref</th>
               <th className="p-3 font-bold">Title</th>
               <th className="p-3 font-bold">Type</th>
@@ -3082,29 +3082,29 @@ export const DeadlinesView: React.FC = () => {
                       setCurrentView('cases');
                     }
                   }}
-                  className="hover:bg-[#FAF8F2] cursor-pointer"
+                  className="hover:bg-[#F6F8FA] cursor-pointer"
                 >
                   <td className="p-3">
                     <span className="ref-seal">{cs ? cs.ref : '—'}</span>
                   </td>
                   <td className="p-3 font-bold text-[#16223A]">{d.title}</td>
-                  <td className="p-3 font-semibold text-purple-800">{d.type}</td>
+                  <td className="p-3 font-semibold text-[#6B3D8C]">{d.type}</td>
                   <td className="p-3 font-mono">{d.dueDate}</td>
                   <td className="p-3">
                     <span
                       className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                         days < 0
-                          ? 'bg-rose-100 text-rose-800'
+                          ? 'bg-[#FBEDE9] text-[#B23A2E]'
                           : days <= 7
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-emerald-100 text-emerald-800'
+                          ? 'bg-[#FBF2E9] text-[#8A6D3B]'
+                          : 'bg-[#E6EFE9] text-[#2F6F4E]'
                       }`}
                     >
                       {days < 0 ? `Overdue ${Math.abs(days)}d` : `${days}d remaining`}
                     </span>
                   </td>
                   <td className="p-3">
-                    <span className="px-2 py-0.5 bg-blue-100 text-blue-900 rounded text-[10px] font-bold">
+                    <span className="px-2 py-0.5 bg-[#E7EEF6] text-[#3D6B9C] rounded text-[10px] font-bold">
                       {d.status}
                     </span>
                   </td>
@@ -3124,15 +3124,15 @@ export const CourtsView: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
         <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-          <Landmark className="w-5 h-5 text-[#A9814A]" />
+          <Landmark className="w-5 h-5 text-[#3D6B9C]" />
           Malaysian Courts Directory
         </h2>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-3">
+        <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs space-y-3">
           <h3 className="font-serif font-bold text-sm text-[#16223A]">Courts Register</h3>
           <div className="divide-y divide-slate-100 text-xs">
             {courts.map((c) => (
@@ -3144,7 +3144,7 @@ export const CourtsView: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-3">
+        <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs space-y-3">
           <h3 className="font-serif font-bold text-sm text-[#16223A]">Judges Register</h3>
           <div className="divide-y divide-slate-100 text-xs">
             {judges.map((j) => (
@@ -3205,10 +3205,10 @@ export const ReferralView: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
+      <div className="flex justify-between items-center bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
         <div>
           <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-            <Share2 className="w-5 h-5 text-[#A9814A]" />
+            <Share2 className="w-5 h-5 text-[#3D6B9C]" />
             Referral Sources &amp; Commission Tracking
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -3217,17 +3217,17 @@ export const ReferralView: React.FC = () => {
         </div>
         <button
           onClick={() => setIsModalOpen(true)}
-          className="bg-[#16223A] hover:bg-[#1F2E4D] text-white text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 cursor-pointer shadow-xs"
+          className="bg-[#16223A] hover:bg-[#16223A] text-white text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 cursor-pointer shadow-xs"
         >
           <Plus className="w-4 h-4" />
           <span>Record Referral</span>
         </button>
       </div>
 
-      <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs">
+      <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
-            <tr className="bg-[#F6F4EE] border-b border-[#E1DCCF] text-[10px] uppercase text-slate-600">
+            <tr className="bg-[#F6F8FA] border-b border-[#DDE3EB] text-[10px] uppercase text-slate-600">
               <th className="p-3 font-bold">Referral Partner</th>
               <th className="p-3 font-bold">Type</th>
               <th className="p-3 font-bold">Contact</th>
@@ -3239,13 +3239,13 @@ export const ReferralView: React.FC = () => {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {(referralPartners || []).map((r) => (
-              <tr key={r.id} className="hover:bg-[#FAF8F2]">
+              <tr key={r.id} className="hover:bg-[#F6F8FA]">
                 <td className="p-3 font-bold text-[#16223A]">
                   <div>{r.name}</div>
                   {r.notes && <div className="text-[10px] font-normal text-slate-500">{r.notes}</div>}
                 </td>
                 <td className="p-3">
-                  <span className="px-2 py-0.5 bg-purple-100 text-purple-900 rounded text-[10px] font-bold">
+                  <span className="px-2 py-0.5 bg-[#F1EBF6] text-[#6B3D8C] rounded text-[10px] font-bold">
                     {r.type}
                   </span>
                 </td>
@@ -3262,7 +3262,7 @@ export const ReferralView: React.FC = () => {
                 <td className="p-3">
                   <span
                     className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      r.paymentStatus === 'Paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                      r.paymentStatus === 'Paid' ? 'bg-[#E6EFE9] text-[#2F6F4E]' : 'bg-[#FBF2E9] text-[#8A6D3B]'
                     }`}
                   >
                     {r.paymentStatus}
@@ -3277,7 +3277,7 @@ export const ReferralView: React.FC = () => {
       {/* New Referral Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#E1DCCF]">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#DDE3EB]">
             <h3 className="font-serif text-lg font-bold text-[#16223A] mb-3">Key In New Referral Source / Partner</h3>
             <form onSubmit={handleSaveReferral} className="space-y-3 text-xs">
               <div>
@@ -3384,13 +3384,13 @@ export const ReferralView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 border border-[#E1DCCF] text-slate-700 hover:bg-slate-100 rounded-md font-semibold cursor-pointer"
+                  className="px-4 py-2 border border-[#DDE3EB] text-slate-700 hover:bg-slate-100 rounded-md font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded-md font-semibold cursor-pointer"
+                  className="px-4 py-2 bg-[#16223A] hover:bg-[#16223A] text-white rounded-md font-semibold cursor-pointer"
                 >
                   Save Referral
                 </button>
@@ -3451,33 +3451,33 @@ export const FileClosingView: React.FC = () => {
   return (
     <div className="space-y-4 text-xs">
       {/* Top Banner with Malaysian Bar Risk Management Seal */}
-      <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-2">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-[#E1DCCF] pb-3">
+      <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs space-y-2">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-[#DDE3EB] pb-3">
           <div>
             <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-              <FolderX className="w-5 h-5 text-[#A9814A]" />
+              <FolderX className="w-5 h-5 text-[#3D6B9C]" />
               Malaysian Bar Council Risk Management &amp; File Closing Audit
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
               Full compliance with Malaysian Bar Practice Circulars, Professional Indemnity Insurance (PII) guidelines, &amp; Legal Profession Act 1976.
             </p>
           </div>
-          <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-100 text-amber-950 border border-amber-300 flex items-center gap-1.5 shrink-0 shadow-2xs">
+          <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#FBF2E9] text-[#8A6D3B] border border-[#8A6D3B] flex items-center gap-1.5 shrink-0 shadow-2xs">
             🛡️ Bar Council PCCN Guidelines Compliant
           </span>
         </div>
 
         {/* Audit Guidelines Callout */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
-          <div className="p-2.5 bg-[#FAF8F2] border border-[#E1DCCF] rounded-lg">
+          <div className="p-2.5 bg-[#F6F8FA] border border-[#DDE3EB] rounded-lg">
             <span className="font-bold text-[#16223A] block text-[11px]">1. Trust Account Zero Balance</span>
             <span className="text-[10px] text-slate-600">Solicitors' Account Rules 1990 r.11 requirement. Client balance must equal RM 0.00.</span>
           </div>
-          <div className="p-2.5 bg-[#FAF8F2] border border-[#E1DCCF] rounded-lg">
+          <div className="p-2.5 bg-[#F6F8FA] border border-[#DDE3EB] rounded-lg">
             <span className="font-bold text-[#16223A] block text-[11px]">2. 7-Year Statutory Retention</span>
             <span className="text-[10px] text-slate-600">Files must be securely retained for minimum 7 years from closure before destruction notice.</span>
           </div>
-          <div className="p-2.5 bg-[#FAF8F2] border border-[#E1DCCF] rounded-lg">
+          <div className="p-2.5 bg-[#F6F8FA] border border-[#DDE3EB] rounded-lg">
             <span className="font-bold text-[#16223A] block text-[11px]">3. Original Documents Handover</span>
             <span className="text-[10px] text-slate-600">Original titles, wills, &amp; agreements returned against signed Acknowledgement (Borang Serahan).</span>
           </div>
@@ -3487,7 +3487,7 @@ export const FileClosingView: React.FC = () => {
       {/* Case Files Pending Audit List */}
       <div className="space-y-3">
         {openCases.length === 0 ? (
-          <div className="bg-white p-8 rounded-xl border border-[#E1DCCF] text-center text-slate-500 font-semibold">
+          <div className="bg-white p-8 rounded-xl border border-[#DDE3EB] text-center text-slate-500 font-semibold">
             All matter files are fully audited and closed.
           </div>
         ) : (
@@ -3496,7 +3496,7 @@ export const FileClosingView: React.FC = () => {
             const allChecked = checks.inv && checks.trust && checks.docs && checks.pii && checks.letter;
 
             return (
-              <div key={cs.id} className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-3.5">
+              <div key={cs.id} className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs space-y-3.5">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-200 pb-2">
                   <div className="flex items-center gap-2">
                     <span className="ref-seal">{cs.ref}</span>
@@ -3508,13 +3508,13 @@ export const FileClosingView: React.FC = () => {
                 </div>
 
                 {/* 4-Step Bar Risk Compliance Audit */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 bg-amber-50/40 p-3 rounded-lg border border-amber-200/80">
-                  <label className="flex items-start gap-2 cursor-pointer font-semibold text-slate-800 p-1 rounded hover:bg-amber-100/50">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 bg-[#FBF2E9]/40 p-3 rounded-lg border border-[#FBF2E9]/80">
+                  <label className="flex items-start gap-2 cursor-pointer font-semibold text-slate-800 p-1 rounded hover:bg-[#FBF2E9]/50">
                     <input
                       type="checkbox"
                       checked={checks.inv}
                       onChange={() => toggleCheck(cs.id, 'inv')}
-                      className="rounded text-[#A9814A] mt-0.5"
+                      className="rounded text-[#3D6B9C] mt-0.5"
                     />
                     <div>
                       <span>1. Final Tax Invoice Issued &amp; Fully Settled</span>
@@ -3522,12 +3522,12 @@ export const FileClosingView: React.FC = () => {
                     </div>
                   </label>
 
-                  <label className="flex items-start gap-2 cursor-pointer font-semibold text-slate-800 p-1 rounded hover:bg-amber-100/50">
+                  <label className="flex items-start gap-2 cursor-pointer font-semibold text-slate-800 p-1 rounded hover:bg-[#FBF2E9]/50">
                     <input
                       type="checkbox"
                       checked={checks.trust}
                       onChange={() => toggleCheck(cs.id, 'trust')}
-                      className="rounded text-[#A9814A] mt-0.5"
+                      className="rounded text-[#3D6B9C] mt-0.5"
                     />
                     <div>
                       <span>2. Client Trust Account Clearance (RM 0.00 Balance)</span>
@@ -3535,12 +3535,12 @@ export const FileClosingView: React.FC = () => {
                     </div>
                   </label>
 
-                  <label className="flex items-start gap-2 cursor-pointer font-semibold text-slate-800 p-1 rounded hover:bg-amber-100/50">
+                  <label className="flex items-start gap-2 cursor-pointer font-semibold text-slate-800 p-1 rounded hover:bg-[#FBF2E9]/50">
                     <input
                       type="checkbox"
                       checked={checks.docs}
                       onChange={() => toggleCheck(cs.id, 'docs')}
-                      className="rounded text-[#A9814A] mt-0.5"
+                      className="rounded text-[#3D6B9C] mt-0.5"
                     />
                     <div>
                       <span>3. Return of Original Titles &amp; Documents</span>
@@ -3548,12 +3548,12 @@ export const FileClosingView: React.FC = () => {
                     </div>
                   </label>
 
-                  <label className="flex items-start gap-2 cursor-pointer font-semibold text-slate-800 p-1 rounded hover:bg-amber-100/50">
+                  <label className="flex items-start gap-2 cursor-pointer font-semibold text-slate-800 p-1 rounded hover:bg-[#FBF2E9]/50">
                     <input
                       type="checkbox"
                       checked={checks.letter}
                       onChange={() => toggleCheck(cs.id, 'letter')}
-                      className="rounded text-[#A9814A] mt-0.5"
+                      className="rounded text-[#3D6B9C] mt-0.5"
                     />
                     <div>
                       <span>4. Formal File Closing &amp; Discharge Letter Sent to Client</span>
@@ -3580,11 +3580,11 @@ export const FileClosingView: React.FC = () => {
                     disabled={!allChecked}
                     className={`font-bold px-4 py-2 rounded-lg cursor-pointer transition-all flex items-center gap-1.5 shadow-xs ${
                       allChecked
-                        ? 'bg-[#16223A] hover:bg-[#1F2E4D] text-white'
+                        ? 'bg-[#16223A] hover:bg-[#16223A] text-white'
                         : 'bg-slate-200 text-slate-500 cursor-not-allowed border border-slate-300'
                     }`}
                   >
-                    <FolderX className="w-4 h-4 text-[#A9814A]" />
+                    <FolderX className="w-4 h-4 text-[#3D6B9C]" />
                     <span>Approve &amp; Close Matter (Bar Council Risk Clearance)</span>
                   </button>
                 </div>

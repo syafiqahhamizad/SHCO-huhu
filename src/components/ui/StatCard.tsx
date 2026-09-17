@@ -13,7 +13,7 @@ interface StatCardProps {
 
 /** The colored KPI tile repeated throughout the redesign (dashboards, accounting, billing). */
 export const StatCard: React.FC<StatCardProps> = ({ label, value, note, color, onColor = 'rgba(255,255,255,0.72)', icon: Icon, className = '' }) => (
-  <div className={`rounded-xl p-3.5 text-white shadow-sm ${className}`} style={{ backgroundColor: color }}>
+  <div className={`rounded-xl p-3.5 text-white shadow-sm bg-transparent ${className}`} style={{ backgroundColor: color }}>
     <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide" style={{ color: onColor }}>
       {Icon && <Icon className="h-3 w-3" />}
       <span>{label}</span>

@@ -3408,7 +3408,7 @@ export const CasesView: React.FC = () => {
                   <h3 className="font-serif font-bold text-sm text-[#16223A]">Activities · billable time entries</h3>
                   <p className="text-slate-500">Amount = units × rate. Total RM {total.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</p>
                 </div>
-                <button type="button" onClick={() => setAddActivityOpen((v) => !v)} className="rounded-lg px-3 py-1.5 text-[11px] font-bold text-white" style={{ backgroundColor: addActivityOpen ? palette.red : palette.blue }}>{addActivityOpen ? 'Cancel' : '+ Add Activity'}</button>
+                <button type="button" onClick={() => setAddActivityOpen((v) => !v)} className="rounded-lg px-3 py-1.5 text-[11px] font-bold text-white bg-transparent" style={{ backgroundColor: addActivityOpen ? palette.red : palette.blue }}>{addActivityOpen ? 'Cancel' : '+ Add Activity'}</button>
               </div>
               {addActivityOpen && (
                 <div className="grid gap-2 rounded-lg border border-[#DDE3EB] bg-[#F6F8FA] p-3 sm:grid-cols-5">
@@ -3424,7 +3424,7 @@ export const CasesView: React.FC = () => {
                       setActivityDraft({ date: new Date().toISOString().slice(0, 10), units: '1.0', rate: '', description: '' });
                       setAddActivityOpen(false);
                     }}
-                    className="rounded-lg px-3 py-1.5 text-[11px] font-bold text-white"
+                    className="rounded-lg px-3 py-1.5 text-[11px] font-bold text-white bg-transparent"
                     style={{ backgroundColor: palette.navy }}
                   >
                     Save Activity
@@ -3454,7 +3454,7 @@ export const CasesView: React.FC = () => {
                   <h3 className="font-serif font-bold text-sm text-[#16223A]">Disbursements</h3>
                   <p className="text-slate-500">Total RM {total.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</p>
                 </div>
-                <button type="button" onClick={() => setAddDisbOpen((v) => !v)} className="rounded-lg px-3 py-1.5 text-[11px] font-bold text-white" style={{ backgroundColor: addDisbOpen ? palette.red : palette.blue }}>{addDisbOpen ? 'Cancel' : '+ Add Disbursement'}</button>
+                <button type="button" onClick={() => setAddDisbOpen((v) => !v)} className="rounded-lg px-3 py-1.5 text-[11px] font-bold text-white bg-transparent" style={{ backgroundColor: addDisbOpen ? palette.red : palette.blue }}>{addDisbOpen ? 'Cancel' : '+ Add Disbursement'}</button>
               </div>
               {addDisbOpen && (
                 <div className="grid gap-2 rounded-lg border border-[#DDE3EB] bg-[#F6F8FA] p-3 sm:grid-cols-4">
@@ -3469,7 +3469,7 @@ export const CasesView: React.FC = () => {
                       setDisbDraft({ date: new Date().toISOString().slice(0, 10), amount: '', description: '' });
                       setAddDisbOpen(false);
                     }}
-                    className="rounded-lg px-3 py-1.5 text-[11px] font-bold text-white"
+                    className="rounded-lg px-3 py-1.5 text-[11px] font-bold text-white bg-transparent"
                     style={{ backgroundColor: palette.navy }}
                   >
                     Save Disbursement
@@ -3510,7 +3510,7 @@ export const CasesView: React.FC = () => {
             <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-3 text-xs text-[#16223A]">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="font-serif font-bold text-sm text-[#16223A]">Unbilled Items — this matter</h3>
-                <button type="button" onClick={generateInvoice} className="rounded-lg px-3 py-1.5 text-[11px] font-bold text-white" style={{ backgroundColor: palette.navy }}>Generate Invoice</button>
+                <button type="button" onClick={generateInvoice} className="rounded-lg px-3 py-1.5 text-[11px] font-bold text-white bg-transparent" style={{ backgroundColor: palette.navy }}>Generate Invoice</button>
               </div>
               <div className="flex flex-wrap gap-6">
                 <span>Activities <strong className="font-mono">RM {actTotal.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</strong></span>
@@ -3547,7 +3547,7 @@ export const CasesView: React.FC = () => {
             <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-4 text-xs text-[#16223A]">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="font-serif font-bold text-sm text-[#16223A]">Memo — Notes, Status, Court Minutes, File Location</h3>
-                <button type="button" onClick={() => setCreateMemoOpen((v) => !v)} className="rounded-lg px-3 py-1.5 text-[11px] font-bold text-white" style={{ backgroundColor: createMemoOpen ? palette.red : palette.blue }}>{createMemoOpen ? 'Cancel' : '+ Create Memo'}</button>
+                <button type="button" onClick={() => setCreateMemoOpen((v) => !v)} className="rounded-lg px-3 py-1.5 text-[11px] font-bold text-white bg-transparent" style={{ backgroundColor: createMemoOpen ? palette.red : palette.blue }}>{createMemoOpen ? 'Cancel' : '+ Create Memo'}</button>
               </div>
               {createMemoOpen && (
                 <div className="grid gap-2 rounded-lg border border-[#DDE3EB] bg-[#F6F8FA] p-3 sm:grid-cols-4">
@@ -3564,7 +3564,7 @@ export const CasesView: React.FC = () => {
                       setMemoDraft({ type: 'Notes', date: new Date().toISOString().slice(0, 10), description: '' });
                       setCreateMemoOpen(false);
                     }}
-                    className="rounded-lg px-3 py-1.5 text-[11px] font-bold text-white"
+                    className="rounded-lg px-3 py-1.5 text-[11px] font-bold text-white bg-transparent"
                     style={{ backgroundColor: palette.navy }}
                   >
                     Save Memo
