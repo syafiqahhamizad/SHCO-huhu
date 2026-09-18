@@ -18,12 +18,12 @@ import { useApp } from '../../context/AppContext';
 
 const COLORS = {
   navy: '#16223A',
-  ink: '#243A55',
-  brass: '#A9814A',
+  ink: '#6B3D8C',
+  brass: '#8A6D3B',
   green: '#2F6F4E',
-  clay: '#8C4A32',
-  border: '#E1DCCF',
-  paper: '#FAF8F2',
+  clay: '#B23A2E',
+  border: '#DDE3EB',
+  paper: '#F6F8FA',
 };
 
 const money = (value: number) => `RM ${value.toLocaleString('en-MY', { maximumFractionDigits: 0 })}`;
@@ -99,7 +99,7 @@ export const ComprehensiveDashboardView: React.FC = () => {
       <div className="grid gap-6 xl:grid-cols-[1.3fr_1fr]">
         <Panel title="Matter to-do" subtitle="Open tasks tied to your files" action={() => setCurrentView('tasks')}>
           <div className="divide-y" style={{ borderColor: COLORS.border }}>
-            {openTasks.slice(0, 6).map((task: any) => <button type="button" key={`${task.caseId}-${task.id}`} onClick={() => openMatter(task.caseId)} className="flex w-full items-center justify-between gap-4 py-3 text-left hover:bg-[#FAF8F2]">
+            {openTasks.slice(0, 6).map((task: any) => <button type="button" key={`${task.caseId}-${task.id}`} onClick={() => openMatter(task.caseId)} className="flex w-full items-center justify-between gap-4 py-3 text-left hover:bg-[#F6F8FA]">
               <span className="min-w-0"><span className="mr-2 font-mono text-[10px] font-bold" style={{ color: COLORS.brass }}>{task.ref}</span><span className="text-sm font-semibold text-slate-800">{task.title}</span><span className="mt-0.5 block text-[11px] text-slate-500">{task.titleMatter}</span></span><span className="shrink-0 text-[11px] text-slate-500">{dateLabel(task.dueDate)}</span>
             </button>)}
             {!openTasks.length && <p className="py-6 text-center text-sm text-slate-500">Your matter to-do is clear.</p>}
@@ -115,7 +115,7 @@ export const ComprehensiveDashboardView: React.FC = () => {
           <div className="space-y-3">{weekHearings.slice(0, 5).map((hearing: any) => <button type="button" key={hearing.id} onClick={() => openMatter(hearing.caseId)} className="flex w-full items-center gap-3 border-b pb-3 text-left last:border-0 last:pb-0" style={{ borderColor: COLORS.border }}><span className="w-12 text-center font-serif text-lg font-bold" style={{ color: COLORS.navy }}>{dateLabel(hearing.date)}</span><span className="min-w-0 flex-1"><strong className="block text-sm text-slate-800">{hearing.title || hearing.purpose}</strong><span className="text-[11px] text-slate-500">{hearing.ref} · {hearing.court || 'Court'} · {hearing.time || 'Time pending'}</span></span></button>)}{!weekHearings.length && <p className="py-6 text-center text-sm text-slate-500">No hearings in the next seven days.</p>}</div>
         </Panel>
         <Panel title="Recently accessed matters" action={() => setCurrentView('cases')}>
-          <div className="divide-y" style={{ borderColor: COLORS.border }}>{recent.map((matter: any) => <button type="button" key={matter.id} onClick={() => openMatter(matter.id)} className="flex w-full items-center justify-between gap-3 py-3 text-left hover:bg-[#FAF8F2]"><span><span className="mr-2 font-mono text-[10px] font-bold" style={{ color: COLORS.brass }}>{matter.ref}</span><span className="text-sm font-semibold text-slate-800">{matter.title}</span><span className="mt-0.5 block text-[11px] text-slate-500">{matter.practiceArea || matter.stage || 'Matter'}</span></span><ArrowRight className="h-4 w-4 shrink-0 text-slate-400" /></button>)}{!recent.length && <p className="py-6 text-center text-sm text-slate-500">No recently accessed matters.</p>}</div>
+          <div className="divide-y" style={{ borderColor: COLORS.border }}>{recent.map((matter: any) => <button type="button" key={matter.id} onClick={() => openMatter(matter.id)} className="flex w-full items-center justify-between gap-3 py-3 text-left hover:bg-[#F6F8FA]"><span><span className="mr-2 font-mono text-[10px] font-bold" style={{ color: COLORS.brass }}>{matter.ref}</span><span className="text-sm font-semibold text-slate-800">{matter.title}</span><span className="mt-0.5 block text-[11px] text-slate-500">{matter.practiceArea || matter.stage || 'Matter'}</span></span><ArrowRight className="h-4 w-4 shrink-0 text-slate-400" /></button>)}{!recent.length && <p className="py-6 text-center text-sm text-slate-500">No recently accessed matters.</p>}</div>
         </Panel>
       </div>
 
