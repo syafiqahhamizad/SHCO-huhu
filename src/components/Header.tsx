@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   Search,
@@ -31,6 +31,10 @@ export const Header: React.FC = () => {
     setGlobalSearch,
     setCurrentView,
     setCurrentCaseId,
+    cases = [],
+    clients = [],
+    invoices = [],
+    quotations = [],
     currentUser,
     logoutUser,
     showToast,
@@ -52,6 +56,55 @@ export const Header: React.FC = () => {
   const [isRecycleBinOpen, setIsRecycleBinOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [notifFilter, setNotifFilter] = useState<'all' | 'hearing' | 'invoice'>('all');
+
+  // Global search — was previously write-only (typed into `globalSearch`, read nowhere).
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const searchBoxRef = useRef<HTMLDivElement>(null);
+  const query = globalSearch.trim().toLowerCase();
+
+  const searchResults = useMemo(() => {
+    if (!query) return { matters: [] as typeof cases, clientsList: [] as typeof clients, documents: [] as { id: string; label: string; sub: string; view: string }[] };
+    const matters = cases
+      .filter((c: any) => [c.ref, c.title, c.clientName, c.practiceArea].some((v: any) => String(v || '').toLowerCase().includes(query)))
+      .slice(0, 5);
+    const clientsList = clients
+      .filter((c: any) => [c.name, c.id, c.email, c.phone].some((v: any) => String(v || '').toLowerCase().includes(query)))
+      .slice(0, 5);
+    const documents = [
+      ...quotations.filter((q: any) => [q.id, q.clientName, q.fileRef].some((v: any) => String(v || '').toLowerCase().includes(query))).map((q: any) => ({ id: q.id, label: q.id, sub: q.clientName || 'Quotation', view: 'billing' })),
+      ...invoices.filter((i: any) => [i.id, i.partyName, i.fileRef].some((v: any) => String(v || '').toLowerCase().includes(query))).map((i: any) => ({ id: i.id, label: i.id, sub: i.partyName || 'Invoice', view: 'billing' })),
+    ].slice(0, 5);
+    return { matters, clientsList, documents };
+  }, [query, cases, clients, quotations, invoices]);
+
+  const hasResults = searchResults.matters.length > 0 || searchResults.clientsList.length > 0 || searchResults.documents.length > 0;
+
+  const goToMatter = (caseId: string) => {
+    setCurrentCaseId(caseId);
+    setCurrentView('cases');
+    setIsSearchOpen(false);
+    setGlobalSearch('');
+  };
+  const goToClients = () => {
+    setCurrentView('clients');
+    setIsSearchOpen(false);
+    setGlobalSearch('');
+  };
+  const goToBilling = () => {
+    setCurrentView('billing');
+    setIsSearchOpen(false);
+    setGlobalSearch('');
+  };
+
+  React.useEffect(() => {
+    const onClickOutside = (event: MouseEvent) => {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(event.target as Node)) {
+        setIsSearchOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
 
   const getViewInfo = () => {
     switch (currentView) {
@@ -155,16 +208,62 @@ export const Header: React.FC = () => {
           </button>
         )}
         {/* Global Search Bar */}
-        <div className="relative group w-full min-w-0 sm:flex-1 md:w-auto md:flex-none">
+        <div ref={searchBoxRef} className="relative group w-full min-w-0 sm:flex-1 md:w-auto md:flex-none">
           <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#3D6B9C] transition-colors" />
           <input
             type="text"
             placeholder="Search matters, clients, docs..."
             value={globalSearch}
-            onChange={(e) => setGlobalSearch(e.target.value)}
+            onChange={(e) => { setGlobalSearch(e.target.value); setIsSearchOpen(true); }}
+            onFocus={() => setIsSearchOpen(true)}
+            onKeyDown={(e) => { if (e.key === 'Escape') setIsSearchOpen(false); }}
             className="w-full max-w-full pl-8 pr-3 py-1.5 text-xs bg-white/95 border border-white/20 text-[#16223A] placeholder:text-slate-400 rounded-md sm:w-48 md:w-60 md:focus:w-64 transition-all focus:outline-none focus:border-[#FBF2E9] focus:ring-1 focus:ring-[#FBF2E9]/30"
             aria-label="Global search for matters, clients, documents"
           />
+
+          {isSearchOpen && query && (
+            <div className="absolute left-0 top-full z-50 mt-1.5 w-full min-w-[280px] rounded-lg border border-[#DDE3EB] bg-white text-left shadow-xl">
+              {!hasResults ? (
+                <p className="px-3 py-4 text-center text-[11.5px] text-slate-400">No matters, clients or documents match &ldquo;{globalSearch}&rdquo;.</p>
+              ) : (
+                <div className="max-h-80 overflow-y-auto py-1.5">
+                  {searchResults.matters.length > 0 && (
+                    <div className="px-1">
+                      <p className="px-2 py-1 text-[9.5px] font-bold uppercase tracking-wide text-[#5B6478]">Matters</p>
+                      {searchResults.matters.map((c: any) => (
+                        <button key={c.id} type="button" onClick={() => goToMatter(c.id)} className="flex w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-[#F6F8FA] cursor-pointer">
+                          <span className="font-mono text-[10px] font-bold text-[#3D6B9C]">{c.ref}</span>
+                          <span className="text-[12px] font-semibold text-[#16223A]">{c.title}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {searchResults.clientsList.length > 0 && (
+                    <div className="border-t border-[#F0F2F5] px-1 pt-1">
+                      <p className="px-2 py-1 text-[9.5px] font-bold uppercase tracking-wide text-[#5B6478]">Clients</p>
+                      {searchResults.clientsList.map((c: any) => (
+                        <button key={c.id} type="button" onClick={goToClients} className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left hover:bg-[#F6F8FA] cursor-pointer">
+                          <span className="text-[12px] font-semibold text-[#16223A]">{c.name}</span>
+                          <span className="font-mono text-[10px] text-[#5B6478]">{c.id}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {searchResults.documents.length > 0 && (
+                    <div className="border-t border-[#F0F2F5] px-1 pt-1">
+                      <p className="px-2 py-1 text-[9.5px] font-bold uppercase tracking-wide text-[#5B6478]">Quotations &amp; Invoices</p>
+                      {searchResults.documents.map((d) => (
+                        <button key={d.id} type="button" onClick={goToBilling} className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left hover:bg-[#F6F8FA] cursor-pointer">
+                          <span className="font-mono text-[11px] font-bold text-[#3D6B9C]">{d.label}</span>
+                          <span className="text-[11px] text-[#5B6478]">{d.sub}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Reload latest saved data */}
