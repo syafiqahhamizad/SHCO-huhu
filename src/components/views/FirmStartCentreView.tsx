@@ -210,7 +210,6 @@ export const FirmStartCentreView: React.FC = () => {
   } = useApp() as ReturnType<typeof useApp> & { canViewModule?: (module: string) => boolean };
 
   const [openGroup, setOpenGroup] = React.useState<number>(3);
-  const [directoryOpen, setDirectoryOpen] = React.useState(false);
   const [page, setPage] = React.useState<string>('home');
   const [newTabLabel, setNewTabLabel] = React.useState('');
   const [editingTabId, setEditingTabId] = React.useState<string | null>(null);
@@ -324,7 +323,7 @@ export const FirmStartCentreView: React.FC = () => {
               <button type="button" onClick={() => setIsNewCaseModalOpen(true)} className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#3D6B9C] px-2.5 py-1.5 text-[11.5px] font-bold text-white transition hover:bg-[#3D6B9C]">
                 <Plus className="h-3.5 w-3.5" /> New matter
               </button>
-              <button type="button" onClick={() => { setDirectoryOpen(true); document.getElementById('people')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-2.5 py-1.5 text-[11.5px] font-bold text-white transition hover:bg-white/20">
+              <button type="button" onClick={() => setCurrentView('staff-portal')} className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-2.5 py-1.5 text-[11.5px] font-bold text-white transition hover:bg-white/20">
                 <Contact className="h-3.5 w-3.5" /> Staff directory
               </button>
             </div>
@@ -358,8 +357,7 @@ export const FirmStartCentreView: React.FC = () => {
         </div>
       </section>
 
-      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="flex min-w-0 flex-col gap-5">
+      <div className="flex min-w-0 flex-col gap-5">
           {/* TAB NAV */}
           <nav className="flex flex-wrap items-center gap-2.5">
             {[HOME_TAB, ...firmStartCentrePages].map((tab) => {
@@ -620,7 +618,8 @@ export const FirmStartCentreView: React.FC = () => {
             </div>
           </section>
 
-          {/* HOW THE FIRM WORKS */}
+          {/* Two-column from here down: How the firm works (2/3) + Quick links (1/3) — matches mockup's grid-template-columns:1fr 280px */}
+          <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[2fr_1fr]">
           <section className="rounded-2xl border border-[#DDE3EB] bg-[#F6F8FA] p-[18px] pb-4 shadow-xs">
             <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#DDE3EB] pb-3">
               <div className="min-w-0">
@@ -653,40 +652,94 @@ export const FirmStartCentreView: React.FC = () => {
             </div>
           </section>
 
-          {/* PEOPLE & THE PROFESSION */}
-          <section className="rounded-xl border border-[#DDE3EB] bg-white p-5 shadow-xs">
-            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-3">
+          <aside className="flex min-w-0 flex-col self-start overflow-hidden rounded-2xl border border-[#DDE3EB] bg-[#F6F8FA] xl:sticky xl:top-0">
+            <div className="flex items-center justify-between gap-2.5 border-b border-[#DDE3EB] bg-gradient-to-b from-[#F6F8FA] to-[#F6F8FA] px-4 py-3.5">
               <div>
-                <h2 className="flex items-center gap-2 font-serif text-base font-bold text-[#16223A]">
-                  <Contact className="h-4 w-4 text-[#3D6B9C]" /> People &amp; the profession
-                </h2>
-                <p className="mt-1 text-slate-500">Staff directory, roles and extensions.</p>
+                <h2 className="font-serif text-[15px] font-bold text-[#16223A]">Quick links</h2>
+                <p className="mt-0.5 text-[10.5px] text-[#5B6478]">Portals, folders and Workspace</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setDirectoryOpen((open) => !open)}
-                className="flex cursor-pointer items-center gap-1.5 self-start rounded-lg bg-[#16223A] px-3 py-2 text-xs font-bold text-white"
-              >
-                <Contact className="h-3.5 w-3.5 text-[#8A6D3B]" /> Directory
-                <ChevronRight className={`h-3 w-3 text-[#8A6D3B] transition-transform ${directoryOpen ? 'rotate-90' : ''}`} />
-              </button>
+              <div className="flex items-center gap-2">
+                {canEditStartCentre && <button type="button" onClick={() => { const title = window.prompt('New quick-link group name'); if (title?.trim()) setQuickLinkGroups((groups) => [...groups, { title: title.trim(), icon: BookMarked, links: [] }]); }} className="rounded-md p-1 text-[#8A6D3B] hover:bg-[#F6F8FA]" title="Add quick-link group" aria-label="Add quick-link group"><Plus className="h-3.5 w-3.5" /></button>}
+                <Globe2 className="h-4 w-4 shrink-0 text-[#3D6B9C]" />
+              </div>
             </div>
-            {directoryOpen && (
-              <div className="mt-4">
-                <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_54px_minmax(0,110px)] gap-2.5 px-2.5 pb-1.5 text-[8.5px] font-bold uppercase tracking-[0.11em] text-[#5B6478]">
-                  <span>Name</span><span>Role</span><span>Ext</span><span>Mobile</span>
-                </div>
-                {presence.map((person) => (
-                  <div key={person.id} className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_54px_minmax(0,110px)] items-center gap-2.5 rounded-lg px-2.5 py-2 transition hover:bg-[#F6F8FA]">
-                    <span className="min-w-0 truncate text-xs font-semibold text-[#16223A]">{person.name}</span>
-                    <span className="min-w-0 truncate text-[11px] text-[#5B6478]">{person.role}</span>
-                    <span className="font-mono text-[11.5px] font-bold text-[#8A6D3B]">{person.extension || '—'}</span>
-                    <span className="truncate font-mono text-[11px] text-[#5B6478]">{person.mobile || '—'}</span>
+            <div className="flex flex-col gap-0.5 px-2.5 pb-3 pt-2">
+              {quickLinkGroups.map((group, index) => {
+                const isOpen = index === openGroup;
+                const GroupIcon = group.icon;
+                return (
+                  <div key={group.title}>
+                    <button
+                      type="button"
+                      onClick={() => setOpenGroup(isOpen ? -1 : index)}
+                      className={`flex w-full cursor-pointer items-center gap-2.5 rounded-[9px] px-2.5 py-2.5 text-left transition ${isOpen ? 'bg-[#16223A] text-[#F6F8FA]' : 'text-[#16223A] hover:bg-[#F6F8FA]'}`}
+                    >
+                      <GroupIcon className="h-3.5 w-3.5 shrink-0 opacity-85" />
+                      <span className="min-w-0 flex-1 truncate text-[11.5px] font-semibold">{group.title}</span>
+                      <span className={`shrink-0 text-[9.5px] font-bold ${isOpen ? 'text-[#8A6D3B]' : 'text-[#5B6478]'}`}>{group.links.length}</span>
+                      <ChevronRight className={`h-3 w-3 shrink-0 opacity-70 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+                    </button>
+                    {canEditStartCentre && editMode && (
+                      <div className="flex items-center justify-end gap-1 px-2.5 pb-1">
+                        <button type="button" onClick={() => { const title = window.prompt('Rename quick-link group', group.title); if (title?.trim()) setQuickLinkGroups((groups) => groups.map((item, itemIndex) => itemIndex === index ? { ...item, title: title.trim() } : item)); }} className="text-[9px] font-semibold text-[#8A6D3B] hover:underline">Edit group</button>
+                        <button type="button" onClick={() => { if (window.confirm(`Delete quick-link group “${group.title}”?`)) setQuickLinkGroups((groups) => groups.filter((_, itemIndex) => itemIndex !== index)); }} className="text-[9px] font-semibold text-red-600 hover:underline">Delete</button>
+                        <button type="button" onClick={() => { const label = window.prompt('Link name'); const url = label && window.prompt('Link URL'); if (label?.trim() && url?.trim()) setQuickLinkGroups((groups) => groups.map((item, itemIndex) => itemIndex === index ? { ...item, links: [...item.links, { label: label.trim(), url: url.trim(), icon: LinkIconFallback }] } : item)); }} className="text-[9px] font-semibold text-[#8A6D3B] hover:underline">Add link</button>
+                      </div>
+                    )}
+                    {isOpen && (
+                      <div className="mb-2 ml-2.5 mt-1 flex flex-col gap-px border-l-2 border-[#DDE3EB] pl-[11px]">
+                        {group.links.map(({ label, url, icon: LinkIcon }, linkIndex) => (
+                          <div key={label} className="flex items-center gap-1" title={canEditStartCentre && editMode ? url : undefined}>
+                            <a href={url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-1.5 text-[#16223A] no-underline transition hover:bg-[#F6F8FA] hover:text-[#16223A]">
+                              <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[7px] bg-[#F6F8FA] text-[#8A6D3B]"><LinkIcon className="h-3 w-3" /></span>
+                              <span className="min-w-0 flex-1 truncate text-[11.5px] font-medium">{label}</span>
+                              <ArrowUpRight className="h-3 w-3 shrink-0 text-[#DDE3EB]" />
+                            </a>
+                            {canEditStartCentre && editMode && <><button type="button" onClick={() => { const nextLabel = window.prompt('Rename link', label); const nextUrl = nextLabel && window.prompt('Link URL', url); if (nextLabel?.trim() && nextUrl?.trim()) setQuickLinkGroups((groups) => groups.map((item, itemIndex) => itemIndex === index ? { ...item, links: item.links.map((link, currentIndex) => currentIndex === linkIndex ? { ...link, label: nextLabel.trim(), url: nextUrl.trim() } : link) } : item)); }} className="text-[9px] font-semibold text-[#8A6D3B]">Edit</button><button type="button" onClick={() => setQuickLinkGroups((groups) => groups.map((item, itemIndex) => itemIndex === index ? { ...item, links: item.links.filter((_, currentIndex) => currentIndex !== linkIndex) } : item))} className="text-[9px] font-semibold text-red-600">Delete</button></>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
+                );
+              })}
+            </div>
+
+            {/* TODAY AT THE FIRM — nested at the bottom of Quick Links, matching the mockup */}
+            <div id="people" className="flex flex-col gap-2.5 border-t border-[#F0F2F5] px-3.5 pb-3.5 pt-3.5 scroll-mt-6">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="flex items-center gap-[7px] text-[9.5px] font-bold uppercase tracking-[0.13em] text-[#5B6478]">
+                  <UsersRound className="h-3.5 w-3.5 text-[#3D6B9C]" /> Today at the firm
+                </span>
+                <span className="flex flex-wrap gap-1.5 text-[9.5px] font-bold">
+                  <span className="rounded-full bg-[#E6EFE9] px-[7px] py-0.5 text-[#2F6F4E]">{count('In office')} in</span>
+                  <span className="rounded-full bg-[#E7EEF6] px-[7px] py-0.5 text-[#16223A]">{count('In court')} court</span>
+                  <span className="rounded-full bg-[#FBF2E9] px-[7px] py-0.5 text-[#B23A2E]">{count('Leave')} leave</span>
+                </span>
+                <button type="button" onClick={() => setCurrentView('staff-portal')} className="ml-auto cursor-pointer text-[10.5px] font-bold text-[#8A6D3B]">
+                  All {presence.length} →
+                </button>
+              </div>
+              <div className="flex flex-col gap-[7px]">
+                {presence.slice(0, 5).map((person, index) => (
+                  <React.Fragment key={person.id}>
+                    {index > 0 && <div className="h-px bg-white" />}
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#DDE3EB] bg-white font-serif text-[10px] font-semibold text-[#8A6D3B]">
+                        {initials(person.name)}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-[11.5px] font-semibold text-[#16223A]">{person.name}</span>
+                      <span className="shrink-0 text-[10.5px] font-semibold" style={{ color: STATUS_TONE[person.status] || '#5B6478' }}>
+                        {person.status}
+                      </span>
+                    </div>
+                  </React.Fragment>
                 ))}
               </div>
-            )}
-          </section>
+            </div>
+          </aside>
+          </div>
+
             </>
           )}
 
@@ -813,97 +866,6 @@ export const FirmStartCentreView: React.FC = () => {
               </div>
             </section>
           )}
-        </div>
-
-        {/* QUICK LINKS RAIL */}
-        {page === 'home' && (
-        <aside className="flex min-w-0 flex-col self-start overflow-hidden rounded-2xl border border-[#DDE3EB] bg-[#F6F8FA] xl:sticky xl:top-0">
-          <div className="flex items-center justify-between gap-2.5 border-b border-[#DDE3EB] bg-gradient-to-b from-[#F6F8FA] to-[#F6F8FA] px-4 py-3.5">
-            <div>
-              <h2 className="font-serif text-[15px] font-bold text-[#16223A]">Quick links</h2>
-              <p className="mt-0.5 text-[10.5px] text-[#5B6478]">Portals, folders and Workspace</p>
-            </div>
-            <div className="flex items-center gap-2">
-              {canEditStartCentre && <button type="button" onClick={() => { const title = window.prompt('New quick-link group name'); if (title?.trim()) setQuickLinkGroups((groups) => [...groups, { title: title.trim(), icon: BookMarked, links: [] }]); }} className="rounded-md p-1 text-[#8A6D3B] hover:bg-[#F6F8FA]" title="Add quick-link group" aria-label="Add quick-link group"><Plus className="h-3.5 w-3.5" /></button>}
-              <Globe2 className="h-4 w-4 shrink-0 text-[#3D6B9C]" />
-            </div>
-          </div>
-          <div className="flex flex-col gap-0.5 px-2.5 pb-3 pt-2">
-            {quickLinkGroups.map((group, index) => {
-              const isOpen = index === openGroup;
-              const GroupIcon = group.icon;
-              return (
-                <div key={group.title}>
-                  <button
-                    type="button"
-                    onClick={() => setOpenGroup(isOpen ? -1 : index)}
-                    className={`flex w-full cursor-pointer items-center gap-2.5 rounded-[9px] px-2.5 py-2.5 text-left transition ${isOpen ? 'bg-[#16223A] text-[#F6F8FA]' : 'text-[#16223A] hover:bg-[#F6F8FA]'}`}
-                  >
-                    <GroupIcon className="h-3.5 w-3.5 shrink-0 opacity-85" />
-                    <span className="min-w-0 flex-1 truncate text-[11.5px] font-semibold">{group.title}</span>
-                    <span className={`shrink-0 text-[9.5px] font-bold ${isOpen ? 'text-[#8A6D3B]' : 'text-[#5B6478]'}`}>{group.links.length}</span>
-                    <ChevronRight className={`h-3 w-3 shrink-0 opacity-70 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
-                  </button>
-                  {canEditStartCentre && editMode && (
-                    <div className="flex items-center justify-end gap-1 px-2.5 pb-1">
-                      <button type="button" onClick={() => { const title = window.prompt('Rename quick-link group', group.title); if (title?.trim()) setQuickLinkGroups((groups) => groups.map((item, itemIndex) => itemIndex === index ? { ...item, title: title.trim() } : item)); }} className="text-[9px] font-semibold text-[#8A6D3B] hover:underline">Edit group</button>
-                      <button type="button" onClick={() => { if (window.confirm(`Delete quick-link group “${group.title}”?`)) setQuickLinkGroups((groups) => groups.filter((_, itemIndex) => itemIndex !== index)); }} className="text-[9px] font-semibold text-red-600 hover:underline">Delete</button>
-                      <button type="button" onClick={() => { const label = window.prompt('Link name'); const url = label && window.prompt('Link URL'); if (label?.trim() && url?.trim()) setQuickLinkGroups((groups) => groups.map((item, itemIndex) => itemIndex === index ? { ...item, links: [...item.links, { label: label.trim(), url: url.trim(), icon: LinkIconFallback }] } : item)); }} className="text-[9px] font-semibold text-[#8A6D3B] hover:underline">Add link</button>
-                    </div>
-                  )}
-                  {isOpen && (
-                    <div className="mb-2 ml-2.5 mt-1 flex flex-col gap-px border-l-2 border-[#DDE3EB] pl-[11px]">
-                      {group.links.map(({ label, url, icon: LinkIcon }, linkIndex) => (
-                        <div key={label} className="flex items-center gap-1" title={canEditStartCentre && editMode ? url : undefined}>
-                          <a href={url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-1.5 text-[#16223A] no-underline transition hover:bg-[#F6F8FA] hover:text-[#16223A]">
-                            <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[7px] bg-[#F6F8FA] text-[#8A6D3B]"><LinkIcon className="h-3 w-3" /></span>
-                            <span className="min-w-0 flex-1 truncate text-[11.5px] font-medium">{label}</span>
-                            <ArrowUpRight className="h-3 w-3 shrink-0 text-[#DDE3EB]" />
-                          </a>
-                          {canEditStartCentre && editMode && <><button type="button" onClick={() => { const nextLabel = window.prompt('Rename link', label); const nextUrl = nextLabel && window.prompt('Link URL', url); if (nextLabel?.trim() && nextUrl?.trim()) setQuickLinkGroups((groups) => groups.map((item, itemIndex) => itemIndex === index ? { ...item, links: item.links.map((link, currentIndex) => currentIndex === linkIndex ? { ...link, label: nextLabel.trim(), url: nextUrl.trim() } : link) } : item)); }} className="text-[9px] font-semibold text-[#8A6D3B]">Edit</button><button type="button" onClick={() => setQuickLinkGroups((groups) => groups.map((item, itemIndex) => itemIndex === index ? { ...item, links: item.links.filter((_, currentIndex) => currentIndex !== linkIndex) } : item))} className="text-[9px] font-semibold text-red-600">Delete</button></>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* TODAY AT THE FIRM — nested at the bottom of Quick Links, matching the mockup */}
-          <div id="people" className="flex flex-col gap-2.5 border-t border-[#F0F2F5] px-3.5 pb-3.5 pt-3.5 scroll-mt-6">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="flex items-center gap-[7px] text-[9.5px] font-bold uppercase tracking-[0.13em] text-[#5B6478]">
-                <UsersRound className="h-3.5 w-3.5 text-[#3D6B9C]" /> Today at the firm
-              </span>
-              <span className="flex flex-wrap gap-1.5 text-[9.5px] font-bold">
-                <span className="rounded-full bg-[#E6EFE9] px-[7px] py-0.5 text-[#2F6F4E]">{count('In office')} in</span>
-                <span className="rounded-full bg-[#E7EEF6] px-[7px] py-0.5 text-[#16223A]">{count('In court')} court</span>
-                <span className="rounded-full bg-[#FBF2E9] px-[7px] py-0.5 text-[#B23A2E]">{count('Leave')} leave</span>
-              </span>
-              <button type="button" onClick={() => { setDirectoryOpen(true); document.getElementById('people')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} className="ml-auto cursor-pointer text-[10.5px] font-bold text-[#8A6D3B]">
-                All {presence.length} →
-              </button>
-            </div>
-            <div className="flex flex-col gap-[7px]">
-              {presence.slice(0, 5).map((person, index) => (
-                <React.Fragment key={person.id}>
-                  {index > 0 && <div className="h-px bg-white" />}
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#DDE3EB] bg-white font-serif text-[10px] font-semibold text-[#8A6D3B]">
-                      {initials(person.name)}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-[11.5px] font-semibold text-[#16223A]">{person.name}</span>
-                    <span className="shrink-0 text-[10.5px] font-semibold" style={{ color: STATUS_TONE[person.status] || '#5B6478' }}>
-                      {person.status}
-                    </span>
-                  </div>
-                </React.Fragment>
-              ))}
-            </div>
-          </div>
-        </aside>
-        )}
       </div>
     </div>
   );
