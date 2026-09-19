@@ -455,6 +455,47 @@ export const FirmStartCentreView: React.FC = () => {
           {page === 'home' && (
             <>
 
+          {/* LAUNCHER — mockup order: tabs, then this module grid, then announcements. */}
+          <section>
+            <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="flex items-center gap-2 font-serif text-xl font-bold -tracking-[0.015em] text-[#16223A]">
+                  <LayoutGrid className="h-[18px] w-[18px] text-[#3D6B9C]" /> Go to a module
+                </h2>
+                <p className="mt-1 text-[#5B6478]">Every part of the practice, one click away.</p>
+              </div>
+              {canEditStartCentre && editMode && <button type="button" onClick={() => { const label = window.prompt('Module name'); const view = label && window.prompt('App view ID, e.g. cases or calendar'); if (label?.trim() && view?.trim()) setLauncherTiles((items) => [...items, { label: label.trim(), view: view.trim(), icon: LayoutGrid, bg: TONE.ink }]); }} className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#16223A] px-3 py-2 text-xs font-bold text-white"><Plus className="h-3.5 w-3.5 text-[#FBF2E9]" /> Add module</button>}
+            </div>
+            <div className="flex flex-wrap items-stretch gap-2.5">
+              <button
+                type="button"
+                onClick={() => setCurrentView('dashboard')}
+                className="flex min-w-[180px] flex-1 basis-[200px] cursor-pointer flex-col justify-between gap-4 rounded-2xl bg-[#16223A] p-[18px] text-left text-white shadow-lg transition hover:-translate-y-0.5"
+              >
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15">
+                  <LayoutDashboard className="h-[22px] w-[22px]" />
+                </span>
+                  <span className="block text-white">
+                  <strong className="block font-serif text-[19px] font-bold leading-tight !text-white">My Dashboard</strong>
+                  <span className="mt-1 block text-[11.5px] leading-snug !text-white/70">Your matters, tasks and deadlines for today</span>
+                  {canEditStartCentre && editMode && <span className="mt-1 block text-[9px] font-semibold !text-[#FBF2E9]">Target: dashboard</span>}
+                </span>
+              </button>
+              <div className="grid min-w-0 flex-1 basis-[300px] grid-cols-[repeat(auto-fill,minmax(112px,1fr))] content-start gap-2">
+                {tiles.map(({ label, view, icon: Icon, bg }) => (
+                  <div key={label} className="relative" title={`Opens app view: ${view}`}>
+                    <button type="button" onClick={() => setCurrentView(view)} style={{ backgroundColor: bg }} className="!text-white flex min-h-[82px] w-full cursor-pointer flex-col gap-2 rounded-xl bg-transparent p-3 text-left text-white transition hover:-translate-y-0.5 hover:shadow-lg">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-white/20"><Icon className="h-3.5 w-3.5" /></span>
+                      <strong className="text-xs font-bold leading-tight !text-white">{label}</strong>
+                      {canEditStartCentre && editMode && <span className="text-[9px] font-semibold !text-white/80">Target: {view}</span>}
+                    </button>
+                    {canEditStartCentre && editMode && <div className="absolute right-1 top-1 flex gap-1"><button type="button" onClick={() => { const nextLabel = window.prompt('Module name', label); const nextView = nextLabel && window.prompt('App view ID', view); if (nextLabel?.trim() && nextView?.trim()) setLauncherTiles((items) => items.map((item) => item.label === label ? { ...item, label: nextLabel.trim(), view: nextView.trim() } : item)); }} className="rounded bg-white/90 px-1 text-[9px] font-bold text-[#16223A]">Edit</button><button type="button" onClick={() => { if (window.confirm(`Delete module “${label}”?`)) setLauncherTiles((items) => items.filter((item) => item.label !== label)); }} className="rounded bg-white/90 px-1 text-[9px] font-bold text-red-700">Delete</button></div>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
           {/* ANNOUNCEMENTS */}
           <section id="announcements" className="rounded-xl border border-[#DDE3EB] bg-white p-5 shadow-xs">
             <div className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-3">
@@ -634,47 +675,6 @@ export const FirmStartCentreView: React.FC = () => {
                   </div>
                 </React.Fragment>
               ))}
-            </div>
-          </section>
-
-          {/* LAUNCHER */}
-          <section>
-            <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-              <div className="min-w-0">
-                <h2 className="flex items-center gap-2 font-serif text-xl font-bold -tracking-[0.015em] text-[#16223A]">
-                  <LayoutGrid className="h-[18px] w-[18px] text-[#3D6B9C]" /> Go to a module
-                </h2>
-                <p className="mt-1 text-[#5B6478]">Every part of the practice, one click away.</p>
-              </div>
-              {canEditStartCentre && editMode && <button type="button" onClick={() => { const label = window.prompt('Module name'); const view = label && window.prompt('App view ID, e.g. cases or calendar'); if (label?.trim() && view?.trim()) setLauncherTiles((items) => [...items, { label: label.trim(), view: view.trim(), icon: LayoutGrid, bg: TONE.ink }]); }} className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#16223A] px-3 py-2 text-xs font-bold text-white"><Plus className="h-3.5 w-3.5 text-[#FBF2E9]" /> Add module</button>}
-            </div>
-            <div className="flex flex-wrap items-stretch gap-2.5">
-              <button
-                type="button"
-                onClick={() => setCurrentView('dashboard')}
-                className="flex min-w-[180px] flex-1 basis-[200px] cursor-pointer flex-col justify-between gap-4 rounded-2xl bg-[#16223A] p-[18px] text-left text-white shadow-lg transition hover:-translate-y-0.5"
-              >
-                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15">
-                  <LayoutDashboard className="h-[22px] w-[22px]" />
-                </span>
-                  <span className="block text-white">
-                  <strong className="block font-serif text-[19px] font-bold leading-tight !text-white">My Dashboard</strong>
-                  <span className="mt-1 block text-[11.5px] leading-snug !text-white/70">Your matters, tasks and deadlines for today</span>
-                  {canEditStartCentre && editMode && <span className="mt-1 block text-[9px] font-semibold !text-[#FBF2E9]">Target: dashboard</span>}
-                </span>
-              </button>
-              <div className="grid min-w-0 flex-1 basis-[300px] grid-cols-[repeat(auto-fill,minmax(112px,1fr))] content-start gap-2">
-                {tiles.map(({ label, view, icon: Icon, bg }) => (
-                  <div key={label} className="relative" title={`Opens app view: ${view}`}>
-                    <button type="button" onClick={() => setCurrentView(view)} style={{ backgroundColor: bg }} className="!text-white flex min-h-[82px] w-full cursor-pointer flex-col gap-2 rounded-xl bg-transparent p-3 text-left text-white transition hover:-translate-y-0.5 hover:shadow-lg">
-                      <span className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-white/20"><Icon className="h-3.5 w-3.5" /></span>
-                      <strong className="text-xs font-bold leading-tight !text-white">{label}</strong>
-                      {canEditStartCentre && editMode && <span className="text-[9px] font-semibold !text-white/80">Target: {view}</span>}
-                    </button>
-                    {canEditStartCentre && editMode && <div className="absolute right-1 top-1 flex gap-1"><button type="button" onClick={() => { const nextLabel = window.prompt('Module name', label); const nextView = nextLabel && window.prompt('App view ID', view); if (nextLabel?.trim() && nextView?.trim()) setLauncherTiles((items) => items.map((item) => item.label === label ? { ...item, label: nextLabel.trim(), view: nextView.trim() } : item)); }} className="rounded bg-white/90 px-1 text-[9px] font-bold text-[#16223A]">Edit</button><button type="button" onClick={() => { if (window.confirm(`Delete module “${label}”?`)) setLauncherTiles((items) => items.filter((item) => item.label !== label)); }} className="rounded bg-white/90 px-1 text-[9px] font-bold text-red-700">Delete</button></div>}
-                  </div>
-                ))}
-              </div>
             </div>
           </section>
 

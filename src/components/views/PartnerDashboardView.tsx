@@ -849,106 +849,6 @@ export const PartnerDashboardView: React.FC = () => {
         />
       </div>
 
-      {/* SECTION 1: Firm-wide Revenue & Collection Visual Breakdown with Recharts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Monthly Revenue & Collection Composed Chart */}
-        <div className="lg:col-span-2 bg-white border border-[#DDE3EB] rounded-2xl p-5 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 pb-3">
-            <div>
-              <h3 className="font-serif text-base font-bold text-[#16223A] flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-[#8A6D3B]" />
-                <span>Monthly Collection Trends &amp; Revenue Chart (2026 YTD)</span>
-              </h3>
-              <p className="text-[11px] text-slate-500">
-                Interactive Recharts visualization comparing monthly billed fees, cash collections, target trajectories, and efficiency %.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 text-[10.5px]">
-              <span className="bg-[#E6EFE9] text-[#2F6F4E] border border-[#E6EFE9] font-extrabold px-2 py-0.5 rounded">
-                YTD Avg Efficiency: 92.1%
-              </span>
-            </div>
-          </div>
-
-          {/* Recharts Composed Chart */}
-          <div className="w-full h-[320px] pt-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={monthlyData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#475569' }} />
-                <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#475569' }} tickFormatter={(val) => `RM ${(val / 1000).toFixed(0)}k`} />
-                <YAxis yAxisId="right" orientation="right" domain={[70, 100]} tick={{ fontSize: 11, fill: '#D97706' }} tickFormatter={(val) => `${val}%`} />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
-                <Bar yAxisId="left" dataKey="billed" name="Billed Revenue (RM)" fill={palette.navy} radius={[4, 4, 0, 0]} barSize={20} />
-                <Bar yAxisId="left" dataKey="collected" name="Cash Collected (RM)" fill={palette.green} radius={[4, 4, 0, 0]} barSize={20} />
-                <Line yAxisId="left" type="monotone" dataKey="target" name="Monthly Target (RM)" stroke="#F59E0B" strokeWidth={2} strokeDasharray="4 4" dot={false} />
-                <Line yAxisId="right" type="monotone" dataKey="collectionRate" name="Collection Efficiency (%)" stroke="#2563EB" strokeWidth={2.5} dot={{ r: 4, fill: '#2563EB' }} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Date-wise Daily Collections Log */}
-        <div className="bg-white border border-[#DDE3EB] rounded-2xl p-5 shadow-xs flex flex-col justify-between space-y-4">
-          <div className="space-y-3">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <div>
-                <h3 className="font-serif text-base font-bold text-[#16223A] flex items-center gap-2">
-                  <Activity className="w-4.5 h-4.5 text-[#2F6F4E]" />
-                  <span>Date-wise Collections Audit</span>
-                </h3>
-                <p className="text-[10.5px] text-slate-500">Live ledger of incoming office &amp; client account receipts.</p>
-              </div>
-            </div>
-
-            {/* Collection Search */}
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                placeholder="Search date, client, or ref..."
-                value={collectionSearch}
-                onChange={(e) => setCollectionSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
-              />
-            </div>
-
-            {/* Collection Items List */}
-            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-              {filteredCollections.map((col) => (
-                <div key={col.id} className="p-3 bg-slate-50 hover:bg-[#FBF2E9]/50 border border-slate-200 rounded-xl transition-all space-y-1 shadow-2xs">
-                  <div className="flex justify-between items-center">
-                    <span className="font-mono text-[10px] font-bold text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">
-                      {col.date}
-                    </span>
-                    <span className="font-mono font-extrabold text-[#2F6F4E] text-xs">
-                      +RM {col.amount.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                  <div className="font-bold text-xs text-[#16223A] truncate">{col.client}</div>
-                  <div className="flex justify-between items-center text-[10px] text-slate-500 pt-0.5">
-                    <span className="truncate max-w-[140px]">{col.ref}</span>
-                    <span className="font-semibold text-[#8A6D3B] bg-[#FBF2E9] px-1.5 py-0.2 rounded border border-[#FBF2E9]">
-                      PIC: {col.partner}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => showToast('Opening complete SAR 1990 Receipts Ledger...')}
-            className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-[#16223A] font-bold text-xs rounded-xl border border-slate-300 transition-colors cursor-pointer flex items-center justify-center gap-1"
-          >
-            <span>View Full SAR Receipts Ledger</span>
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
       {/* SECTION 2: Referral Source Tracking & Conversion Charts */}
       <div className="bg-white border border-[#DDE3EB] rounded-2xl p-5 shadow-xs space-y-5">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 border-b border-slate-100 pb-3">
@@ -1119,6 +1019,107 @@ export const PartnerDashboardView: React.FC = () => {
               </tbody>
             </table>
           </div>
+        </div>
+      </div>
+
+      {/* Extra real feature beyond the mockup's Partner Dashboard scope — kept, but placed
+          after every mockup section so the mockup's own sequence stays intact end to end. */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Monthly Revenue & Collection Composed Chart */}
+        <div className="lg:col-span-2 bg-white border border-[#DDE3EB] rounded-2xl p-5 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="font-serif text-base font-bold text-[#16223A] flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-[#8A6D3B]" />
+                <span>Monthly Collection Trends &amp; Revenue Chart (2026 YTD)</span>
+              </h3>
+              <p className="text-[11px] text-slate-500">
+                Interactive Recharts visualization comparing monthly billed fees, cash collections, target trajectories, and efficiency %.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 text-[10.5px]">
+              <span className="bg-[#E6EFE9] text-[#2F6F4E] border border-[#E6EFE9] font-extrabold px-2 py-0.5 rounded">
+                YTD Avg Efficiency: 92.1%
+              </span>
+            </div>
+          </div>
+
+          {/* Recharts Composed Chart */}
+          <div className="w-full h-[320px] pt-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={monthlyData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#475569' }} />
+                <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#475569' }} tickFormatter={(val) => `RM ${(val / 1000).toFixed(0)}k`} />
+                <YAxis yAxisId="right" orientation="right" domain={[70, 100]} tick={{ fontSize: 11, fill: '#D97706' }} tickFormatter={(val) => `${val}%`} />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
+                <Bar yAxisId="left" dataKey="billed" name="Billed Revenue (RM)" fill={palette.navy} radius={[4, 4, 0, 0]} barSize={20} />
+                <Bar yAxisId="left" dataKey="collected" name="Cash Collected (RM)" fill={palette.green} radius={[4, 4, 0, 0]} barSize={20} />
+                <Line yAxisId="left" type="monotone" dataKey="target" name="Monthly Target (RM)" stroke="#F59E0B" strokeWidth={2} strokeDasharray="4 4" dot={false} />
+                <Line yAxisId="right" type="monotone" dataKey="collectionRate" name="Collection Efficiency (%)" stroke="#2563EB" strokeWidth={2.5} dot={{ r: 4, fill: '#2563EB' }} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Date-wise Daily Collections Log */}
+        <div className="bg-white border border-[#DDE3EB] rounded-2xl p-5 shadow-xs flex flex-col justify-between space-y-4">
+          <div className="space-y-3">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="font-serif text-base font-bold text-[#16223A] flex items-center gap-2">
+                  <Activity className="w-4.5 h-4.5 text-[#2F6F4E]" />
+                  <span>Date-wise Collections Audit</span>
+                </h3>
+                <p className="text-[10.5px] text-slate-500">Live ledger of incoming office &amp; client account receipts.</p>
+              </div>
+            </div>
+
+            {/* Collection Search */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                placeholder="Search date, client, or ref..."
+                value={collectionSearch}
+                onChange={(e) => setCollectionSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+              />
+            </div>
+
+            {/* Collection Items List */}
+            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+              {filteredCollections.map((col) => (
+                <div key={col.id} className="p-3 bg-slate-50 hover:bg-[#FBF2E9]/50 border border-slate-200 rounded-xl transition-all space-y-1 shadow-2xs">
+                  <div className="flex justify-between items-center">
+                    <span className="font-mono text-[10px] font-bold text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                      {col.date}
+                    </span>
+                    <span className="font-mono font-extrabold text-[#2F6F4E] text-xs">
+                      +RM {col.amount.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <div className="font-bold text-xs text-[#16223A] truncate">{col.client}</div>
+                  <div className="flex justify-between items-center text-[10px] text-slate-500 pt-0.5">
+                    <span className="truncate max-w-[140px]">{col.ref}</span>
+                    <span className="font-semibold text-[#8A6D3B] bg-[#FBF2E9] px-1.5 py-0.2 rounded border border-[#FBF2E9]">
+                      PIC: {col.partner}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => showToast('Opening complete SAR 1990 Receipts Ledger...')}
+            className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-[#16223A] font-bold text-xs rounded-xl border border-slate-300 transition-colors cursor-pointer flex items-center justify-center gap-1"
+          >
+            <span>View Full SAR Receipts Ledger</span>
+            <ChevronRight className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
