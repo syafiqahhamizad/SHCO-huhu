@@ -34,7 +34,7 @@ import { Case, Task } from '../../types';
 import { identityTokens, isMine } from '../../lib/identity';
 import { DashboardTabs } from '../DashboardTabs';
 import { StatCard, Donut, MiniBarChart, ProgressBar } from '../ui';
-import { palette } from '../../lib/designTokens';
+import { palette, tint } from '../../lib/designTokens';
 
 const TONE = {
   navy: '#16223A',
@@ -658,7 +658,7 @@ export const MyDashboardView: React.FC = () => {
       )}
 
       <section className="grid gap-3.5 xl:grid-cols-2">
-        {[['Matter to-do', grouped.overdue.concat(grouped.today, grouped.week), TONE.navy, 'All matter tasks', Scale, true], ['Private to-do', [], '#3D6B9C', 'Open in Google Tasks', User, false]].map(([title, list, color, link, Icon, canAdd]) => {
+        {[['Matter to-do', grouped.overdue.concat(grouped.today, grouped.week), TONE.navy, 'All matter tasks', Scale, true], ['Private to-do', [], '#2E7D7A', 'Open in Google Tasks', User, false]].map(([title, list, color, link, Icon, canAdd]) => {
           const PanelIcon = Icon as React.ElementType;
           return <div key={String(title)} className="overflow-hidden rounded-xl border border-[#DDE3EB] bg-white shadow-sm"><div className="my-dashboard-dark-panel flex items-center gap-2.5 px-3.5 py-3 text-white bg-transparent" style={{ backgroundColor: String(color) }}><PanelIcon className="h-4 w-4 text-[#FBF2E9]" /><div><strong className="block font-serif text-[14.5px]">{String(title)}</strong><span className="text-[10.5px] text-white/70">{canAdd ? 'Tied to a file · two-way sync with Google Tasks' : 'No file attached · yours only · Google Tasks'}</span></div>{canAdd && <button type="button" onClick={() => setComposing((v) => !v)} className="ml-auto flex items-center gap-1 rounded-md bg-[#3D6B9C] px-2.5 py-1.5 text-[11px] font-bold"><Plus className="h-3 w-3" /> Add</button>}</div>{canAdd && composing ? null : renderRows(list as Row[], 'Nothing here.')}<div className="flex items-center gap-2 border-t border-[#DDE3EB] bg-[#F6F8FA] px-3.5 py-2.5 text-[10.5px] text-[#5B6478]"><CheckCircle2 className="h-3.5 w-3.5 text-[#2F6F4E]" /><span>{(list as Row[]).length} open items</span><button type="button" onClick={() => setCurrentView(canAdd ? 'tasks' : 'activityLogs')} className="ml-auto font-bold text-[#8A6D3B]">{String(link)} -&gt;</button></div></div>;
         })}
@@ -778,6 +778,21 @@ export const MyDashboardView: React.FC = () => {
               />
             ))}
           </div>
+          {(() => {
+            const gaps = [
+              { label: 'billing', gap: targets.billed - billing.billedThisMonth, prefix: 'RM ' },
+              { label: 'collections', gap: targets.collected - billing.collectedThisMonth, prefix: 'RM ' },
+              { label: 'new files', gap: targets.files - filesBroughtIn, prefix: '' },
+              { label: 'referrals', gap: targets.referrals - myReferrals.converted, prefix: '' },
+            ].filter((g) => g.gap > 0).sort((a, b) => b.gap - a.gap);
+            const biggest = gaps[0];
+            if (!biggest) return null;
+            return (
+              <p className="mt-3 rounded-lg px-2.5 py-2 text-[11px]" style={{ backgroundColor: tint.red, color: palette.red }}>
+                ⚠ {biggest.prefix}{biggest.gap.toLocaleString()} more {biggest.label === 'billing' || biggest.label === 'collections' ? `in ${biggest.label}` : biggest.label} needed this month to hit target — biggest gap is {biggest.label}.
+              </p>
+            );
+          })()}
         </div>
 
         <div className="mt-3 rounded-xl border border-[#DDE3EB] bg-white p-4">
