@@ -40,6 +40,7 @@ import {
   Package,
   PartyPopper,
   Plus,
+  RefreshCw,
   Receipt,
   Scale,
   ScrollText,
@@ -201,6 +202,7 @@ export const FirmStartCentreView: React.FC = () => {
     firmStartCentrePages,
     canEditFirmStartCentre,
     firmStartCentreEditMode,
+    setFirmStartCentreEditMode,
     addStartCentrePage,
     updateStartCentrePageLabel,
     deleteStartCentrePage,
@@ -328,9 +330,12 @@ export const FirmStartCentreView: React.FC = () => {
               </button>
             </div>
           </div>
-          <div className="flex items-baseline gap-2 text-right">
+          <div className="flex items-center gap-2 text-right">
             <span className="font-serif text-sm font-bold">{today.toLocaleDateString('en-MY', { weekday: 'long' })}</span>
             <span className="font-mono text-[11px] text-slate-300">{today.toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+            <button type="button" onClick={() => window.location.reload()} title="Reload latest saved data" aria-label="Reload latest saved data" className="shrink-0 cursor-pointer rounded-md p-1.5 text-slate-300 transition hover:bg-white/10 hover:text-white">
+              <RefreshCw className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
 
@@ -659,10 +664,49 @@ export const FirmStartCentreView: React.FC = () => {
                 <p className="mt-0.5 text-[10.5px] text-[#5B6478]">Portals, folders and Workspace</p>
               </div>
               <div className="flex items-center gap-2">
+                {canEditStartCentre && (
+                  <button type="button" onClick={() => setFirmStartCentreEditMode(!editMode)} className={`rounded-md px-2 py-1 text-[10.5px] font-bold ${editMode ? 'bg-[#16223A] text-white' : 'text-[#8A6D3B] hover:bg-[#F6F8FA]'}`} title="Toggle editing for quick links">
+                    {editMode ? 'Done' : 'Edit'}
+                  </button>
+                )}
                 {canEditStartCentre && <button type="button" onClick={() => { const title = window.prompt('New quick-link group name'); if (title?.trim()) setQuickLinkGroups((groups) => [...groups, { title: title.trim(), icon: BookMarked, links: [] }]); }} className="rounded-md p-1 text-[#8A6D3B] hover:bg-[#F6F8FA]" title="Add quick-link group" aria-label="Add quick-link group"><Plus className="h-3.5 w-3.5" /></button>}
                 <Globe2 className="h-4 w-4 shrink-0 text-[#3D6B9C]" />
               </div>
             </div>
+
+            {/* TODAY AT THE FIRM — moved above Quick links itself so it's visible without scrolling */}
+            <div id="people" className="flex flex-col gap-2.5 border-b border-[#DDE3EB] px-3.5 pb-3.5 pt-3.5 scroll-mt-6">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="flex items-center gap-[7px] text-[9.5px] font-bold uppercase tracking-[0.13em] text-[#5B6478]">
+                  <UsersRound className="h-3.5 w-3.5 text-[#3D6B9C]" /> Today at the firm
+                </span>
+                <span className="flex flex-wrap gap-1.5 text-[9.5px] font-bold">
+                  <span className="rounded-full bg-[#E6EFE9] px-[7px] py-0.5 text-[#2F6F4E]">{count('In office')} in</span>
+                  <span className="rounded-full bg-[#E7EEF6] px-[7px] py-0.5 text-[#16223A]">{count('In court')} court</span>
+                  <span className="rounded-full bg-[#FBF2E9] px-[7px] py-0.5 text-[#B23A2E]">{count('Leave')} leave</span>
+                </span>
+                <button type="button" onClick={() => setCurrentView('staff-portal')} className="ml-auto cursor-pointer text-[10.5px] font-bold text-[#8A6D3B]">
+                  All {presence.length} →
+                </button>
+              </div>
+              <div className="flex flex-col gap-[7px]">
+                {presence.slice(0, 5).map((person, index) => (
+                  <React.Fragment key={person.id}>
+                    {index > 0 && <div className="h-px bg-white" />}
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#DDE3EB] bg-white font-serif text-[10px] font-semibold text-[#8A6D3B]">
+                        {initials(person.name)}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-[11.5px] font-semibold text-[#16223A]">{person.name}</span>
+                      <span className="shrink-0 text-[10.5px] font-semibold" style={{ color: STATUS_TONE[person.status] || '#5B6478' }}>
+                        {person.status}
+                      </span>
+                    </div>
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+
             <div className="flex flex-col gap-0.5 px-2.5 pb-3 pt-2">
               {quickLinkGroups.map((group, index) => {
                 const isOpen = index === openGroup;
@@ -704,39 +748,6 @@ export const FirmStartCentreView: React.FC = () => {
                 );
               })}
             </div>
-
-            {/* TODAY AT THE FIRM — nested at the bottom of Quick Links, matching the mockup */}
-            <div id="people" className="flex flex-col gap-2.5 border-t border-[#F0F2F5] px-3.5 pb-3.5 pt-3.5 scroll-mt-6">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="flex items-center gap-[7px] text-[9.5px] font-bold uppercase tracking-[0.13em] text-[#5B6478]">
-                  <UsersRound className="h-3.5 w-3.5 text-[#3D6B9C]" /> Today at the firm
-                </span>
-                <span className="flex flex-wrap gap-1.5 text-[9.5px] font-bold">
-                  <span className="rounded-full bg-[#E6EFE9] px-[7px] py-0.5 text-[#2F6F4E]">{count('In office')} in</span>
-                  <span className="rounded-full bg-[#E7EEF6] px-[7px] py-0.5 text-[#16223A]">{count('In court')} court</span>
-                  <span className="rounded-full bg-[#FBF2E9] px-[7px] py-0.5 text-[#B23A2E]">{count('Leave')} leave</span>
-                </span>
-                <button type="button" onClick={() => setCurrentView('staff-portal')} className="ml-auto cursor-pointer text-[10.5px] font-bold text-[#8A6D3B]">
-                  All {presence.length} →
-                </button>
-              </div>
-              <div className="flex flex-col gap-[7px]">
-                {presence.slice(0, 5).map((person, index) => (
-                  <React.Fragment key={person.id}>
-                    {index > 0 && <div className="h-px bg-white" />}
-                    <div className="flex items-center gap-2">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#DDE3EB] bg-white font-serif text-[10px] font-semibold text-[#8A6D3B]">
-                        {initials(person.name)}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-[11.5px] font-semibold text-[#16223A]">{person.name}</span>
-                      <span className="shrink-0 text-[10.5px] font-semibold" style={{ color: STATUS_TONE[person.status] || '#5B6478' }}>
-                        {person.status}
-                      </span>
-                    </div>
-                  </React.Fragment>
-                ))}
-              </div>
-            </div>
           </aside>
           </div>
 
@@ -745,9 +756,16 @@ export const FirmStartCentreView: React.FC = () => {
 
           {activePage && (
             <section className="flex flex-col gap-4">
-              <div className="rounded-2xl border border-[#DDE3EB] bg-[#F6F8FA] p-5">
-                <span className="text-[9.5px] font-bold uppercase tracking-[0.13em] text-[#5B6478]">{activePage.label}</span>
-                <h2 className="mt-1.5 font-serif text-xl font-bold -tracking-[0.015em] text-[#16223A]">{activePage.label}</h2>
+              <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-[#DDE3EB] bg-[#F6F8FA] p-5">
+                <div>
+                  <span className="text-[9.5px] font-bold uppercase tracking-[0.13em] text-[#5B6478]">{activePage.label}</span>
+                  <h2 className="mt-1.5 font-serif text-xl font-bold -tracking-[0.015em] text-[#16223A]">{activePage.label}</h2>
+                </div>
+                {canEditStartCentre && (
+                  <button type="button" onClick={() => setFirmStartCentreEditMode(!editMode)} className={`shrink-0 rounded-md px-3 py-2 text-xs font-bold ${editMode ? 'bg-[#16223A] text-white' : 'border border-[#DDE3EB] bg-white text-[#16223A]'}`} title={`Toggle editing for ${activePage.label}`}>
+                    {editMode ? 'Done editing' : 'Edit this tab'}
+                  </button>
+                )}
               </div>
               <div className="grid grid-cols-[repeat(auto-fit,minmax(230px,1fr))] gap-3">
                 {activePage.cards.map((card) => {
