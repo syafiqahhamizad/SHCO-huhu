@@ -442,14 +442,11 @@ export const QuotationsView: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Top Banner Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 rounded-xl p-4 text-white shadow-md bg-transparent" style={{ backgroundColor: palette.navy }}>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
-          <h2 className="font-serif text-lg font-bold flex items-center gap-2">
-            <FileText className="w-5 h-5" style={{ color: palette.gold }} />
-            Quotations &amp; Billing
-          </h2>
-          <p className="text-xs text-slate-300 mt-0.5">
-            Quotation → Proforma → Invoice → Receipt pipeline. SRO 2023 First Schedule scale fees built in.
+          <h2 className="font-serif text-[22px] font-bold text-[#16223A]">Quotations &amp; Billing</h2>
+          <p className="text-xs text-[#5B6478] mt-0.5">
+            Quotation → Proforma → Invoice → Receipt pipeline
           </p>
         </div>
 
@@ -461,14 +458,14 @@ export const QuotationsView: React.FC = () => {
               placeholder="Search Client Name / Quote ID..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 pr-3 py-1.5 bg-white/10 border border-white/20 rounded-lg text-xs w-56 text-white placeholder:text-slate-400 focus:outline-none focus:border-white/40"
+              className="pl-8 pr-3 py-1.5 bg-white border border-[#DDE3EB] rounded-lg text-xs w-56 text-[#16223A] placeholder:text-slate-400 focus:outline-none focus:border-[#3D6B9C]"
             />
           </div>
 
           <button
             onClick={() => setIsNewQuoteOpen(true)}
             className="text-white text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs whitespace-nowrap bg-transparent"
-            style={{ backgroundColor: palette.blue }}
+            style={{ backgroundColor: palette.navy }}
           >
             <Plus className="w-4 h-4" />
             <span>New Quotation</span>

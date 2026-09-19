@@ -43,26 +43,24 @@ export const AccountingCentreView: React.FC<{ initialTab?: AccTab }> = ({ initia
 
   return (
     <div className="space-y-4 pb-10 text-xs text-[#16223A]">
-      <div className="rounded-2xl p-5 text-white shadow-md bg-transparent" style={{ backgroundColor: palette.navy }}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="font-serif text-xl font-bold">Accounting</h1>
-            <p className="mt-1 max-w-2xl text-[12px] text-slate-300">
-              Client trust (SAR 1990) &amp; office accounts, billing and receivables.
-            </p>
-          </div>
-          <div className="flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 p-1">
-            {(['month', 'year'] as const).map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setPeriod(p)}
-                className={`rounded-md px-2.5 py-1 text-[11px] font-bold transition-colors ${period === p ? 'bg-white text-[#16223A]' : 'text-slate-300'}`}
-              >
-                {p === 'month' ? 'This Month' : 'This Year'}
-              </button>
-            ))}
-          </div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-serif text-[22px] font-bold text-[#16223A]">Accounting</h1>
+          <p className="mt-0.5 max-w-2xl text-[12px] text-[#5B6478]">
+            Client trust (SAR 1990) &amp; office accounts, billing and receivables
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {(['month', 'year'] as const).map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setPeriod(p)}
+              className={`rounded-lg border px-3 py-1.5 text-[12px] font-bold transition-colors ${period === p ? 'border-[#16223A] bg-[#16223A] text-white' : 'border-[#DDE3EB] bg-white text-[#5B6478]'}`}
+            >
+              {p === 'month' ? 'This Month' : 'This Year'}
+            </button>
+          ))}
         </div>
       </div>
 
