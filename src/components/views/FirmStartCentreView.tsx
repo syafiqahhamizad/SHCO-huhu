@@ -358,7 +358,7 @@ export const FirmStartCentreView: React.FC = () => {
         </div>
       </section>
 
-      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_240px]">
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
         <div className="flex min-w-0 flex-col gap-5">
           {/* TAB NAV */}
           <nav className="flex flex-wrap items-center gap-2.5">
@@ -458,13 +458,13 @@ export const FirmStartCentreView: React.FC = () => {
               <div className="min-w-0">
                 <h2 className="font-serif text-base font-bold text-[#16223A]">Every part of the practice, one click away</h2>
               </div>
-              {canEditStartCentre && editMode && <button type="button" onClick={() => { const label = window.prompt('Module name'); const view = label && window.prompt('App view ID, e.g. cases or calendar'); if (label?.trim() && view?.trim()) setLauncherTiles((items) => [...items, { label: label.trim(), view: view.trim(), icon: LayoutGrid, bg: TONE.ink }]); }} className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#16223A] px-3 py-2 text-xs font-bold text-white"><Plus className="h-3.5 w-3.5 text-[#FBF2E9]" /> Add module</button>}
+              {canEditStartCentre && <button type="button" onClick={() => { const label = window.prompt('Module name'); const view = label && window.prompt('App view ID, e.g. cases or calendar'); if (label?.trim() && view?.trim()) setLauncherTiles((items) => [...items, { label: label.trim(), view: view.trim(), icon: LayoutGrid, bg: TONE.ink }]); }} className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#16223A] px-3 py-2 text-xs font-bold text-white"><Plus className="h-3.5 w-3.5 text-[#FBF2E9]" /> Add module</button>}
             </div>
             <div className="grid grid-cols-4 gap-2.5 sm:grid-cols-8">
               {tiles.map(({ label, view, icon: Icon, bg }) => (
                 <div key={label} className={`relative ${['Firm Inventory', 'Library', 'Dormant Files', 'Closed Files'].includes(label) ? 'col-span-2' : ''}`} title={`Opens app view: ${view}`}>
-                  <button type="button" onClick={() => setCurrentView(view)} style={{ backgroundColor: bg }} className="!text-white flex min-h-[82px] w-full cursor-pointer flex-col gap-2 rounded-xl bg-transparent p-3 text-left text-white transition hover:-translate-y-0.5 hover:shadow-lg">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-white/20"><Icon className="h-3.5 w-3.5" /></span>
+                  <button type="button" onClick={() => setCurrentView(view)} style={{ backgroundColor: bg }} className="!text-white flex min-h-[82px] w-full cursor-pointer flex-col gap-2 rounded-xl bg-transparent p-3.5 text-left text-white transition hover:-translate-y-0.5 hover:shadow-lg">
+                    <Icon className="h-5 w-5" />
                     <strong className="text-xs font-bold leading-tight !text-white">{label}</strong>
                     {canEditStartCentre && editMode && <span className="text-[9px] font-semibold !text-white/80">Target: {view}</span>}
                   </button>
@@ -483,14 +483,14 @@ export const FirmStartCentreView: React.FC = () => {
                 </h2>
                 <p className="mt-1 text-slate-500">Internal notices, celebrations and firm dates.</p>
               </div>
-              {canEditStartCentre && editMode && (
-                <button type="button" onClick={() => setAnnouncementOpen((open) => !open)} className="flex cursor-pointer items-center gap-1.5 self-start rounded-lg bg-[#16223A] px-3 py-2 text-xs font-bold text-white">
-                  <Plus className="h-3.5 w-3.5 text-[#FBF2E9]" /> {announcementOpen ? 'Close form' : 'Publish announcement'}
+              {canEditStartCentre && (
+                <button type="button" onClick={() => setAnnouncementOpen((open) => !open)} className="flex cursor-pointer items-center gap-1.5 self-start rounded-lg bg-[#16223A] px-4 py-2.5 text-[13px] font-bold text-white">
+                  <Plus className="h-3.5 w-3.5" /> {announcementOpen ? 'Close form' : 'Add announcement'}
                 </button>
               )}
             </div>
 
-            {announcementOpen && editMode && (
+            {announcementOpen && canEditStartCentre && (
               <form
                 className="mb-4 grid gap-3 rounded-xl border border-[#DDE3EB] bg-[#F6F8FA] p-4 shadow-sm sm:grid-cols-2"
                 onSubmit={(event) => {
@@ -523,136 +523,100 @@ export const FirmStartCentreView: React.FC = () => {
               </form>
             )}
 
-            <div className="flex flex-wrap items-stretch gap-3">
-              {/* holidays — dominant, full height of the left half */}
-              <div className="flex min-w-0 flex-1 basis-[150px]">
-                <div className="flex min-w-0 flex-1 flex-col gap-2.5 rounded-xl bg-[#16223A] p-4 text-white">
-                  <div className="flex items-center gap-2 text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#8A6D3B]">
-                    <CalendarX2 className="h-3.5 w-3.5" /> Holidays &amp; office closures
-                  </div>
-                  {nextHoliday ? (
-                    <>
-                      <div>
-                        <div className="flex items-baseline gap-2">
-                          <span className="font-serif text-[32px] font-bold leading-none tabular-nums">
-                            {new Date(`${dateOf(nextHoliday)}T00:00:00`).getDate()}
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              {/* col 1: Holidays & office closures — navy, matches mockup */}
+              <div className="flex min-w-0 flex-col gap-2.5 rounded-xl bg-[#16223A] p-4 text-white">
+                <div className="flex items-center gap-2 text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#8A6D3B]">
+                  <CalendarX2 className="h-3.5 w-3.5" /> Holidays &amp; office closures
+                </div>
+                {nextHoliday ? (
+                  <>
+                    <div>
+                      <div className="flex items-baseline gap-2">
+                        <span className="font-serif text-[32px] font-bold leading-none tabular-nums">
+                          {new Date(`${dateOf(nextHoliday)}T00:00:00`).getDate()}
+                        </span>
+                        <span className="font-serif text-[17px] font-semibold text-[#DDE3EB]">
+                          {new Date(`${dateOf(nextHoliday)}T00:00:00`).toLocaleDateString('en-MY', { month: 'short' })}
+                        </span>
+                        {daysAway !== null && (
+                          <span className="ml-auto rounded-full border border-white/25 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-300">
+                            {daysAway === 0 ? 'today' : daysAway === 1 ? 'tomorrow' : `in ${daysAway} days`}
                           </span>
-                          <span className="font-serif text-[17px] font-semibold text-[#DDE3EB]">
-                            {new Date(`${dateOf(nextHoliday)}T00:00:00`).toLocaleDateString('en-MY', { month: 'short' })}
-                          </span>
-                          {daysAway !== null && (
-                            <span className="ml-auto rounded-full border border-white/25 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-300">
-                              {daysAway === 0 ? 'today' : daysAway === 1 ? 'tomorrow' : `in ${daysAway} days`}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-start justify-between gap-2"><h3 className="mt-1.5 font-serif text-base font-semibold -tracking-[0.01em]">{nextHoliday.title}</h3>{canEditStartCentre && editMode && <button type="button" onClick={() => { if (window.confirm(`Delete “${nextHoliday.title}”?`)) deleteAnnouncement(nextHoliday.id); }} title="Delete closure" aria-label={`Delete ${nextHoliday.title}`} className="shrink-0 cursor-pointer rounded-md p-1 text-slate-300 transition hover:bg-white/10 hover:text-red-200"><Trash2 className="h-3.5 w-3.5" /></button>}</div>
-                        <p className="mt-1 leading-relaxed text-slate-300">{nextHoliday.body}</p>
+                        )}
                       </div>
-                      {laterHolidays.length > 0 && (
-                        <div className="flex flex-col gap-2 border-t border-white/15 pt-2.5">
-                          {laterHolidays.slice(0, 3).map((holiday) => (
-                            <div key={holiday.id} className="flex items-baseline justify-between gap-2.5">
-                              <span className="flex min-w-0 items-center gap-1.5"><span className="truncate text-[#DDE3EB]">{holiday.title}</span>{canEditStartCentre && editMode && <button type="button" onClick={() => { if (window.confirm(`Delete “${holiday.title}”?`)) deleteAnnouncement(holiday.id); }} title="Delete closure" aria-label={`Delete ${holiday.title}`} className="shrink-0 cursor-pointer text-slate-400 hover:text-red-200"><Trash2 className="h-3 w-3" /></button>}</span>
-                              <span className="shrink-0 font-mono text-[11px] text-slate-400">{formatDay(dateOf(holiday))}</span>
-                            </div>
-                          ))}
+                      <div className="flex items-start justify-between gap-2"><h3 className="mt-1.5 font-serif text-base font-semibold -tracking-[0.01em]">{nextHoliday.title}</h3>{canEditStartCentre && editMode && <button type="button" onClick={() => { if (window.confirm(`Delete “${nextHoliday.title}”?`)) deleteAnnouncement(nextHoliday.id); }} title="Delete closure" aria-label={`Delete ${nextHoliday.title}`} className="shrink-0 cursor-pointer rounded-md p-1 text-slate-300 transition hover:bg-white/10 hover:text-red-200"><Trash2 className="h-3.5 w-3.5" /></button>}</div>
+                      <p className="mt-1 leading-relaxed text-slate-300">{nextHoliday.body}</p>
+                    </div>
+                    {laterHolidays.length > 0 && (
+                      <div className="flex flex-col gap-2 border-t border-white/15 pt-2.5">
+                        {laterHolidays.slice(0, 3).map((holiday) => (
+                          <div key={holiday.id} className="flex items-baseline justify-between gap-2.5">
+                            <span className="flex min-w-0 items-center gap-1.5"><span className="truncate text-[#DDE3EB]">{holiday.title}</span>{canEditStartCentre && editMode && <button type="button" onClick={() => { if (window.confirm(`Delete “${holiday.title}”?`)) deleteAnnouncement(holiday.id); }} title="Delete closure" aria-label={`Delete ${holiday.title}`} className="shrink-0 cursor-pointer text-slate-400 hover:text-red-200"><Trash2 className="h-3 w-3" /></button>}</span>
+                            <span className="shrink-0 font-mono text-[11px] text-slate-400">{formatDay(dateOf(holiday))}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-slate-300">No upcoming closures recorded.</p>
+                )}
+              </div>
+
+              {/* col 2: Celebrations — purple, matches mockup */}
+              <div className="flex min-w-0 flex-col gap-2.5 rounded-xl bg-[#6B3D8C] p-4 text-white">
+                <div className="flex items-center gap-2 text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#E3D3F0]">
+                  <PartyPopper className="h-3.5 w-3.5" /> Celebrations
+                </div>
+                {celebrations.length ? (
+                  <div className="flex flex-col gap-2.5">
+                    {celebrations.map((celebration, index) => (
+                      <React.Fragment key={celebration.id}>
+                        {index > 0 && <div className="h-px bg-white/15" />}
+                        <div className="flex items-center gap-2.5">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/10 font-serif text-xs font-semibold text-white">
+                            {initials(celebration.name)}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <strong className="block truncate text-[13px] font-semibold text-white">{celebration.name}</strong>
+                            <span className="block text-[10.5px] text-[#E3D3F0]">{celebration.detail}</span>
+                          </span>
+                          <span className="shrink-0 font-mono text-[11px] font-semibold text-[#E3D3F0]">{formatDay(celebration.date)}</span>
                         </div>
-                      )}
-                    </>
-                  ) : (
-                    <p className="text-slate-300">No upcoming closures recorded.</p>
-                  )}
-                </div>
+                      </React.Fragment>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[#E3D3F0]">Nothing coming up.</p>
+                )}
               </div>
 
-              {/* notices + celebrations stacked in the right half */}
-              <div className="flex min-w-0 flex-1 basis-[150px] flex-col gap-3">
-                <div className="flex flex-col gap-3 rounded-xl border border-[#DDE3EB] bg-white p-4">
-                  <div className="flex items-center gap-2 text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#5B6478]">
-                    <Megaphone className="h-3.5 w-3.5 text-[#3D6B9C]" /> Firm notices
-                  </div>
-                  {notices.length ? (
-                    <div className="flex flex-col gap-3">
-                      {notices.map((notice, index) => (
-                        <React.Fragment key={notice.id}>
-                          {index > 0 && <div className="h-px bg-[#F6F8FA]" />}
-                          <div>
-                            <div className="flex items-baseline justify-between gap-2">
-                              <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#8A6D3B]">{notice.category}</span>
-                              <span className="font-mono text-[10px] text-[#5B6478]">{formatDay(dateOf(notice))}</span>
-                            </div>
-                            <div className="flex items-start justify-between gap-2"><h3 className="mt-0.5 font-serif text-[14.5px] font-semibold text-[#16223A]">{notice.title}</h3>{canEditStartCentre && editMode && <button type="button" onClick={() => { if (window.confirm(`Delete “${notice.title}”?`)) deleteAnnouncement(notice.id); }} title="Delete announcement" aria-label={`Delete ${notice.title}`} className="shrink-0 cursor-pointer rounded-md p-1 text-[#5B6478] transition hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>}</div>
-                            <p className="mt-0.5 leading-relaxed text-[#5B6478]">{notice.body}</p>
-                          </div>
-                        </React.Fragment>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-slate-400">No notices published.</p>
-                  )}
+              {/* col 3: Firm notices — white bordered, matches mockup */}
+              <div className="flex min-w-0 flex-col gap-3 rounded-xl border border-[#DDE3EB] p-4">
+                <div className="flex items-center gap-2 text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#5B6478]">
+                  <Megaphone className="h-3.5 w-3.5 text-[#3D6B9C]" /> Firm notices
                 </div>
-
-                <div className="flex flex-col gap-3 rounded-xl border border-[#DDE3EB] bg-white p-4">
-                  <div className="flex items-center gap-2 text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#5B6478]">
-                    <PartyPopper className="h-3.5 w-3.5 text-[#3D6B9C]" /> Celebrations
-                  </div>
-                  {celebrations.length ? (
-                    <div className="flex flex-col gap-2.5">
-                      {celebrations.map((celebration, index) => (
-                        <React.Fragment key={celebration.id}>
-                          {index > 0 && <div className="h-px bg-[#F6F8FA]" />}
-                          <div className="flex items-center gap-2.5">
-                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#DDE3EB] bg-[#F6F8FA] font-serif text-xs font-semibold text-[#8A6D3B]">
-                              {initials(celebration.name)}
-                            </span>
-                            <span className="min-w-0 flex-1">
-                              <strong className="block truncate text-[13px] font-semibold text-[#16223A]">{celebration.name}</strong>
-                              <span className="block text-[10.5px] text-[#5B6478]">{celebration.detail}</span>
-                            </span>
-                            <span className="shrink-0 font-mono text-[11px] font-semibold text-[#5B6478]">{formatDay(celebration.date)}</span>
+                {notices.length ? (
+                  <div className="flex flex-col gap-3">
+                    {notices.map((notice, index) => (
+                      <React.Fragment key={notice.id}>
+                        {index > 0 && <div className="h-px bg-[#F6F8FA]" />}
+                        <div>
+                          <div className="flex items-baseline justify-between gap-2">
+                            <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#8A6D3B]">{notice.category}</span>
+                            <span className="font-mono text-[10px] text-[#5B6478]">{formatDay(dateOf(notice))}</span>
                           </div>
-                        </React.Fragment>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-slate-400">Nothing coming up.</p>
-                  )}
-                </div>
+                          <div className="flex items-start justify-between gap-2"><h3 className="mt-0.5 font-serif text-[14.5px] font-semibold text-[#16223A]">{notice.title}</h3>{canEditStartCentre && editMode && <button type="button" onClick={() => { if (window.confirm(`Delete “${notice.title}”?`)) deleteAnnouncement(notice.id); }} title="Delete announcement" aria-label={`Delete ${notice.title}`} className="shrink-0 cursor-pointer rounded-md p-1 text-[#5B6478] transition hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>}</div>
+                          <p className="mt-0.5 leading-relaxed text-[#5B6478]">{notice.body}</p>
+                        </div>
+                      </React.Fragment>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-slate-400">No notices published.</p>
+                )}
               </div>
-            </div>
-          </section>
-
-          {/* TODAY AT THE FIRM */}
-          <section id="people" className="flex flex-col gap-2.5 rounded-xl border border-[#DDE3EB] bg-white px-4 py-3.5 shadow-xs scroll-mt-6">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="flex items-center gap-[7px] text-[9.5px] font-bold uppercase tracking-[0.13em] text-[#5B6478]">
-                <UsersRound className="h-3.5 w-3.5 text-[#3D6B9C]" /> Today at the firm
-              </span>
-              <span className="flex flex-wrap gap-1.5 text-[9.5px] font-bold">
-                <span className="rounded-full bg-[#E6EFE9] px-[7px] py-0.5 text-[#2F6F4E]">{count('In office')} in</span>
-                <span className="rounded-full bg-[#E7EEF6] px-[7px] py-0.5 text-[#16223A]">{count('In court')} court</span>
-                <span className="rounded-full bg-[#FBF2E9] px-[7px] py-0.5 text-[#B23A2E]">{count('Leave')} leave</span>
-              </span>
-              <button type="button" onClick={() => { setDirectoryOpen(true); document.getElementById('people')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} className="ml-auto cursor-pointer text-[10.5px] font-bold text-[#8A6D3B]">
-                All {presence.length} →
-              </button>
-            </div>
-            <div className="flex flex-col gap-[7px]">
-              {presence.slice(0, 5).map((person, index) => (
-                <React.Fragment key={person.id}>
-                  {index > 0 && <div className="h-px bg-[#F6F8FA]" />}
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#DDE3EB] bg-[#F6F8FA] font-serif text-[10px] font-semibold text-[#8A6D3B]">
-                      {initials(person.name)}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-[11.5px] font-semibold text-[#16223A]">{person.name}</span>
-                    <span className="shrink-0 text-[10.5px] font-semibold" style={{ color: STATUS_TONE[person.status] || '#5B6478' }}>
-                      {person.status}
-                    </span>
-                  </div>
-                </React.Fragment>
-              ))}
             </div>
           </section>
 
@@ -665,7 +629,7 @@ export const FirmStartCentreView: React.FC = () => {
                 </h2>
                 <p className="mt-1 text-[#5B6478]">Six shelves. Open one to browse every document inside it.</p>
               </div>
-              {canEditStartCentre && editMode && <button type="button" onClick={() => { const title = window.prompt('Shelf name'); const detail = title && window.prompt('Shelf description'); if (title?.trim() && detail?.trim()) setShelves((items) => [...items, { icon: BookOpen, title: title.trim(), detail: detail.trim() }]); }} className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#16223A] px-3 py-2 text-xs font-bold text-white"><Plus className="h-3.5 w-3.5 text-[#FBF2E9]" /> Add shelf</button>}
+              {canEditStartCentre && <button type="button" onClick={() => { const title = window.prompt('Shelf name'); const detail = title && window.prompt('Shelf description'); if (title?.trim() && detail?.trim()) setShelves((items) => [...items, { icon: BookOpen, title: title.trim(), detail: detail.trim() }]); }} className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#16223A] px-3 py-2 text-xs font-bold text-white"><Plus className="h-3.5 w-3.5 text-[#FBF2E9]" /> Add shelf</button>}
               <div className="relative flex min-w-0 flex-1 basis-[260px] items-center">
                 <Search className="absolute left-2.5 h-3.5 w-3.5 text-[#5B6478]" />
                 <input
@@ -860,7 +824,7 @@ export const FirmStartCentreView: React.FC = () => {
               <p className="mt-0.5 text-[10.5px] text-[#5B6478]">Portals, folders and Workspace</p>
             </div>
             <div className="flex items-center gap-2">
-              {canEditStartCentre && editMode && <button type="button" onClick={() => { const title = window.prompt('New quick-link group name'); if (title?.trim()) setQuickLinkGroups((groups) => [...groups, { title: title.trim(), icon: BookMarked, links: [] }]); }} className="rounded-md p-1 text-[#8A6D3B] hover:bg-[#F6F8FA]" title="Add quick-link group" aria-label="Add quick-link group"><Plus className="h-3.5 w-3.5" /></button>}
+              {canEditStartCentre && <button type="button" onClick={() => { const title = window.prompt('New quick-link group name'); if (title?.trim()) setQuickLinkGroups((groups) => [...groups, { title: title.trim(), icon: BookMarked, links: [] }]); }} className="rounded-md p-1 text-[#8A6D3B] hover:bg-[#F6F8FA]" title="Add quick-link group" aria-label="Add quick-link group"><Plus className="h-3.5 w-3.5" /></button>}
               <Globe2 className="h-4 w-4 shrink-0 text-[#3D6B9C]" />
             </div>
           </div>
@@ -904,6 +868,39 @@ export const FirmStartCentreView: React.FC = () => {
                 </div>
               );
             })}
+          </div>
+
+          {/* TODAY AT THE FIRM — nested at the bottom of Quick Links, matching the mockup */}
+          <div id="people" className="flex flex-col gap-2.5 border-t border-[#F0F2F5] px-3.5 pb-3.5 pt-3.5 scroll-mt-6">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="flex items-center gap-[7px] text-[9.5px] font-bold uppercase tracking-[0.13em] text-[#5B6478]">
+                <UsersRound className="h-3.5 w-3.5 text-[#3D6B9C]" /> Today at the firm
+              </span>
+              <span className="flex flex-wrap gap-1.5 text-[9.5px] font-bold">
+                <span className="rounded-full bg-[#E6EFE9] px-[7px] py-0.5 text-[#2F6F4E]">{count('In office')} in</span>
+                <span className="rounded-full bg-[#E7EEF6] px-[7px] py-0.5 text-[#16223A]">{count('In court')} court</span>
+                <span className="rounded-full bg-[#FBF2E9] px-[7px] py-0.5 text-[#B23A2E]">{count('Leave')} leave</span>
+              </span>
+              <button type="button" onClick={() => { setDirectoryOpen(true); document.getElementById('people')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} className="ml-auto cursor-pointer text-[10.5px] font-bold text-[#8A6D3B]">
+                All {presence.length} →
+              </button>
+            </div>
+            <div className="flex flex-col gap-[7px]">
+              {presence.slice(0, 5).map((person, index) => (
+                <React.Fragment key={person.id}>
+                  {index > 0 && <div className="h-px bg-white" />}
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#DDE3EB] bg-white font-serif text-[10px] font-semibold text-[#8A6D3B]">
+                      {initials(person.name)}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-[11.5px] font-semibold text-[#16223A]">{person.name}</span>
+                    <span className="shrink-0 text-[10.5px] font-semibold" style={{ color: STATUS_TONE[person.status] || '#5B6478' }}>
+                      {person.status}
+                    </span>
+                  </div>
+                </React.Fragment>
+              ))}
+            </div>
           </div>
         </aside>
         )}
