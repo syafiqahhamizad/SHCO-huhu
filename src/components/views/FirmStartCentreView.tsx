@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Archive,
   ArrowDown,
   ArrowUpRight,
   Book,
@@ -31,6 +32,7 @@ import {
   LayoutGrid,
   Library,
   ListChecks,
+  Moon,
   Mail,
   Map,
   MapPin,
@@ -167,6 +169,9 @@ const SMALL_TILES: LauncherTile[] = [
   { label: 'Firm Inventory', view: 'inventory', icon: Package, bg: '#4C5A72', module: 'inventory' },
   // TODO: point Library at a dedicated view once one exists; it currently opens the Law Library tab of Inventory.
   { label: 'Library', view: 'inventory', icon: BookMarked, bg: '#16223A', module: 'inventory' },
+  // TODO: point these at a pre-filtered Case Registry view once status-filter deep-linking exists; for now both open Cases like Practice.
+  { label: 'Dormant Files', view: 'cases', icon: Moon, bg: '#8A6D3B' },
+  { label: 'Closed Files', view: 'cases', icon: Archive, bg: '#5B6478' },
 ];
 
 const SHELVES = [

@@ -234,23 +234,36 @@
   }
 
   /* Light panels nested inside dark navy surfaces (header user chip, dropdowns) keep their dark ink. */
-  html:not(.dark) :is(.bg-\[\#16223A\], .bg-\[\#0A0E1A\], .bg-\[\#15192A\], .bg-\[\#1A1F35\], .bg-\[\#1B2330\], .bg-slate-950, .bg-slate-900, .bg-slate-800, .bg-slate-700) :is(.bg-white, .bg-\[\#FAF8F2\], .bg-\[\#FCFBF7\]) {
+  html:not(.dark) :is(.bg-\[\#16223A\], .bg-\[\#0A0E1A\], .bg-\[\#15192A\], .bg-\[\#1A1F35\], .bg-\[\#1B2330\], .bg-slate-950, .bg-slate-900, .bg-slate-800, .bg-slate-700) :is(.bg-white, .bg-\[\#FAF8F2\], .bg-\[\#FCFBF7\], .bg-\[\#FBF2E9\]) {
     color: #2C241F !important;
   }
 
-  html:not(.dark) :is(.bg-\[\#16223A\], .bg-\[\#0A0E1A\], .bg-\[\#15192A\], .bg-\[\#1A1F35\], .bg-\[\#1B2330\], .bg-slate-950, .bg-slate-900, .bg-slate-800, .bg-slate-700) :is(.bg-white, .bg-\[\#FAF8F2\], .bg-\[\#FCFBF7\]) :is(.text-\[\#16223A\], .text-\[\#2C241F\], .text-slate-950, .text-slate-900) {
+  /* Same element carrying both a light bg and a dark-ink text class (e.g. an active pill/tab
+     with bg-[#FBF2E9] text-[#16223A]) nested under a dark ancestor — the ancestor/descendant
+     rule above only matches when bg and text live on separate nested elements, so this compound
+     (no-space) selector covers the single-element case explicitly. */
+  html:not(.dark) :is(.bg-\[\#16223A\], .bg-\[\#0A0E1A\], .bg-\[\#15192A\], .bg-\[\#1A1F35\], .bg-\[\#1B2330\], .bg-slate-950, .bg-slate-900, .bg-slate-800, .bg-slate-700) :is(.bg-white, .bg-\[\#FAF8F2\], .bg-\[\#FCFBF7\], .bg-\[\#FBF2E9\]):is(.text-\[\#16223A\], .text-\[\#2C241F\], .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600, .text-\[\#5B6478\], .text-\[\#4A3931\]) {
+    color: #16223A !important;
+  }
+  /* ...and its own descendants (icons wrapped in a plain <span>, etc.) inherit that ink
+     instead of being re-caught by the broad "any tag inside a dark ancestor" rule above. */
+  html:not(.dark) :is(.bg-\[\#16223A\], .bg-\[\#0A0E1A\], .bg-\[\#15192A\], .bg-\[\#1A1F35\], .bg-\[\#1B2330\], .bg-slate-950, .bg-slate-900, .bg-slate-800, .bg-slate-700) :is(.bg-white, .bg-\[\#FAF8F2\], .bg-\[\#FCFBF7\], .bg-\[\#FBF2E9\]):is(.text-\[\#16223A\], .text-\[\#2C241F\], .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600, .text-\[\#5B6478\], .text-\[\#4A3931\]) * {
+    color: inherit !important;
+  }
+
+  html:not(.dark) :is(.bg-\[\#16223A\], .bg-\[\#0A0E1A\], .bg-\[\#15192A\], .bg-\[\#1A1F35\], .bg-\[\#1B2330\], .bg-slate-950, .bg-slate-900, .bg-slate-800, .bg-slate-700) :is(.bg-white, .bg-\[\#FAF8F2\], .bg-\[\#FCFBF7\], .bg-\[\#FBF2E9\]) :is(.text-\[\#16223A\], .text-\[\#2C241F\], .text-slate-950, .text-slate-900) {
     color: #16223A !important;
   }
 
-  html:not(.dark) :is(.bg-\[\#16223A\], .bg-\[\#0A0E1A\], .bg-\[\#15192A\], .bg-\[\#1A1F35\], .bg-\[\#1B2330\], .bg-slate-950, .bg-slate-900, .bg-slate-800, .bg-slate-700) :is(.bg-white, .bg-\[\#FAF8F2\], .bg-\[\#FCFBF7\]) :is(.text-slate-800, .text-slate-700, .text-\[\#4A3931\]) {
+  html:not(.dark) :is(.bg-\[\#16223A\], .bg-\[\#0A0E1A\], .bg-\[\#15192A\], .bg-\[\#1A1F35\], .bg-\[\#1B2330\], .bg-slate-950, .bg-slate-900, .bg-slate-800, .bg-slate-700) :is(.bg-white, .bg-\[\#FAF8F2\], .bg-\[\#FCFBF7\], .bg-\[\#FBF2E9\]) :is(.text-slate-800, .text-slate-700, .text-\[\#4A3931\]) {
     color: #334155 !important;
   }
 
-  html:not(.dark) :is(.bg-\[\#16223A\], .bg-\[\#0A0E1A\], .bg-\[\#15192A\], .bg-\[\#1A1F35\], .bg-\[\#1B2330\], .bg-slate-950, .bg-slate-900, .bg-slate-800, .bg-slate-700) :is(.bg-white, .bg-\[\#FAF8F2\], .bg-\[\#FCFBF7\]) :is(.text-slate-600, .text-\[\#5B6478\]) {
+  html:not(.dark) :is(.bg-\[\#16223A\], .bg-\[\#0A0E1A\], .bg-\[\#15192A\], .bg-\[\#1A1F35\], .bg-\[\#1B2330\], .bg-slate-950, .bg-slate-900, .bg-slate-800, .bg-slate-700) :is(.bg-white, .bg-\[\#FAF8F2\], .bg-\[\#FCFBF7\], .bg-\[\#FBF2E9\]) :is(.text-slate-600, .text-\[\#5B6478\]) {
     color: #475569 !important;
   }
 
-  html:not(.dark) :is(.bg-\[\#16223A\], .bg-\[\#0A0E1A\], .bg-\[\#15192A\], .bg-\[\#1A1F35\], .bg-\[\#1B2330\], .bg-slate-950, .bg-slate-900, .bg-slate-800, .bg-slate-700) :is(.bg-white, .bg-\[\#FAF8F2\], .bg-\[\#FCFBF7\]) :is(.text-slate-500, .text-slate-400, .text-\[\#8B6A58\]) {
+  html:not(.dark) :is(.bg-\[\#16223A\], .bg-\[\#0A0E1A\], .bg-\[\#15192A\], .bg-\[\#1A1F35\], .bg-\[\#1B2330\], .bg-slate-950, .bg-slate-900, .bg-slate-800, .bg-slate-700) :is(.bg-white, .bg-\[\#FAF8F2\], .bg-\[\#FCFBF7\], .bg-\[\#FBF2E9\]) :is(.text-slate-500, .text-slate-400, .text-\[\#8B6A58\]) {
     color: #64748B !important;
   }
 
@@ -488,11 +501,11 @@
 
   /* Stray light-only text (no own background) sitting inside a light-mode white/paper card. */
   /* Excludes text nested inside dark-surface containers so intentional white text on dark panels (e.g. login card) is not clobbered. */
-  html:not(.dark) :is(.bg-white, .bg-\[\#FAF8F2\], .bg-\[\#FCFBF7\], .bg-\[\#F6F4EE\], .bg-\[\#F8F6F1\], .bg-\[\#FAF8F5\], .bg-\[\#FAF7F0\], .bg-\[\#FAF8F3\], .bg-\[\#F7F5F0\], .bg-\[\#F8F2E7\], .bg-\[\#F8FAFC\], .bg-slate-50, .bg-slate-100) :is(.text-white, .text-amber-200, .text-amber-100):not([class*="bg-"]):not(:is(.bg-\[\#16223A\], .bg-\[\#0A0E1A\], .bg-\[\#15192A\], .bg-\[\#1A1F35\], .bg-\[\#1B2330\], .bg-\[\#161d30\], .bg-\[\#0D1526\], .bg-slate-950, .bg-slate-900, .bg-slate-800, .bg-slate-700) *) {
+  html:not(.dark) :is(.bg-white, .bg-\[\#FAF8F2\], .bg-\[\#FCFBF7\], .bg-\[\#FBF2E9\], .bg-\[\#F6F4EE\], .bg-\[\#F8F6F1\], .bg-\[\#FAF8F5\], .bg-\[\#FAF7F0\], .bg-\[\#FAF8F3\], .bg-\[\#F7F5F0\], .bg-\[\#F8F2E7\], .bg-\[\#F8FAFC\], .bg-slate-50, .bg-slate-100) :is(.text-white, .text-amber-200, .text-amber-100):not([class*="bg-"]):not(:is(.bg-\[\#16223A\], .bg-\[\#0A0E1A\], .bg-\[\#15192A\], .bg-\[\#1A1F35\], .bg-\[\#1B2330\], .bg-\[\#161d30\], .bg-\[\#0D1526\], .bg-slate-950, .bg-slate-900, .bg-slate-800, .bg-slate-700) *) {
     color: #2C241F !important;
   }
 
-  html:not(.dark) :is(.bg-white, .bg-\[\#FAF8F2\], .bg-\[\#FCFBF7\], .bg-\[\#F6F4EE\], .bg-\[\#F8F6F1\], .bg-\[\#FAF8F5\], .bg-\[\#FAF7F0\], .bg-\[\#FAF8F3\], .bg-\[\#F7F5F0\], .bg-\[\#F8F2E7\], .bg-\[\#F8FAFC\], .bg-slate-50, .bg-slate-100) :is(.text-slate-300, .text-slate-200):not([class*="bg-"]):not(:is(.bg-\[\#16223A\], .bg-\[\#0A0E1A\], .bg-\[\#15192A\], .bg-\[\#1A1F35\], .bg-\[\#1B2330\], .bg-\[\#161d30\], .bg-\[\#0D1526\], .bg-slate-950, .bg-slate-900, .bg-slate-800, .bg-slate-700) *) {
+  html:not(.dark) :is(.bg-white, .bg-\[\#FAF8F2\], .bg-\[\#FCFBF7\], .bg-\[\#FBF2E9\], .bg-\[\#F6F4EE\], .bg-\[\#F8F6F1\], .bg-\[\#FAF8F5\], .bg-\[\#FAF7F0\], .bg-\[\#FAF8F3\], .bg-\[\#F7F5F0\], .bg-\[\#F8F2E7\], .bg-\[\#F8FAFC\], .bg-slate-50, .bg-slate-100) :is(.text-slate-300, .text-slate-200):not([class*="bg-"]):not(:is(.bg-\[\#16223A\], .bg-\[\#0A0E1A\], .bg-\[\#15192A\], .bg-\[\#1A1F35\], .bg-\[\#1B2330\], .bg-\[\#161d30\], .bg-\[\#0D1526\], .bg-slate-950, .bg-slate-900, .bg-slate-800, .bg-slate-700) *) {
     color: #52607A !important;
   }
 

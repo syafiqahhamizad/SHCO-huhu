@@ -16,7 +16,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { StatCard, Donut, MiniBarChart, TabPills } from '../ui';
-import { palette, tint, tintText } from '../../lib/designTokens';
+import { palette, tint } from '../../lib/designTokens';
 import { TimeView, PaymentVouchersView, RetainersView, CoaView, OfficeAccountsView, ReceiptsView } from './AccountingViews';
 
 type AccTab = 'dashboard' | 'unbilled' | 'timebilling' | 'claims' | 'trust' | 'office' | 'vouchers';
@@ -303,11 +303,11 @@ const AccountingDashboardTab: React.FC<{ period: 'month' | 'year' }> = ({ period
       </div>
 
       {needsAttention.length > 0 && (
-        <div className="rounded-xl border p-4" style={{ backgroundColor: tint.red, borderColor: '#F0C9C2' }}>
-          <p className="mb-1.5 flex items-center gap-1.5 text-[12.5px] font-bold" style={{ color: tintText.red }}>
+        <div className="rounded-xl border p-4" style={{ backgroundColor: tint.red, borderColor: '#EFC9BC' }}>
+          <p className="mb-1.5 flex items-center gap-1.5 text-[12.5px] font-bold" style={{ color: '#B2542F' }}>
             <AlertTriangle className="h-3.5 w-3.5" /> Needs attention
           </p>
-          <ul className="list-disc space-y-0.5 pl-5 text-[11.5px]" style={{ color: tintText.red }}>
+          <ul className="list-disc space-y-0.5 pl-5 text-[11.5px]" style={{ color: '#8A4530' }}>
             {needsAttention.map((n) => <li key={n}>{n}</li>)}
           </ul>
         </div>

@@ -912,17 +912,17 @@ export const ClientsView: React.FC = () => {
           <button
             type="button"
             onClick={handleBackupClientsAndCases}
-            className="border border-emerald-200 hover:bg-emerald-50 text-emerald-900 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+            className="border border-[#2F6F4E] hover:bg-[#E6EFE9] text-[#2F6F4E] text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
           >
-            <Download className="w-3.5 h-3.5 text-emerald-700" />
+            <Download className="w-3.5 h-3.5 text-[#2F6F4E]" />
             <span>Backup Clients + Cases</span>
           </button>
 
           <button
             onClick={() => setIsRegisterClientModalOpen(true)}
-            className="bg-[#16223A] hover:bg-[#16223A] text-amber-300 font-bold text-xs px-3.5 py-2 rounded-lg flex items-center gap-1.5 shadow-md cursor-pointer transition-all border border-[#16223A]"
+            className="bg-[#16223A] hover:bg-[#16223A] text-white font-bold text-xs px-3.5 py-2 rounded-lg flex items-center gap-1.5 shadow-md cursor-pointer transition-all border border-[#16223A]"
           >
-            <UserPlus className="w-4 h-4 text-amber-300" />
+            <UserPlus className="w-4 h-4 text-white" />
             <span>+ Register New Client</span>
           </button>
         </div>

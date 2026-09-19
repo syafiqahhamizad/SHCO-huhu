@@ -18,8 +18,8 @@ export const MiniBarChart: React.FC<MiniBarChartProps> = ({ data, height = 70, s
   const max = Math.max(1, ...data.map((d) => d.value));
   return (
     <div className="flex items-end gap-1.5" style={{ height }}>
-      {data.map((d) => (
-        <div key={d.label} className="flex h-full flex-1 flex-col items-center justify-end">
+      {data.map((d, i) => (
+        <div key={`${d.label}-${i}`} className="flex h-full flex-1 flex-col items-center justify-end">
           {showValue && d.value > 0 && <span className="mb-0.5 text-[9px] font-semibold text-[#5B6478]">{formatValue(d.value)}</span>}
           <div
             className="w-full rounded-t-sm"

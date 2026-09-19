@@ -50,7 +50,7 @@ import {
   Cell,
 } from 'recharts';
 import { identityTokens, isMine, partnerCode as toPartnerCode } from '../../lib/identity';
-import { ProgressBar } from '../ui';
+import { ProgressBar, Donut, MiniBarChart } from '../ui';
 import { palette } from '../../lib/designTokens';
 
 export const PartnerDashboardView: React.FC = () => {
@@ -67,6 +67,8 @@ export const PartnerDashboardView: React.FC = () => {
     receipts,
     referralPartners,
     users,
+    timeEntries,
+    expenses,
     showToast,
   } = useApp();
 
@@ -82,7 +84,7 @@ export const PartnerDashboardView: React.FC = () => {
 
   if (!isPartner) {
     return (
-      <div className="bg-white border border-[#E1DCCF] p-8 rounded-xl shadow-xs text-center space-y-4 max-w-xl mx-auto my-12">
+      <div className="bg-white border border-[#DDE3EB] p-8 rounded-xl shadow-xs text-center space-y-4 max-w-xl mx-auto my-12">
         <div className="w-16 h-16 bg-[#FBEDE9] text-[#B23A2E] rounded-full flex items-center justify-center mx-auto border border-[#FBEDE9]">
           <Lock className="w-8 h-8" />
         </div>
@@ -255,7 +257,9 @@ export const PartnerDashboardView: React.FC = () => {
   const overallReferralConversionRate =
     totalReferralsCount > 0 ? Math.round((totalConvertedReferrals / totalReferralsCount) * 100) : 0;
 
-  const PIE_COLORS = [palette.navy, palette.green, palette.gold, palette.blue, palette.purple, palette.red];
+  // Exact mockup sequence (design/shco-portal-redesign): every donut leads with blue,
+  // then green/purple/gold, with clay-orange as the 5th slice (top debtors/matters).
+  const PIE_COLORS = [palette.blue, palette.green, palette.purple, palette.gold, '#B2542F'];
 
   // 5. Per-Partner KPI Matrix Data — roster is the real `users` list (role === 'Partner'),
   //    attribution via Case.partners (invoices/matters) and identity-token matching on
@@ -388,6 +392,78 @@ export const PartnerDashboardView: React.FC = () => {
     return null;
   };
 
+  // Sections from design/shco-portal-redesign that had no equivalent anywhere in this
+  // file yet: revenue/collection-by-partner donuts, top-5 debtors/matters, debtors aging +
+  // unbilled summary bars, and new-open-matters by month. Built from the same real data
+  // (invoices/cases/timeEntries/expenses) already used elsewhere in this component.
+  const revenueByPartner = useMemo(() => partnersKPIMatrix.map((p) => ({ label: p.name.split(' ')[0], value: p.billed, color: '' })), [partnersKPIMatrix]);
+  const collectionByPartner = useMemo(() => partnersKPIMatrix.map((p) => ({ label: p.name.split(' ')[0], value: p.collected, color: '' })), [partnersKPIMatrix]);
+
+  const top5Debtors = useMemo(() => {
+    const byClient = new Map<string, { name: string; amount: number }>();
+    invoices.filter((i) => i.status !== 'Paid' && i.status !== 'Voided').forEach((i) => {
+      const key = i.clientId || i.partyName || 'Unknown';
+      const existing = byClient.get(key) || { name: i.partyName || 'Client', amount: 0 };
+      existing.amount += Number(i.total || 0);
+      byClient.set(key, existing);
+    });
+    return Array.from(byClient.values()).sort((a, b) => b.amount - a.amount).slice(0, 5);
+  }, [invoices]);
+
+  const top5Matters = useMemo(() => {
+    const byCase = new Map<string, { ref: string; amount: number }>();
+    invoices.forEach((i) => {
+      const cs = cases.find((c) => c.id === i.caseId || c.ref === i.fileRef);
+      if (!cs) return;
+      const existing = byCase.get(cs.id) || { ref: cs.ref, amount: 0 };
+      existing.amount += Number(i.total || 0);
+      byCase.set(cs.id, existing);
+    });
+    return Array.from(byCase.values()).sort((a, b) => b.amount - a.amount).slice(0, 5);
+  }, [invoices, cases]);
+
+  const agingBuckets5 = useMemo(() => {
+    const buckets = { current: 0, d31: 0, d61: 0, d91: 0, over120: 0 };
+    invoices.filter((i) => i.status !== 'Paid' && i.status !== 'Voided').forEach((i) => {
+      const balance = Number(i.total || 0);
+      const due = i.dueDate || i.date;
+      const days = due ? Math.floor((Date.now() - new Date(due).getTime()) / 86400000) : 0;
+      if (days <= 30) buckets.current += balance;
+      else if (days <= 60) buckets.d31 += balance;
+      else if (days <= 90) buckets.d61 += balance;
+      else if (days <= 120) buckets.d91 += balance;
+      else buckets.over120 += balance;
+    });
+    return buckets;
+  }, [invoices]);
+
+  const unbilledAgingByType = useMemo(() => {
+    const bucketOf = (dateStr?: string) => {
+      const days = dateStr ? Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000) : 0;
+      if (days <= 30) return 0;
+      if (days <= 60) return 1;
+      if (days <= 90) return 2;
+      if (days <= 120) return 3;
+      return 4;
+    };
+    const time = [0, 0, 0, 0, 0];
+    const disb = [0, 0, 0, 0, 0];
+    timeEntries.filter((t) => t.billable && !t.billed).forEach((t) => { time[bucketOf(t.date)] += Number(t.hours || 0) * Number(t.rate || 0); });
+    expenses.filter((e) => e.billable && !e.billed).forEach((e) => { disb[bucketOf(e.date)] += Number(e.amount || 0); });
+    return { time, disb };
+  }, [timeEntries, expenses]);
+
+  const newMattersByMonth = useMemo(() => {
+    const counts = Array(12).fill(0);
+    cases.forEach((c) => {
+      const opened = c.fileOpenedDate || c.createdDate;
+      if (!opened) return;
+      const d = new Date(opened);
+      if (d.getFullYear() === new Date().getFullYear()) counts[d.getMonth()]++;
+    });
+    return counts;
+  }, [cases]);
+
   return (
     <div className="space-y-6 text-xs font-sans pb-12">
       {/* Top Banner & Executive Header Controls */}
@@ -405,10 +481,10 @@ export const PartnerDashboardView: React.FC = () => {
             </div>
             <h1 className="font-serif text-2xl font-bold text-white flex items-center gap-2">
               <BarChart3 className="w-6 h-6 text-[#8A6D3B]" />
-              Executive Partner Dashboard &amp; Interactive Charts
+              Partner Dashboard — all-partners summary
             </h1>
             <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">
-              Real-time firm revenue trends, partner KPI benchmark comparisons, referral channel conversion charts, and live date-wise collection audit ledgers.
+              Compares every partner's practice, side by side — for your own record, see My Dashboard.
             </p>
           </div>
 
@@ -483,7 +559,7 @@ export const PartnerDashboardView: React.FC = () => {
       {/* Top Firm Financial KPI Overview Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Billed */}
-        <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-2xs hover:shadow-xs transition-shadow">
+        <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-2xs hover:shadow-xs transition-shadow">
           <div className="flex justify-between items-center mb-1">
             <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">
               {effectivePartnerFilter === 'ALL' ? 'Firm Revenue Billed' : `${effectivePartnerFilter} Billed Revenue`}
@@ -504,7 +580,7 @@ export const PartnerDashboardView: React.FC = () => {
         </div>
 
         {/* Total Collections */}
-        <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-2xs hover:shadow-xs transition-shadow">
+        <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-2xs hover:shadow-xs transition-shadow">
           <div className="flex justify-between items-center mb-1">
             <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">
               {effectivePartnerFilter === 'ALL' ? 'Total Collected Cash' : `${effectivePartnerFilter} Cash Collected`}
@@ -525,7 +601,7 @@ export const PartnerDashboardView: React.FC = () => {
         </div>
 
         {/* Unpaid / Aging Debtors */}
-        <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-2xs hover:shadow-xs transition-shadow">
+        <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-2xs hover:shadow-xs transition-shadow">
           <div className="flex justify-between items-center mb-1">
             <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">
               Aged Debtors Outstanding
@@ -546,7 +622,7 @@ export const PartnerDashboardView: React.FC = () => {
         </div>
 
         {/* Referral Conversion Metric */}
-        <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-2xs hover:shadow-xs transition-shadow">
+        <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-2xs hover:shadow-xs transition-shadow">
           <div className="flex justify-between items-center mb-1">
             <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">
               Referrals Retainer Value
@@ -568,7 +644,7 @@ export const PartnerDashboardView: React.FC = () => {
       </div>
 
       {/* Targets — everyone's progress, from each partner's own StaffProfile.targets */}
-      <div className="bg-white border border-[#E1DCCF] rounded-2xl p-5 shadow-xs space-y-4">
+      <div className="bg-white border border-[#DDE3EB] rounded-2xl p-5 shadow-xs space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-serif text-base font-bold flex items-center gap-2" style={{ color: palette.navy }}>
             <Target className="w-4.5 h-4.5" style={{ color: palette.gold }} />
@@ -612,10 +688,171 @@ export const PartnerDashboardView: React.FC = () => {
         <p className="text-[10.5px] text-slate-400">Targets are set per partner in My Dashboard → My Performance → Edit targets.</p>
       </div>
 
+      {/* Revenue / collection split by partner + top-5 debtors / matters — mockup's donut pairs */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white border border-[#DDE3EB] rounded-2xl p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-serif text-[15px] font-bold text-[#16223A]">Total revenue by partner</h3>
+            <span className="text-[10px] font-semibold text-[#5B6478]">YTD 2026</span>
+          </div>
+          <div className="flex items-center gap-6">
+            <Donut
+              segments={revenueByPartner.map((d, i) => ({ label: d.label, value: d.value, color: PIE_COLORS[i % PIE_COLORS.length] }))}
+              centerLabel={`RM ${(revenueByPartner.reduce((s, d) => s + d.value, 0) / 1000).toFixed(1)}k`}
+              centerSub="billed"
+            />
+            <div className="flex-1 space-y-2">
+              {revenueByPartner.map((d, i) => {
+                const total = revenueByPartner.reduce((s, x) => s + x.value, 0) || 1;
+                return (
+                  <div key={d.label} className="flex items-center justify-between text-[11px]">
+                    <span className="flex items-center gap-1.5 text-[#16223A]">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
+                      {d.label}
+                    </span>
+                    <span className="font-semibold text-[#5B6478]">{Math.round((d.value / total) * 100)}% · RM {d.value.toLocaleString()}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+        <div className="bg-white border border-[#DDE3EB] rounded-2xl p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-serif text-[15px] font-bold text-[#16223A]">Total collection by partner</h3>
+            <span className="text-[10px] font-semibold text-[#5B6478]">YTD 2026</span>
+          </div>
+          <div className="flex items-center gap-6">
+            <Donut
+              segments={collectionByPartner.map((d, i) => ({ label: d.label, value: d.value, color: PIE_COLORS[i % PIE_COLORS.length] }))}
+              centerLabel={`RM ${(collectionByPartner.reduce((s, d) => s + d.value, 0) / 1000).toFixed(1)}k`}
+              centerSub="collected"
+            />
+            <div className="flex-1 space-y-2">
+              {collectionByPartner.map((d, i) => {
+                const total = collectionByPartner.reduce((s, x) => s + x.value, 0) || 1;
+                return (
+                  <div key={d.label} className="flex items-center justify-between text-[11px]">
+                    <span className="flex items-center gap-1.5 text-[#16223A]">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
+                      {d.label}
+                    </span>
+                    <span className="font-semibold text-[#5B6478]">{Math.round((d.value / total) * 100)}% · RM {d.value.toLocaleString()}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white border border-[#DDE3EB] rounded-2xl p-5 shadow-xs space-y-4">
+          <h3 className="font-serif text-[15px] font-bold text-[#16223A]">Top 5 debtors</h3>
+          <div className="flex items-center gap-6">
+            <Donut
+              segments={top5Debtors.map((d, i) => ({ label: d.name, value: d.amount, color: PIE_COLORS[i % PIE_COLORS.length] }))}
+              centerLabel={`RM ${(top5Debtors.reduce((s, d) => s + d.amount, 0) / 1000).toFixed(1)}k`}
+              centerSub="outstanding"
+            />
+            <ol className="flex-1 space-y-1.5">
+              {top5Debtors.map((d, i) => {
+                const total = top5Debtors.reduce((s, x) => s + x.amount, 0) || 1;
+                return (
+                  <li key={d.name} className="flex items-center justify-between text-[11px]">
+                    <span className="flex items-center gap-1.5 text-[#16223A]">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
+                      {i + 1}. {d.name}
+                    </span>
+                    <span className="font-semibold text-[#5B6478]">{Math.round((d.amount / total) * 100)}% · RM {d.amount.toLocaleString()}</span>
+                  </li>
+                );
+              })}
+              {top5Debtors.length === 0 && <li className="text-[11px] text-slate-400">No outstanding debtors.</li>}
+            </ol>
+          </div>
+        </div>
+        <div className="bg-white border border-[#DDE3EB] rounded-2xl p-5 shadow-xs space-y-4">
+          <h3 className="font-serif text-[15px] font-bold text-[#16223A]">Top 5 matters by revenue</h3>
+          <div className="flex items-center gap-6">
+            <Donut
+              segments={top5Matters.map((d, i) => ({ label: d.ref, value: d.amount, color: PIE_COLORS[i % PIE_COLORS.length] }))}
+              centerLabel={`RM ${(top5Matters.reduce((s, d) => s + d.amount, 0) / 1000).toFixed(1)}k`}
+              centerSub="billed"
+            />
+            <ol className="flex-1 space-y-1.5">
+              {top5Matters.map((d, i) => {
+                const total = top5Matters.reduce((s, x) => s + x.amount, 0) || 1;
+                return (
+                  <li key={d.ref} className="flex items-center justify-between text-[11px]">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
+                      <span className="font-mono text-[#3D6B9C]">{d.ref}</span>
+                    </span>
+                    <span className="font-semibold text-[#5B6478]">{Math.round((d.amount / total) * 100)}% · RM {d.amount.toLocaleString()}</span>
+                  </li>
+                );
+              })}
+              {top5Matters.length === 0 && <li className="text-[11px] text-slate-400">No billed matters yet.</li>}
+            </ol>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white border border-[#DDE3EB] rounded-2xl p-5 shadow-xs space-y-4">
+          <h3 className="font-serif text-[15px] font-bold text-[#16223A]">Debtors aging summary</h3>
+          <MiniBarChart
+            showValue
+            formatValue={(v) => `${(v / 1000).toFixed(1)}k`}
+            data={[
+              { label: 'Current', value: agingBuckets5.current, color: palette.blue },
+              { label: '31-60', value: agingBuckets5.d31, color: palette.blue },
+              { label: '61-90', value: agingBuckets5.d61, color: palette.blue },
+              { label: '91-120', value: agingBuckets5.d91, color: palette.blue },
+              { label: 'Above 120', value: agingBuckets5.over120, color: palette.red },
+            ]}
+          />
+        </div>
+        <div className="bg-white border border-[#DDE3EB] rounded-2xl p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-serif text-[15px] font-bold text-[#16223A]">Unbilled items summary</h3>
+            <span className="text-[10px] font-semibold text-[#5B6478]">time &amp; disbursements</span>
+          </div>
+          <MiniBarChart
+            showValue
+            formatValue={(v) => `${(v / 1000).toFixed(1)}k`}
+            data={['Current', '31-60', '61-90', '91-120', 'Above 120'].flatMap((label, i) => [
+              { label, value: unbilledAgingByType.time[i], color: palette.blue },
+              { label, value: unbilledAgingByType.disb[i], color: palette.gold },
+            ])}
+          />
+          <div className="flex items-center gap-4 text-[10.5px] text-[#5B6478]">
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: palette.blue }} />Time entries</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: palette.gold }} />Disbursements</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white border border-[#DDE3EB] rounded-2xl p-5 shadow-xs space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-serif text-[15px] font-bold text-[#16223A]">New open matters</h3>
+          <span className="text-[10px] font-semibold text-[#5B6478]">by month, {new Date().getFullYear()} · {newMattersByMonth.reduce((s, v) => s + v, 0)} total</span>
+        </div>
+        <MiniBarChart
+          showValue
+          data={['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((label, i) => ({
+            label,
+            value: newMattersByMonth[i],
+            color: palette.blue,
+          }))}
+        />
+      </div>
+
       {/* SECTION 1: Firm-wide Revenue & Collection Visual Breakdown with Recharts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Monthly Revenue & Collection Composed Chart */}
-        <div className="lg:col-span-2 bg-white border border-[#E1DCCF] rounded-2xl p-5 shadow-xs space-y-4">
+        <div className="lg:col-span-2 bg-white border border-[#DDE3EB] rounded-2xl p-5 shadow-xs space-y-4">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 pb-3">
             <div>
               <h3 className="font-serif text-base font-bold text-[#16223A] flex items-center gap-2">
@@ -653,7 +890,7 @@ export const PartnerDashboardView: React.FC = () => {
         </div>
 
         {/* Date-wise Daily Collections Log */}
-        <div className="bg-white border border-[#E1DCCF] rounded-2xl p-5 shadow-xs flex flex-col justify-between space-y-4">
+        <div className="bg-white border border-[#DDE3EB] rounded-2xl p-5 shadow-xs flex flex-col justify-between space-y-4">
           <div className="space-y-3">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
@@ -713,7 +950,7 @@ export const PartnerDashboardView: React.FC = () => {
       </div>
 
       {/* SECTION 2: Referral Source Tracking & Conversion Charts */}
-      <div className="bg-white border border-[#E1DCCF] rounded-2xl p-5 shadow-xs space-y-5">
+      <div className="bg-white border border-[#DDE3EB] rounded-2xl p-5 shadow-xs space-y-5">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 border-b border-slate-100 pb-3">
           <div>
             <div className="flex items-center gap-2">
@@ -840,7 +1077,7 @@ export const PartnerDashboardView: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredReferrals.map((refItem) => (
-                  <tr key={refItem.id} className="hover:bg-[#FAF8F2] transition-colors">
+                  <tr key={refItem.id} className="hover:bg-[#F6F8FA] transition-colors">
                     <td className="p-3">
                       <div className="font-bold text-[#16223A]">{refItem.name}</div>
                       <div className="text-[10px] text-slate-500">{refItem.notes}</div>
@@ -886,7 +1123,7 @@ export const PartnerDashboardView: React.FC = () => {
       </div>
 
       {/* SECTION 3: Per-Partner KPI & Benchmark Comparative Charts */}
-      <div className="bg-white border border-[#E1DCCF] rounded-2xl p-5 shadow-xs space-y-5">
+      <div className="bg-white border border-[#DDE3EB] rounded-2xl p-5 shadow-xs space-y-5">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 pb-3">
           <div>
             <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
@@ -992,7 +1229,7 @@ export const PartnerDashboardView: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {partnersKPIMatrix.map((p) => (
-                  <tr key={p.code} className="hover:bg-[#FAF8F2] transition-colors">
+                  <tr key={p.code} className="hover:bg-[#F6F8FA] transition-colors">
                     <td className="p-3 font-bold text-[#16223A]">{p.name}</td>
                     <td className="p-3 text-center">
                       <span className="ref-seal">{p.code}</span>
@@ -1025,7 +1262,7 @@ export const PartnerDashboardView: React.FC = () => {
       {/* SECTION 4: High-Risk Statutory Limitations & Pending Partner Approvals */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* Urgent Limitation & Court Order Deadlines */}
-        <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-3">
+        <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs space-y-3">
           <div className="flex justify-between items-center border-b border-slate-100 pb-2">
             <h3 className="font-serif text-sm font-bold text-[#16223A] flex items-center gap-2">
               <AlertTriangle className="w-4.5 h-4.5 text-[#B23A2E]" />
@@ -1073,7 +1310,7 @@ export const PartnerDashboardView: React.FC = () => {
         </div>
 
         {/* Pending Payment Voucher Authorization */}
-        <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-3">
+        <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs space-y-3">
           <div className="flex justify-between items-center border-b border-slate-100 pb-2">
             <h3 className="font-serif text-sm font-bold text-[#16223A] flex items-center gap-2">
               <FileCheck className="w-4.5 h-4.5 text-[#8A6D3B]" />

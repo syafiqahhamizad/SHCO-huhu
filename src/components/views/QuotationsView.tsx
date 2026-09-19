@@ -7,7 +7,18 @@ import { DocPreviewModal } from '../modals/DocPreviewModal';
 import { getPracticeSettings } from '../../services/templateService';
 import { FileText, Plus, Calculator, Search, ArrowRight, Eye, CheckCircle2, CalendarDays, Video, Receipt, Upload, Send, Save, X, Mail, MessageSquare, ExternalLink, ChevronRight } from 'lucide-react';
 import { LineItemsEditor } from '../LineItemsEditor';
-import { TabPills } from '../ui';
+import { TabPills, StatusBadge } from '../ui';
+
+const INVOICE_STATUS_TONE: Record<string, 'green' | 'blue' | 'gold' | 'red' | 'purple' | 'slate'> = {
+  Draft: 'slate',
+  'Pending Review': 'gold',
+  Ready: 'purple',
+  Sent: 'blue',
+  Unpaid: 'red',
+  Partial: 'gold',
+  Paid: 'green',
+  Voided: 'slate',
+};
 import { palette } from '../../lib/designTokens';
 
 export const QuotationsView: React.FC = () => {
@@ -546,7 +557,7 @@ export const QuotationsView: React.FC = () => {
                           ? 'bg-[#E6EFE9] text-[#2F6F4E]'
                           : q.status === 'Declined'
                           ? 'bg-[#FBEDE9] text-[#B23A2E]'
-                          : 'bg-slate-100 text-slate-700'
+                          : 'bg-[#F1F0EA] text-[#A96845]'
                       }`}
                     >
                       {q.status}
@@ -648,7 +659,7 @@ export const QuotationsView: React.FC = () => {
 
       {activeTab === 'invoices' && <div className="space-y-4">
         <div className="flex flex-col gap-3 rounded-xl border border-[#DDE3EB] bg-[#F6F8FA] p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#3D6B9C]">Billing stage 03</p><h3 className="font-serif text-lg font-bold text-[#16223A]">Invoices</h3><p className="text-[11px] text-slate-500">Invoices update here when a proforma or agreed quotation is transferred.</p></div><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="w-full sm:w-48"><option value="All">All statuses</option>{['Draft', 'Pending Review', 'Ready', 'Unpaid', 'Partial', 'Paid', 'Voided'].map((status) => <option key={status} value={status}>{status}</option>)}</select></div>
-        <div className="overflow-x-auto rounded-xl border border-[#DDE3EB] bg-white"><table className="w-full text-left text-xs"><thead><tr className="border-b border-[#DDE3EB] bg-[#F6F8FA] text-[10px] uppercase text-slate-600"><th className="p-3">Invoice</th><th className="p-3">Client / Matter</th><th className="p-3">Date</th><th className="p-3 text-right">Total</th><th className="p-3">Status</th><th className="p-3 text-right">Client update</th></tr></thead><tbody className="divide-y divide-slate-100">{invoiceRecords.length ? invoiceRecords.map((invoice) => { const message = `Your invoice ${invoice.id} is now ${invoice.status}. Total: RM ${invoice.total.toLocaleString('en-MY', { minimumFractionDigits: 2 })}.`; return <tr key={invoice.id}><td className="p-3 font-mono font-bold text-[#16223A]">{invoice.id}<div className="text-[10px] text-slate-500">Due {invoice.dueDate}</div></td><td className="p-3 font-bold">{invoice.partyName || 'Client'}<div className="text-[10px] text-slate-500">{invoice.fileRef || 'General matter'}</div></td><td className="p-3 font-mono text-slate-600">{invoice.date}</td><td className="p-3 text-right font-mono font-bold">RM {invoice.total.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td><td className="p-3"><span className="rounded bg-slate-100 px-2 py-1 text-[10px] font-bold">{invoice.status}</span></td><td className="p-3"><div className="flex justify-end gap-1"><button type="button" onClick={() => notifyBillingStage(invoice, 'Invoice update', message)} className="rounded border border-[#2F6F4E] px-2 py-1 text-[10px] font-bold text-[#2F6F4E] cursor-pointer" title="Update Client Portal"><ExternalLink className="mr-1 inline h-3 w-3" />Portal</button><button type="button" onClick={() => notifyClient(invoice.clientId, 'Invoice update', message, 'email')} className="rounded border border-[#3D6B9C] px-2 py-1 text-[10px] font-bold text-[#3D6B9C] cursor-pointer" title="Email client"><Mail className="mr-1 inline h-3 w-3" />Email</button><button type="button" onClick={() => notifyClient(invoice.clientId, 'Invoice update', message, 'whatsapp')} className="rounded border border-[#2F6F4E] px-2 py-1 text-[10px] font-bold text-[#2F6F4E] cursor-pointer" title="WhatsApp client"><MessageSquare className="mr-1 inline h-3 w-3" />WhatsApp</button></div></td></tr>; }) : <tr><td colSpan={6} className="p-8 text-center text-slate-500">No invoices match this status.</td></tr>}</tbody></table></div>
+        <div className="overflow-x-auto rounded-xl border border-[#DDE3EB] bg-white"><table className="w-full text-left text-xs"><thead><tr className="border-b border-[#DDE3EB] bg-[#F6F8FA] text-[10px] uppercase text-slate-600"><th className="p-3">Invoice</th><th className="p-3">Client / Matter</th><th className="p-3">Date</th><th className="p-3 text-right">Total</th><th className="p-3">Status</th><th className="p-3 text-right">Client update</th></tr></thead><tbody className="divide-y divide-slate-100">{invoiceRecords.length ? invoiceRecords.map((invoice) => { const message = `Your invoice ${invoice.id} is now ${invoice.status}. Total: RM ${invoice.total.toLocaleString('en-MY', { minimumFractionDigits: 2 })}.`; return <tr key={invoice.id}><td className="p-3 font-mono font-bold text-[#16223A]">{invoice.id}<div className="text-[10px] text-slate-500">Due {invoice.dueDate}</div></td><td className="p-3 font-bold">{invoice.partyName || 'Client'}<div className="text-[10px] text-slate-500">{invoice.fileRef || 'General matter'}</div></td><td className="p-3 font-mono text-slate-600">{invoice.date}</td><td className="p-3 text-right font-mono font-bold">RM {invoice.total.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td><td className="p-3"><StatusBadge label={invoice.status} tone={INVOICE_STATUS_TONE[invoice.status] || 'slate'} /></td><td className="p-3"><div className="flex justify-end gap-1"><button type="button" onClick={() => notifyBillingStage(invoice, 'Invoice update', message)} className="rounded border border-[#2F6F4E] px-2 py-1 text-[10px] font-bold text-[#2F6F4E] cursor-pointer" title="Update Client Portal"><ExternalLink className="mr-1 inline h-3 w-3" />Portal</button><button type="button" onClick={() => notifyClient(invoice.clientId, 'Invoice update', message, 'email')} className="rounded border border-[#3D6B9C] px-2 py-1 text-[10px] font-bold text-[#3D6B9C] cursor-pointer" title="Email client"><Mail className="mr-1 inline h-3 w-3" />Email</button><button type="button" onClick={() => notifyClient(invoice.clientId, 'Invoice update', message, 'whatsapp')} className="rounded border border-[#2F6F4E] px-2 py-1 text-[10px] font-bold text-[#2F6F4E] cursor-pointer" title="WhatsApp client"><MessageSquare className="mr-1 inline h-3 w-3" />WhatsApp</button></div></td></tr>; }) : <tr><td colSpan={6} className="p-8 text-center text-slate-500">No invoices match this status.</td></tr>}</tbody></table></div>
       </div>}
 
       {activeTab === 'receipts' && <div className="space-y-4">

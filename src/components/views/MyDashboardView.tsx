@@ -10,6 +10,7 @@ import {
   ChevronRight,
   ClipboardList,
   Clock,
+  DollarSign,
   FileSignature,
   FolderOpen,
   Flag,
@@ -584,12 +585,20 @@ export const MyDashboardView: React.FC = () => {
           ['My active matters', myCases.filter((c) => c.status === 'Active').length, 'assigned', FolderOpen, '#16223A'],
           ['Deadlines this week', grouped.overdue.length + grouped.today.length + grouped.week.length, `${overdueCount} overdue`, Flag, '#B23A2E'],
           ['My hearings', rows.filter((r) => r.stream === 'hearing').length, 'this week', Gavel, '#6B3D8C'],
-          ['To-do open', rows.filter((r) => r.stream === 'task').length, 'tasks', CheckCircle2, '#3D6B9C'],
+          ['To-do open', rows.filter((r) => r.stream === 'task').length, 'tasks', CheckCircle2, '#2E7D7A'],
           ['Waiting on you', waitingCount, 'approvals', Inbox, '#8A6D3B'],
           ['Unbilled time', unbilledRows.length, 'matters', Timer, '#2F6F4E'],
+          ['My billed (RM)', billing.billedThisMonth.toLocaleString(), '', DollarSign, '#8A6D3B'],
+          ['My collected (RM)', billing.collectedThisMonth.toLocaleString(), '', DollarSign, '#3D6B9C'],
+          ['Files I brought', filesBroughtIn, '', FolderOpen, '#16223A'],
         ].map(([label, value, note, Icon, color]) => {
           const MetricIcon = Icon as React.ElementType;
-          return <div key={String(label)} className="my-dashboard-dark-panel flex min-h-[142px] flex-col gap-2 rounded-xl p-4 text-white shadow-lg ring-1 ring-black/5 bg-transparent" style={{ backgroundColor: String(color) }}><span className="flex items-center gap-2"><span className="grid h-8 w-8 place-items-center rounded-md bg-white/15"><MetricIcon className="h-4 w-4" /></span><span className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-white/85">{String(label)}</span></span><span className="flex items-baseline gap-1.5 font-serif text-[30px] font-bold leading-none">{String(value)} <small className="font-sans text-[10.5px] font-normal text-white/75">{String(note)}</small></span><span className="text-[10.5px] leading-relaxed text-white/80">{label === 'My active matters' ? 'Assigned to your current practice queue' : label === 'Unbilled time' ? 'Billable write-ups awaiting billing' : 'Requires your attention this week'}</span></div>;
+          const RM_ONLY = ['My billed (RM)', 'My collected (RM)', 'Files I brought'];
+          const description = label === 'My active matters' ? 'Assigned to your queue'
+            : label === 'Unbilled time' ? 'Billable write-ups awaiting billing'
+            : RM_ONLY.includes(String(label)) ? ''
+            : 'Requires your attention this week';
+          return <div key={String(label)} className="my-dashboard-dark-panel flex min-h-[142px] flex-col gap-2 rounded-xl p-4 text-white shadow-lg ring-1 ring-black/5 bg-transparent" style={{ backgroundColor: String(color) }}><span className="flex items-center gap-2"><span className="grid h-8 w-8 place-items-center rounded-md bg-white/15"><MetricIcon className="h-4 w-4" /></span><span className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-white/85">{String(label)}</span></span><span className="flex items-baseline gap-1.5 font-serif text-[30px] font-bold leading-none">{String(value)} {note ? <small className="font-sans text-[10.5px] font-normal text-white/75">{String(note)}</small> : null}</span>{description && <span className="text-[10.5px] leading-relaxed text-white/80">{description}</span>}</div>;
         })}
       </section>
 
