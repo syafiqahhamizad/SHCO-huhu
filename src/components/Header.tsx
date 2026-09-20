@@ -186,21 +186,21 @@ export const Header: React.FC = () => {
 
   const info = getViewInfo();
   const isPrivilegedHeader = Boolean(currentUser?.isAdmin || currentUser?.isSuperAdmin);
-  // Firm Start Centre's own hero already shows this title + description — skip the duplicate here.
-  const hideTitle = currentView === 'firmStartCentre';
+  // Firm Start Centre has its own hero, tab nav, reload button, and contextual edit toggles —
+  // this shared header (title, search, notifications, role switcher, sign-out) is fully redundant
+  // there. Every other view keeps it unchanged.
+  if (currentView === 'firmStartCentre') return null;
 
   return (
     <header className={`sticky top-0 z-20 mb-4 sm:mb-6 rounded-2xl border border-[#16223A] bg-[#16223A] text-[#F6F8FA] px-4 sm:px-6 py-3 flex flex-col justify-start gap-2.5 overflow-visible shadow-[0_12px_24px_-16px_rgba(22,34,58,.8)] ${isPrivilegedHeader ? 'items-stretch' : 'md:flex-row md:items-center'}`}>
-      {!hideTitle && (
-        <div className={`min-w-0 ${isPrivilegedHeader ? 'w-full order-1' : ''}`}>
-          <div className="flex items-center gap-2">
-            <h1 className="min-w-0 font-serif text-lg sm:text-xl font-bold text-[#F6F8FA] tracking-tight">{info.title}</h1>
-          </div>
-          <p className="text-xs text-[#DDE3EB] mt-0.5 line-clamp-2">{info.sub}</p>
+      <div className={`min-w-0 ${isPrivilegedHeader ? 'w-full order-1' : ''}`}>
+        <div className="flex items-center gap-2">
+          <h1 className="min-w-0 font-serif text-lg sm:text-xl font-bold text-[#F6F8FA] tracking-tight">{info.title}</h1>
         </div>
-      )}
+        <p className="text-xs text-[#DDE3EB] mt-0.5 line-clamp-2">{info.sub}</p>
+      </div>
 
-      <div className={`flex w-full min-w-0 flex-wrap items-center gap-1.5 sm:gap-2 ${isPrivilegedHeader ? `order-2 ${hideTitle ? '' : 'border-t border-white/10 pt-2'}` : 'md:ml-8 md:w-auto md:shrink-0'}`}>
+      <div className={`flex w-full min-w-0 flex-wrap items-center gap-1.5 sm:gap-2 ${isPrivilegedHeader ? 'order-2 border-t border-white/10 pt-2' : 'md:ml-8 md:w-auto md:shrink-0'}`}>
         {canEditFirmStartCentre && (
           <button
             type="button"
@@ -270,18 +270,16 @@ export const Header: React.FC = () => {
           )}
         </div>
 
-        {/* Reload latest saved data — Firm Start Centre has its own copy of this in its hero */}
-        {!hideTitle && (
-          <button
-            type="button"
-            onClick={() => window.location.reload()}
-            title="Reload latest saved data"
-            aria-label="Reload latest saved data"
-            className="shrink-0 rounded p-1.5 text-[#DDE3EB] transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-[#FBF2E9] cursor-pointer"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </button>
-        )}
+        {/* Reload latest saved data */}
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          title="Reload latest saved data"
+          aria-label="Reload latest saved data"
+          className="shrink-0 rounded p-1.5 text-[#DDE3EB] transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-[#FBF2E9] cursor-pointer"
+        >
+          <RefreshCw className="h-4 w-4" />
+        </button>
 
         {/* Recycle Bin & Data Recovery Vault */}
         <button
