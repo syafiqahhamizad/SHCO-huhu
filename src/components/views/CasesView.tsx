@@ -5362,9 +5362,9 @@ export const CasesView: React.FC = () => {
               setNcManualRefOverride('');
               setIsNewCaseModalOpen(true);
             }}
-            className="bg-[#16223A] hover:bg-[#16223A] text-[#8A6D3B] font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 transition-colors cursor-pointer shadow-md"
+            className="bg-[#16223A] hover:bg-[#16223A] text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 transition-colors cursor-pointer shadow-md"
           >
-            <Plus className="w-4 h-4 text-[#8A6D3B]" />
+            <Plus className="w-4 h-4 text-white" />
             <span>Register New Case / Case Intake</span>
           </button>
         </div>
@@ -5742,7 +5742,7 @@ export const CasesView: React.FC = () => {
         <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-[#F6F8FA] border-b border-[#DDE3EB] text-[10px] uppercase tracking-wider text-slate-600">
+              <tr className="bg-[#16223A] text-[10px] uppercase tracking-wider text-white">
                 <th className="p-3 font-bold">Matter Reference</th>
                 <th className="p-3 font-bold">Title / Matter Subject</th>
                 <th className="p-3 font-bold">Practice Area</th>
