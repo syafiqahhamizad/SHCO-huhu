@@ -2044,6 +2044,16 @@ export const CasesView: React.FC = () => {
               <div className="text-xs text-slate-500 font-medium">
                 Client: <strong>{clientObj ? clientObj.name : '—'}</strong> ({selectedCase.clientRole || 'Client'}) | Practice: <strong>{selectedCase.type}</strong> | Court:{' '}
                 <strong>{selectedCase.court}</strong>
+                {selectedCase.fileOpenedDate && <> | Opened: <strong>{new Date(selectedCase.fileOpenedDate).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}</strong></>}
+                {selectedCase.lawyerInCharge && <> | PIC: <strong>{selectedCase.lawyerInCharge}</strong></>}
+                {selectedCase.gdriveFolderUrl && (
+                  <>
+                    {' | '}
+                    <a href={selectedCase.gdriveFolderUrl} target="_blank" rel="noopener noreferrer" className="font-bold" style={{ color: palette.blue }}>
+                      📁 Open in Google Drive ↗
+                    </a>
+                  </>
+                )}
               </div>
             </div>
 
@@ -2123,6 +2133,19 @@ export const CasesView: React.FC = () => {
               </button>
             ))}
           </div>
+
+          {(() => {
+            const unbilledFees = (timeEntries || []).filter((t: any) => t.caseId === selectedCase.id && t.billable && !t.billed).reduce((s: number, t: any) => s + Number(t.hours || 0) * Number(t.rate || 0), 0);
+            const unbilledDisb = (expenses || []).filter((e: any) => e.caseId === selectedCase.id && e.billable && !e.billed).reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+            const debtorBalance = (invoices || []).filter((i: any) => i.caseId === selectedCase.id && i.status !== 'Paid' && i.status !== 'Voided').reduce((s: number, i: any) => s + Number(i.total || 0), 0);
+            return (
+              <div className="mt-4 grid grid-cols-3 gap-3 border-t border-[#F0F2F5] pt-4 text-xs">
+                <div><p className="text-[10px] font-bold uppercase text-slate-500">Unbilled fees</p><p className="mt-0.5 text-base font-bold" style={{ color: palette.gold }}>RM {unbilledFees.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</p></div>
+                <div><p className="text-[10px] font-bold uppercase text-slate-500">Unbilled disbursement</p><p className="mt-0.5 text-base font-bold" style={{ color: '#B2542F' }}>RM {unbilledDisb.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</p></div>
+                <div><p className="text-[10px] font-bold uppercase text-slate-500">Debtor balance</p><p className="mt-0.5 text-base font-bold" style={{ color: palette.green }}>RM {debtorBalance.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</p></div>
+              </div>
+            );
+          })()}
         </div>
 
         {isMatterDetailsEditOpen && (
