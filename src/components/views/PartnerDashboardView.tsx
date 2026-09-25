@@ -14,7 +14,6 @@ import {
   Clock,
   ExternalLink,
   Share2,
-  Filter,
   ArrowDownRight,
   Percent,
   Award,
@@ -56,7 +55,6 @@ import { palette } from '../../lib/designTokens';
 export const PartnerDashboardView: React.FC = () => {
   const {
     currentRole,
-    currentPartnerCode,
     isAdmin,
     cases,
     invoices,
@@ -73,14 +71,14 @@ export const PartnerDashboardView: React.FC = () => {
   } = useApp();
 
   // Filters & State
-  const [selectedPartnerFilter, setSelectedPartnerFilter] = useState<'ALL' | 'SH' | 'AH' | 'ZA'>('ALL');
   const [timeframe, setTimeframe] = useState<'MTD' | 'QTD' | 'YTD' | 'ALL'>('YTD');
   const [referralSearch, setReferralSearch] = useState<string>('');
   const [collectionSearch, setCollectionSearch] = useState<string>('');
   const [partnerBenchmarkMetric, setPartnerBenchmarkMetric] = useState<'REVENUE' | 'REFERRALS' | 'EFFICIENCY'>('REVENUE');
 
   const isPartner = currentRole === 'Partner' || isAdmin;
-  const effectivePartnerFilter = isAdmin ? selectedPartnerFilter : currentPartnerCode;
+  // This is a fixed all-partners reporting view (see header subtitle) — no per-partner filter.
+  const effectivePartnerFilter: 'ALL' | 'SH' | 'AH' | 'ZA' = 'ALL';
 
   if (!isPartner) {
     return (
@@ -498,37 +496,6 @@ export const PartnerDashboardView: React.FC = () => {
 
         {/* Filter Controls Bar */}
         <div className="pt-3 border-t border-slate-700/80 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
-          {/* Partner Selector */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1">
-              <Filter className="w-3.5 h-3.5 text-[#8A6D3B]" />
-              <span>{isAdmin ? 'Partner Filter:' : 'Assigned Partner:'}</span>
-            </span>
-            <div className="bg-slate-800/90 p-1 rounded-xl border border-slate-700 flex items-center gap-1">
-              {(
-                [
-                  { code: 'ALL', label: 'All Firm' },
-                  { code: 'SH', label: 'SH (Syafiqah)' },
-                  { code: 'AH', label: 'AH (Amer)' },
-                  { code: 'ZA', label: 'ZA (Zulaikha)' },
-                ] as const
-              ).map((p) => (
-                <button
-                  key={p.code}
-                  type="button"
-                  onClick={() => isAdmin && setSelectedPartnerFilter(p.code)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isAdmin ? 'cursor-pointer' : 'cursor-default'} ${
-                    effectivePartnerFilter === p.code
-                      ? 'bg-[#8A6D3B] text-[#16223A] shadow-xs font-extrabold'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-700'
-                  }`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* Timeframe Selector */}
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">Timeframe:</span>
