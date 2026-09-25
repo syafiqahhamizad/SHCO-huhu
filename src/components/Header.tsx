@@ -463,16 +463,16 @@ export const Header: React.FC = () => {
             <div className="w-5 h-5 rounded-full bg-[#16223A] text-white flex items-center justify-center font-bold text-[10px]">
               {currentUser?.isSuperAdmin ? <Crown className="w-3 h-3 text-amber-400" /> : <User className="w-3 h-3 text-amber-300" />}
             </div>
-            <div className="text-left leading-tight min-w-0">
-              <div className="font-bold text-[#16223A] flex min-w-0 items-center gap-1">
-                <span className="whitespace-nowrap text-[#16223A]">{currentUser?.name || 'User'}</span>
+            <div className="shco-header-chip text-left leading-tight min-w-0">
+              <div className="shco-header-chip font-bold text-[#16223A] flex min-w-0 items-center gap-1">
+                <span className="shco-header-chip whitespace-nowrap text-[#16223A]">{currentUser?.name || 'User'}</span>
                 {currentUser?.isSuperAdmin && (
                   <span className="bg-[#16223A] text-[#FBF2E9] border border-[#3D6B9C] text-[8px] font-bold px-1 rounded shrink-0">
                     SUPER ADMIN
                   </span>
                 )}
               </div>
-              <div className="hidden max-w-[12rem] truncate text-[10px] text-slate-600 font-mono sm:block">{currentUser?.email}</div>
+              <div className="shco-header-chip hidden max-w-[12rem] truncate text-[10px] text-slate-600 font-mono sm:block">{currentUser?.email}</div>
             </div>
           </div>
 

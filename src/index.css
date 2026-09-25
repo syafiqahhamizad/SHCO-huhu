@@ -180,7 +180,7 @@
     .text-gray-700,
     .text-\[\#4A3931\],
     .text-\[\#5B6478\]
-  ):not(.shco-brand-name):not(.shco-brand-subtitle) {
+  ):not(.shco-brand-name):not(.shco-brand-subtitle):not(.shco-header-chip) {
     color: #EEF3FF !important;
   }
 
@@ -328,7 +328,7 @@
     .text-gray-700,
     .text-\[\#4A3931\],
     .text-\[\#5B6478\]
-  ):not(.shco-brand-name):not(.shco-brand-subtitle) {
+  ):not(.shco-brand-name):not(.shco-brand-subtitle):not(.shco-header-chip) {
     color: #EEF3FF !important;
   }
 
