@@ -299,7 +299,10 @@ const SESSION_STORAGE_KEY = 'SHCO_PRACTICE_SYSTEM_SESSION_V1';
 // Opt-in, local-only QA bypass: ?preview=1 skips real Google sign-in and loads
 // sample data instead of live Firestore, so the app can be reviewed without
 // Firebase credentials. Off by default; never touches real auth or data.
-const SAFE_PREVIEW_MODE = new URLSearchParams(window.location.search).get('preview') === '1';
+// Hostname-gated so this can never bypass sign-in on the real deployed domains —
+// only localhost / 127.0.0.1 (the local dev server) can use it.
+const IS_LOCAL_DEV_HOST = ['localhost', '127.0.0.1'].includes(window.location.hostname.toLowerCase());
+const SAFE_PREVIEW_MODE = IS_LOCAL_DEV_HOST && new URLSearchParams(window.location.search).get('preview') === '1';
 const LOAD_DEMO_OPERATIONAL_DATA = SAFE_PREVIEW_MODE;
 
 function operationalFallback<T>(seedData: T[]): T[] {
