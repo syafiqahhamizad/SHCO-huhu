@@ -474,10 +474,6 @@ export const PartnerDashboardView: React.FC = () => {
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-[#8A6D3B] text-[#16223A] uppercase tracking-wider shadow-2xs">
                 CONFIDENTIAL PARTNER PORTAL
               </span>
-              <span className="text-[10.5px] text-[#FBF2E9]/90 font-mono font-semibold flex items-center gap-1">
-                <Sparkles className="w-3.5 h-3.5 text-[#8A6D3B]" />
-                Messrs Syafiqah Hamizad &amp; Co Analytics Engine
-              </span>
             </div>
             <h1 className="font-serif text-2xl font-bold text-white flex items-center gap-2">
               <BarChart3 className="w-6 h-6 text-[#8A6D3B]" />
