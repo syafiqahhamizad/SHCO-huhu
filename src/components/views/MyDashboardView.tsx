@@ -19,15 +19,17 @@ import {
   ShieldCheck,
   Target,
   Timer,
+  Trash2,
   User,
   Zap,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Case, Task, TaskChecklistItem } from '../../types';
 import { identityTokens, isMine, partnerCode } from '../../lib/identity';
-import { StatCard, Donut, MiniBarChart, ProgressBar, TaskFormModal, blankTaskDraft } from '../ui';
+import { Donut, MiniBarChart, ProgressBar, TaskFormModal, blankTaskDraft } from '../ui';
 import type { TaskDraft } from '../ui';
 import { palette, tint, tintText } from '../../lib/designTokens';
+import { useConfirmation } from '../../hooks/useConfirmation';
 
 type Bucket = 'overdue' | 'today' | 'week' | 'later';
 type FilterValue = 'all' | Bucket | 'hearing' | 'waiting' | 'unbilled';
@@ -150,6 +152,7 @@ export const MyDashboardView: React.FC = () => {
   const [taskDraft, setTaskDraft] = useState<TaskDraft>(() => blankTaskDraft(currentUser?.name || ''));
   const [quickTitle, setQuickTitle] = useState('');
   const [ghostDone, setGhostDone] = useState<Record<string, { row: RowWithBucket; priorStatus: Task['status'] }>>({});
+  const { confirm, ConfirmationModal } = useConfirmation();
 
   const todayStr = iso(new Date());
   const weekStr = iso(new Date(Date.now() + 7 * 86400000));
@@ -561,6 +564,30 @@ export const MyDashboardView: React.FC = () => {
     });
   };
 
+  const deleteTask = async (r: DisplayRow) => {
+    if (!r.task) return;
+    const confirmed = await confirm({
+      title: 'Delete task',
+      message: 'This removes the task permanently. This cannot be undone.',
+      variant: 'danger',
+      confirmText: 'Delete Task',
+      details: [
+        { label: 'Task', value: r.title },
+        ...(r.matterRef ? [{ label: 'Matter', value: r.matterRef }] : []),
+      ],
+    });
+    if (!confirmed) return;
+    const c: Case | undefined = (cases || []).find((x: Case) => x.id === r.task!.caseId);
+    if (!c) return;
+    updateCase(c.id, { tasks: (c.tasks || []).filter((t) => t.id !== r.task!.taskId) });
+    setGhostDone((g) => {
+      if (!g[r.id]) return g;
+      const n = { ...g };
+      delete n[r.id];
+      return n;
+    });
+  };
+
   // ---- Task form modal wiring -------------------------------------------------
   const matterOptions = useMemo(
     () => myCases.map((c) => ({ ref: c.ref, full: `${c.ref} — ${c.title}`, caseId: c.id })),
@@ -884,6 +911,16 @@ export const MyDashboardView: React.FC = () => {
                           >
                             {actionLabel}
                           </button>
+                          {isCheckable && (
+                            <button
+                              type="button"
+                              onClick={() => deleteTask(r)}
+                              title="Delete task"
+                              className="shrink-0 text-slate-300 hover:text-[#B23A2E]"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                         </div>
                       );
                     })}
@@ -1125,6 +1162,7 @@ export const MyDashboardView: React.FC = () => {
         onCreate={createTask}
         onCreateAnother={createTaskAndAnother}
       />
+      {ConfirmationModal}
     </div>
   );
 };
