@@ -327,6 +327,7 @@ export const CasesView: React.FC = () => {
   const [matterEditCorporateMatterType, setMatterEditCorporateMatterType] = useState('');
   const [matterEditContractValue, setMatterEditContractValue] = useState('');
   const [matterEditRegulatoryAuthority, setMatterEditRegulatoryAuthority] = useState('');
+  const [matterEditOpenedDate, setMatterEditOpenedDate] = useState('');
   const [matterEditGoverningLaw, setMatterEditGoverningLaw] = useState('');
   const [matterEditPartners, setMatterEditPartners] = useState<PartnerCode[]>([]);
 
@@ -619,6 +620,7 @@ export const CasesView: React.FC = () => {
     setMatterEditRegulatoryAuthority(selectedCase.regulatoryAuthority || '');
     setMatterEditGoverningLaw(selectedCase.governingLaw || '');
     setMatterEditPartners(selectedCase.partners || []);
+    setMatterEditOpenedDate(selectedCase.fileOpenedDate || '');
     setHandlerSearchQuery('');
     setIsHandlerDropdownOpen(false);
     setIsMatterDetailsEditOpen(true);
@@ -664,6 +666,7 @@ export const CasesView: React.FC = () => {
       contractValue: matterEditContractValue.trim() || undefined,
       regulatoryAuthority: matterEditRegulatoryAuthority.trim() || undefined,
       governingLaw: matterEditGoverningLaw.trim() || undefined,
+      ...((isAdmin || isSuperAdmin) ? { fileOpenedDate: matterEditOpenedDate.trim() || undefined } : {}),
     });
     setIsMatterDetailsEditOpen(false);
     showToast(`Matter ${nextRef} details updated.`);
@@ -2163,6 +2166,18 @@ export const CasesView: React.FC = () => {
                   <label className="font-bold text-slate-700 block uppercase mb-1">Matter Title *</label>
                   <input required value={matterEditTitle} onChange={(e) => setMatterEditTitle(e.target.value)} className="w-full" />
                 </div>
+                {(isAdmin || isSuperAdmin) && (
+                  <div className="rounded-xl border border-[#FBEDE9] bg-[#FBEDE9]/40 p-3">
+                    <label className="font-bold text-[#B23A2E] block uppercase mb-1">File Opened Date (Admin Override)</label>
+                    <input
+                      type="date"
+                      value={matterEditOpenedDate}
+                      onChange={(e) => setMatterEditOpenedDate(e.target.value)}
+                      className="w-full bg-white border border-[#DDE3EB] rounded-lg p-2 text-xs"
+                    />
+                    <p className="text-[10px] text-slate-500 mt-1">Only admins can backdate or correct when this file was actually opened.</p>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="font-bold text-slate-700 block uppercase mb-1">Practice Area *</label>
