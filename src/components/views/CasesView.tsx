@@ -5155,50 +5155,6 @@ export const CasesView: React.FC = () => {
         </div>
       )}
 
-      {/* Add Service Record — self-contained modal, isolated from the multi-purpose modal above */}
-      {false && selectedCase && isAddServiceModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl max-w-lg w-full p-5 shadow-2xl space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
-              <h3 className="font-serif font-bold text-[#16223A]">Add Service Record</h3>
-              <button type="button" onClick={() => setIsAddServiceModalOpen(false)} className="text-slate-500 text-xl cursor-pointer">×</button>
-            </div>
-            <form onSubmit={handleSaveService} className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Date Served</label>
-                  <input type="date" value={svcDate} onChange={(e) => setSvcDate(e.target.value)} className="w-full p-2 border border-[#DDE3EB] rounded-lg" />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Proof Status</label>
-                  <select value={svcProof} onChange={(e) => setSvcProof(e.target.value as 'Y' | 'N')} className="w-full p-2 border border-[#DDE3EB] rounded-lg">
-                    <option value="Y">Proof Obtained</option>
-                    <option value="N">Pending Proof</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Document Served *</label>
-                <input required value={svcDoc} onChange={(e) => setSvcDoc(e.target.value)} placeholder="e.g. Statement of Claim, Notice of Application" className="w-full p-2 border border-[#DDE3EB] rounded-lg" />
-              </div>
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Served On</label>
-                <input value={svcServedOn} onChange={(e) => setSvcServedOn(e.target.value)} placeholder="Party / solicitor served" className="w-full p-2 border border-[#DDE3EB] rounded-lg" />
-              </div>
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Served By</label>
-                <input value={svcServedBy} onChange={(e) => setSvcServedBy(e.target.value)} placeholder="Process server / staff name" className="w-full p-2 border border-[#DDE3EB] rounded-lg" />
-              </div>
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Service Method</label>
-                <input value={svcMethod} onChange={(e) => setSvcMethod(e.target.value)} placeholder="Personal Service, AR Registered Post, e-Filing, etc." className="w-full p-2 border border-[#DDE3EB] rounded-lg" />
-              </div>
-              <button type="submit" className="w-full bg-[#16223A] hover:bg-[#16223A] text-white p-2 rounded-lg font-bold cursor-pointer">Log Service Record</button>
-            </form>
-          </div>
-        </div>
-      )}
-
       {/* New Meeting Note — self-contained modal, isolated from the multi-purpose modal above */}
       {selectedCase && isAddMeetingModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">

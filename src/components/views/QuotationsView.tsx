@@ -823,29 +823,6 @@ export const QuotationsView: React.FC = () => {
 
               <LineItemsEditor items={quoteLineItems.length > 0 ? quoteLineItems : defaultQuoteLineItems()} onChange={setQuoteLineItems} />
 
-              {false && practiceArea !== 'Conveyancing' && practiceArea !== 'Civil Litigation' && (
-                <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                  <div>
-                    <label className="font-bold text-slate-700 block uppercase mb-1">Scope Description</label>
-                    <input
-                      type="text"
-                      value={manualDesc}
-                      onChange={(e) => setManualDesc(e.target.value)}
-                      className="w-full"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-slate-700 block uppercase mb-1">Professional Fee Amount (RM)</label>
-                    <input
-                      type="number"
-                      value={manualAmount}
-                      onChange={(e) => setManualAmount(Number(e.target.value))}
-                      className="w-full font-mono font-bold"
-                    />
-                  </div>
-                </div>
-              )}
-
               <div className="flex justify-end gap-2 pt-3">
                 <button
                   type="button"
