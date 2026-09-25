@@ -176,6 +176,7 @@ export const MyDashboardView: React.FC = () => {
   const rows: Row[] = useMemo(() => {
     const out: Row[] = [];
     const caseById = new Map((cases || []).map((c: Case) => [c.id, c]));
+    const caseByRef = new Map((cases || []).map((c: Case) => [c.ref, c]));
 
     // 1 + 3 — case tasks assigned to me, and hearings on my matters
     (cases || []).forEach((c: Case) => {
@@ -347,16 +348,21 @@ export const MyDashboardView: React.FC = () => {
         });
       });
 
-      // 5 — vouchers and invoices waiting on a signature / release
+      // 5 — vouchers and invoices waiting on a signature / release.
+      // Route to the partner(s) in charge of the matter when the voucher is tied to
+      // one; only fall back to "any partner" when there's no matter/partner to route to.
       (paymentVouchers || []).forEach((v: any) => {
         if (v.approved || v.approvalStatus === 'Approved') return;
         if (v.approvalStatus !== 'Pending Approval' && v.approvalStatus !== 'Draft') return;
+        const c: any = v.fileRef ? caseByRef.get(v.fileRef) : undefined;
+        if (c?.partners?.length && !mine(c.partners as any)) return;
         out.push({
           id: `sign-pv-${v.id}`,
           stream: 'signature',
           title: `Payment voucher ${v.id} · RM ${Number(v.amount || 0).toLocaleString()}`,
           matterRef: v.fileRef,
           matterTitle: v.payee || v.description,
+          caseId: c?.id,
           dueDate: v.date || '',
           status: 'Needs sign-off',
           view: 'paymentVouchers',
