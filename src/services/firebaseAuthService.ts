@@ -144,6 +144,8 @@ export function getFirebaseAuthErrorMessage(error: unknown): string {
   if (code === 'auth/invalid-credential' || code === 'auth/user-not-found' || code === 'auth/wrong-password') {
     return 'The email or password is incorrect.';
   }
+  if (code === 'auth/network-request-failed') return 'Network error while contacting Google. Check your connection and try again.';
+  if (code === 'auth/internal-error') return 'Google sign-in was interrupted before it could finish. Please try again — if this keeps happening, tell IT the code is auth/internal-error.';
   if (error instanceof Error && error.message) return error.message;
-  return 'Authentication could not be completed. Please try again.';
+  return `Authentication could not be completed. Please try again.${code ? ` (${code})` : ''}`;
 }
