@@ -658,17 +658,6 @@ export const MyDashboardView: React.FC = () => {
       )}
 
       <section className="grid gap-3.5 xl:grid-cols-2">
-        {[['Matter to-do', grouped.overdue.concat(grouped.today, grouped.week), TONE.navy, 'All matter tasks', Scale, true], ['Private to-do', [], '#2E7D7A', 'Open in Google Tasks', User, false]].map(([title, list, color, link, Icon, canAdd]) => {
-          const PanelIcon = Icon as React.ElementType;
-          return <div key={String(title)} className="overflow-hidden rounded-xl border border-[#DDE3EB] bg-white shadow-sm"><div className="my-dashboard-dark-panel flex items-center gap-2.5 px-3.5 py-3 text-white bg-transparent" style={{ backgroundColor: String(color) }}><PanelIcon className="h-4 w-4 text-[#FBF2E9]" /><div><strong className="block font-serif text-[14.5px]">{String(title)}</strong><span className="text-[10.5px] text-white/70">{canAdd ? 'Tied to a file · two-way sync with Google Tasks' : 'No file attached · yours only · Google Tasks'}</span></div>{canAdd && <button type="button" onClick={() => setComposing((v) => !v)} className="ml-auto flex items-center gap-1 rounded-md bg-[#3D6B9C] px-2.5 py-1.5 text-[11px] font-bold"><Plus className="h-3 w-3" /> Add</button>}</div>{canAdd && composing ? null : renderRows(list as Row[], 'Nothing here.')}<div className="flex items-center gap-2 border-t border-[#DDE3EB] bg-[#F6F8FA] px-3.5 py-2.5 text-[10.5px] text-[#5B6478]"><CheckCircle2 className="h-3.5 w-3.5 text-[#2F6F4E]" /><span>{(list as Row[]).length} open items</span><button type="button" onClick={() => setCurrentView(canAdd ? 'tasks' : 'activityLogs')} className="ml-auto font-bold text-[#8A6D3B]">{String(link)} -&gt;</button></div></div>;
-        })}
-      </section>
-
-      <section className="grid gap-3.5 xl:grid-cols-2">
-        {[['Deadlines this week', grouped.overdue.concat(grouped.today, grouped.week), '#B23A2E', Flag], ['My hearings', rows.filter((r) => r.stream === 'hearing'), '#6B3D8C', Gavel]].map(([title, list, color, Icon]) => { const PanelIcon = Icon as React.ElementType; return <div key={String(title)} className="overflow-hidden rounded-xl border border-[#DDE3EB] bg-white shadow-sm"><div className="my-dashboard-dark-panel flex items-center gap-2.5 px-3.5 py-2.5 text-white bg-transparent" style={{ backgroundColor: String(color) }}><PanelIcon className="h-4 w-4" /><strong className="font-serif text-[14px]">{String(title)}</strong><button type="button" onClick={() => setCurrentView(String(title).startsWith('My') ? 'hearings' : 'deadlines')} className="ml-auto text-[10.5px] font-bold text-white/80 hover:underline">Open -&gt;</button></div>{renderRows(list as Row[], 'No items scheduled.')}</div>; })}
-      </section>
-
-      <section className="grid gap-3.5 xl:grid-cols-2">
         <div className="rounded-xl border border-[#DDE3EB] bg-white p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="flex items-center gap-1.5 text-[13px] font-bold text-[#16223A]"><Zap className="h-3.5 w-3.5 text-[#8A6D3B]" /> My productivity rate</span>
@@ -700,8 +689,6 @@ export const MyDashboardView: React.FC = () => {
           <p className="mt-2 text-[10.5px] text-[#5B6478]">{productivity.streak}-day streak — green days finished 100% of tasks due.</p>
         </div>
       </section>
-
-      <section className="overflow-hidden rounded-xl border border-[#DDE3EB] bg-white shadow-sm"><div className="flex items-center gap-2.5 border-b border-[#DDE3EB] bg-[#F6F8FA] px-3.5 py-2.5"><Clock className="h-4 w-4 text-[#8A6D3B]" /><strong className="font-serif text-[14px] text-[#16223A]">Recently accessed matters</strong><button type="button" onClick={() => setCurrentView('cases')} className="ml-auto text-[10.5px] font-bold text-[#8A6D3B]">My matters -&gt;</button></div>{renderRows(myCases.filter((c) => c.lastAccessed).slice(0, 5).map((c) => ({ id: c.id, stream: 'matter', title: c.title, matterRef: c.ref, matterTitle: c.practiceArea || c.stage, caseId: c.id, dueDate: '', status: c.status, view: 'cases' })), 'No recently accessed matters.')}</section>
 
       <section>
         <h2 className="font-serif text-[15px] font-bold" style={{ color: palette.navy }}>My Performance</h2>
@@ -821,6 +808,19 @@ export const MyDashboardView: React.FC = () => {
           )}
         </div>
       </section>
+
+      <section className="grid gap-3.5 xl:grid-cols-2">
+        {[['Matter to-do', grouped.overdue.concat(grouped.today, grouped.week), TONE.navy, 'All matter tasks', Scale, true], ['Private to-do', [], '#2E7D7A', 'Open in Google Tasks', User, false]].map(([title, list, color, link, Icon, canAdd]) => {
+          const PanelIcon = Icon as React.ElementType;
+          return <div key={String(title)} className="overflow-hidden rounded-xl border border-[#DDE3EB] bg-white shadow-sm"><div className="my-dashboard-dark-panel flex items-center gap-2.5 px-3.5 py-3 text-white bg-transparent" style={{ backgroundColor: String(color) }}><PanelIcon className="h-4 w-4 text-[#FBF2E9]" /><div><strong className="block font-serif text-[14.5px]">{String(title)}</strong><span className="text-[10.5px] text-white/70">{canAdd ? 'Tied to a file · two-way sync with Google Tasks' : 'No file attached · yours only · Google Tasks'}</span></div>{canAdd && <button type="button" onClick={() => setComposing((v) => !v)} className="ml-auto flex items-center gap-1 rounded-md bg-[#3D6B9C] px-2.5 py-1.5 text-[11px] font-bold"><Plus className="h-3 w-3" /> Add</button>}</div>{canAdd && composing ? null : renderRows(list as Row[], 'Nothing here.')}<div className="flex items-center gap-2 border-t border-[#DDE3EB] bg-[#F6F8FA] px-3.5 py-2.5 text-[10.5px] text-[#5B6478]"><CheckCircle2 className="h-3.5 w-3.5 text-[#2F6F4E]" /><span>{(list as Row[]).length} open items</span><button type="button" onClick={() => setCurrentView(canAdd ? 'tasks' : 'activityLogs')} className="ml-auto font-bold text-[#8A6D3B]">{String(link)} -&gt;</button></div></div>;
+        })}
+      </section>
+
+      <section className="grid gap-3.5 xl:grid-cols-2">
+        {[['Deadlines this week', grouped.overdue.concat(grouped.today, grouped.week), '#B23A2E', Flag], ['My hearings', rows.filter((r) => r.stream === 'hearing'), '#6B3D8C', Gavel]].map(([title, list, color, Icon]) => { const PanelIcon = Icon as React.ElementType; return <div key={String(title)} className="overflow-hidden rounded-xl border border-[#DDE3EB] bg-white shadow-sm"><div className="my-dashboard-dark-panel flex items-center gap-2.5 px-3.5 py-2.5 text-white bg-transparent" style={{ backgroundColor: String(color) }}><PanelIcon className="h-4 w-4" /><strong className="font-serif text-[14px]">{String(title)}</strong><button type="button" onClick={() => setCurrentView(String(title).startsWith('My') ? 'hearings' : 'deadlines')} className="ml-auto text-[10.5px] font-bold text-white/80 hover:underline">Open -&gt;</button></div>{renderRows(list as Row[], 'No items scheduled.')}</div>; })}
+      </section>
+
+      <section className="overflow-hidden rounded-xl border border-[#DDE3EB] bg-white shadow-sm"><div className="flex items-center gap-2.5 border-b border-[#DDE3EB] bg-[#F6F8FA] px-3.5 py-2.5"><Clock className="h-4 w-4 text-[#8A6D3B]" /><strong className="font-serif text-[14px] text-[#16223A]">Recently accessed matters</strong><button type="button" onClick={() => setCurrentView('cases')} className="ml-auto text-[10.5px] font-bold text-[#8A6D3B]">My matters -&gt;</button></div>{renderRows(myCases.filter((c) => c.lastAccessed).slice(0, 5).map((c) => ({ id: c.id, stream: 'matter', title: c.title, matterRef: c.ref, matterTitle: c.practiceArea || c.stage, caseId: c.id, dueDate: '', status: c.status, view: 'cases' })), 'No recently accessed matters.')}</section>
 
       {rows.length === 0 && (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
