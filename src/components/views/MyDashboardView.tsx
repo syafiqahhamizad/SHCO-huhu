@@ -1,13 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import {
   AlertTriangle,
-  ArrowRight,
-  Bell,
-  BriefcaseBusiness,
-  CalendarClock,
+  Calendar,
   CheckCircle2,
-  ChevronDown,
-  ChevronRight,
+  CircleAlert,
   ClipboardList,
   Clock,
   DollarSign,
@@ -16,36 +12,25 @@ import {
   Flag,
   Gavel,
   Inbox,
-  LayoutDashboard,
   Plus,
   Receipt,
-  RefreshCw,
   Scale,
   Search,
   ShieldCheck,
   Target,
   Timer,
   User,
-  X,
   Zap,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { Case, Task } from '../../types';
-import { identityTokens, isMine } from '../../lib/identity';
-import { DashboardTabs } from '../DashboardTabs';
-import { StatCard, Donut, MiniBarChart, ProgressBar } from '../ui';
-import { palette, tint } from '../../lib/designTokens';
-
-const TONE = {
-  navy: '#16223A',
-  slate: '#16223A',
-  brass: '#3D6B9C',
-  clay: '#B23A2E',
-  forest: '#2F6F4E',
-  cream: '#F6F8FA',
-};
+import { Case, Task, TaskChecklistItem } from '../../types';
+import { identityTokens, isMine, partnerCode } from '../../lib/identity';
+import { StatCard, Donut, MiniBarChart, ProgressBar, TaskFormModal, blankTaskDraft } from '../ui';
+import type { TaskDraft } from '../ui';
+import { palette, tint, tintText } from '../../lib/designTokens';
 
 type Bucket = 'overdue' | 'today' | 'week' | 'later';
+type FilterValue = 'all' | Bucket | 'hearing' | 'waiting' | 'unbilled';
 
 type Stream =
   | 'hearing'
@@ -68,27 +53,72 @@ interface Row {
   view: string;
   /** present only for case tasks — enables inline complete */
   task?: { caseId: string; taskId: string };
+  priority?: Task['priority'];
+  checklist?: TaskChecklistItem[];
 }
 
+type RowWithBucket = Row & { bucket: Bucket };
+type DisplayRow = RowWithBucket & { isGhost?: boolean };
+
 const STREAM_META: Record<Stream, { label: string; icon: React.ElementType; color: string }> = {
-  hearing: { label: 'Court date', icon: Gavel, color: TONE.clay },
-  deadline: { label: 'Statutory deadline', icon: AlertTriangle, color: TONE.clay },
-  task: { label: 'Task', icon: ClipboardList, color: TONE.navy },
-  approval: { label: 'Awaiting your approval', icon: ShieldCheck, color: TONE.brass },
-  signature: { label: 'Awaiting your sign-off', icon: FileSignature, color: TONE.brass },
-  unbilled: { label: 'Unbilled work', icon: Receipt, color: TONE.forest },
-  matter: { label: 'Open matter', icon: FolderOpen, color: TONE.slate },
+  hearing: { label: 'Court date', icon: Gavel, color: palette.red },
+  deadline: { label: 'Statutory deadline', icon: AlertTriangle, color: palette.red },
+  task: { label: 'Task', icon: ClipboardList, color: palette.navy },
+  approval: { label: 'Awaiting your approval', icon: ShieldCheck, color: palette.blue },
+  signature: { label: 'Awaiting your sign-off', icon: FileSignature, color: palette.blue },
+  unbilled: { label: 'Unbilled work', icon: Receipt, color: palette.green },
+  matter: { label: 'Open matter', icon: FolderOpen, color: palette.slate },
 };
 
-const BUCKET_META: Record<Bucket, { label: string; accent: string; note: string }> = {
-  overdue: { label: 'Overdue', accent: TONE.clay, note: 'Past due — clear these first' },
-  today: { label: 'Today', accent: TONE.navy, note: 'Due before close of business' },
-  week: { label: 'This week', accent: TONE.brass, note: 'Next seven days' },
-  later: { label: 'Later', accent: TONE.slate, note: 'Beyond this week or undated' },
+const BUCKET_META: Record<Bucket, { label: string; accent: string; tint: string; text: string; icon: React.ElementType; note: string }> = {
+  overdue: { label: 'Overdue', accent: palette.red, tint: tint.red, text: palette.red, icon: CircleAlert, note: 'Past due, clear these first' },
+  today: { label: 'Today', accent: palette.gold, tint: tint.gold, text: tintText.gold, icon: Clock, note: 'Due before close of business' },
+  week: { label: 'This week', accent: palette.blue, tint: tint.blue, text: tintText.blue, icon: Calendar, note: 'Next seven days' },
+  later: { label: 'Later', accent: palette.slate, tint: '#F0F2F5', text: palette.slate, icon: Calendar, note: 'Beyond this week or undated' },
 };
+
+const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const DONE = ['Done', 'Completed', 'Approved', 'Cancelled'];
+
+const daysBetween = (a: string, b: string) => Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
+
+const dueLabelFor = (bucket: Bucket, dueDate: string, todayStr: string): { label: string; bg: string; fg: string } => {
+  if (!dueDate) return { label: 'No date', bg: '#F0F2F5', fg: palette.slate };
+  if (bucket === 'overdue') {
+    const d = daysBetween(dueDate, todayStr);
+    return { label: d <= 1 ? '1 day overdue' : `${d} days overdue`, bg: tint.red, fg: palette.red };
+  }
+  if (bucket === 'today') return { label: 'Due today', bg: tint.gold, fg: tintText.gold };
+  if (bucket === 'week') {
+    const d = daysBetween(todayStr, dueDate);
+    if (d <= 1) return { label: 'Tomorrow', bg: tint.blue, fg: tintText.blue };
+    const wd = WEEKDAY[new Date(dueDate).getDay()];
+    return { label: `In ${d} days · ${wd}`, bg: tint.blue, fg: tintText.blue };
+  }
+  const dt = new Date(dueDate);
+  return { label: `${WEEKDAY[dt.getDay()]} ${dt.getDate()} ${MONTH[dt.getMonth()]}`, bg: '#F0F2F5', fg: palette.slate };
+};
+
+const relativeShort = (bucket: Bucket, dueDate: string, todayStr: string): string => {
+  if (bucket === 'today') return 'Today';
+  if (bucket === 'overdue') return `${Math.max(1, daysBetween(dueDate, todayStr))}d overdue`;
+  if (bucket === 'week') {
+    const d = daysBetween(todayStr, dueDate);
+    return d <= 1 ? 'Tomorrow' : `In ${d}d`;
+  }
+  return dueDate || 'Undated';
+};
+
+const rowBg = (bucket: Bucket) => (bucket === 'overdue' ? '#FFF8F6' : bucket === 'today' ? '#FFFCF7' : '#fff');
+
+const PRIORITY_META: Record<string, { color: string }> = {
+  High: { color: palette.red },
+  Medium: { color: palette.gold },
+  Low: { color: palette.slate },
+};
 
 export const MyDashboardView: React.FC = () => {
   const {
@@ -102,26 +132,24 @@ export const MyDashboardView: React.FC = () => {
     invoices,
     payments,
     leads,
-    referralPartners,
+    users,
     leaveApplications,
     currentUser,
     setCurrentView,
     setCurrentCaseId,
     updateCase,
     updateUserStaffProfile,
-    currentView,
+    showToast,
   } = useApp() as any;
 
-  const [open, setOpen] = useState<Record<Bucket, boolean>>({
-    overdue: true,
-    today: true,
-    week: true,
-    later: false,
-  });
-  const [composing, setComposing] = useState(false);
+  const [filter, setFilter] = useState<FilterValue>('all');
+  const [list, setList] = useState<'matter' | 'private'>('matter');
   const [searchQuery, setSearchQuery] = useState('');
-  const [draft, setDraft] = useState({ title: '', caseId: '', dueDate: '', assignedTo: '' });
   const [editingTargets, setEditingTargets] = useState(false);
+  const [taskFormOpen, setTaskFormOpen] = useState(false);
+  const [taskDraft, setTaskDraft] = useState<TaskDraft>(() => blankTaskDraft(currentUser?.name || ''));
+  const [quickTitle, setQuickTitle] = useState('');
+  const [ghostDone, setGhostDone] = useState<Record<string, { row: RowWithBucket; priorStatus: Task['status'] }>>({});
 
   const todayStr = iso(new Date());
   const weekStr = iso(new Date(Date.now() + 7 * 86400000));
@@ -165,6 +193,8 @@ export const MyDashboardView: React.FC = () => {
           status: t.status,
           view: 'cases',
           task: { caseId: c.id, taskId: t.id },
+          priority: t.priority,
+          checklist: t.checklist,
         });
       });
 
@@ -380,21 +410,27 @@ export const MyDashboardView: React.FC = () => {
     return out;
   }, [cases, deadlines, timeEntries, expenses, paymentVouchers, travelClaims, quotations, invoices, leaveApplications, me, isPartner]);
 
+  const rowsWithBucket: RowWithBucket[] = useMemo(
+    () =>
+      rows.map((r) => {
+        let b: Bucket = 'later';
+        if (!r.dueDate) b = 'later';
+        else if (r.dueDate < todayStr) b = 'overdue';
+        else if (r.dueDate === todayStr) b = 'today';
+        else if (r.dueDate <= weekStr) b = 'week';
+        return { ...r, bucket: b };
+      }),
+    [rows, todayStr, weekStr]
+  );
+
   const grouped = useMemo(() => {
-    const g: Record<Bucket, Row[]> = { overdue: [], today: [], week: [], later: [] };
-    rows.forEach((r) => {
-      let b: Bucket = 'later';
-      if (!r.dueDate) b = 'later';
-      else if (r.dueDate < todayStr) b = 'overdue';
-      else if (r.dueDate === todayStr) b = 'today';
-      else if (r.dueDate <= weekStr) b = 'week';
-      g[b].push(r);
-    });
+    const g: Record<Bucket, RowWithBucket[]> = { overdue: [], today: [], week: [], later: [] };
+    rowsWithBucket.forEach((r) => g[r.bucket].push(r));
     (Object.keys(g) as Bucket[]).forEach((k) =>
       g[k].sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999'))
     );
     return g;
-  }, [rows, todayStr, weekStr]);
+  }, [rowsWithBucket]);
 
   const monthStr = todayStr.slice(0, 7); // YYYY-MM
 
@@ -488,8 +524,9 @@ export const MyDashboardView: React.FC = () => {
     setCurrentView(r.view);
   };
 
-  const completeTask = (r: Row) => {
+  const completeTask = (r: RowWithBucket) => {
     if (!r.task) return;
+    setGhostDone((g) => ({ ...g, [r.id]: { row: r, priorStatus: r.status as Task['status'] } }));
     const c: Case | undefined = (cases || []).find((x: Case) => x.id === r.task!.caseId);
     if (!c) return;
     updateCase(c.id, {
@@ -501,338 +538,587 @@ export const MyDashboardView: React.FC = () => {
     });
   };
 
-  const addTask = () => {
-    const c: Case | undefined = (cases || []).find((x: Case) => x.id === draft.caseId);
-    if (!c || !draft.title.trim()) return;
+  const undoTask = (r: DisplayRow) => {
+    const ghost = ghostDone[r.id];
+    if (!ghost || !r.task) return;
+    setGhostDone((g) => {
+      const n = { ...g };
+      delete n[r.id];
+      return n;
+    });
+    const c: Case | undefined = (cases || []).find((x: Case) => x.id === r.task!.caseId);
+    if (!c) return;
+    updateCase(c.id, {
+      tasks: (c.tasks || []).map((t) =>
+        t.id === r.task!.taskId ? { ...t, status: ghost.priorStatus, completedAt: undefined } : t
+      ),
+    });
+  };
+
+  // ---- Task form modal wiring -------------------------------------------------
+  const matterOptions = useMemo(
+    () => myCases.map((c) => ({ ref: c.ref, full: `${c.ref} — ${c.title}`, caseId: c.id })),
+    [myCases]
+  );
+  const assignees = useMemo(
+    () =>
+      (users || [])
+        .filter((u: any) => u.role === 'Partner')
+        .map((u: any) => ({ code: partnerCode(u) || u.name.slice(0, 2).toUpperCase(), name: u.name })),
+    [users]
+  );
+
+  const openTaskBlank = (scope: 'matter' | 'private') => {
+    setList(scope);
+    setTaskDraft(blankTaskDraft(currentUser?.name || ''));
+    setTaskFormOpen(true);
+  };
+  const openTaskFromQuick = () => {
+    setTaskDraft({ ...blankTaskDraft(currentUser?.name || ''), title: quickTitle });
+    setQuickTitle('');
+    setTaskFormOpen(true);
+  };
+
+  const saveTaskDraft = (): boolean => {
+    if (!taskDraft.title.trim() || list !== 'matter') return false;
+    const caseId = taskDraft.caseId || myCases[0]?.id;
+    if (!caseId) {
+      showToast?.('No matters available to attach this task to.');
+      return false;
+    }
+    const c = (cases || []).find((x: Case) => x.id === caseId);
+    if (!c) return false;
     const task: Task = {
-      id: `T-${Date.now()}`,
-      title: draft.title.trim(),
+      id: `T-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      title: taskDraft.title.trim(),
+      priority: taskDraft.priority,
+      status: taskDraft.status,
+      dueDate: taskDraft.dueDate,
+      assignedTo: taskDraft.assignedTo || currentUser?.name || '',
+      taskType: taskDraft.taskType,
+      description: taskDraft.description.trim() || undefined,
+      checklist: taskDraft.checklist.length ? taskDraft.checklist : undefined,
+    };
+    updateCase(c.id, { tasks: [...(c.tasks || []), task] });
+    return true;
+  };
+
+  const createTask = () => {
+    if (saveTaskDraft()) setTaskFormOpen(false);
+  };
+  const createTaskAndAnother = () => {
+    if (saveTaskDraft()) setTaskDraft(blankTaskDraft(currentUser?.name || ''));
+  };
+
+  const onQuickKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter') return;
+    const title = quickTitle.trim();
+    if (!title || list !== 'matter') return;
+    const c = myCases[0];
+    if (!c) {
+      showToast?.('No matters available to attach this task to.');
+      return;
+    }
+    const task: Task = {
+      id: `T-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      title,
       priority: 'Medium',
       status: 'Not Started',
-      dueDate: draft.dueDate,
-      assignedTo: draft.assignedTo || currentUser?.name || '',
+      dueDate: todayStr,
+      assignedTo: currentUser?.name || '',
       taskType: 'Standard',
     };
     updateCase(c.id, { tasks: [...(c.tasks || []), task] });
-    setDraft({ title: '', caseId: '', dueDate: '', assignedTo: '' });
-    setComposing(false);
+    setQuickTitle('');
   };
+
+  // ---- Filtering + grouping for display ---------------------------------------
+  const isBucketFilter = filter === 'all' || filter === 'overdue' || filter === 'today' || filter === 'week' || filter === 'later';
+
+  const passesSearch = (r: Row) => {
+    const q = searchQuery.trim().toLowerCase();
+    return !q || [r.title, r.matterRef, r.matterTitle, r.status].some((v) => v?.toLowerCase().includes(q));
+  };
+  const passesFilter = (r: RowWithBucket) => {
+    if (filter === 'all') return true;
+    if (filter === 'hearing') return r.stream === 'hearing';
+    if (filter === 'waiting') return r.stream === 'approval' || r.stream === 'signature';
+    if (filter === 'unbilled') return r.stream === 'unbilled';
+    return r.bucket === filter;
+  };
+
+  const matterRowsWithBucket = list === 'matter' ? rowsWithBucket : [];
+  const matchingRealRows = matterRowsWithBucket.filter((r) => passesFilter(r) && passesSearch(r));
+  const ghostEntries: { row: RowWithBucket; priorStatus: Task['status'] }[] = Object.values(ghostDone);
+  const ghostRowsList: DisplayRow[] = list === 'matter'
+    ? ghostEntries.map((g) => ({ ...g.row, isGhost: true })).filter((r) => passesFilter(r) && passesSearch(r))
+    : [];
+
+  const groups: { key: string; bucket: Bucket; showHead: boolean; rows: DisplayRow[] }[] = isBucketFilter
+    ? (filter === 'all' ? (['overdue', 'today', 'week', 'later'] as Bucket[]) : [filter as Bucket])
+        .map((b) => ({
+          key: b,
+          bucket: b,
+          showHead: true,
+          rows: [...matchingRealRows, ...ghostRowsList]
+            .filter((r) => r.bucket === b)
+            .sort((a, c) => (a.dueDate || '9999').localeCompare(c.dueDate || '9999')),
+        }))
+        .filter((g) => g.rows.length > 0)
+    : (() => {
+        const flat = [...matchingRealRows, ...ghostRowsList].sort((a, c) => (a.dueDate || '9999').localeCompare(c.dueDate || '9999'));
+        return flat.length ? [{ key: 'flat', bucket: 'later' as Bucket, showHead: false, rows: flat }] : [];
+      })();
 
   const overdueCount = grouped.overdue.length;
   const todayCount = grouped.today.length;
+  const weekCount = grouped.week.length;
+  const laterCount = grouped.later.length;
   const waitingCount = rows.filter((row) => row.stream === 'approval' || row.stream === 'signature').length;
   const unbilledRows = rows.filter((row) => row.stream === 'unbilled');
-  const renderRows = (list: Row[], emptyLabel: string) => (
-    list.filter((row) => {
-      const query = searchQuery.trim().toLowerCase();
-      return !query || [row.title, row.matterRef, row.matterTitle, row.status].some((value) => value?.toLowerCase().includes(query));
-    }).length === 0 ? (
-      <p className="px-4 py-6 text-center text-[11px] text-slate-400">{emptyLabel}</p>
-    ) : (
-      <div className="divide-y divide-[#F6F8FA]">
-        {list.filter((row) => {
-          const query = searchQuery.trim().toLowerCase();
-          return !query || [row.title, row.matterRef, row.matterTitle, row.status].some((value) => value?.toLowerCase().includes(query));
-        }).slice(0, 6).map((row) => {
-          const meta = STREAM_META[row.stream];
-          return (
-            <div key={row.id} className="flex flex-wrap items-center gap-2.5 px-4 py-2.5">
-              {row.task && (
-                <button type="button" onClick={() => completeTask(row)} title="Mark complete" className="grid h-5 w-5 shrink-0 place-items-center rounded border border-slate-300 text-slate-400 hover:border-emerald-600 hover:text-emerald-700">
-                  <CheckCircle2 className="h-3 w-3" />
-                </button>
-              )}
-              <div className="min-w-[160px] flex-1">
-                <p className="text-[12px] font-semibold leading-snug text-[#16223A]">{row.title}</p>
-                <p className="mt-0.5 flex flex-wrap gap-1.5 text-[10.5px] text-[#5B6478]">
-                  <span className="font-semibold" style={{ color: meta.color }}>{meta.label}</span>
-                  {row.matterRef && <span className="font-mono font-semibold">{row.matterRef}</span>}
-                  {row.matterTitle && <span className="truncate">{row.matterTitle}</span>}
-                </p>
-              </div>
-              <span className="shrink-0 text-[10.5px] font-semibold text-[#5B6478]">{row.dueDate || 'Undated'}</span>
-              <button type="button" onClick={() => openMatter(row)} className="shrink-0 text-[10.5px] font-bold text-[#8A6D3B] hover:underline">Open</button>
-            </div>
-          );
-        })}
-      </div>
-    )
+  const hearingCount = rows.filter((row) => row.stream === 'hearing').length;
+  const allCount = list === 'matter' ? rows.length : 0;
+
+  const tabCounts: Record<'all' | Bucket, number> = list === 'matter'
+    ? { all: allCount, overdue: overdueCount, today: todayCount, week: weekCount, later: laterCount }
+    : { all: 0, overdue: 0, today: 0, week: 0, later: 0 };
+
+  const streamFilterLabel: Partial<Record<FilterValue, string>> = {
+    hearing: 'Court dates only',
+    waiting: 'Waiting on you only',
+    unbilled: 'Unbilled only',
+  };
+
+  const toggleFilter = (fv: FilterValue) => setFilter((f) => (f === fv ? 'all' : fv));
+
+  const kpis: { label: string; value: React.ReactNode; note: string; desc: string; icon: React.ElementType; color: string; filter?: FilterValue; onClickView?: string }[] = [
+    { label: 'My active matters', value: myCases.filter((c) => c.status === 'Active').length, note: 'assigned', desc: 'Assigned to your queue', icon: FolderOpen, color: palette.navy, onClickView: 'cases' },
+    { label: 'Deadlines this week', value: overdueCount + todayCount + weekCount, note: `${overdueCount} overdue`, desc: 'Requires your attention this week', icon: Flag, color: palette.red, filter: 'overdue' },
+    { label: 'My hearings', value: hearingCount, note: 'this week', desc: 'Requires your attention this week', icon: Gavel, color: palette.purple, filter: 'hearing' },
+    { label: 'To-do open', value: rows.filter((r) => r.stream === 'task').length, note: 'tasks', desc: 'Requires your attention this week', icon: CheckCircle2, color: '#2E7D7A', filter: 'all' },
+    { label: 'Waiting on you', value: waitingCount, note: 'approvals', desc: 'Requires your attention this week', icon: Inbox, color: palette.gold, filter: 'waiting' },
+    { label: 'Unbilled time', value: unbilledRows.length, note: 'matters', desc: 'Billable write-ups awaiting billing', icon: Timer, color: palette.green, filter: 'unbilled' },
+    { label: 'My billed (RM)', value: billing.billedThisMonth.toLocaleString(), note: '', desc: '', icon: DollarSign, color: palette.gold, onClickView: 'billingPipeline' },
+    { label: 'My collected (RM)', value: billing.collectedThisMonth.toLocaleString(), note: '', desc: '', icon: DollarSign, color: palette.blue, onClickView: 'billingPipeline' },
+    { label: 'Files I brought', value: filesBroughtIn, note: '', desc: '', icon: FolderOpen, color: palette.navy, onClickView: 'cases' },
+  ];
+
+  // Court & deadlines — hearing + deadline rows in overdue/today/week buckets, sorted by date.
+  const agenda = useMemo(
+    () =>
+      rowsWithBucket
+        .filter((r) => (r.stream === 'hearing' || r.stream === 'deadline') && r.bucket !== 'later')
+        .sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999')),
+    [rowsWithBucket]
   );
 
-  return (
-    <div className="space-y-[18px] pb-8 text-[12px]">
-      <div className="my-dashboard-dark-panel flex flex-col gap-2.5 overflow-hidden rounded-2xl border border-[#16223A] bg-[#16223A] px-[18px] py-3.5 text-white shadow-lg">
-        <div className="min-w-0">
-          <h1 className="truncate font-serif text-[19px] font-bold">My Dashboard</h1>
-          <p className="mt-0.5 text-[11.5px] text-slate-300">Your week at a glance - to-do, deadlines, hearings and matters</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="relative min-w-[160px] max-w-[240px] flex-1">
-            <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
-            <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search matters, clients, docs..." className="w-full rounded-md border border-[#DDE3EB] bg-[#F6F8FA] py-1.5 pl-8 pr-2 text-[11px] text-[#16223A] outline-none focus:border-[#3D6B9C]" />
-          </label>
-          <button type="button" title="Refresh dashboard" onClick={() => window.location.reload()} className="p-1.5 text-slate-300 hover:text-white"><RefreshCw className="h-4 w-4" /></button>
-          <button type="button" title="Open activity notifications" onClick={() => setCurrentView('activityLogs')} className="rounded-md border border-white/20 bg-white/10 p-1.5 text-[#8A6D3B] hover:bg-white/20"><Bell className="h-4 w-4" /></button>
-          <div className="ml-auto flex min-w-0 items-center gap-2 rounded-md border border-white/20 bg-white/10 px-2 py-1.5">
-            <div className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/15"><ShieldCheck className="h-3 w-3 text-[#8A6D3B]" /></div>
-            <span className="truncate text-[11px] font-bold">{currentUser?.name || 'Team member'}</span>
-          </div>
-        </div>
-      </div>
+  const recent = myCases.filter((c) => c.lastAccessed).slice(0, 4);
 
+  return (
+    <div className="space-y-4 pb-8 text-[12px]">
       <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-        {[
-          ['My active matters', myCases.filter((c) => c.status === 'Active').length, 'assigned', FolderOpen, '#16223A'],
-          ['Deadlines this week', grouped.overdue.length + grouped.today.length + grouped.week.length, `${overdueCount} overdue`, Flag, '#B23A2E'],
-          ['My hearings', rows.filter((r) => r.stream === 'hearing').length, 'this week', Gavel, '#6B3D8C'],
-          ['To-do open', rows.filter((r) => r.stream === 'task').length, 'tasks', CheckCircle2, '#2E7D7A'],
-          ['Waiting on you', waitingCount, 'approvals', Inbox, '#8A6D3B'],
-          ['Unbilled time', unbilledRows.length, 'matters', Timer, '#2F6F4E'],
-          ['My billed (RM)', billing.billedThisMonth.toLocaleString(), '', DollarSign, '#8A6D3B'],
-          ['My collected (RM)', billing.collectedThisMonth.toLocaleString(), '', DollarSign, '#3D6B9C'],
-          ['Files I brought', filesBroughtIn, '', FolderOpen, '#16223A'],
-        ].map(([label, value, note, Icon, color]) => {
-          const MetricIcon = Icon as React.ElementType;
-          const RM_ONLY = ['My billed (RM)', 'My collected (RM)', 'Files I brought'];
-          const description = label === 'My active matters' ? 'Assigned to your queue'
-            : label === 'Unbilled time' ? 'Billable write-ups awaiting billing'
-            : RM_ONLY.includes(String(label)) ? ''
-            : 'Requires your attention this week';
-          return <div key={String(label)} className="my-dashboard-dark-panel flex min-h-[142px] flex-col gap-2 rounded-xl p-4 text-white shadow-lg ring-1 ring-black/5 bg-transparent" style={{ backgroundColor: String(color) }}><span className="flex items-center gap-2"><span className="grid h-8 w-8 place-items-center rounded-md bg-white/15"><MetricIcon className="h-4 w-4" /></span><span className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-white/85">{String(label)}</span></span><span className="flex items-baseline gap-1.5 font-serif text-[30px] font-bold leading-none">{String(value)} {note ? <small className="font-sans text-[10.5px] font-normal text-white/75">{String(note)}</small> : null}</span>{description && <span className="text-[10.5px] leading-relaxed text-white/80">{description}</span>}</div>;
+        {kpis.map((k) => {
+          const active = k.filter && k.filter !== 'all' ? filter === k.filter : k.filter === 'all' && filter === 'all';
+          const ring = k.filter ? (filter === k.filter ? `0 0 0 3px ${tint.gold}` : 'none') : 'none';
+          return (
+            <button
+              key={k.label}
+              type="button"
+              onClick={() => {
+                if (k.filter) toggleFilter(k.filter);
+                else if (k.onClickView) setCurrentView(k.onClickView);
+              }}
+              className="flex min-h-[142px] flex-col gap-2 rounded-xl p-4 text-left text-white shadow-lg ring-1 ring-black/5"
+              style={{ backgroundColor: k.color, boxShadow: ring !== 'none' ? `${ring}, 0 10px 15px -3px rgba(0,0,0,.1)` : undefined }}
+            >
+              <span className="flex items-center gap-2">
+                <span className="grid h-8 w-8 place-items-center rounded-md bg-white/15"><k.icon className="h-4 w-4" /></span>
+                <span className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-white/85">{k.label}</span>
+              </span>
+              <span className="flex items-baseline gap-1.5 font-serif text-[30px] font-bold leading-none">
+                {k.value} {k.note ? <small className="font-sans text-[10.5px] font-normal text-white/75">{k.note}</small> : null}
+              </span>
+              {k.desc && <span className="text-[10.5px] leading-relaxed text-white/80">{k.desc}</span>}
+            </button>
+          );
         })}
       </section>
 
-      {composing && (
-        <div className="border-b border-[#DDE3EB] bg-[#F6F8FA] p-3.5">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="font-serif text-sm font-bold" style={{ color: TONE.navy }}>
-              New task
-            </h3>
-            <button onClick={() => setComposing(false)} className="text-slate-400 hover:text-slate-700">
-              <X className="h-4 w-4" />
-            </button>
+      <section className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="flex min-w-0 flex-col gap-3.5">
+          {/* My to-do */}
+          <div className="overflow-hidden rounded-xl border border-[#DDE3EB] bg-white shadow-sm">
+            <div className="flex items-center gap-2.5 bg-[#16223A] px-3.5 py-2.5 text-white">
+              <Scale className="h-4 w-4 text-[#FBF2E9]" />
+              <div>
+                <strong className="block font-serif text-[14.5px]">My to-do</strong>
+                <span className="text-[10.5px] text-white/75">Tasks, court dates, approvals &amp; sign-offs · two-way sync with Google Tasks</span>
+              </div>
+              <div className="ml-auto flex rounded-[7px] bg-white/10 p-0.5">
+                {(['matter', 'private'] as const).map((l) => (
+                  <button
+                    key={l}
+                    type="button"
+                    onClick={() => setList(l)}
+                    className="rounded-[5px] px-2.5 py-1 text-[11px] font-bold"
+                    style={{ backgroundColor: list === l ? '#fff' : 'transparent', color: list === l ? palette.navy : 'rgba(255,255,255,.8)' }}
+                  >
+                    {l === 'matter' ? 'Matter' : 'Private'}
+                  </button>
+                ))}
+              </div>
+              <button type="button" onClick={() => openTaskBlank(list)} className="flex items-center gap-1 rounded-md bg-[#3D6B9C] px-3 py-1.5 text-[11.5px] font-bold">
+                <Plus className="h-3 w-3" />New task
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5 border-b border-[#DDE3EB] px-3.5 py-2">
+              {([
+                ['all', 'All'],
+                ['overdue', 'Overdue'],
+                ['today', 'Today'],
+                ['week', 'This week'],
+                ['later', 'Later'],
+              ] as [Bucket | 'all', string][]).map(([fv, label]) => {
+                const active = filter === fv;
+                return (
+                  <button
+                    key={fv}
+                    type="button"
+                    onClick={() => setFilter(fv)}
+                    className="flex items-center gap-1.5 rounded-[20px] px-2.5 py-1 text-[11px] font-bold"
+                    style={{ backgroundColor: active ? palette.navy : '#F6F8FA', color: active ? '#fff' : palette.slate }}
+                  >
+                    {label}
+                    <span className="rounded-full px-1.5 text-[10px] font-bold" style={{ backgroundColor: active ? 'rgba(255,255,255,.2)' : '#E7EBF0', color: active ? '#fff' : palette.slate }}>
+                      {tabCounts[fv as 'all' | Bucket]}
+                    </span>
+                  </button>
+                );
+              })}
+              {!isBucketFilter && (
+                <button type="button" onClick={() => setFilter('all')} className="flex items-center gap-1 rounded-[20px] border border-[#DDE3EB] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#16223A]">
+                  {streamFilterLabel[filter]} ✕
+                </button>
+              )}
+              <label className="relative ml-auto w-[190px]">
+                <Search className="absolute left-2 top-1.5 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Filter to-do…"
+                  className="w-full rounded-md border border-[#DDE3EB] bg-[#F6F8FA] py-1 pl-7 pr-2 text-[11px] text-[#16223A] outline-none"
+                />
+              </label>
+            </div>
+
+            {groups.length === 0 ? (
+              <p className="px-4 py-6 text-center text-[11px] text-slate-400">Nothing here. You&apos;re all caught up.</p>
+            ) : (
+              groups.map((g) => {
+                const meta = BUCKET_META[g.bucket];
+                const HeadIcon = meta.icon;
+                return (
+                  <div key={g.key}>
+                    {g.showHead && (
+                      <div
+                        className="flex items-center gap-2 border-b border-[#EEF1F5] py-1.5 pl-[11px] pr-3.5 text-[10px] font-bold uppercase tracking-[.1em]"
+                        style={{ backgroundColor: meta.tint, borderLeft: `3px solid ${meta.accent}`, color: meta.text }}
+                      >
+                        <HeadIcon className="h-3 w-3" />
+                        {meta.label}
+                        <span className="rounded-full bg-white px-1.5 text-[10px]" style={{ color: meta.text }}>{g.rows.length}</span>
+                        <span className="text-[10.5px] font-semibold normal-case tracking-normal text-[#5B6478]">{meta.note}</span>
+                      </div>
+                    )}
+                    {g.rows.map((r) => {
+                      const streamMeta = STREAM_META[r.stream];
+                      const StreamIcon = streamMeta.icon;
+                      const isCheckable = r.stream === 'task' && !!r.task;
+                      const due = r.isGhost ? { label: 'Done', bg: tint.green, fg: palette.green } : dueLabelFor(r.bucket, r.dueDate, todayStr);
+                      const actionLabel = r.isGhost ? 'Undo' : r.stream === 'approval' ? 'Approve' : r.stream === 'signature' ? 'Sign off' : r.stream === 'unbilled' ? 'Write up' : 'Open';
+                      const checklistDone = r.checklist?.filter((c) => c.completed).length ?? 0;
+                      return (
+                        <div
+                          key={r.id}
+                          className="flex items-center gap-2.5 border-b border-[#F0F2F5] py-2 pl-[11px] pr-3.5"
+                          style={{ borderLeft: `3px solid ${BUCKET_META[r.bucket].accent}`, backgroundColor: r.isGhost ? '#fff' : rowBg(r.bucket), opacity: r.isGhost ? 0.45 : 1 }}
+                        >
+                          {isCheckable ? (
+                            <button type="button" onClick={() => completeTask(r)} title="Mark complete" className="grid h-4 w-4 shrink-0 place-items-center rounded border border-slate-300 bg-white">
+                              <span />
+                            </button>
+                          ) : (
+                            <span className="grid h-4 w-4 shrink-0 place-items-center"><StreamIcon className="h-3.5 w-3.5" style={{ color: streamMeta.color }} /></span>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-[12px] font-semibold leading-snug text-[#16223A]" style={{ textDecoration: r.isGhost ? 'line-through' : 'none' }}>{r.title}</p>
+                            <p className="mt-0.5 flex gap-1.5 overflow-hidden text-[10.5px] text-[#5B6478]">
+                              <span className="font-semibold" style={{ color: streamMeta.color }}>{streamMeta.label}</span>
+                              {r.matterRef && <span className="shrink-0 font-mono font-semibold text-[#3D6B9C]">{r.matterRef}</span>}
+                              {r.matterTitle && <span className="truncate">{r.matterTitle}</span>}
+                            </p>
+                          </div>
+                          {r.checklist && r.checklist.length > 0 && (
+                            <span className="shrink-0 rounded border border-[#DDE3EB] px-1.5 text-[10px] font-semibold text-[#5B6478]">☑ {checklistDone}/{r.checklist.length}</span>
+                          )}
+                          {r.priority && (
+                            <span className="flex shrink-0 items-center gap-1 text-[10px] font-bold" style={{ color: PRIORITY_META[r.priority]?.color }}>
+                              <Flag className="h-2.5 w-2.5" />{r.priority}
+                            </span>
+                          )}
+                          <span className="flex w-[124px] shrink-0 justify-end">
+                            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10.5px] font-bold" style={{ backgroundColor: due.bg, color: due.fg }}>{due.label}</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => (r.isGhost ? undoTask(r) : openMatter(r))}
+                            className="w-[60px] shrink-0 text-right text-[10.5px] font-bold hover:underline"
+                            style={{ color: palette.gold }}
+                          >
+                            {actionLabel}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })
+            )}
+
+            <div className="flex items-center gap-2.5 border-b border-[#F0F2F5] px-3.5 py-2">
+              <Plus className="h-4 w-4 shrink-0 text-[#3D6B9C]" />
+              <input
+                value={quickTitle}
+                onChange={(e) => setQuickTitle(e.target.value)}
+                onKeyDown={onQuickKey}
+                disabled={list === 'private'}
+                placeholder={list === 'private' ? 'Private to-do isn’t wired up yet — use Google Tasks' : 'Add a task… press Enter to save (due today)'}
+                className="flex-1 border-0 bg-transparent py-1 text-[12px] text-[#16223A] outline-none disabled:opacity-50"
+              />
+              <button type="button" onClick={openTaskFromQuick} className="shrink-0 rounded-md border border-[#DDE3EB] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#3D6B9C]">
+                More details
+              </button>
+            </div>
+            <div className="flex items-center gap-2 bg-[#F6F8FA] px-3.5 py-2.5 text-[10.5px] text-[#5B6478]">
+              <CheckCircle2 className="h-3.5 w-3.5 text-[#2F6F4E]" />
+              <span>{list === 'matter' ? `${rows.length} open matter items` : '0 open items'}</span>
+              <button type="button" onClick={() => setCurrentView(list === 'matter' ? 'tasks' : 'activityLogs')} className="ml-auto font-bold text-[#8A6D3B]">
+                {list === 'matter' ? 'All matter tasks ->' : 'Open in Google Tasks ->'}
+              </button>
+            </div>
           </div>
-          <div className="grid gap-3 md:grid-cols-4">
-            <input
-              value={draft.title}
-              onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-              placeholder="What needs doing"
-              className="rounded-lg border border-slate-300 px-3 py-2 text-[13px] md:col-span-2"
-            />
-            <select
-              value={draft.caseId}
-              onChange={(e) => setDraft({ ...draft, caseId: e.target.value })}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-[13px]"
-            >
-              <option value="">Select matter…</option>
-              {myCases.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.ref} — {c.title}
-                </option>
+
+          {/* Recently accessed */}
+          <div className="overflow-hidden rounded-xl border border-[#DDE3EB] bg-white">
+            <div className="flex items-center gap-2 border-b border-[#DDE3EB] px-3.5 py-2.5">
+              <Clock className="h-3.5 w-3.5 text-[#8A6D3B]" />
+              <strong className="font-serif text-[14px] text-[#16223A]">Recently accessed</strong>
+              <button type="button" onClick={() => setCurrentView('cases')} className="ml-auto text-[10.5px] font-bold text-[#8A6D3B]">My matters -&gt;</button>
+            </div>
+            {recent.length === 0 ? (
+              <p className="px-4 py-6 text-center text-[11px] text-slate-400">No recently accessed matters.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2">
+                {recent.map((c, i) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => {
+                      setCurrentCaseId(c.id);
+                      setCurrentView('cases');
+                    }}
+                    className="border-t border-[#F0F2F5] px-3.5 py-2 text-left hover:bg-[#F6F8FA]"
+                    style={{ borderTop: i < 2 ? 'none' : undefined }}
+                  >
+                    <p className="truncate text-[12px] font-semibold text-[#16223A]">{c.title}</p>
+                    <p className="mt-0.5 text-[10.5px] text-[#5B6478]"><span className="font-mono font-semibold text-[#3D6B9C]">{c.ref}</span> · {c.practiceArea || c.type}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <aside className="flex flex-col gap-3">
+          {/* Court & deadlines */}
+          <div className="overflow-hidden rounded-xl border border-[#DDE3EB] bg-white">
+            <div className="flex items-center gap-2 border-b border-[#DDE3EB] px-3.5 py-2.5">
+              <Gavel className="h-[15px] w-[15px] text-[#6B3D8C]" />
+              <strong className="font-serif text-[14px] text-[#16223A]">Court &amp; deadlines</strong>
+              <span className="text-[10.5px] text-[#5B6478]">next 7 days</span>
+              <button type="button" onClick={() => setCurrentView('calendar')} className="ml-auto text-[10.5px] font-bold text-[#8A6D3B]">Calendar -&gt;</button>
+            </div>
+            {agenda.length === 0 ? (
+              <p className="px-4 py-6 text-center text-[11px] text-slate-400">No court dates or deadlines in the next 7 days.</p>
+            ) : (
+              agenda.map((e, i) => {
+                const isHearing = e.stream === 'hearing';
+                const color = isHearing ? palette.purple : palette.red;
+                const bg = isHearing ? tint.purple : tint.red;
+                const dt = e.dueDate ? new Date(e.dueDate) : null;
+                return (
+                  <button
+                    key={e.id}
+                    type="button"
+                    onClick={() => openMatter(e)}
+                    className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left"
+                    style={{ borderTop: i ? '1px solid #F0F2F5' : 'none' }}
+                  >
+                    <div className="w-9 shrink-0 rounded-md py-0.5 text-center" style={{ backgroundColor: bg }}>
+                      <div className="text-[8.5px] font-bold uppercase" style={{ color }}>{dt ? MONTH[dt.getMonth()] : '--'}</div>
+                      <div className="font-serif text-[15px] font-bold leading-tight" style={{ color }}>{dt ? dt.getDate() : '-'}</div>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[11.5px] font-semibold text-[#16223A]">{e.title}</p>
+                      <p className="truncate text-[10.5px] text-[#5B6478]">
+                        <span className="font-semibold" style={{ color }}>{isHearing ? 'Hearing' : 'Deadline'}</span> · {relativeShort(e.bucket, e.dueDate, todayStr)} · {isHearing ? e.matterTitle : e.matterRef}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+
+          {/* My Performance */}
+          <div className="rounded-xl border border-[#DDE3EB] bg-white p-3.5">
+            <div className="flex items-center gap-2">
+              <Target className="h-3.5 w-3.5 text-[#8A6D3B]" />
+              <strong className="font-serif text-[14px] text-[#16223A]">My Performance</strong>
+              <span className="text-[10.5px] text-[#5B6478]">{new Date().toLocaleString('en-US', { month: 'short', year: 'numeric' })}</span>
+              <button type="button" onClick={() => setEditingTargets((v) => !v)} className="ml-auto rounded-md border border-[#DDE3EB] px-2 py-0.5 text-[10.5px] font-bold text-[#3D6B9C]">
+                {editingTargets ? 'Done' : '✎ Edit targets'}
+              </button>
+            </div>
+            <div className="mt-3 flex flex-col gap-2.5">
+              {([
+                ['Billed', billing.billedThisMonth, targets.billed, palette.gold, (v: number) => setTargets({ billed: v }), 'RM'],
+                ['Collected', billing.collectedThisMonth, targets.collected, palette.green, (v: number) => setTargets({ collected: v }), 'RM'],
+                ['New files brought', filesBroughtIn, targets.files, palette.blue, (v: number) => setTargets({ files: v }), ''],
+                ['Referrals converted', myReferrals.converted, targets.referrals, palette.purple, (v: number) => setTargets({ referrals: v }), ''],
+              ] as const).map(([label, value, target, color, onSet, prefix]) => (
+                <ProgressBar
+                  key={label}
+                  label={label}
+                  barHeight={6}
+                  pct={target ? (value / target) * 100 : 0}
+                  color={color}
+                  valueLabel={
+                    <>
+                      <strong>{prefix}{value.toLocaleString()}</strong>
+                      <span className="text-[#5B6478]"> / {prefix}</span>
+                      {editingTargets ? (
+                        <input
+                          type="number"
+                          defaultValue={target}
+                          onBlur={(e) => onSet(Number(e.target.value) || 0)}
+                          className="w-16 rounded border border-[#DDE3EB] px-1.5 py-0.5 text-[11px]"
+                        />
+                      ) : (
+                        <strong className="font-semibold text-[#5B6478]">{target.toLocaleString()}</strong>
+                      )}
+                    </>
+                  }
+                />
               ))}
-            </select>
-            <input
-              type="date"
-              value={draft.dueDate}
-              onChange={(e) => setDraft({ ...draft, dueDate: e.target.value })}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-[13px]"
-            />
+            </div>
+            {(() => {
+              const gaps = [
+                { label: 'billing', gap: targets.billed - billing.billedThisMonth, prefix: 'RM ' },
+                { label: 'collections', gap: targets.collected - billing.collectedThisMonth, prefix: 'RM ' },
+                { label: 'new files', gap: targets.files - filesBroughtIn, prefix: '' },
+                { label: 'referrals', gap: targets.referrals - myReferrals.converted, prefix: '' },
+              ].filter((g) => g.gap > 0).sort((a, b) => b.gap - a.gap);
+              const biggest = gaps[0];
+              if (!biggest) return null;
+              return (
+                <p className="mt-3 rounded-lg px-2.5 py-[7px] text-[10.5px] leading-snug" style={{ backgroundColor: tint.red, color: palette.red }}>
+                  ⚠ {biggest.prefix}{biggest.gap.toLocaleString()} more {biggest.label === 'billing' || biggest.label === 'collections' ? `in ${biggest.label}` : biggest.label} needed this month to hit target — biggest gap is {biggest.label}.
+                </p>
+              );
+            })()}
           </div>
-          <div className="mt-3 flex items-center gap-3">
-            <input
-              value={draft.assignedTo}
-              onChange={(e) => setDraft({ ...draft, assignedTo: e.target.value })}
-              placeholder={`Assign to (default: ${currentUser?.name || 'me'})`}
-              className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-[13px]"
-            />
-            <button
-              onClick={addTask}
-              disabled={!draft.title.trim() || !draft.caseId}
-              className="rounded-lg px-4 py-2 text-[12.5px] font-bold text-white disabled:opacity-40 bg-transparent"
-              style={{ backgroundColor: TONE.navy }}
-            >
-              Save task
-            </button>
-          </div>
-        </div>
-      )}
 
-      <section className="grid gap-3.5 xl:grid-cols-2">
-        <div className="rounded-xl border border-[#DDE3EB] bg-white p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="flex items-center gap-1.5 text-[13px] font-bold text-[#16223A]"><Zap className="h-3.5 w-3.5 text-[#8A6D3B]" /> My productivity rate</span>
-            <span className="rounded-full px-2.5 py-0.5 text-[10.5px] font-bold" style={{ backgroundColor: '#E6EFE9', color: palette.green }}>
-              {productivity.pct >= 100 ? 'On track today' : `${productivity.pct}% today`}
-            </span>
-          </div>
-          <div className="mt-3 flex items-center gap-3.5">
-            <Donut segments={[{ label: 'Done', value: productivity.pct, color: palette.green }]} size={64} thickness={10} centerLabel={`${productivity.pct}%`} />
-            <p className="text-[11px] text-[#5B6478]">{productivity.doneToday} of {productivity.dueToday} tasks due today<br />completed</p>
-          </div>
-        </div>
-        <div className="rounded-xl border border-[#DDE3EB] bg-white p-4">
-          <span className="text-[13px] font-bold text-[#16223A]">🔥 Completion streak — this week</span>
-          <div className="mt-3 flex gap-1.5">
-            {productivity.days.map((d, i) => (
-              <span
-                key={i}
-                className="flex flex-1 items-center justify-center rounded-md py-1.5 text-[10.5px] font-bold"
-                style={{
-                  backgroundColor: d.state === 'done' ? palette.green : d.state === 'partial' ? palette.gold : '#F0F2F5',
-                  color: d.state === 'none' ? '#9AA3AE' : '#fff',
-                }}
-              >
-                {d.label}
-              </span>
-            ))}
-          </div>
-          <p className="mt-2 text-[10.5px] text-[#5B6478]">{productivity.streak}-day streak — green days finished 100% of tasks due.</p>
-        </div>
-      </section>
-
-      <section>
-        <h2 className="font-serif text-[15px] font-bold" style={{ color: palette.navy }}>My Performance</h2>
-        <div className="mt-2.5 grid grid-cols-2 gap-3 md:grid-cols-4">
-          <StatCard label="My billed (RM)" value={billing.billedThisMonth.toLocaleString()} color={palette.gold} />
-          <StatCard label="My collected (RM)" value={billing.collectedThisMonth.toLocaleString()} color={palette.green} />
-          <StatCard label="Files I brought" value={filesBroughtIn} color={palette.blue} />
-          <StatCard label="My collection rate" value={`${billing.collectionRate}%`} color={palette.navy} />
-        </div>
-        <div className="mt-3 grid gap-3.5 xl:grid-cols-2">
-          <div className="rounded-xl border border-[#DDE3EB] bg-white p-4 text-center">
-            <p className="mb-2.5 text-[12.5px] font-bold text-[#16223A]">My collection rate</p>
-            <Donut
-              segments={[{ label: 'Collected', value: billing.collectionRate, color: palette.green }]}
-              size={110}
-              centerLabel={`${billing.collectionRate}%`}
-            />
-            <p className="mt-2.5 text-[11px] text-[#5B6478]">RM {billing.totalCollected.toLocaleString()} collected of RM {billing.totalBilled.toLocaleString()} billed</p>
-          </div>
-          <div className="rounded-xl border border-[#DDE3EB] bg-white p-4">
-            <p className="mb-2.5 text-[12.5px] font-bold text-[#16223A]">My aging receivables</p>
+          {/* Collection + aging */}
+          <div className="rounded-xl border border-[#DDE3EB] bg-white p-3.5">
+            <div className="flex items-center gap-3">
+              <Donut segments={[{ label: 'Collected', value: billing.collectionRate, color: palette.green }]} size={64} thickness={10} centerLabel={`${billing.collectionRate}%`} />
+              <div>
+                <p className="text-[12px] font-bold text-[#16223A]">My collection rate</p>
+                <p className="mt-0.5 text-[10.5px] leading-snug text-[#5B6478]">RM {billing.totalCollected.toLocaleString()} collected of RM {billing.totalBilled.toLocaleString()} billed</p>
+              </div>
+            </div>
+            <p className="mb-1.5 mt-3.5 text-[11.5px] font-bold text-[#16223A]">My aging receivables</p>
             <MiniBarChart
+              height={56}
+              showValue
+              formatValue={(v) => `${(v / 1000).toFixed(1)}k`}
               data={[
                 { label: 'Current', value: billing.buckets.current, color: palette.blue },
                 { label: '31-60', value: billing.buckets.d31, color: palette.blue },
                 { label: '61-90', value: billing.buckets.d61, color: palette.blue },
                 { label: '91-120', value: billing.buckets.d91, color: palette.blue },
-                { label: 'Above 120', value: billing.buckets.over120, color: palette.red },
+                { label: '>120', value: billing.buckets.over120, color: palette.red },
               ]}
-              formatValue={(v) => `RM ${v.toLocaleString()}`}
             />
           </div>
-        </div>
 
-        <div className="mt-3 rounded-xl border border-[#DDE3EB] bg-white p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-[12.5px] font-bold text-[#16223A]"><Target className="mr-1 inline h-3.5 w-3.5 text-[#8A6D3B]" />My progress to target — {new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' })}</span>
-            <button
-              type="button"
-              onClick={() => setEditingTargets((v) => !v)}
-              className="rounded-md border border-[#DDE3EB] px-2.5 py-1 text-[11px] font-bold text-[#3D6B9C]"
-            >
-              {editingTargets ? 'Done' : '✎ Edit targets'}
-            </button>
-          </div>
-          <div className="mt-3 flex flex-col gap-3">
-            {([
-              ['Billed', billing.billedThisMonth, targets.billed, palette.gold, (v: number) => setTargets({ billed: v }), 'RM'],
-              ['Collected', billing.collectedThisMonth, targets.collected, palette.green, (v: number) => setTargets({ collected: v }), 'RM'],
-              ['New files brought', filesBroughtIn, targets.files, palette.blue, (v: number) => setTargets({ files: v }), ''],
-              ['Referrals converted', myReferrals.converted, targets.referrals, palette.purple, (v: number) => setTargets({ referrals: v }), ''],
-            ] as const).map(([label, value, target, color, onSet, prefix]) => (
-              <ProgressBar
-                key={label}
-                label={label}
-                pct={target ? (value / target) * 100 : 0}
-                color={color}
-                valueLabel={
-                  <>
-                    <strong>{prefix}{value.toLocaleString()}</strong>
-                    <span className="text-[#5B6478]"> / {prefix}</span>
-                    {editingTargets ? (
-                      <input
-                        type="number"
-                        defaultValue={target}
-                        onBlur={(e) => onSet(Number(e.target.value) || 0)}
-                        className="w-16 rounded border border-[#DDE3EB] px-1.5 py-0.5 text-[11px]"
-                      />
-                    ) : (
-                      <strong>{target.toLocaleString()}</strong>
-                    )}
-                  </>
-                }
-              />
-            ))}
-          </div>
-          {(() => {
-            const gaps = [
-              { label: 'billing', gap: targets.billed - billing.billedThisMonth, prefix: 'RM ' },
-              { label: 'collections', gap: targets.collected - billing.collectedThisMonth, prefix: 'RM ' },
-              { label: 'new files', gap: targets.files - filesBroughtIn, prefix: '' },
-              { label: 'referrals', gap: targets.referrals - myReferrals.converted, prefix: '' },
-            ].filter((g) => g.gap > 0).sort((a, b) => b.gap - a.gap);
-            const biggest = gaps[0];
-            if (!biggest) return null;
-            return (
-              <p className="mt-3 rounded-lg px-2.5 py-2 text-[11px]" style={{ backgroundColor: tint.red, color: palette.red }}>
-                ⚠ {biggest.prefix}{biggest.gap.toLocaleString()} more {biggest.label === 'billing' || biggest.label === 'collections' ? `in ${biggest.label}` : biggest.label} needed this month to hit target — biggest gap is {biggest.label}.
-              </p>
-            );
-          })()}
-        </div>
-
-        <div className="mt-3 rounded-xl border border-[#DDE3EB] bg-white p-4">
-          <span className="text-[12.5px] font-bold text-[#16223A]">🔗 My referrals</span>
-          <div className="mt-2.5 grid grid-cols-2 gap-3">
-            <div className="rounded-lg bg-[#F6F8FA] px-3 py-2.5">
-              <p className="text-[10px] font-bold uppercase text-[#5B6478]">Leads brought in</p>
-              <p className="mt-1 text-lg font-bold">{myReferrals.broughtIn}</p>
+          {/* Productivity */}
+          <div className="rounded-xl border border-[#DDE3EB] bg-white p-3.5">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-[12px] font-bold text-[#16223A]"><Zap className="h-[13px] w-[13px] text-[#8A6D3B]" />Productivity</span>
+              <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold" style={{ backgroundColor: tint.green, color: palette.green }}>
+                {productivity.pct >= 100 ? 'On track today' : `${productivity.pct}% today`}
+              </span>
             </div>
-            <div className="rounded-lg bg-[#F6F8FA] px-3 py-2.5">
-              <p className="text-[10px] font-bold uppercase text-[#5B6478]">Converted</p>
-              <p className="mt-1 text-lg font-bold" style={{ color: palette.green }}>{myReferrals.converted} <span className="text-[11px] font-normal text-[#5B6478]">({myReferrals.rate}%)</span></p>
-            </div>
-          </div>
-          {myReferrals.bySource.length === 0 ? (
-            <p className="mt-3 text-center text-[11px] text-slate-400">No leads attributed to you yet.</p>
-          ) : (
-            <div className="mt-2.5 flex flex-col">
-              {myReferrals.bySource.map(([source, count], i) => (
-                <div key={source} className="flex justify-between border-t border-[#F0F2F5] py-1.5 text-[12px] first:border-t-0">
-                  <span><span className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: [palette.blue, palette.gold, palette.purple, palette.green, palette.red][i % 5] }} />{source}</span>
-                  <span>{count} lead{count === 1 ? '' : 's'}</span>
-                </div>
+            <div className="mt-2 flex gap-1">
+              {productivity.days.map((d, i) => (
+                <span
+                  key={i}
+                  className="flex-1 rounded py-1 text-center text-[9.5px] font-bold"
+                  style={{ backgroundColor: d.state === 'done' ? palette.green : d.state === 'partial' ? palette.gold : '#F0F2F5', color: d.state === 'none' ? '#9AA3AE' : '#fff' }}
+                >
+                  {d.label}
+                </span>
               ))}
             </div>
-          )}
-        </div>
+            <p className="mt-1.5 text-[10.5px] text-[#5B6478]">{productivity.doneToday} of {productivity.dueToday} tasks due today completed · {productivity.streak}-day streak</p>
+          </div>
+
+          {/* My referrals */}
+          <div className="rounded-xl border border-[#DDE3EB] bg-white p-3.5">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="whitespace-nowrap text-[12px] font-bold text-[#16223A]">🔗 My referrals</span>
+              <span className="text-[10.5px] text-[#5B6478]"><strong className="text-[#16223A]">{myReferrals.broughtIn}</strong> in · <strong style={{ color: palette.green }}>{myReferrals.converted}</strong> converted ({myReferrals.rate}%)</span>
+            </div>
+            {myReferrals.bySource.length === 0 ? (
+              <p className="mt-2.5 text-center text-[11px] text-slate-400">No leads attributed to you yet.</p>
+            ) : (
+              <div className="mt-1.5 flex flex-col">
+                {myReferrals.bySource.map(([source, count], i) => (
+                  <div key={source} className="flex justify-between py-1 text-[11px]" style={{ borderTop: i ? '1px solid #F0F2F5' : 'none' }}>
+                    <span><span className="mr-1.5 inline-block h-[7px] w-[7px] rounded-full" style={{ backgroundColor: [palette.blue, palette.gold, palette.purple, palette.green, palette.red][i % 5] }} />{source}</span>
+                    <span className="text-[#5B6478]">{count} lead{count === 1 ? '' : 's'}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </aside>
       </section>
 
-      <section className="grid gap-3.5 xl:grid-cols-2">
-        {[['Matter to-do', grouped.overdue.concat(grouped.today, grouped.week), TONE.navy, 'All matter tasks', Scale, true], ['Private to-do', [], '#2E7D7A', 'Open in Google Tasks', User, false]].map(([title, list, color, link, Icon, canAdd]) => {
-          const PanelIcon = Icon as React.ElementType;
-          return <div key={String(title)} className="overflow-hidden rounded-xl border border-[#DDE3EB] bg-white shadow-sm"><div className="my-dashboard-dark-panel flex items-center gap-2.5 px-3.5 py-3 text-white bg-transparent" style={{ backgroundColor: String(color) }}><PanelIcon className="h-4 w-4 text-[#FBF2E9]" /><div><strong className="block font-serif text-[14.5px]">{String(title)}</strong><span className="text-[10.5px] text-white/70">{canAdd ? 'Tied to a file · two-way sync with Google Tasks' : 'No file attached · yours only · Google Tasks'}</span></div>{canAdd && <button type="button" onClick={() => setComposing((v) => !v)} className="ml-auto flex items-center gap-1 rounded-md bg-[#3D6B9C] px-2.5 py-1.5 text-[11px] font-bold"><Plus className="h-3 w-3" /> Add</button>}</div>{canAdd && composing ? null : renderRows(list as Row[], 'Nothing here.')}<div className="flex items-center gap-2 border-t border-[#DDE3EB] bg-[#F6F8FA] px-3.5 py-2.5 text-[10.5px] text-[#5B6478]"><CheckCircle2 className="h-3.5 w-3.5 text-[#2F6F4E]" /><span>{(list as Row[]).length} open items</span><button type="button" onClick={() => setCurrentView(canAdd ? 'tasks' : 'activityLogs')} className="ml-auto font-bold text-[#8A6D3B]">{String(link)} -&gt;</button></div></div>;
-        })}
-      </section>
-
-      <section className="grid gap-3.5 xl:grid-cols-2">
-        {[['Deadlines this week', grouped.overdue.concat(grouped.today, grouped.week), '#B23A2E', Flag], ['My hearings', rows.filter((r) => r.stream === 'hearing'), '#6B3D8C', Gavel]].map(([title, list, color, Icon]) => { const PanelIcon = Icon as React.ElementType; return <div key={String(title)} className="overflow-hidden rounded-xl border border-[#DDE3EB] bg-white shadow-sm"><div className="my-dashboard-dark-panel flex items-center gap-2.5 px-3.5 py-2.5 text-white bg-transparent" style={{ backgroundColor: String(color) }}><PanelIcon className="h-4 w-4" /><strong className="font-serif text-[14px]">{String(title)}</strong><button type="button" onClick={() => setCurrentView(String(title).startsWith('My') ? 'hearings' : 'deadlines')} className="ml-auto text-[10.5px] font-bold text-white/80 hover:underline">Open -&gt;</button></div>{renderRows(list as Row[], 'No items scheduled.')}</div>; })}
-      </section>
-
-      <section className="overflow-hidden rounded-xl border border-[#DDE3EB] bg-white shadow-sm"><div className="flex items-center gap-2.5 border-b border-[#DDE3EB] bg-[#F6F8FA] px-3.5 py-2.5"><Clock className="h-4 w-4 text-[#8A6D3B]" /><strong className="font-serif text-[14px] text-[#16223A]">Recently accessed matters</strong><button type="button" onClick={() => setCurrentView('cases')} className="ml-auto text-[10.5px] font-bold text-[#8A6D3B]">My matters -&gt;</button></div>{renderRows(myCases.filter((c) => c.lastAccessed).slice(0, 5).map((c) => ({ id: c.id, stream: 'matter', title: c.title, matterRef: c.ref, matterTitle: c.practiceArea || c.stage, caseId: c.id, dueDate: '', status: c.status, view: 'cases' })), 'No recently accessed matters.')}</section>
-
-      {rows.length === 0 && (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
-          <Clock className="mx-auto mb-2 h-6 w-6 text-slate-300" />
-          <p className="font-serif text-sm font-bold" style={{ color: TONE.navy }}>
-            Your queue is clear
-          </p>
-          <p className="mt-1 text-[12.5px] text-slate-500">
-            Nothing is assigned to you across matters, deadlines, approvals or billing.
-          </p>
-        </div>
-      )}
+      <TaskFormModal
+        open={taskFormOpen}
+        scope={list}
+        draft={taskDraft}
+        setDraft={setTaskDraft}
+        matterOptions={matterOptions}
+        assignees={assignees}
+        onClose={() => setTaskFormOpen(false)}
+        onCreate={createTask}
+        onCreateAnother={createTaskAndAnother}
+      />
     </div>
   );
 };
