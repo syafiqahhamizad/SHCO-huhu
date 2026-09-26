@@ -152,6 +152,8 @@ export const MyDashboardView: React.FC = () => {
   const [taskDraft, setTaskDraft] = useState<TaskDraft>(() => blankTaskDraft(currentUser?.name || ''));
   const [quickTitle, setQuickTitle] = useState('');
   const [ghostDone, setGhostDone] = useState<Record<string, { row: RowWithBucket; priorStatus: Task['status'] }>>({});
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { confirm, ConfirmationModal } = useConfirmation();
 
   const todayStr = iso(new Date());
@@ -588,6 +590,56 @@ export const MyDashboardView: React.FC = () => {
     });
   };
 
+  const toggleRowSelected = (rowId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowId)) next.delete(rowId);
+      else next.add(rowId);
+      return next;
+    });
+  };
+
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  };
+
+  const deleteSelectedTasks = async () => {
+    if (selectedIds.size === 0) return;
+    const count = selectedIds.size;
+    const confirmed = await confirm({
+      title: `Delete ${count} task${count === 1 ? '' : 's'}`,
+      message: 'This removes the selected tasks permanently. This cannot be undone.',
+      variant: 'danger',
+      confirmText: `Delete ${count} Task${count === 1 ? '' : 's'}`,
+    });
+    if (!confirmed) return;
+
+    const taskIdsByCase = new Map<string, Set<string>>();
+    const addToPlan = (row: RowWithBucket) => {
+      if (!row.task || !selectedIds.has(row.id)) return;
+      const set = taskIdsByCase.get(row.task.caseId) || new Set<string>();
+      set.add(row.task.taskId);
+      taskIdsByCase.set(row.task.caseId, set);
+    };
+    rowsWithBucket.forEach(addToPlan);
+    const ghostEntriesForDelete: { row: RowWithBucket; priorStatus: Task['status'] }[] = Object.values(ghostDone);
+    ghostEntriesForDelete.forEach((g) => addToPlan(g.row));
+
+    taskIdsByCase.forEach((taskIds, caseId) => {
+      const c: Case | undefined = (cases || []).find((x: Case) => x.id === caseId);
+      if (!c) return;
+      updateCase(c.id, { tasks: (c.tasks || []).filter((t) => !taskIds.has(t.id)) });
+    });
+
+    setGhostDone((g) => {
+      const n = { ...g };
+      selectedIds.forEach((id) => delete n[id]);
+      return n;
+    });
+    exitSelectMode();
+  };
+
   // ---- Task form modal wiring -------------------------------------------------
   const matterOptions = useMemo(
     () => myCases.map((c) => ({ ref: c.ref, full: `${c.ref} — ${c.title}`, caseId: c.id })),
@@ -792,7 +844,10 @@ export const MyDashboardView: React.FC = () => {
                   <button
                     key={l}
                     type="button"
-                    onClick={() => setList(l)}
+                    onClick={() => {
+                      setList(l);
+                      setSelectedIds(new Set());
+                    }}
                     className="rounded-[5px] px-2.5 py-1 text-[11px] font-bold"
                     style={{ backgroundColor: list === l ? '#fff' : 'transparent', color: list === l ? palette.navy : 'rgba(255,255,255,.8)' }}
                   >
@@ -800,10 +855,33 @@ export const MyDashboardView: React.FC = () => {
                   </button>
                 ))}
               </div>
+              <button
+                type="button"
+                onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+                className="rounded-md px-2.5 py-1.5 text-[11.5px] font-bold"
+                style={{ backgroundColor: selectMode ? '#fff' : 'rgba(255,255,255,.1)', color: selectMode ? palette.navy : '#fff' }}
+              >
+                {selectMode ? 'Cancel' : 'Select'}
+              </button>
               <button type="button" onClick={() => openTaskBlank(list)} className="flex items-center gap-1 rounded-md bg-[#3D6B9C] px-3 py-1.5 text-[11.5px] font-bold">
                 <Plus className="h-3 w-3" />New task
               </button>
             </div>
+
+            {selectMode && (
+              <div className="flex items-center gap-2.5 border-b border-[#DDE3EB] bg-[#F6F8FA] px-3.5 py-2">
+                <span className="text-[11px] font-semibold text-[#16223A]">{selectedIds.size} selected</span>
+                <span className="text-[10.5px] text-[#5B6478]">Only tasks can be bulk-deleted — not court dates, deadlines, approvals or unbilled items.</span>
+                <button
+                  type="button"
+                  onClick={deleteSelectedTasks}
+                  disabled={selectedIds.size === 0}
+                  className="ml-auto flex items-center gap-1.5 rounded-md bg-[#B23A2E] px-2.5 py-1 text-[11px] font-bold text-white disabled:opacity-40"
+                >
+                  <Trash2 className="h-3 w-3" />Delete selected
+                </button>
+              </div>
+            )}
 
             <div className="flex flex-wrap items-center gap-1.5 border-b border-[#DDE3EB] px-3.5 py-2">
               {([
@@ -877,7 +955,17 @@ export const MyDashboardView: React.FC = () => {
                           className="flex items-center gap-2.5 border-b border-[#F0F2F5] py-2 pl-[11px] pr-3.5"
                           style={{ borderLeft: `3px solid ${BUCKET_META[r.bucket].accent}`, backgroundColor: r.isGhost ? '#fff' : rowBg(r.bucket), opacity: r.isGhost ? 0.45 : 1 }}
                         >
-                          {isCheckable ? (
+                          {isCheckable && selectMode ? (
+                            <button
+                              type="button"
+                              onClick={() => toggleRowSelected(r.id)}
+                              title="Select task"
+                              className="grid h-4 w-4 shrink-0 place-items-center rounded text-[10px] text-white"
+                              style={{ border: `1.5px solid ${selectedIds.has(r.id) ? palette.blue : '#CBD5E1'}`, backgroundColor: selectedIds.has(r.id) ? palette.blue : '#fff' }}
+                            >
+                              {selectedIds.has(r.id) ? '✓' : ''}
+                            </button>
+                          ) : isCheckable ? (
                             <button type="button" onClick={() => completeTask(r)} title="Mark complete" className="grid h-4 w-4 shrink-0 place-items-center rounded border border-slate-300 bg-white">
                               <span />
                             </button>
