@@ -1,4 +1,5 @@
 import { readCloudState, subscribeToCloudState, writeCloudState, type CloudState } from '../services/firestoreSyncService';
+import { applyCloudPracticeSettings, getPracticeSettings, type PracticeSettings } from '../services/templateService';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { normalizeClientName } from '../lib/stringUtils';
 import { generateNextMatterSequenceNumber, syncClientMatterLinks } from '../services/matterService';
@@ -1983,6 +1984,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // nothing for every other person's session.
       if (state.rolesMatrix && typeof state.rolesMatrix === 'object') setRolesMatrix(state.rolesMatrix as RolePermissionsMatrix);
       if (Array.isArray(state.customRoles)) setCustomRoles(state.customRoles as string[]);
+      // Firm & Practice Settings (letterhead, practice areas, billing defaults, bank
+      // accounts, etc.) was pure localStorage via templateService.ts — completely
+      // disconnected from this sync loop, so it never reached anyone else either.
+      if (state.practiceSettings && typeof state.practiceSettings === 'object') {
+        applyCloudPracticeSettings(state.practiceSettings as PracticeSettings);
+      }
     };
 
     const sync = async () => {
@@ -1997,7 +2004,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims,
             receipts, deadlines, invoices, payments, retainers, users, attendanceRecords,
             leaveApplications, notifications, lawFirmRegistry, sequenceCounters, deletedRecords,
-            rolesMatrix, customRoles,
+            rolesMatrix, customRoles, practiceSettings: getPracticeSettings(),
           });
         }
 

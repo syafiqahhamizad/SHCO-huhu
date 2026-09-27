@@ -1,4 +1,5 @@
 // Practice Settings & Document Template Service
+import { writeCloudState } from './firestoreSyncService';
 
 export interface FirmBankAccount {
   id: string;
@@ -449,6 +450,26 @@ export function savePracticeSettings(settings: PracticeSettings): void {
     window.dispatchEvent(new CustomEvent('shco-practice-settings-updated'));
   } catch (e) {
     console.error('Failed to save practice settings:', e);
+  }
+  // Was local-only (this browser's localStorage) forever — nobody else in the firm ever
+  // saw a Firm & Practice Settings change. Pushes it into the same shared cloud document
+  // everything else already syncs through.
+  void writeCloudState({ practiceSettings: settings }).catch((e) => {
+    console.error('Practice settings cloud sync failed; this change may only be visible on this device.', e);
+  });
+}
+
+/**
+ * Applies a practice-settings update that arrived FROM the cloud (another device/session)
+ * — writes to localStorage and notifies existing listeners, but does NOT re-push to the
+ * cloud, which would otherwise create an update loop with the original writer's own save.
+ */
+export function applyCloudPracticeSettings(settings: PracticeSettings): void {
+  try {
+    localStorage.setItem('shco_practice_settings', JSON.stringify(settings));
+    window.dispatchEvent(new CustomEvent('shco-practice-settings-updated'));
+  } catch (e) {
+    console.error('Failed to apply cloud practice settings:', e);
   }
 }
 
