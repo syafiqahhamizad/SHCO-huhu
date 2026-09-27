@@ -30,6 +30,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { PartnerDashboardView } from './PartnerDashboardView';
 import { Case, Meeting, Task, TaskChecklistItem } from '../../types';
 import { identityTokens, isMine, partnerCode } from '../../lib/identity';
 import { Donut, MiniBarChart, ProgressBar, TaskFormModal, blankTaskDraft } from '../ui';
@@ -167,6 +168,7 @@ export const MyDashboardView: React.FC = () => {
   const [meetingTab, setMeetingTab] = useState<'today' | 'week'>('today');
   const [meetingFormOpen, setMeetingFormOpen] = useState(false);
   const [meetingDraft, setMeetingDraft] = useState({ title: '', date: '', time: '', location: '', note: '', type: 'Internal' as Meeting['type'] });
+  const [subTab, setSubTab] = useState<'work' | 'partnerKpis'>('work');
   const { confirm, ConfirmationModal } = useConfirmation();
 
   const todayStr = iso(new Date());
@@ -875,11 +877,11 @@ export const MyDashboardView: React.FC = () => {
   // real canViewModule access check in App.tsx, which shows Access Restricted if this
   // viewer's role doesn't actually have it.
   const launcherCards: { key: string; label: string; sub: string; icon: React.ElementType; locked: boolean; active?: boolean; onClick?: () => void }[] = [
-    { key: 'work', label: 'My work', sub: 'Tasks, meetings, approvals', icon: Scale, locked: false, active: true },
+    { key: 'work', label: 'My work', sub: 'Tasks, meetings, approvals', icon: Scale, locked: false, active: subTab === 'work', onClick: () => setSubTab('work') },
     { key: 'finance', label: 'Finance', sub: 'Margin, cash, funds', icon: DollarSign, locked: true, onClick: () => setCurrentView('accountingCentre') },
     { key: 'clientAccount', label: 'Client account', sub: 'Balances & items to check', icon: FolderOpen, locked: false, onClick: () => setCurrentView('retainers') },
     { key: 'team', label: 'Team', sub: 'Workload, pay, goals', icon: UsersIcon, locked: true, onClick: () => setCurrentView('users') },
-    { key: 'partnerKpis', label: 'Partner KPIs', sub: 'Scorecards', icon: Target, locked: false, onClick: () => setCurrentView('partnerDashboard') },
+    { key: 'partnerKpis', label: 'Partner KPIs', sub: 'Scorecards', icon: Target, locked: false, active: subTab === 'partnerKpis', onClick: () => setSubTab('partnerKpis') },
     { key: 'compliance', label: 'Compliance', sub: 'Checklist & submissions', icon: ShieldCheck, locked: false, onClick: () => setCurrentView('clients') },
     { key: 'direction', label: 'Direction', sub: 'Vision, roadmap, growth', icon: Compass, locked: true, onClick: () => setCurrentView('firmDashboard') },
   ];
@@ -911,6 +913,10 @@ export const MyDashboardView: React.FC = () => {
         ))}
       </section>
 
+      {subTab === 'partnerKpis' ? (
+        <PartnerDashboardView />
+      ) : (
+      <>
       <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         {kpis.map((k) => {
           const active = k.filter && k.filter !== 'all' ? filter === k.filter : k.filter === 'all' && filter === 'all';
@@ -1415,6 +1421,8 @@ export const MyDashboardView: React.FC = () => {
           </div>
         </aside>
       </section>
+      </>
+      )}
 
       <TaskFormModal
         open={taskFormOpen}

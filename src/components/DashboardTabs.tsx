@@ -1,5 +1,5 @@
 import React from 'react';
-import { Building2, Crown, Landmark, LayoutDashboard } from 'lucide-react';
+import { Building2, Landmark, LayoutDashboard } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 type DashboardTabsProps = {
@@ -10,8 +10,6 @@ export const DASHBOARD_TAB_VIEWS = [
   'dashboard',
   'myDashboard',
   'firmDashboard',
-  'partnerDashboard',
-  'partner-dashboard',
   'accountingCentre',
   'accounting-centre',
   'accounting',
@@ -62,13 +60,6 @@ export const DashboardTabs: React.FC<DashboardTabsProps> = ({ myDashboardCount }
       action: () => setCurrentView('dashboard'),
       active: currentView === 'dashboard' || currentView === 'myDashboard',
       count: myDashboardCount,
-    },
-    {
-      key: 'partnerDashboard',
-      label: 'Partner Dashboard',
-      icon: Crown,
-      action: () => setCurrentView('partnerDashboard'),
-      active: currentView === 'partnerDashboard' || currentView === 'partner-dashboard',
     },
     {
       key: 'firmDashboard',
