@@ -56,6 +56,7 @@ export const PartnerDashboardView: React.FC = () => {
   const {
     currentRole,
     isAdmin,
+    currentUser,
     cases,
     invoices,
     quotations,
@@ -77,8 +78,12 @@ export const PartnerDashboardView: React.FC = () => {
   const [partnerBenchmarkMetric, setPartnerBenchmarkMetric] = useState<'REVENUE' | 'REFERRALS' | 'EFFICIENCY'>('REVENUE');
 
   const isPartner = currentRole === 'Partner' || isAdmin;
-  // This is a fixed all-partners reporting view (see header subtitle) — no per-partner filter.
-  const effectivePartnerFilter: 'ALL' | 'SH' | 'AH' | 'ZA' = 'ALL';
+  // Managing Partner (isAdmin/isSuperAdmin) sees every partner's numbers side by side;
+  // a plain Partner only sees their own scorecard (MY_DASHBOARD_ROLE_BASED.md: "Partner
+  // KPIs | all | own only |"). Falls back to 'ALL' if this partner's name doesn't map to
+  // one of the firm's registered partner codes (see lib/identity.ts partnerCode()).
+  const isMP = Boolean(isAdmin) || Boolean(currentUser?.isSuperAdmin);
+  const effectivePartnerFilter: 'ALL' | 'SH' | 'AH' | 'ZA' = isMP ? 'ALL' : (toPartnerCode(currentUser) as 'SH' | 'AH' | 'ZA' | undefined) || 'ALL';
 
   if (!isPartner) {
     return (
@@ -475,10 +480,12 @@ export const PartnerDashboardView: React.FC = () => {
             </div>
             <h1 className="font-serif text-2xl font-bold text-white flex items-center gap-2">
               <BarChart3 className="w-6 h-6 text-[#8A6D3B]" />
-              Partner Dashboard — all-partners summary
+              {effectivePartnerFilter === 'ALL' ? 'Partner Dashboard — all-partners summary' : 'Partner Dashboard — your scorecard'}
             </h1>
             <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">
-              Compares every partner's practice, side by side — for your own record, see My Dashboard.
+              {effectivePartnerFilter === 'ALL'
+                ? "Compares every partner's practice, side by side — for your own record, see My Dashboard."
+                : 'Your own fees, collections and referral conversion. Only the Managing Partner sees every partner side by side.'}
             </p>
           </div>
 

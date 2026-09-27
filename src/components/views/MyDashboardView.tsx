@@ -13,7 +13,6 @@ import {
   Flag,
   Gavel,
   Inbox,
-  Lock,
   MapPin,
   Plus,
   Receipt,
@@ -148,6 +147,8 @@ export const MyDashboardView: React.FC = () => {
     meetings,
     addMeeting,
     currentUser,
+    currentRole,
+    isAdmin,
     setCurrentView,
     setCurrentCaseId,
     updateCase,
@@ -180,6 +181,15 @@ export const MyDashboardView: React.FC = () => {
   const mine = (v?: unknown) => isMine(v, me);
 
   const isPartner = (currentUser?.role || '') === 'Partner' || currentUser?.isAdmin;
+
+  // Sub-tab access tier for My Dashboard's role-based layout (see MY_DASHBOARD_ROLE_BASED.md):
+  // Managing Partner sees everything, Partner sees a subset (own scorecard only for
+  // Partner KPIs), Staff (Lawyer/Assistant/Accountant/Reviewer) only sees My work.
+  const isMP = Boolean(isAdmin) || Boolean(currentUser?.isSuperAdmin);
+  const isPartnerTier = !isMP && currentRole === 'Partner';
+  const canSeeClientAccountTile = isMP || isPartnerTier;
+  const canSeePartnerKpisTile = isMP || isPartnerTier;
+  const canSeeComplianceTile = isMP || isPartnerTier;
 
   const myCases: Case[] = useMemo(
     () =>
@@ -871,20 +881,26 @@ export const MyDashboardView: React.FC = () => {
     Team: { color: palette.purple, bg: tint.purple },
   };
 
-  // Quick-launcher row — shortcuts into other role-restricted areas of the app. The lock
-  // badge is a static "this category is firm-restricted" indicator (shown regardless of
-  // the current viewer's own access); actually clicking through still goes through the
-  // real canViewModule access check in App.tsx, which shows Access Restricted if this
-  // viewer's role doesn't actually have it.
-  const launcherCards: { key: string; label: string; sub: string; icon: React.ElementType; locked: boolean; active?: boolean; onClick?: () => void }[] = [
-    { key: 'work', label: 'My work', sub: 'Tasks, meetings, approvals', icon: Scale, locked: false, active: subTab === 'work', onClick: () => setSubTab('work') },
-    { key: 'finance', label: 'Finance', sub: 'Margin, cash, funds', icon: DollarSign, locked: true, onClick: () => setCurrentView('accountingCentre') },
-    { key: 'clientAccount', label: 'Client account', sub: 'Balances & items to check', icon: FolderOpen, locked: false, onClick: () => setCurrentView('retainers') },
-    { key: 'team', label: 'Team', sub: 'Workload, pay, goals', icon: UsersIcon, locked: true, onClick: () => setCurrentView('users') },
-    { key: 'partnerKpis', label: 'Partner KPIs', sub: 'Scorecards', icon: Target, locked: false, active: subTab === 'partnerKpis', onClick: () => setSubTab('partnerKpis') },
-    { key: 'compliance', label: 'Compliance', sub: 'Checklist & submissions', icon: ShieldCheck, locked: false, onClick: () => setCurrentView('clients') },
-    { key: 'direction', label: 'Direction', sub: 'Vision, roadmap, growth', icon: Compass, locked: true, onClick: () => setCurrentView('firmDashboard') },
+  // Quick-launcher row — what shows here depends on role (MY_DASHBOARD_ROLE_BASED.md):
+  // Managing Partner sees all 7 cards; Partner sees My work / Client account / Partner
+  // KPIs (own) / Compliance; Staff (Lawyer/Assistant/Accountant/Reviewer) sees only My
+  // work. Cards the role can't reach at all are left out of the array entirely, not just
+  // shown locked — actually clicking through still goes through the real canViewModule
+  // access check in App.tsx as a second line of defence.
+  const allLauncherCards: { key: string; label: string; sub: string; icon: React.ElementType; visible: boolean; active?: boolean; onClick?: () => void }[] = [
+    { key: 'work', label: 'My work', sub: 'Tasks, meetings, approvals', icon: Scale, visible: true, active: subTab === 'work', onClick: () => setSubTab('work') },
+    { key: 'finance', label: 'Finance', sub: 'Margin, cash, funds', icon: DollarSign, visible: isMP, onClick: () => setCurrentView('accountingCentre') },
+    { key: 'clientAccount', label: 'Client account', sub: 'Balances & items to check', icon: FolderOpen, visible: canSeeClientAccountTile, onClick: () => setCurrentView('retainers') },
+    { key: 'team', label: 'Team', sub: 'Workload, pay, goals', icon: UsersIcon, visible: isMP, onClick: () => setCurrentView('users') },
+    { key: 'partnerKpis', label: 'Partner KPIs', sub: isMP ? 'Scorecards — all partners' : 'Your scorecard', icon: Target, visible: canSeePartnerKpisTile, active: subTab === 'partnerKpis', onClick: () => setSubTab('partnerKpis') },
+    { key: 'compliance', label: 'Compliance', sub: 'Checklist & submissions', icon: ShieldCheck, visible: canSeeComplianceTile, onClick: () => setCurrentView('clients') },
+    { key: 'direction', label: 'Direction', sub: 'Vision, roadmap, growth', icon: Compass, visible: isMP, onClick: () => setCurrentView('firmDashboard') },
   ];
+  const launcherCards = allLauncherCards.filter((c) => c.visible);
+
+  React.useEffect(() => {
+    if (subTab === 'partnerKpis' && !canSeePartnerKpisTile) setSubTab('work');
+  }, [subTab, canSeePartnerKpisTile]);
 
   return (
     <div className="space-y-4 pb-8 text-[12px]">
@@ -904,7 +920,6 @@ export const MyDashboardView: React.FC = () => {
             <span className="min-w-0">
               <span className="flex items-center gap-1 truncate text-[12px] font-bold text-[#16223A]">
                 {c.label}
-                {c.locked && <Lock className="h-2.5 w-2.5 shrink-0 text-[#5B6478]" />}
                 {c.active && <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: palette.blue }} />}
               </span>
               <span className="block truncate text-[10px] text-[#5B6478]">{c.sub}</span>
