@@ -50,7 +50,7 @@ jobs:
 
       - name: Deploy production site to Firebase
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: firebase deploy --project gen-lang-client-0565207218 --force
+        run: firebase deploy --project gen-lang-client-0565207218 --only hosting,firestore:rules,storage --force
 
       - name: Deploy preview channel for PR
         if: github.event_name == 'pull_request'
