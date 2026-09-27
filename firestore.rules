@@ -14,9 +14,10 @@ service cloud.firestore {
     }
 
     // Partner/Lawyer are always the firm's own Google Workspace SSO accounts, so those
-    // two require a verified @shcolaw.com email. Assistant/Reviewer cover both internal
-    // staff AND the "External Access" login (co-counsel, referral partners) — those sign
-    // in with a password on their own external email, so they're let in on role alone.
+    // two require a verified @shcolaw.com email. Assistant/Accountant/Reviewer cover both
+    // internal staff AND the "External Access" login (freelance bookkeepers, co-counsel,
+    // referral partners) — those sign in with a password on their own external email, so
+    // they're let in on role alone.
     function isFirmUser() {
       return isSignedIn() && request.auth.token.email != null && (
         request.auth.token.email == 'syafiqahhamizad@shcolaw.com' ||
@@ -26,6 +27,7 @@ service cloud.firestore {
           (request.auth.token.role == 'partner' || request.auth.token.role == 'lawyer')
         ) ||
         request.auth.token.role == 'assistant' ||
+        request.auth.token.role == 'accountant' ||
         request.auth.token.role == 'reviewer'
       );
     }

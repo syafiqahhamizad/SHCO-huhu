@@ -51,7 +51,7 @@ exports.provisionUser = onRequest(
       const { name, email, role, isAdmin = false, isSuperAdmin = false } = req.body || {};
       const normalizedEmail = String(email || '').trim().toLowerCase();
       const normalizedRole = String(role || '').trim().toLowerCase();
-      const allowedRoles = new Set(['partner', 'lawyer', 'assistant', 'reviewer', 'client']);
+      const allowedRoles = new Set(['partner', 'lawyer', 'assistant', 'accountant', 'reviewer', 'client']);
       if (!String(name || '').trim() || !normalizedEmail || !allowedRoles.has(normalizedRole)) {
         res.status(400).json({ error: 'Name, email, and a valid role are required.' });
         return;
@@ -132,7 +132,7 @@ exports.syncUserClaims = onRequest(
       const { email, role, isAdmin = false, isSuperAdmin = false } = req.body || {};
       const normalizedEmail = String(email || '').trim().toLowerCase();
       const normalizedRole = String(role || '').trim().toLowerCase();
-      const allowedRoles = new Set(['partner', 'lawyer', 'assistant', 'reviewer', 'client']);
+      const allowedRoles = new Set(['partner', 'lawyer', 'assistant', 'accountant', 'reviewer', 'client']);
       if (!normalizedEmail || !allowedRoles.has(normalizedRole)) {
         res.status(400).json({ error: 'A valid email and role are required.' });
         return;

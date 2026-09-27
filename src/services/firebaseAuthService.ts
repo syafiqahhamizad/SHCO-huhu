@@ -45,7 +45,7 @@ export async function signInStaffWithGoogle(): Promise<User> {
 }
 
 export async function getCurrentFirebaseAccessClaims(firebaseUser: User): Promise<{
-  role: 'Partner' | 'Lawyer' | 'Assistant' | 'Reviewer' | 'Client';
+  role: 'Partner' | 'Lawyer' | 'Assistant' | 'Accountant' | 'Reviewer' | 'Client';
   isAdmin: boolean;
   isSuperAdmin: boolean;
   email: string;
@@ -59,6 +59,7 @@ export async function getCurrentFirebaseAccessClaims(firebaseUser: User): Promis
     if (roleClaim === 'partner') return 'Partner';
     if (roleClaim === 'lawyer') return 'Lawyer';
     if (roleClaim === 'assistant') return 'Assistant';
+    if (roleClaim === 'accountant') return 'Accountant';
     if (roleClaim === 'reviewer') return 'Reviewer';
     if (roleClaim === 'client') return 'Client';
     return isVerifiedOwner ? 'Partner' : null;

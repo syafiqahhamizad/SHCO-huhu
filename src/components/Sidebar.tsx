@@ -296,6 +296,7 @@ export const Sidebar: React.FC = () => {
                   <option value="Partner" className="bg-[#16223A]">Partner (Full Firm Oversight)</option>
                   <option value="Lawyer" className="bg-[#16223A]">Lawyer (Matters & Practice Only)</option>
                   <option value="Assistant" className="bg-[#16223A]">Assistant (Support & Intake)</option>
+                  <option value="Accountant" className="bg-[#16223A]">Accountant (Bookkeeping / Data Entry)</option>
                   <option value="Reviewer" className="bg-[#16223A]">Reviewer (External/Auditor)</option>
                   <option value="Client" className="bg-[#16223A]">Client (Read-Only Portal)</option>
                 </select>

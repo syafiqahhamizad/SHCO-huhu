@@ -853,7 +853,7 @@ export const INITIAL_ROLES_MATRIX: RolePermissionsMatrix = {
     dashboard: { v: 1, a: 0, e: 0 },
     clientPortal: { v: 0, a: 0, e: 0 },
     leads: { v: 1, a: 1, e: 0 },
-    clients: { v: 1, a: 0, e: 0 },
+    clients: { v: 1, a: 1, e: 0 },
     cases: { v: 1, a: 0, e: 0 },
     predispute: { v: 1, a: 0, e: 0 },
     counselRegistry: { v: 1, a: 0, e: 0 },
@@ -865,6 +865,28 @@ export const INITIAL_ROLES_MATRIX: RolePermissionsMatrix = {
     logs: { v: 0, a: 0, e: 0 },
     settings: { v: 0, a: 0, e: 0 },
   },
+  // Bookkeeping / data-entry — can be an internal staff member or an outside
+  // freelance accountant, hence no case, client or trust-account visibility by
+  // default. Give an individual Accountant broader access via their own
+  // per-user override in Users & Permissions, not by changing this default.
+  Accountant: {
+    dashboard: { v: 1, a: 0, e: 0 },
+    clientPortal: { v: 0, a: 0, e: 0 },
+    leads: { v: 0, a: 0, e: 0 },
+    clients: { v: 0, a: 0, e: 0 },
+    cases: { v: 0, a: 0, e: 0 },
+    predispute: { v: 0, a: 0, e: 0 },
+    counselRegistry: { v: 0, a: 0, e: 0 },
+    templates: { v: 0, a: 0, e: 0 },
+    finance: { v: 1, a: 1, e: 0 },
+    retainers: { v: 0, a: 0, e: 0 },
+    officeFinance: { v: 1, a: 1, e: 0 },
+    users: { v: 0, a: 0, e: 0 },
+    logs: { v: 0, a: 0, e: 0 },
+    settings: { v: 0, a: 0, e: 0 },
+  },
+  // Auditor — the app's own "External/Auditor" login option. Read-only
+  // everywhere, including the client trust account (SAR 1990) it exists to audit.
   Reviewer: {
     dashboard: { v: 1, a: 0, e: 0 },
     clientPortal: { v: 0, a: 0, e: 0 },
@@ -875,7 +897,7 @@ export const INITIAL_ROLES_MATRIX: RolePermissionsMatrix = {
     counselRegistry: { v: 1, a: 0, e: 0 },
     templates: { v: 0, a: 0, e: 0 },
     finance: { v: 0, a: 0, e: 0 },
-    retainers: { v: 0, a: 0, e: 0 },
+    retainers: { v: 1, a: 0, e: 0 },
     officeFinance: { v: 0, a: 0, e: 0 },
     users: { v: 0, a: 0, e: 0 },
     logs: { v: 0, a: 0, e: 0 },

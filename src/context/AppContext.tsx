@@ -344,6 +344,7 @@ function normalizeRoleClaim(roleValue?: string): Role {
   if (normalized === 'partner') return 'Partner';
   if (normalized === 'lawyer') return 'Lawyer';
   if (normalized === 'assistant') return 'Assistant';
+  if (normalized === 'accountant') return 'Accountant';
   if (normalized === 'reviewer') return 'Reviewer';
   if (normalized === 'client') return 'Client';
 
@@ -696,11 +697,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const loginExternalUser = async (emailInput: string, passwordInput: string): Promise<{ success: boolean; error?: string }> => {
     const email = emailInput.trim().toLowerCase();
     const approvedUser = users.find(
-      (user) => user.email.toLowerCase() === email && (user.role === 'Reviewer' || user.role === 'Assistant') && user.status === 'Active'
+      (user) => user.email.toLowerCase() === email && (user.role === 'Reviewer' || user.role === 'Assistant' || user.role === 'Accountant') && user.status === 'Active'
     );
 
     if (!approvedUser) {
-      const errorMsg = 'This external account is not approved. Ask a firm administrator to create an active Reviewer or Assistant account first.';
+      const errorMsg = 'This external account is not approved. Ask a firm administrator to create an active Reviewer, Assistant or Accountant account first.';
       showToast(errorMsg);
       return { success: false, error: errorMsg };
     }
@@ -1768,21 +1769,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`Updated user explicit navigation override.`);
   };
 
+  // 'settings' / 'users' / 'logs' need Admin or Super Admin specifically — being a
+  // Partner alone is no longer enough (a regular Partner shouldn't be able to create
+  // accounts, change roles, or read the firm-wide activity log). 'retainers' (client
+  // trust account — also covers Payment Vouchers, Trust Reports, Trust Audit Log,
+  // Client Statement) keeps the Partner-role bypass, since every partner is expected to
+  // see client trust money; Reviewer additionally gets a read-only carve-out for it,
+  // since the Reviewer role is this app's external/auditor login and auditing the trust
+  // account is exactly what an auditor is for.
   const isSensitiveAdminModule = (moduleKey: string): boolean => {
     return ['retainers', 'settings', 'users', 'logs'].includes(moduleKey);
   };
 
-  const isSyafiqahOnlyModule = (moduleKey: string): boolean => {
-    return ['retainers', 'courts'].includes(moduleKey);
-  };
-
-  // Client trust-account money (retainers — includes Payment Vouchers, Trust Reports,
-  // Trust Audit Log, Client Statement, all of which map to this same moduleKey) is
-  // restricted to whoever actually holds Super Admin authority — not to whoever happens
-  // to be named "Syafiqah Hamizad". The previous name-string check meant even a properly
-  // promoted Super Admin (or the real Syafiqah, if she ever updates her display name)
-  // would be locked out.
-  const isSyafiqahSuperAdmin = Boolean(currentUser.isSuperAdmin) || currentUser.email?.toLowerCase() === 'syafiqahhamizad@shcolaw.com';
+  const isPartnerLevelSensitiveModule = (moduleKey: string): boolean => moduleKey === 'retainers';
 
   const canViewModule = (viewId: string): boolean => {
     // Effective active role perspective
@@ -1794,17 +1793,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return viewId === 'clientPortal';
     }
 
-    if (isSyafiqahOnlyModule(moduleKey) && !isSyafiqahSuperAdmin) {
-      return false;
-    }
-
     if (viewId === 'staffPortal' || viewId === 'staff-portal') {
       return true;
     }
 
     if (isSensitiveAdminModule(moduleKey)) {
-      const isAuthorizedAdmin = Boolean(currentUser.isSuperAdmin || currentUser.isAdmin || currentRole === 'Partner' || currentUser.role === 'Partner');
-      if (!isAuthorizedAdmin) return false;
+      const isAuthorizedAdmin = Boolean(
+        currentUser.isSuperAdmin || currentUser.isAdmin ||
+        (isPartnerLevelSensitiveModule(moduleKey) && (currentRole === 'Partner' || currentUser.role === 'Partner'))
+      );
+      const isAuditorReadOnly = moduleKey === 'retainers' && effectiveRole === 'Reviewer';
+      if (!isAuthorizedAdmin && !isAuditorReadOnly) return false;
     }
 
     // If logged in user is Super Admin / Admin AND current active role perspective is Partner, allow full firm access
@@ -1840,13 +1839,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return moduleKey === 'clientPortal' && action === 'v';
     }
 
-    if (isSyafiqahOnlyModule(moduleKey) && !isSyafiqahSuperAdmin) {
-      return false;
-    }
-
     if (isSensitiveAdminModule(moduleKey)) {
-      const isAuthorizedAdmin = Boolean(currentUser.isSuperAdmin || currentUser.isAdmin || currentRole === 'Partner' || currentUser.role === 'Partner');
-      if (!isAuthorizedAdmin) return false;
+      const isAuthorizedAdmin = Boolean(
+        currentUser.isSuperAdmin || currentUser.isAdmin ||
+        (isPartnerLevelSensitiveModule(moduleKey) && (currentRole === 'Partner' || currentUser.role === 'Partner'))
+      );
+      const isAuditorReadOnly = moduleKey === 'retainers' && effectiveRole === 'Reviewer' && action === 'v';
+      if (!isAuthorizedAdmin && !isAuditorReadOnly) return false;
     }
 
     // Admin accounts retain full module access even when their active role is not in the matrix.
@@ -1978,6 +1977,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (Array.isArray(state.notifications)) setNotifications(state.notifications as NotificationItem[]);
       if (Array.isArray(state.lawFirmRegistry)) setLawFirmRegistry((state.lawFirmRegistry as LawFirmRegistryEntry[]).filter((firm) => isActive('Law Firm', firm)));
       if (state.sequenceCounters && typeof state.sequenceCounters === 'object') setSequenceCounters(state.sequenceCounters as SequenceCounters);
+      // Role/permission changes (Roles & Permissions matrix, custom roles) were only ever
+      // saved to the editing admin's own browser localStorage — never shared with anyone
+      // else. Without this, promoting/restricting a role on one device would silently do
+      // nothing for every other person's session.
+      if (state.rolesMatrix && typeof state.rolesMatrix === 'object') setRolesMatrix(state.rolesMatrix as RolePermissionsMatrix);
+      if (Array.isArray(state.customRoles)) setCustomRoles(state.customRoles as string[]);
     };
 
     const sync = async () => {
@@ -1992,6 +1997,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims,
             receipts, deadlines, invoices, payments, retainers, users, attendanceRecords,
             leaveApplications, notifications, lawFirmRegistry, sequenceCounters, deletedRecords,
+            rolesMatrix, customRoles,
           });
         }
 
@@ -2025,13 +2031,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims,
       receipts, deadlines, invoices, payments, retainers, users, attendanceRecords,
       leaveApplications, notifications, lawFirmRegistry, sequenceCounters, deletedRecords,
+      rolesMatrix, customRoles,
     }).catch((error) => {
       console.error('Cloud state save failed; signing out to prevent unsynced data entry.', error);
       sessionStorage.removeItem(SESSION_STORAGE_KEY);
       setCloudSyncReady(false);
       setIsAuthenticated(false);
     });
-  }, [cloudSyncReady, leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims, receipts, deadlines, invoices, payments, retainers, users, attendanceRecords, leaveApplications, notifications, lawFirmRegistry, sequenceCounters, deletedRecords]);
+  }, [cloudSyncReady, leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims, receipts, deadlines, invoices, payments, retainers, users, attendanceRecords, leaveApplications, notifications, lawFirmRegistry, sequenceCounters, deletedRecords, rolesMatrix, customRoles]);
 
   const addActivityLog = (action: string, details: string) => {
     const newLog: ActivityLog = {

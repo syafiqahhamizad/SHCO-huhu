@@ -51,6 +51,7 @@ const MainContent: React.FC = () => {
     currentView,
     setCurrentView,
     currentUser,
+    currentRole,
     canViewModule,
     isNewCaseModalOpen,
     setIsNewCaseModalOpen,
@@ -79,7 +80,7 @@ const MainContent: React.FC = () => {
               Access Restricted
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-md mx-auto leading-relaxed">
-              Your assigned user role (<strong>{currentUser.role}</strong>) does not have permission to view the <strong>{currentView}</strong> module.
+              Your assigned user role (<strong>{currentRole || currentUser.role}</strong>) does not have permission to view the <strong>{currentView}</strong> module.
             </p>
           </div>
 

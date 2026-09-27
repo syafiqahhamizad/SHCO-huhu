@@ -123,7 +123,7 @@ export const UsersManagementView: React.FC = () => {
     account: { label: 'My Account & Profile', group: 'System', desc: 'User personal profile, password and preferences.' },
   };
 
-  const ALL_ROLES: Role[] = ['Partner', 'Lawyer', 'Assistant', 'Reviewer', 'Client', ...customRoles];
+  const ALL_ROLES: Role[] = ['Partner', 'Lawyer', 'Assistant', 'Accountant', 'Reviewer', 'Client', ...customRoles];
 
   const handleAddUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -306,7 +306,7 @@ export const UsersManagementView: React.FC = () => {
                           <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-bold rounded text-[10px] flex items-center gap-1 w-fit">
                             <Check className="w-3 h-3" /> Valid @shcolaw.com SSO
                           </span>
-                        ) : u.role === 'Reviewer' || u.role === 'Assistant' ? (
+                        ) : u.role === 'Reviewer' || u.role === 'Assistant' || u.role === 'Accountant' ? (
                           <span className="px-2 py-0.5 bg-blue-100 text-blue-800 font-bold rounded text-[10px] w-fit block">
                             Approved External Account
                           </span>
@@ -907,7 +907,7 @@ export const SecurityView: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
-                {(['Partner', 'Lawyer', 'Assistant', 'Reviewer', 'Client', ...customRoles] as Role[]).map((r) => (
+                {(['Partner', 'Lawyer', 'Assistant', 'Accountant', 'Reviewer', 'Client', ...customRoles] as Role[]).map((r) => (
                   <button
                     key={r}
                     onClick={() => setSelectedRole(r)}
