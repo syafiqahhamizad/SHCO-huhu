@@ -52,6 +52,13 @@
         }
       },
       {
+        "source": "/api/admin/sync-claims",
+        "function": {
+          "functionId": "syncUserClaims",
+          "region": "asia-southeast1"
+        }
+      },
+      {
         "source": "/api/ai/draft-billing-items",
         "function": {
           "functionId": "draftBillingItems",

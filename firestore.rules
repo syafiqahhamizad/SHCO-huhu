@@ -13,17 +13,28 @@ service cloud.firestore {
         );
     }
 
+    // Partner/Lawyer are always the firm's own Google Workspace SSO accounts, so those
+    // two require a verified @shcolaw.com email. Assistant/Reviewer cover both internal
+    // staff AND the "External Access" login (co-counsel, referral partners) — those sign
+    // in with a password on their own external email, so they're let in on role alone.
     function isFirmUser() {
-      return isSignedIn() &&
-        request.auth.token.email != null &&
-        request.auth.token.email_verified == true &&
-        request.auth.token.email.matches('.*@shcolaw\\.com$') &&
-        (request.auth.token.email == 'syafiqahhamizad@shcolaw.com' || (
-          request.auth.token.role == 'partner' ||
-          request.auth.token.role == 'lawyer' ||
-          request.auth.token.role == 'assistant' ||
-          request.auth.token.role == 'reviewer'
-        ));
+      return isSignedIn() && request.auth.token.email != null && (
+        request.auth.token.email == 'syafiqahhamizad@shcolaw.com' ||
+        (
+          request.auth.token.email_verified == true &&
+          request.auth.token.email.matches('.*@shcolaw\\.com$') &&
+          (request.auth.token.role == 'partner' || request.auth.token.role == 'lawyer')
+        ) ||
+        request.auth.token.role == 'assistant' ||
+        request.auth.token.role == 'reviewer'
+      );
+    }
+
+    // Client Portal logins use email/password (not @shcolaw.com Google Workspace SSO),
+    // so they never carry email_verified or a Google-verified domain — only the role
+    // claim distinguishes them. Read-only: the Client Portal doesn't write anything.
+    function isClientUser() {
+      return isSignedIn() && request.auth.token.role == 'client';
     }
 
     function isAdmin() {
@@ -44,8 +55,12 @@ service cloud.firestore {
     }
 
     match /practiceSystem/sharedState {
-      allow read: if isFirmUser();
-      allow write: if isAdmin();
+      // Every recognized firm role can save their own work — per-module/per-action
+      // restrictions (Reviewer is read-only, Assistant can't edit cases, etc.) are
+      // enforced client-side via canViewModule/hasModulePermission, same as before;
+      // this only fixes staff other than the Super Admin being unable to save at all.
+      allow read: if isFirmUser() || isClientUser();
+      allow write: if isFirmUser();
     }
 
     match /{document=**} {

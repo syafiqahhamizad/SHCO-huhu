@@ -111,6 +111,37 @@ export async function provisionFirebaseUser(input: {
   };
 }
 
+/**
+ * Re-applies a Firebase account's custom claims (role/admin/superAdmin) so an
+ * already-provisioned user's real access matches what the app's Users & Permissions
+ * screen shows for them. Needed because setCustomUserClaims only takes effect at the
+ * moment it's called — changing a user's role/admin toggle in the app's local state
+ * does nothing to their actual Firebase permissions without this.
+ */
+export async function syncFirebaseUserClaims(input: {
+  email: string;
+  role: string;
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+}): Promise<void> {
+  const currentUser = firebaseAuth.currentUser;
+  if (!currentUser) throw new Error('Please sign in as Super Admin before updating user access.');
+
+  const idToken = await currentUser.getIdToken();
+  const response = await fetch('/api/admin/sync-claims', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${idToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({})) as { error?: string };
+    throw new Error(result.error || 'Unable to update the Firebase user account.');
+  }
+}
+
 export async function signInExternalWithPassword(email: string, password: string): Promise<User> {
   const result = await signInWithEmailAndPassword(firebaseAuth, email.trim(), password);
   return result.user;

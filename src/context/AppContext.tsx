@@ -59,6 +59,7 @@ import {
   signInExternalWithPassword,
   signInStaffWithGoogle,
   signOutFromFirebase,
+  syncFirebaseUserClaims,
 } from '../services/firebaseAuthService';
 import {
   INITIAL_LEADS,
@@ -819,6 +820,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return false;
     }
 
+    const targetUser = users.find((u) => u.id === targetUserId);
+    const resolvedIsSuperAdmin = newIsSuperAdmin !== undefined ? newIsSuperAdmin : targetUser?.isSuperAdmin;
+
     setUsers((prev) =>
       prev.map((u) => {
         if (u.id === targetUserId) {
@@ -826,12 +830,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ...u,
             role: newRole,
             isAdmin: newIsAdmin,
-            isSuperAdmin: newIsSuperAdmin !== undefined ? newIsSuperAdmin : u.isSuperAdmin,
+            isSuperAdmin: resolvedIsSuperAdmin,
           };
         }
         return u;
       })
     );
+
+    // The local record above only changes what the app's UI shows — it does nothing to
+    // the user's real Firebase permissions on its own. Re-sync their actual custom claims
+    // so their real access matches what this screen now says, same as when they were
+    // first provisioned.
+    if (targetUser?.email) {
+      void syncFirebaseUserClaims({
+        email: targetUser.email,
+        role: String(newRole).toLowerCase(),
+        isAdmin: newIsAdmin,
+        isSuperAdmin: Boolean(resolvedIsSuperAdmin),
+      }).catch((error) => {
+        showToast(error instanceof Error ? `Local record updated, but real access sync failed: ${error.message}` : 'Local record updated, but real access sync failed.');
+      });
+    }
 
     showToast('User role & access updated successfully by Super Admin.');
     return true;
@@ -1724,7 +1743,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return ['retainers', 'courts'].includes(moduleKey);
   };
 
-  const isSyafiqahSuperAdmin = currentUser.name.trim().toLowerCase() === 'syafiqah hamizad';
+  // Client trust-account money (retainers — includes Payment Vouchers, Trust Reports,
+  // Trust Audit Log, Client Statement, all of which map to this same moduleKey) is
+  // restricted to whoever actually holds Super Admin authority — not to whoever happens
+  // to be named "Syafiqah Hamizad". The previous name-string check meant even a properly
+  // promoted Super Admin (or the real Syafiqah, if she ever updates her display name)
+  // would be locked out.
+  const isSyafiqahSuperAdmin = Boolean(currentUser.isSuperAdmin) || currentUser.email?.toLowerCase() === 'syafiqahhamizad@shcolaw.com';
 
   const canViewModule = (viewId: string): boolean => {
     // Effective active role perspective
