@@ -1,15 +1,12 @@
 import React from 'react';
-import { Building2, Landmark, LayoutDashboard } from 'lucide-react';
+import { Building2, Landmark, LayoutDashboard, Share2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 type DashboardTabsProps = {
   myDashboardCount?: number;
 };
 
-export const DASHBOARD_TAB_VIEWS = [
-  'dashboard',
-  'myDashboard',
-  'firmDashboard',
+const ACCOUNTING_VIEWS = [
   'accountingCentre',
   'accounting-centre',
   'accounting',
@@ -47,10 +44,19 @@ export const DASHBOARD_TAB_VIEWS = [
   'reports-office',
 ] as const;
 
+export const DASHBOARD_TAB_VIEWS = [
+  'dashboard',
+  'myDashboard',
+  'leadsReferrals',
+  'leads-referrals',
+  'firmDashboard',
+  ...ACCOUNTING_VIEWS,
+] as const;
+
 export const DashboardTabs: React.FC<DashboardTabsProps> = ({ myDashboardCount }) => {
   const { currentView, setCurrentView } = useApp() as any;
 
-  const isAccountingView = DASHBOARD_TAB_VIEWS.includes(currentView);
+  const isAccountingView = (ACCOUNTING_VIEWS as readonly string[]).includes(currentView);
 
   const tabs = [
     {
@@ -60,6 +66,13 @@ export const DashboardTabs: React.FC<DashboardTabsProps> = ({ myDashboardCount }
       action: () => setCurrentView('dashboard'),
       active: currentView === 'dashboard' || currentView === 'myDashboard',
       count: myDashboardCount,
+    },
+    {
+      key: 'leadsReferrals',
+      label: 'Leads & Referrals',
+      icon: Share2,
+      action: () => setCurrentView('leadsReferrals'),
+      active: currentView === 'leadsReferrals' || currentView === 'leads-referrals',
     },
     {
       key: 'firmDashboard',

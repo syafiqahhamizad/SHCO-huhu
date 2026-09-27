@@ -49,6 +49,7 @@ import {
   AttendanceRecord,
   LeaveApplication,
   Meeting,
+  Programme,
   FirmAnnouncement,
   FirmStartCentrePage,
   FirmStartCentreCard,
@@ -82,6 +83,7 @@ import {
   INITIAL_DOC_TEMPLATES,
   INITIAL_DEADLINES,
   INITIAL_MEETINGS,
+  INITIAL_PROGRAMMES,
   INITIAL_COURTS,
   INITIAL_JUDGES,
   INITIAL_TIME_ENTRIES,
@@ -160,6 +162,9 @@ interface AppContextType {
   addMeeting: (meeting: Meeting) => void;
   updateMeeting: (id: string, updates: Partial<Meeting>) => void;
   deleteMeeting: (id: string) => void;
+  addProgramme: (programme: Programme) => void;
+  updateProgramme: (id: string, updates: Partial<Programme>) => void;
+  deleteProgramme: (id: string) => void;
   canViewModule: (viewId: string) => boolean;
   updateRolePermission: (role: Role, moduleKey: string, action: 'v' | 'a' | 'e', value: number) => void;
   customRoles: string[];
@@ -195,6 +200,7 @@ interface AppContextType {
   attendanceRecords: AttendanceRecord[];
   leaveApplications: LeaveApplication[];
   meetings: Meeting[];
+  programmes: Programme[];
   logs: ActivityLog[];
   rolesMatrix: RolePermissionsMatrix;
   lawFirmRegistry: LawFirmRegistryEntry[];
@@ -598,6 +604,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [meetings, setMeetings] = useState<Meeting[]>(() =>
     readStored(STORAGE_KEY + '_meetings', operationalFallback(INITIAL_MEETINGS))
   );
+  const [programmes, setProgrammes] = useState<Programme[]>(() =>
+    readStored(STORAGE_KEY + '_programmes', operationalFallback(INITIAL_PROGRAMMES))
+  );
 
   // SSO Login for Firm Staff - STRICTLY @shcolaw.com
   const loginWithGoogleSSO = async (): Promise<{ success: boolean; error?: string }> => {
@@ -998,6 +1007,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteMeeting = (id: string) => {
     setMeetings((prev) => prev.filter((item) => item.id !== id));
     showToast('Meeting removed.');
+  };
+
+  const addProgramme = (programme: Programme) => {
+    setProgrammes((prev) => [programme, ...prev.filter((item) => item.id !== programme.id)]);
+    addActivityLog('Programme Added', `${programme.title} · ${programme.date}`);
+    showToast('Programme added.');
+  };
+
+  const updateProgramme = (id: string, updates: Partial<Programme>) => {
+    setProgrammes((prev) => prev.map((item) => (item.id === id ? { ...item, ...updates } : item)));
+    showToast('Programme updated.');
+  };
+
+  const deleteProgramme = (id: string) => {
+    setProgrammes((prev) => prev.filter((item) => item.id !== id));
+    showToast('Programme removed.');
   };
 
   // Load state from localStorage if available
@@ -1665,6 +1690,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     partnerDashboard: 'dashboard',
     clientPortal: 'clientPortal',
     leads: 'leads',
+    leadsReferrals: 'leads',
+    'leads-referrals': 'leads',
     clients: 'clients',
     cases: 'cases',
     documents: 'cases',
@@ -1915,6 +1942,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [meetings]);
 
   useEffect(() => {
+    localStorage.setItem(STORAGE_KEY + '_programmes', JSON.stringify(programmes));
+  }, [programmes]);
+
+  useEffect(() => {
     localStorage.setItem(STORAGE_KEY + '_rolesMatrix', JSON.stringify(rolesMatrix));
   }, [rolesMatrix]);
 
@@ -2005,6 +2036,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (Array.isArray(state.attendanceRecords)) setAttendanceRecords(state.attendanceRecords as AttendanceRecord[]);
       if (Array.isArray(state.leaveApplications)) setLeaveApplications(state.leaveApplications as LeaveApplication[]);
       if (Array.isArray(state.meetings)) setMeetings(state.meetings as Meeting[]);
+      if (Array.isArray(state.programmes)) setProgrammes(state.programmes as Programme[]);
       if (Array.isArray(state.notifications)) setNotifications(state.notifications as NotificationItem[]);
       if (Array.isArray(state.lawFirmRegistry)) setLawFirmRegistry((state.lawFirmRegistry as LawFirmRegistryEntry[]).filter((firm) => isActive('Law Firm', firm)));
       if (state.sequenceCounters && typeof state.sequenceCounters === 'object') setSequenceCounters(state.sequenceCounters as SequenceCounters);
@@ -2033,7 +2065,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           await writeCloudState({
             leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims,
             receipts, deadlines, invoices, payments, retainers, users, attendanceRecords,
-            leaveApplications, meetings, notifications, lawFirmRegistry, sequenceCounters, deletedRecords,
+            leaveApplications, meetings, programmes, notifications, lawFirmRegistry, sequenceCounters, deletedRecords,
             rolesMatrix, customRoles, practiceSettings: getPracticeSettings(),
           });
         }
@@ -2067,7 +2099,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     void writeCloudState({
       leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims,
       receipts, deadlines, invoices, payments, retainers, users, attendanceRecords,
-      leaveApplications, meetings, notifications, lawFirmRegistry, sequenceCounters, deletedRecords,
+      leaveApplications, meetings, programmes, notifications, lawFirmRegistry, sequenceCounters, deletedRecords,
       rolesMatrix, customRoles,
     }).catch((error) => {
       console.error('Cloud state save failed; signing out to prevent unsynced data entry.', error);
@@ -2075,7 +2107,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCloudSyncReady(false);
       setIsAuthenticated(false);
     });
-  }, [cloudSyncReady, leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims, receipts, deadlines, invoices, payments, retainers, users, attendanceRecords, leaveApplications, meetings, notifications, lawFirmRegistry, sequenceCounters, deletedRecords, rolesMatrix, customRoles]);
+  }, [cloudSyncReady, leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims, receipts, deadlines, invoices, payments, retainers, users, attendanceRecords, leaveApplications, meetings, programmes, notifications, lawFirmRegistry, sequenceCounters, deletedRecords, rolesMatrix, customRoles]);
 
   const addActivityLog = (action: string, details: string) => {
     const newLog: ActivityLog = {
@@ -2725,6 +2757,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addMeeting,
         updateMeeting,
         deleteMeeting,
+        addProgramme,
+        updateProgramme,
+        deleteProgramme,
         canViewModule,
         updateRolePermission,
         customRoles,
@@ -2758,6 +2793,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         attendanceRecords,
         leaveApplications,
         meetings,
+        programmes,
         logs,
         rolesMatrix,
         lawFirmRegistry,

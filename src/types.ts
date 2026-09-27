@@ -87,6 +87,17 @@ export interface Lead {
   followupDate: string;
 }
 
+export interface Programme {
+  id: string;
+  title: string;
+  type: 'Seminar' | 'Networking' | 'BNI' | 'Webinar' | 'Other';
+  date: string;
+  location?: string;
+  registrations: number;
+  attendance?: number;
+  notes?: string;
+}
+
 export interface KycDoc {
   id: string;
   name: string;

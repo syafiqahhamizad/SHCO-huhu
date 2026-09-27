@@ -18,6 +18,7 @@ import {
   DocTemplate,
   Deadline,
   Meeting,
+  Programme,
   Court,
   Judge,
   TimeEntry,
@@ -735,6 +736,12 @@ export const INITIAL_MEETINGS: Meeting[] = [
   { id: 'MTG2', title: 'Lunch · BNI Bangi chapter', date: '2026-09-28', time: '12:30', location: 'Hotel Bangi', note: '2 referrals expected', type: 'Network' },
   { id: 'MTG3', title: 'Mega Holdings: SPA review', date: '2026-09-28', time: '15:00', location: 'Zoom', note: 'with AH', type: 'Client', attendees: ['AH'] },
   { id: 'MTG4', title: '1-to-1: Aqilah Rahim', date: '2026-09-28', time: '17:00', location: 'Your room', note: 'workload check', type: 'Team' },
+];
+
+export const INITIAL_PROGRAMMES: Programme[] = [
+  { id: 'PRG1', title: 'BNI Bangi Chapter — Weekly Meeting', type: 'BNI', date: '2026-09-28', location: 'Hotel Bangi', registrations: 24, attendance: 22, notes: '2 referrals expected this week' },
+  { id: 'PRG2', title: 'Estate Planning & Wills Seminar', type: 'Seminar', date: '2026-10-08', location: 'Firm Boardroom, Bangi Sentral', registrations: 18 },
+  { id: 'PRG3', title: 'Selangor Central Networking Night', type: 'Networking', date: '2026-09-15', location: 'Hotel Selangor Central', registrations: 12, attendance: 10 },
 ];
 
 export const INITIAL_COURTS: Court[] = [

@@ -870,18 +870,20 @@ export const LeadsView: React.FC = () => {
                         <Pencil className="w-3.5 h-3.5 text-slate-600" />
                       </button>
 
-                      {/* DELETE LEAD BUTTON */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteLead(l);
-                        }}
-                        className="p-1.5 border border-rose-200 hover:bg-rose-100 text-rose-700 rounded-lg transition-colors cursor-pointer"
-                        title="Delete Lead"
-                      >
-                        <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                      </button>
+                      {/* DELETE LEAD BUTTON — admin only (LEADS_AND_REFERRALS.md) */}
+                      {(currentUser?.isAdmin || currentUser?.isSuperAdmin) && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteLead(l);
+                          }}
+                          className="p-1.5 border border-rose-200 hover:bg-rose-100 text-rose-700 rounded-lg transition-colors cursor-pointer"
+                          title="Delete Lead"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

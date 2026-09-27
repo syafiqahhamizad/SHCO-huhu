@@ -10,6 +10,7 @@ import { ShieldAlert } from 'lucide-react';
 const PartnerDashboardView = React.lazy(() => import('./components/views/PartnerDashboardView').then((module) => ({ default: module.PartnerDashboardView })));
 const ComprehensiveDashboardView = React.lazy(() => import('./components/views/ComprehensiveDashboardView').then((module) => ({ default: module.ComprehensiveDashboardView })));
 const LeadsView = React.lazy(() => import('./components/views/LeadsView').then((module) => ({ default: module.LeadsView })));
+const LeadsReferralsView = React.lazy(() => import('./components/views/LeadsReferralsView').then((module) => ({ default: module.LeadsReferralsView })));
 const ClientsView = React.lazy(() => import('./components/views/ClientsView').then((module) => ({ default: module.ClientsView })));
 const CasesView = React.lazy(() => import('./components/views/CasesView').then((module) => ({ default: module.CasesView })));
 const QuotationsView = React.lazy(() => import('./components/views/QuotationsView').then((module) => ({ default: module.QuotationsView })));
@@ -122,6 +123,9 @@ const MainContent: React.FC = () => {
         return <StaffPortalView />;
       case 'leads':
         return <LeadsView />;
+      case 'leadsReferrals':
+      case 'leads-referrals':
+        return <LeadsReferralsView />;
       case 'clients':
         return <ClientsView />;
       case 'cases':
