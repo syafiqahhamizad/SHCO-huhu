@@ -46,6 +46,7 @@ export const UsersManagementView: React.FC = () => {
     users = [],
     currentUser,
     updateUserRoleAndAdmin,
+    repairUserAccess,
     addUser,
     deleteUser,
     rolesMatrix,
@@ -63,6 +64,7 @@ export const UsersManagementView: React.FC = () => {
   const [selectedRoleForMatrix, setSelectedRoleForMatrix] = useState<Role>('Lawyer');
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [repairingUserId, setRepairingUserId] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newRole, setNewRole] = useState<Role>('Lawyer');
@@ -367,6 +369,18 @@ export const UsersManagementView: React.FC = () => {
                       <td className="p-3 text-right">
                         {isSuperAdmin ? (
                           <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={async () => {
+                                setRepairingUserId(u.id);
+                                await repairUserAccess(u.id);
+                                setRepairingUserId(null);
+                              }}
+                              disabled={repairingUserId === u.id}
+                              title="Re-apply this user's role/admin access to their real Firebase account — use this if their real permissions ever fall out of sync with what's shown here (e.g. accounts created before a permissions fix)."
+                              className="px-2.5 py-1 bg-[#E7EEF6] hover:bg-[#d7e5f3] text-[#2F5680] font-bold rounded text-[11px] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {repairingUserId === u.id ? 'Repairing…' : 'Repair Access'}
+                            </button>
                             <button
                               onClick={() => updateUserRoleAndAdmin(u.id, u.role, !u.isAdmin, u.isSuperAdmin)}
                               className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold rounded text-[11px] cursor-pointer"

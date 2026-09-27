@@ -147,6 +147,7 @@ interface AppContextType {
     newIsAdmin: boolean,
     newIsSuperAdmin?: boolean
   ) => boolean;
+  repairUserAccess: (targetUserId: string) => Promise<boolean>;
   addUser: (newUser: User) => boolean;
   deleteUser: (userId: string) => boolean;
   updateUserStaffProfile: (userId: string, profile: User['staffProfile']) => void;
@@ -854,6 +855,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     showToast('User role & access updated successfully by Super Admin.');
     return true;
+  };
+
+  // Re-pushes a user's CURRENT role/admin/superAdmin to Firebase without changing
+  // anything locally — for accounts provisioned before the claims fix, whose real
+  // Firebase permissions are still stuck on the old (broken) values.
+  const repairUserAccess = async (targetUserId: string): Promise<boolean> => {
+    const isSuperAdminUser =
+      currentUser.email === 'syafiqahhamizad@shcolaw.com' || Boolean(currentUser.isSuperAdmin);
+    if (!isSuperAdminUser) {
+      showToast('Access Denied: Only Super Admin can repair a user\'s access.');
+      return false;
+    }
+
+    const targetUser = users.find((u) => u.id === targetUserId);
+    if (!targetUser?.email) {
+      showToast('That user has no email on file to repair.');
+      return false;
+    }
+
+    try {
+      await syncFirebaseUserClaims({
+        email: targetUser.email,
+        role: String(targetUser.role).toLowerCase(),
+        isAdmin: Boolean(targetUser.isAdmin),
+        isSuperAdmin: Boolean(targetUser.isSuperAdmin),
+      });
+      showToast(`${targetUser.name}'s real access has been repaired.`);
+      return true;
+    } catch (error) {
+      showToast(error instanceof Error ? `Repair failed: ${error.message}` : 'Repair failed.');
+      return false;
+    }
   };
 
   const addUser = (newUser: User): boolean => {
@@ -2638,6 +2671,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         logoutUser,
         redeemInvitation,
         updateUserRoleAndAdmin,
+        repairUserAccess,
         addUser,
         deleteUser,
         updateUserStaffProfile,
