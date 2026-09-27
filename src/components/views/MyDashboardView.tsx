@@ -6,12 +6,15 @@ import {
   CircleAlert,
   ClipboardList,
   Clock,
+  Compass,
   DollarSign,
   FileSignature,
   FolderOpen,
   Flag,
   Gavel,
   Inbox,
+  Lock,
+  MapPin,
   Plus,
   Receipt,
   Scale,
@@ -21,10 +24,13 @@ import {
   Timer,
   Trash2,
   User,
+  Users as UsersIcon,
+  Video,
+  X,
   Zap,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { Case, Task, TaskChecklistItem } from '../../types';
+import { Case, Meeting, Task, TaskChecklistItem } from '../../types';
 import { identityTokens, isMine, partnerCode } from '../../lib/identity';
 import { Donut, MiniBarChart, ProgressBar, TaskFormModal, blankTaskDraft } from '../ui';
 import type { TaskDraft } from '../ui';
@@ -136,6 +142,10 @@ export const MyDashboardView: React.FC = () => {
     leads,
     users,
     leaveApplications,
+    updateLeaveApplication,
+    updateQuotation,
+    meetings,
+    addMeeting,
     currentUser,
     setCurrentView,
     setCurrentCaseId,
@@ -154,6 +164,9 @@ export const MyDashboardView: React.FC = () => {
   const [ghostDone, setGhostDone] = useState<Record<string, { row: RowWithBucket; priorStatus: Task['status'] }>>({});
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [meetingTab, setMeetingTab] = useState<'today' | 'week'>('today');
+  const [meetingFormOpen, setMeetingFormOpen] = useState(false);
+  const [meetingDraft, setMeetingDraft] = useState({ title: '', date: '', time: '', location: '', note: '', type: 'Internal' as Meeting['type'] });
   const { confirm, ConfirmationModal } = useConfirmation();
 
   const todayStr = iso(new Date());
@@ -326,32 +339,8 @@ export const MyDashboardView: React.FC = () => {
         });
       });
 
-      (quotations || []).forEach((q: any) => {
-        if (q.approvalStatus !== 'Pending') return;
-        out.push({
-          id: `appr-quote-${q.id}`,
-          stream: 'approval',
-          title: `Quotation · RM ${Number(q.total || 0).toLocaleString()} (${q.clientName})`,
-          matterRef: q.fileRef,
-          matterTitle: q.practiceArea,
-          dueDate: q.date || '',
-          status: 'Pending approval',
-          view: 'quotations',
-        });
-      });
-
-      (leaveApplications || []).forEach((l: any) => {
-        if (l.status !== 'Pending') return;
-        out.push({
-          id: `appr-leave-${l.id}`,
-          stream: 'approval',
-          title: `${l.leaveType} leave · ${l.days} day(s)`,
-          matterTitle: l.reason,
-          dueDate: l.startDate || '',
-          status: 'Pending approval',
-          view: 'staffPortal',
-        });
-      });
+      // Quotation approvals and leave requests are partner-level calls, surfaced in the
+      // "Needs your decision" panel instead — not duplicated here.
 
       // 5 — vouchers and invoices waiting on a signature / release.
       // Route to the partner(s) in charge of the matter when the voucher is tied to
@@ -799,8 +788,129 @@ export const MyDashboardView: React.FC = () => {
 
   const recent = myCases.filter((c) => c.lastAccessed).slice(0, 4);
 
+  // Needs your decision — partner-level calls (leave requests, fee quotes) pulled out of
+  // the general to-do queue into their own panel; not duplicated in "My to-do" below.
+  const decisions = useMemo(() => {
+    if (!isPartner) return [];
+    const nowIso = new Date().toISOString();
+    const out: {
+      id: string;
+      title: string;
+      subtitle: string;
+      primaryLabel: string;
+      onPrimary: () => void;
+      secondaryLabel: string;
+      onSecondary: () => void;
+    }[] = [];
+
+    (leaveApplications || []).forEach((l: any) => {
+      if (l.status !== 'Pending') return;
+      const applicant = (users || []).find((u: any) => u.id === l.userId)?.name || l.userId || 'Staff';
+      out.push({
+        id: `dec-leave-${l.id}`,
+        title: `Leave: ${applicant}`,
+        subtitle: `${l.startDate}${l.endDate && l.endDate !== l.startDate ? ` – ${l.endDate}` : ''} · ${l.days} day(s) · ${l.reason || l.leaveType}`,
+        primaryLabel: 'Approve',
+        onPrimary: () => updateLeaveApplication(l.id, { status: 'Approved', reviewedBy: currentUser?.name, reviewedAt: nowIso }),
+        secondaryLabel: 'Reject',
+        onSecondary: () => updateLeaveApplication(l.id, { status: 'Rejected', reviewedBy: currentUser?.name, reviewedAt: nowIso }),
+      });
+    });
+
+    (quotations || []).forEach((q: any) => {
+      if (q.approvalStatus !== 'Pending') return;
+      out.push({
+        id: `dec-quote-${q.id}`,
+        title: `Fee quote · RM ${Number(q.total || 0).toLocaleString()}`,
+        subtitle: `${q.clientName || 'Client'} · ${q.practiceArea || ''}`.trim(),
+        primaryLabel: 'Approve',
+        onPrimary: () => updateQuotation(q.id, { approvalStatus: 'Approved', approvedBy: currentUser?.name || '', approvedDate: todayStr }),
+        secondaryLabel: 'Discuss',
+        onSecondary: () => setCurrentView('quotations'),
+      });
+    });
+
+    return out;
+  }, [isPartner, leaveApplications, quotations, users, currentUser, todayStr]);
+
+  // Your meetings — real Meeting records, Today / This week.
+  const meetingsInRange = useMemo(() => {
+    const list = (meetings || []).filter((m: Meeting) => (meetingTab === 'today' ? m.date === todayStr : m.date >= todayStr && m.date <= weekStr));
+    return list.slice().sort((a: Meeting, b: Meeting) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
+  }, [meetings, meetingTab, todayStr, weekStr]);
+
+  const openMeetingForm = () => {
+    setMeetingDraft({ title: '', date: todayStr, time: '', location: '', note: '', type: 'Internal' });
+    setMeetingFormOpen(true);
+  };
+
+  const saveMeeting = () => {
+    if (!meetingDraft.title.trim() || !meetingDraft.date || !meetingDraft.time) {
+      showToast('Add a title, date and time for the meeting.');
+      return;
+    }
+    addMeeting({
+      id: `MTG-${Date.now()}`,
+      title: meetingDraft.title.trim(),
+      date: meetingDraft.date,
+      time: meetingDraft.time,
+      location: meetingDraft.location.trim() || undefined,
+      note: meetingDraft.note.trim() || undefined,
+      type: meetingDraft.type,
+      createdBy: currentUser?.name,
+    });
+    setMeetingFormOpen(false);
+  };
+
+  const MEETING_TYPE_META: Record<Meeting['type'], { color: string; bg: string }> = {
+    Internal: { color: palette.navy, bg: '#F0F2F5' },
+    Network: { color: palette.gold, bg: tint.gold },
+    Client: { color: palette.blue, bg: tint.blue },
+    Team: { color: palette.purple, bg: tint.purple },
+  };
+
+  // Quick-launcher row — shortcuts into other role-restricted areas of the app. The lock
+  // badge is a static "this category is firm-restricted" indicator (shown regardless of
+  // the current viewer's own access); actually clicking through still goes through the
+  // real canViewModule access check in App.tsx, which shows Access Restricted if this
+  // viewer's role doesn't actually have it.
+  const launcherCards: { key: string; label: string; sub: string; icon: React.ElementType; locked: boolean; active?: boolean; onClick?: () => void }[] = [
+    { key: 'work', label: 'My work', sub: 'Tasks, meetings, approvals', icon: Scale, locked: false, active: true },
+    { key: 'finance', label: 'Finance', sub: 'Margin, cash, funds', icon: DollarSign, locked: true, onClick: () => setCurrentView('accountingCentre') },
+    { key: 'clientAccount', label: 'Client account', sub: 'Balances & items to check', icon: FolderOpen, locked: false, onClick: () => setCurrentView('retainers') },
+    { key: 'team', label: 'Team', sub: 'Workload, pay, goals', icon: UsersIcon, locked: true, onClick: () => setCurrentView('users') },
+    { key: 'partnerKpis', label: 'Partner KPIs', sub: 'Scorecards', icon: Target, locked: false, onClick: () => setCurrentView('partnerDashboard') },
+    { key: 'compliance', label: 'Compliance', sub: 'Checklist & submissions', icon: ShieldCheck, locked: false, onClick: () => setCurrentView('clients') },
+    { key: 'direction', label: 'Direction', sub: 'Vision, roadmap, growth', icon: Compass, locked: true, onClick: () => setCurrentView('firmDashboard') },
+  ];
+
   return (
     <div className="space-y-4 pb-8 text-[12px]">
+      <section className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 xl:grid-cols-7">
+        {launcherCards.map((c) => (
+          <button
+            key={c.key}
+            type="button"
+            onClick={c.onClick}
+            disabled={!c.onClick}
+            className="flex items-center gap-2.5 rounded-xl border bg-white p-3 text-left disabled:cursor-default"
+            style={{ borderColor: c.active ? palette.navy : palette.border, boxShadow: c.active ? `0 0 0 1px ${palette.navy}` : undefined }}
+          >
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg" style={{ backgroundColor: c.active ? palette.navy : '#F6F8FA', color: c.active ? '#fff' : palette.navy }}>
+              <c.icon className="h-4 w-4" />
+            </span>
+            <span className="min-w-0">
+              <span className="flex items-center gap-1 truncate text-[12px] font-bold text-[#16223A]">
+                {c.label}
+                {c.locked && <Lock className="h-2.5 w-2.5 shrink-0 text-[#5B6478]" />}
+                {c.active && <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: palette.blue }} />}
+              </span>
+              <span className="block truncate text-[10px] text-[#5B6478]">{c.sub}</span>
+            </span>
+          </button>
+        ))}
+      </section>
+
       <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         {kpis.map((k) => {
           const active = k.filter && k.filter !== 'all' ? filter === k.filter : k.filter === 'all' && filter === 'all';
@@ -828,6 +938,29 @@ export const MyDashboardView: React.FC = () => {
           );
         })}
       </section>
+
+      {decisions.length > 0 && (
+        <div className="overflow-hidden rounded-xl border border-[#DDE3EB] bg-white">
+          <div className="flex flex-wrap items-center gap-2 border-b border-[#DDE3EB] bg-[#FBF2E9] px-3.5 py-2.5">
+            <AlertTriangle className="h-4 w-4 text-[#8A6D3B]" />
+            <strong className="font-serif text-[14px] text-[#16223A]">Needs your decision</strong>
+            <span className="rounded-full bg-white px-1.5 text-[10px] font-bold text-[#8A6D3B]">{decisions.length}</span>
+            <span className="ml-auto text-[10.5px] text-[#5B6478]">Payments &amp; referral fees are approved in Accounts &amp; Compliance</span>
+          </div>
+          <div className="grid grid-cols-1 divide-y divide-[#F0F2F5] sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
+            {decisions.map((d) => (
+              <div key={d.id} className="flex flex-col gap-2 p-3.5">
+                <p className="text-[12px] font-bold leading-snug text-[#16223A]">{d.title}</p>
+                <p className="flex-1 text-[10.5px] leading-snug text-[#5B6478]">{d.subtitle}</p>
+                <div className="flex gap-1.5">
+                  <button type="button" onClick={d.onPrimary} className="flex-1 rounded-md bg-[#2F6F4E] px-2 py-1.5 text-[11px] font-bold text-white">{d.primaryLabel}</button>
+                  <button type="button" onClick={d.onSecondary} className="flex-1 rounded-md border border-[#DDE3EB] bg-white px-2 py-1.5 text-[11px] font-bold text-[#16223A]">{d.secondaryLabel}</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <section className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="flex min-w-0 flex-col gap-3.5">
@@ -1072,6 +1205,50 @@ export const MyDashboardView: React.FC = () => {
         </div>
 
         <aside className="flex flex-col gap-3">
+          {/* Your meetings */}
+          <div className="overflow-hidden rounded-xl border border-[#DDE3EB] bg-white">
+            <div className="flex items-center gap-2 border-b border-[#DDE3EB] px-3.5 py-2.5">
+              <Video className="h-[15px] w-[15px] text-[#3D6B9C]" />
+              <strong className="font-serif text-[14px] text-[#16223A]">Your meetings</strong>
+              <div className="ml-auto flex rounded-[7px] bg-[#F6F8FA] p-0.5">
+                {(['today', 'week'] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setMeetingTab(t)}
+                    className="rounded-[5px] px-2 py-0.5 text-[10.5px] font-bold"
+                    style={{ backgroundColor: meetingTab === t ? palette.navy : 'transparent', color: meetingTab === t ? '#fff' : palette.slate }}
+                  >
+                    {t === 'today' ? 'Today' : 'This week'}
+                  </button>
+                ))}
+              </div>
+              <button type="button" onClick={openMeetingForm} className="flex items-center gap-1 rounded-md bg-[#3D6B9C] px-2 py-1 text-[10.5px] font-bold text-white">
+                <Plus className="h-3 w-3" />Book slot
+              </button>
+            </div>
+            {meetingsInRange.length === 0 ? (
+              <p className="px-4 py-6 text-center text-[11px] text-slate-400">No meetings {meetingTab === 'today' ? 'today' : 'this week'}.</p>
+            ) : (
+              meetingsInRange.map((m: Meeting, i: number) => {
+                const meta = MEETING_TYPE_META[m.type] || MEETING_TYPE_META.Internal;
+                return (
+                  <div key={m.id} className="flex items-start gap-2.5 px-3.5 py-2" style={{ borderTop: i ? '1px solid #F0F2F5' : 'none' }}>
+                    <span className="w-11 shrink-0 pt-0.5 font-mono text-[11px] font-bold text-[#16223A]">{m.time}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[11.5px] font-semibold text-[#16223A]">{m.title}</p>
+                      <p className="flex items-center gap-1 truncate text-[10.5px] text-[#5B6478]">
+                        {m.location && <span className="flex items-center gap-0.5"><MapPin className="h-2.5 w-2.5" />{m.location}</span>}
+                        {m.note && <span>· {m.note}</span>}
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[9.5px] font-bold" style={{ backgroundColor: meta.bg, color: meta.color }}>{m.type}</span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
           {/* Court & deadlines */}
           <div className="overflow-hidden rounded-xl border border-[#DDE3EB] bg-white">
             <div className="flex items-center gap-2 border-b border-[#DDE3EB] px-3.5 py-2.5">
@@ -1250,6 +1427,61 @@ export const MyDashboardView: React.FC = () => {
         onCreate={createTask}
         onCreateAnother={createTaskAndAnother}
       />
+      {meetingFormOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#16223A]/45 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-white shadow-2xl">
+            <div className="flex items-center gap-2 border-b border-[#DDE3EB] px-4 py-3">
+              <strong className="font-serif text-[14px] text-[#16223A]">Book a slot</strong>
+              <button type="button" onClick={() => setMeetingFormOpen(false)} className="ml-auto text-[#5B6478] hover:text-[#16223A]"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="space-y-2.5 p-4">
+              <input
+                autoFocus
+                value={meetingDraft.title}
+                onChange={(e) => setMeetingDraft((d) => ({ ...d, title: e.target.value }))}
+                placeholder="Meeting title"
+                className="w-full rounded-lg border border-[#DDE3EB] px-2.5 py-2 text-[12.5px] text-[#16223A]"
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <input type="date" value={meetingDraft.date} onChange={(e) => setMeetingDraft((d) => ({ ...d, date: e.target.value }))} className="rounded-lg border border-[#DDE3EB] px-2.5 py-2 text-[12px]" />
+                <input type="time" value={meetingDraft.time} onChange={(e) => setMeetingDraft((d) => ({ ...d, time: e.target.value }))} className="rounded-lg border border-[#DDE3EB] px-2.5 py-2 text-[12px]" />
+              </div>
+              <input
+                value={meetingDraft.location}
+                onChange={(e) => setMeetingDraft((d) => ({ ...d, location: e.target.value }))}
+                placeholder="Location / link (optional)"
+                className="w-full rounded-lg border border-[#DDE3EB] px-2.5 py-2 text-[12.5px] text-[#16223A]"
+              />
+              <input
+                value={meetingDraft.note}
+                onChange={(e) => setMeetingDraft((d) => ({ ...d, note: e.target.value }))}
+                placeholder="Note (optional)"
+                className="w-full rounded-lg border border-[#DDE3EB] px-2.5 py-2 text-[12.5px] text-[#16223A]"
+              />
+              <div className="flex flex-wrap gap-1.5">
+                {(['Internal', 'Network', 'Client', 'Team'] as Meeting['type'][]).map((t) => {
+                  const active = meetingDraft.type === t;
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setMeetingDraft((d) => ({ ...d, type: t }))}
+                      className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                      style={{ border: `1px solid ${active ? palette.navy : palette.border}`, backgroundColor: active ? palette.navy : '#fff', color: active ? '#fff' : palette.slate }}
+                    >
+                      {t}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 border-t border-[#DDE3EB] bg-[#F6F8FA] px-4 py-3">
+              <button type="button" onClick={() => setMeetingFormOpen(false)} className="rounded-lg border border-[#DDE3EB] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#5B6478]">Cancel</button>
+              <button type="button" onClick={saveMeeting} className="ml-auto rounded-lg bg-[#16223A] px-4 py-1.5 text-[12px] font-bold text-white">Book slot</button>
+            </div>
+          </div>
+        </div>
+      )}
       {ConfirmationModal}
     </div>
   );

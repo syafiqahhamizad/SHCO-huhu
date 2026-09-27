@@ -827,6 +827,20 @@ export interface ActivityLog {
   details: string;
 }
 
+export interface Meeting {
+  id: string;
+  title: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:MM, 24h
+  durationMinutes?: number;
+  location?: string;
+  note?: string;
+  type: 'Internal' | 'Network' | 'Client' | 'Team';
+  attendees?: string[];
+  caseId?: string;
+  createdBy?: string;
+}
+
 export interface ModulePermissions {
   v: number; // View
   a: number; // Add

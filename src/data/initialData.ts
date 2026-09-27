@@ -17,6 +17,7 @@ import {
   ThreeWayRecRow,
   DocTemplate,
   Deadline,
+  Meeting,
   Court,
   Judge,
   TimeEntry,
@@ -727,6 +728,13 @@ export const INITIAL_DOC_TEMPLATES: DocTemplate[] = [
 export const INITIAL_DEADLINES: Deadline[] = [
   { id: 'DL1', caseId: 'CS-001', title: 'File reply to defence', type: 'Filing', dueDate: '2026-07-20', priority: 'Urgent', status: 'In Progress', reminderDays: 7, notes: '', partner: 'SH', lawyer: 'AH' },
   { id: 'DL2', caseId: 'CS-002', title: 'Complete SHA review', type: 'Compliance', dueDate: '2026-07-30', priority: 'Normal', status: 'In Review', reminderDays: 5, notes: '', partner: 'AH', lawyer: 'ZA' },
+];
+
+export const INITIAL_MEETINGS: Meeting[] = [
+  { id: 'MTG1', title: "Partners' meeting (monthly)", date: '2026-09-28', time: '10:00', location: 'Boardroom', note: 'AH, ZA', type: 'Internal', attendees: ['AH', 'ZA'] },
+  { id: 'MTG2', title: 'Lunch · BNI Bangi chapter', date: '2026-09-28', time: '12:30', location: 'Hotel Bangi', note: '2 referrals expected', type: 'Network' },
+  { id: 'MTG3', title: 'Mega Holdings: SPA review', date: '2026-09-28', time: '15:00', location: 'Zoom', note: 'with AH', type: 'Client', attendees: ['AH'] },
+  { id: 'MTG4', title: '1-to-1: Aqilah Rahim', date: '2026-09-28', time: '17:00', location: 'Your room', note: 'workload check', type: 'Team' },
 ];
 
 export const INITIAL_COURTS: Court[] = [
