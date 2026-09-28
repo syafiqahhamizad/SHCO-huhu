@@ -50,6 +50,11 @@ export const QuotationsView: React.FC = () => {
   const [courtLevel, setCourtLevel] = useState('Sessions Court');
   const [stage, setStage] = useState('Full Trial');
 
+  // SST isn't chargeable yet (firm not registered) — off by default, but tickable per
+  // document for when registration goes through, per Firm & Practice Settings.
+  const [applySst, setApplySst] = useState(() => getPracticeSettings().sstRegistered);
+  const sstRate = getPracticeSettings().sstRate || 0.08;
+
   // Manual line items for non-conveyancing
   const [manualDesc, setManualDesc] = useState('Professional Advisory Fee');
   const [manualAmount, setManualAmount] = useState<number>(5000);
@@ -62,7 +67,7 @@ export const QuotationsView: React.FC = () => {
   const isLitigation = practiceArea.toLowerCase().includes('litigation') || practiceArea.toLowerCase().includes('dispute');
 
   // Computed SRO Fee
-  const sroResult = calculateSroTransferFee(propertyPrice, isDiscounted, discountPct);
+  const sroResult = calculateSroTransferFee(propertyPrice, isDiscounted, discountPct, applySst, sstRate);
 
   const defaultQuoteLineItems = (): QuotationLineItem[] => {
     const defaultBillingItems = getPracticeSettings().defaultBillingItems || [];
@@ -77,7 +82,7 @@ export const QuotationsView: React.FC = () => {
     const withDefaults = (items: QuotationLineItem[]) => [...items, ...defaultRecoverableItems];
     if (isConveyancing) return ([
       { description: `Professional Fee — SRO 2023 Scale (Property Value: RM ${propertyPrice.toLocaleString()})`, category: 'Fee - SRO', amount: sroResult.scaleFee },
-      { description: 'SST Service Tax (8%)', category: 'Fee - SRO', amount: sroResult.sstAmount },
+      ...(applySst ? [{ description: `SST Service Tax (${Math.round(sstRate * 100)}%)`, category: 'Fee - SRO', amount: sroResult.sstAmount } as QuotationLineItem] : []),
       { description: 'Estimated Stamp Duty (Memorandum of Transfer)', category: 'Disbursement', amount: sroResult.stampDutyEstimate },
       { description: 'Title Search & Land Registry Registration Fees', category: 'Disbursement', amount: 300 },
     ] as QuotationLineItem[]).concat(defaultRecoverableItems);
@@ -162,6 +167,10 @@ export const QuotationsView: React.FC = () => {
       return;
     }
     const invId = getNextSequenceId('invoice');
+    // Carry the quotation's own SST tick through to the invoice rather than assuming
+    // either way — q.total already reflects it (see computeTotals), so re-derive the
+    // amount/tax split from the same line items instead of guessing a percentage.
+    const quotationTotals = computeTotals(q.lineItems, q.sstApplied, sstRate);
     const newInv: Invoice = {
       id: invId,
       clientId: q.partyId || q.leadId || 'PROSPECT-UNREGISTERED',
@@ -170,12 +179,10 @@ export const QuotationsView: React.FC = () => {
       quotationId: q.id,
       partyType: q.partyType || 'Client',
       partyName: q.clientName,
-      // The firm isn't SST-registered yet (see ACCOUNTS_AND_FINANCE.md) — q.total already
-      // carries no tax, so don't fabricate an 8% split on top of it.
-      amount: q.total,
+      amount: quotationTotals.fees + quotationTotals.disbursements + quotationTotals.reimbursements,
       discount: 0,
-      tax: 0,
-      total: q.total,
+      tax: quotationTotals.sst,
+      total: quotationTotals.grandTotal,
       date: new Date().toISOString().slice(0, 10),
       dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
       status: 'Unpaid',
@@ -193,7 +200,7 @@ export const QuotationsView: React.FC = () => {
     }
     const proforma: Quotation = {
       ...q,
-      id: `PF-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: getNextSequenceId('quotation'),
       documentType: 'Proforma',
       sourceQuotationId: q.id,
       status: 'Draft',
@@ -295,11 +302,11 @@ export const QuotationsView: React.FC = () => {
           category: 'Fee - SRO',
           amount: sroResult.scaleFee,
         },
-        {
-          description: 'SST Service Tax (8%)',
-          category: 'Fee - SRO',
+        ...(applySst ? [{
+          description: `SST Service Tax (${Math.round(sstRate * 100)}%)`,
+          category: 'Fee - SRO' as const,
           amount: sroResult.sstAmount,
-        },
+        }] : []),
         {
           description: 'Estimated Stamp Duty (Memorandum of Transfer)',
           category: 'Disbursement',
@@ -331,10 +338,10 @@ export const QuotationsView: React.FC = () => {
       calculatedTotal = manualAmount;
     }
 
-    const qId = `Q-${Math.floor(1000 + Math.random() * 9000)}`;
+    const qId = getNextSequenceId('quotation');
     if (quoteLineItems.length > 0) {
       lineItems = quoteLineItems;
-      const totals = computeTotals(lineItems);
+      const totals = computeTotals(lineItems, applySst, sstRate);
       calculatedTotal = totals.grandTotal;
     }
     const newQ: Quotation = {
@@ -361,6 +368,7 @@ export const QuotationsView: React.FC = () => {
       approvalStatus: 'Pending',
       approvedBy: '',
       approvedDate: '',
+      sstApplied: applySst,
       lineItems,
     };
 
@@ -385,8 +393,10 @@ export const QuotationsView: React.FC = () => {
       return;
     }
     const partyId = partyType === 'Prospect' ? selectedPartyId : (selectedPartyId || `${partyType.toUpperCase()}-UNREGISTERED`);
+    const consultationLineItems: QuotationLineItem[] = [{ description: consultationDescription.trim(), category: 'Fee - Fixed', amount: consultationFee }];
+    const consultationTotals = computeTotals(consultationLineItems, applySst, sstRate);
     const consultation: Quotation = {
-      id: `CONS-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: getNextSequenceId('quotation'),
       documentType: consultationMode === 'Proforma' ? 'Proforma' : 'Quotation',
       date: consultationDate,
       practiceArea: 'Consultation',
@@ -396,9 +406,9 @@ export const QuotationsView: React.FC = () => {
       partyType,
       partyId,
       status: consultationMode === 'Proforma' ? 'Draft' : 'Accepted',
-      total: consultationFee,
+      total: consultationTotals.grandTotal,
       billedSoFar: 0,
-      remaining: consultationFee,
+      remaining: consultationTotals.grandTotal,
       courtLevel: '',
       stage: 'Consultation',
       feeMethod: 'Fixed',
@@ -413,21 +423,22 @@ export const QuotationsView: React.FC = () => {
       approvalStatus: consultationMode === 'Invoice' ? 'Approved' : 'Pending',
       approvedBy: consultationMode === 'Invoice' ? currentPartnerCode : '',
       approvedDate: consultationMode === 'Invoice' ? consultationDate : '',
-      lineItems: [{ description: consultationDescription.trim(), category: 'Fee - Fixed', amount: consultationFee }],
+      sstApplied: applySst,
+      lineItems: consultationLineItems,
     };
     addQuotation(consultation);
     if (consultationMode === 'Invoice') {
       addInvoice({
-        id: `INV-CONS-${Math.floor(1000 + Math.random() * 9000)}`,
+        id: getNextSequenceId('invoice'),
         clientId: partyId,
         caseId: 'CONSULTATION',
         quotationId: consultation.id,
         partyType,
         partyName: consultation.clientName,
-        amount: consultationFee,
+        amount: consultationTotals.fees,
         discount: 0,
-        tax: 0,
-        total: consultationFee,
+        tax: consultationTotals.sst,
+        total: consultationTotals.grandTotal,
         date: consultationDate,
         dueDate: consultationDate,
         status: 'Unpaid',
@@ -750,6 +761,15 @@ export const QuotationsView: React.FC = () => {
                       <label className="flex items-center gap-2 font-semibold text-slate-800 cursor-pointer mb-2">
                         <input
                           type="checkbox"
+                          checked={applySst}
+                          onChange={(e) => setApplySst(e.target.checked)}
+                          className="rounded text-[#3D6B9C]"
+                        />
+                        <span>Apply SST ({Math.round(sstRate * 100)}%) — not registered yet</span>
+                      </label>
+                      <label className="flex items-center gap-2 font-semibold text-slate-800 cursor-pointer mb-2">
+                        <input
+                          type="checkbox"
                           checked={isDiscounted}
                           onChange={(e) => setIsDiscounted(e.target.checked)}
                           className="rounded text-[#3D6B9C]"
@@ -783,9 +803,9 @@ export const QuotationsView: React.FC = () => {
                       </div>
                     ))}
                     <div className="flex justify-between text-slate-700 pt-1 border-t border-slate-100">
-                      <span>SST Service Tax (8%):</span>
+                      <span>{applySst ? `SST Service Tax (${Math.round(sstRate * 100)}%):` : 'SST: Not applicable'}</span>
                       <span className="font-mono font-semibold">
-                        RM {sroResult.sstAmount.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
+                        {applySst ? `RM ${sroResult.sstAmount.toLocaleString('en-MY', { minimumFractionDigits: 2 })}` : '—'}
                       </span>
                     </div>
                     <div className="flex justify-between text-slate-700">
@@ -851,7 +871,7 @@ export const QuotationsView: React.FC = () => {
         <DocPreviewModal type="quotation" docId={previewDocId} onClose={() => setPreviewDocId(null)} />
       )}
 
-      {isConsultationOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#16223A]/60 p-4"><div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl border border-[#DDE3EB] bg-white p-6 shadow-2xl"><div className="mb-4 flex items-center justify-between border-b border-[#DDE3EB] pb-3"><div><h3 className="font-serif text-lg font-bold text-[#16223A]">New Consultation Billing</h3><p className="mt-1 text-xs text-slate-500">Direct invoice or proforma for a consultation.</p></div><button type="button" onClick={() => setIsConsultationOpen(false)} className="text-xl text-slate-500 cursor-pointer">×</button></div><form onSubmit={handleSaveConsultation} className="space-y-3 text-xs"><div className="flex gap-2">{(['Invoice', 'Proforma'] as const).map((mode) => <button key={mode} type="button" onClick={() => setConsultationMode(mode)} className={`rounded-lg border px-3 py-2 font-bold cursor-pointer ${consultationMode === mode ? 'border-[#16223A] bg-[#16223A] text-white' : 'border-slate-200 bg-white text-slate-700'}`}>{mode === 'Invoice' ? 'Direct Invoice' : 'Proforma First'}</button>)}</div><div className="flex gap-2">{(['Client', 'Prospect'] as const).map((type) => <button key={type} type="button" onClick={() => { setPartyType(type); setClientName(''); setClientSearchQuery(''); setSelectedPartyId(''); }} className={`rounded-md border px-2.5 py-1 font-bold cursor-pointer ${partyType === type ? 'border-[#16223A] bg-[#16223A] text-white' : 'border-slate-200 bg-white text-slate-600'}`}>{type}</button>)}</div><input required value={clientName} onChange={(e) => { setClientName(e.target.value); setClientSearchQuery(e.target.value); }} placeholder={`Search ${partyType.toLowerCase()} by name or reference`} className="w-full" />{clientSearchQuery && <div className="max-h-28 overflow-y-auto rounded border border-slate-200">{(partyType === 'Client' ? matchingClients : matchingLeads).slice(0, 8).map((party) => <button key={party.id} type="button" onClick={() => { setClientName(partyType === 'Client' ? party.name : party.name); setSelectedPartyId(party.id); setClientSearchQuery(''); }} className="block w-full border-b border-slate-100 p-2 text-left hover:bg-[#FBF2E9] cursor-pointer"><strong>{party.name}</strong> <span className="font-mono text-[10px] text-slate-500">{party.id}</span></button>)}</div>}<div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="font-bold">Consultation date<input required type="date" value={consultationDate} onChange={(e) => setConsultationDate(e.target.value)} className="mt-1 w-full" /></label><label className="font-bold">Duration (minutes)<input required type="number" min="15" value={consultationDuration} onChange={(e) => setConsultationDuration(Number(e.target.value))} className="mt-1 w-full" /></label></div><label className="font-bold">Consultation type<select value={consultationType} onChange={(e) => setConsultationType(e.target.value as Quotation['consultationType'])} className="mt-1 w-full"><option>Initial Consultation</option><option>Follow-up Consultation</option><option>Urgent Consultation</option><option>Document Review</option><option>Video Consultation</option></select></label><label className="font-bold">Fee (RM)<input required type="number" min="0.01" step="0.01" value={consultationFee} onChange={(e) => setConsultationFee(Number(e.target.value))} className="mt-1 w-full" /></label><label className="font-bold">Description / scope<input required value={consultationDescription} onChange={(e) => setConsultationDescription(e.target.value)} className="mt-1 w-full" /></label><div className="flex justify-end gap-2 pt-3"><button type="button" onClick={() => setIsConsultationOpen(false)} className="rounded-lg border border-slate-200 px-3 py-2 font-bold cursor-pointer">Cancel</button><button type="submit" className="rounded-lg bg-[#16223A] px-3 py-2 font-bold text-white cursor-pointer">{consultationMode === 'Invoice' ? 'Issue consultation invoice' : 'Create consultation proforma'}</button></div></form></div></div>}
+      {isConsultationOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#16223A]/60 p-4"><div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl border border-[#DDE3EB] bg-white p-6 shadow-2xl"><div className="mb-4 flex items-center justify-between border-b border-[#DDE3EB] pb-3"><div><h3 className="font-serif text-lg font-bold text-[#16223A]">New Consultation Billing</h3><p className="mt-1 text-xs text-slate-500">Direct invoice or proforma for a consultation.</p></div><button type="button" onClick={() => setIsConsultationOpen(false)} className="text-xl text-slate-500 cursor-pointer">×</button></div><form onSubmit={handleSaveConsultation} className="space-y-3 text-xs"><div className="flex gap-2">{(['Invoice', 'Proforma'] as const).map((mode) => <button key={mode} type="button" onClick={() => setConsultationMode(mode)} className={`rounded-lg border px-3 py-2 font-bold cursor-pointer ${consultationMode === mode ? 'border-[#16223A] bg-[#16223A] text-white' : 'border-slate-200 bg-white text-slate-700'}`}>{mode === 'Invoice' ? 'Direct Invoice' : 'Proforma First'}</button>)}</div><div className="flex gap-2">{(['Client', 'Prospect'] as const).map((type) => <button key={type} type="button" onClick={() => { setPartyType(type); setClientName(''); setClientSearchQuery(''); setSelectedPartyId(''); }} className={`rounded-md border px-2.5 py-1 font-bold cursor-pointer ${partyType === type ? 'border-[#16223A] bg-[#16223A] text-white' : 'border-slate-200 bg-white text-slate-600'}`}>{type}</button>)}</div><input required value={clientName} onChange={(e) => { setClientName(e.target.value); setClientSearchQuery(e.target.value); }} placeholder={`Search ${partyType.toLowerCase()} by name or reference`} className="w-full" />{clientSearchQuery && <div className="max-h-28 overflow-y-auto rounded border border-slate-200">{(partyType === 'Client' ? matchingClients : matchingLeads).slice(0, 8).map((party) => <button key={party.id} type="button" onClick={() => { setClientName(partyType === 'Client' ? party.name : party.name); setSelectedPartyId(party.id); setClientSearchQuery(''); }} className="block w-full border-b border-slate-100 p-2 text-left hover:bg-[#FBF2E9] cursor-pointer"><strong>{party.name}</strong> <span className="font-mono text-[10px] text-slate-500">{party.id}</span></button>)}</div>}<div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="font-bold">Consultation date<input required type="date" value={consultationDate} onChange={(e) => setConsultationDate(e.target.value)} className="mt-1 w-full" /></label><label className="font-bold">Duration (minutes)<input required type="number" min="15" value={consultationDuration} onChange={(e) => setConsultationDuration(Number(e.target.value))} className="mt-1 w-full" /></label></div><label className="font-bold">Consultation type<select value={consultationType} onChange={(e) => setConsultationType(e.target.value as Quotation['consultationType'])} className="mt-1 w-full"><option>Initial Consultation</option><option>Follow-up Consultation</option><option>Urgent Consultation</option><option>Document Review</option><option>Video Consultation</option></select></label><label className="font-bold">Fee (RM)<input required type="number" min="0.01" step="0.01" value={consultationFee} onChange={(e) => setConsultationFee(Number(e.target.value))} className="mt-1 w-full" /></label><label className="font-bold">Description / scope<input required value={consultationDescription} onChange={(e) => setConsultationDescription(e.target.value)} className="mt-1 w-full" /></label><label className="flex items-center gap-2 font-semibold text-slate-800 cursor-pointer"><input type="checkbox" checked={applySst} onChange={(e) => setApplySst(e.target.checked)} className="rounded text-[#3D6B9C]" /><span>Apply SST ({Math.round(sstRate * 100)}%) — not registered yet</span></label><div className="flex justify-between rounded-lg bg-slate-50 px-3 py-2 font-mono text-[11px]"><span className="font-sans font-bold text-slate-600">Total {applySst ? `(incl. ${Math.round(sstRate * 100)}% SST)` : '(SST not applicable)'}</span><span className="font-bold text-[#16223A]">RM {computeTotals([{ description: '', category: 'Fee - Fixed', amount: consultationFee || 0 }], applySst, sstRate).grandTotal.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</span></div><div className="flex justify-end gap-2 pt-3"><button type="button" onClick={() => setIsConsultationOpen(false)} className="rounded-lg border border-slate-200 px-3 py-2 font-bold cursor-pointer">Cancel</button><button type="submit" className="rounded-lg bg-[#16223A] px-3 py-2 font-bold text-white cursor-pointer">{consultationMode === 'Invoice' ? 'Issue consultation invoice' : 'Create consultation proforma'}</button></div></form></div></div>}
     </div>
   );
 };

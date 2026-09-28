@@ -144,6 +144,10 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
     const profFeeTotal = profFeeItems.reduce((s, i) => s + lineItemAmount(i), 0);
     const disbTotal = disbItems.reduce((s, i) => s + lineItemAmount(i), 0);
     const reimbTotal = reimbItems.reduce((s, i) => s + lineItemAmount(i), 0);
+    // SST is charged on professional fees + reimbursements, never disbursements. Recomputed
+    // from the quotation's own sstApplied tick rather than assumed — see billingEngine.ts.
+    const quotationSstRate = practiceSettings.sstRate || 0.08;
+    const quotationSst = q.sstApplied ? Math.round((profFeeTotal + reimbTotal) * quotationSstRate * 100) / 100 : 0;
 
     const clientObj = clients.find((c) => c.name.toLowerCase() === q.clientName.toLowerCase());
     const caseObj = cases.find((c) => c.id === q.fileRef || c.ref === q.fileRef);
@@ -238,11 +242,11 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
           <tfoot>
             <tr className="text-black font-semibold text-[11px]">
               <td className="p-1.5 border border-black text-right">TOTAL (EXCLUDING SST):</td>
-              <td className="p-1.5 border border-black text-right font-mono">{q.total.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
+              <td className="p-1.5 border border-black text-right font-mono">{(q.total - quotationSst).toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
             </tr>
             <tr className="text-black text-[11px]">
-              <td className="p-1.5 border border-black text-right">SST: Not applicable</td>
-              <td className="p-1.5 border border-black text-right font-mono">-</td>
+              <td className="p-1.5 border border-black text-right">{q.sstApplied ? `SST @ ${Math.round(quotationSstRate * 100)}% (on professional fees & reimbursements):` : 'SST: Not applicable'}</td>
+              <td className="p-1.5 border border-black text-right font-mono">{q.sstApplied ? quotationSst.toLocaleString('en-MY', { minimumFractionDigits: 2 }) : '-'}</td>
             </tr>
             <tr className="text-black font-bold text-xs">
               <td className="p-2.5 border border-black text-right">TOTAL AMOUNT TO BE PAID:</td>

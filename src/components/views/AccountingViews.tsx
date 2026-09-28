@@ -4,6 +4,8 @@ import { TravelClaim, PaymentVoucher, Receipt, Retainer, Payment, TimeEntry, Exp
 import { DocPreviewModal } from '../modals/DocPreviewModal';
 import { ReimbursementsClaimsView } from './ReimbursementsView';
 import { LineItemsEditor } from '../LineItemsEditor';
+import { computeTotals } from '../../lib/billingEngine';
+import { getPracticeSettings } from '../../services/templateService';
 import {
   sendFinancePvNotificationEmail,
   getEmailAuditLogs,
@@ -1333,7 +1335,7 @@ export const AutoPvPromptModal: React.FC<{
   onClose: () => void;
   onPvGenerated?: (pvId: string) => void;
 }> = ({ claim, onClose, onPvGenerated }) => {
-  const { addPaymentVoucher, showToast } = useApp();
+  const { addPaymentVoucher, showToast, getNextSequenceId } = useApp();
 
   const fullClaimantName =
     claim.claimant === 'SH'
@@ -1359,7 +1361,7 @@ export const AutoPvPromptModal: React.FC<{
   const handleGeneratePv = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSendingEmail(true);
-    const pvId = `PV-2026-${Math.floor(100 + Math.random() * 900)}`;
+    const pvId = getNextSequenceId('voucher');
     const parsedAmount = parseFloat(amount) || claim.total;
     const pvDate = new Date().toISOString().slice(0, 10);
 
@@ -1541,7 +1543,7 @@ export const AutoPvPromptModal: React.FC<{
 
 /* ================= 3. TRAVEL CLAIMS VIEW ================= */
 export const TravelClaimsView: React.FC = () => {
-  const { travelClaims, addTravelClaim, paymentVouchers, cases, showToast } = useApp();
+  const { travelClaims, addTravelClaim, paymentVouchers, cases, showToast, getNextSequenceId } = useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [pendingPromptClaim, setPendingPromptClaim] = useState<TravelClaim | null>(null);
   const [previewPvId, setPreviewPvId] = useState<string | null>(null);
@@ -1567,7 +1569,7 @@ export const TravelClaimsView: React.FC = () => {
     const finalCategory = firmCategory === 'Custom' ? customCategory || 'General Firm Expense' : firmCategory;
 
     const newClaim: TravelClaim = {
-      id: `TC-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: getNextSequenceId('claim'),
       date: new Date().toISOString().slice(0, 10),
       claimant,
       purposeType,
@@ -1954,7 +1956,7 @@ export const InvoicesView: React.FC = () => {
     { description: 'Professional Fees for Legal Services Rendered', category: 'Fee - Fixed', amount: 1500 },
     { description: 'Disbursements', category: 'Disbursement', amount: 350 },
   ]);
-  const [applyTax, setApplyTax] = useState(false); // Default false (Excl Tax 0%)
+  const [applyTax, setApplyTax] = useState(() => getPracticeSettings().sstRegistered); // Off by default — not SST-registered yet
 
   // Centralized Billing Engine Selected Unbilled Items State
   const [selectedTimeIds, setSelectedTimeIds] = useState<string[]>([]);
@@ -2028,9 +2030,14 @@ export const InvoicesView: React.FC = () => {
     });
   };
 
+  const sstRate = getPracticeSettings().sstRate || 0.08;
   const parsedFees = invoiceLineItems.filter((item) => item.category === 'Fee - Fixed' || item.category === 'Fee - SRO').reduce((total, item) => total + item.amount, 0);
+  const parsedReimbursements = invoiceLineItems.filter((item) => item.category === 'Reimbursement').reduce((total, item) => total + item.amount, 0);
+  // Shown as one combined "disbursements" bucket in the UI, but only Reimbursement (not
+  // Disbursement itself) counts toward the SST-taxable base — see the tax calc below.
   const parsedDisbursements = invoiceLineItems.filter((item) => item.category === 'Disbursement' || item.category === 'Reimbursement').reduce((total, item) => total + item.amount, 0);
-  const tax = applyTax ? parsedFees * 0.08 : 0;
+  // SST is charged on professional fees AND reimbursements, never on disbursements.
+  const tax = applyTax ? (parsedFees + parsedReimbursements) * sstRate : 0;
   const total = parsedFees + parsedDisbursements + tax;
 
   const handleSaveInvoice = (e: React.FormEvent) => {
@@ -2053,7 +2060,7 @@ export const InvoicesView: React.FC = () => {
       status: 'Unpaid',
       lineItems: [
         ...invoiceLineItems,
-        ...(applyTax ? [{ description: 'SST Service Tax (8%)', category: 'Tax', amount: tax }] : []),
+        ...(applyTax ? [{ description: `SST Service Tax (${Math.round(sstRate * 100)}%)`, category: 'Tax', amount: tax }] : []),
       ],
     });
 
@@ -2086,8 +2093,13 @@ export const InvoicesView: React.FC = () => {
       return;
     }
     const subtotal = editingInvoiceItems.reduce((total, item) => total + item.amount, 0);
-    const taxAmount = editingInvoiceTax ? editingInvoiceItems.filter((item) => item.category === 'Fee - Fixed' || item.category === 'Fee - SRO').reduce((total, item) => total + item.amount, 0) * 0.08 : 0;
-    updateInvoice(editingInvoice.id, { amount: subtotal, tax: taxAmount, total: subtotal + taxAmount, remaining: Math.max(0, subtotal + taxAmount - editingInvoice.billedSoFar), lineItems: [...editingInvoiceItems, ...(editingInvoiceTax ? [{ description: 'SST Service Tax (8%)', category: 'Tax' as QuotationLineItem['category'], amount: taxAmount }] : [])] });
+    // SST-taxable base is fees + reimbursements — disbursements are never taxed.
+    const editTaxableBase = editingInvoiceItems
+      .filter((item) => item.category === 'Fee - Fixed' || item.category === 'Fee - SRO' || item.category === 'Reimbursement')
+      .reduce((total, item) => total + item.amount, 0);
+    const editSstRate = getPracticeSettings().sstRate || 0.08;
+    const taxAmount = editingInvoiceTax ? editTaxableBase * editSstRate : 0;
+    updateInvoice(editingInvoice.id, { amount: subtotal, tax: taxAmount, total: subtotal + taxAmount, remaining: Math.max(0, subtotal + taxAmount - editingInvoice.billedSoFar), lineItems: [...editingInvoiceItems, ...(editingInvoiceTax ? [{ description: `SST Service Tax (${Math.round(editSstRate * 100)}%)`, category: 'Tax' as QuotationLineItem['category'], amount: taxAmount }] : [])] });
     setEditingInvoice(null);
     showToast(`Invoice ${editingInvoice.id} saved with updated billing lines.`);
   };
@@ -2205,7 +2217,7 @@ export const InvoicesView: React.FC = () => {
             <p className="text-xs text-slate-500 mb-4">Update billing lines before payment. Paid and voided invoices are locked.</p>
             <form onSubmit={handleSaveInvoiceEdit} className="space-y-4">
               <LineItemsEditor items={editingInvoiceItems} onChange={setEditingInvoiceItems} />
-              <label className="flex items-center gap-2 text-xs font-bold text-slate-700"><input type="checkbox" checked={editingInvoiceTax} onChange={(event) => setEditingInvoiceTax(event.target.checked)} /> Charge SST Tax (8%)</label>
+              <label className="flex items-center gap-2 text-xs font-bold text-slate-700"><input type="checkbox" checked={editingInvoiceTax} onChange={(event) => setEditingInvoiceTax(event.target.checked)} /> Charge SST Tax ({Math.round((getPracticeSettings().sstRate || 0.08) * 100)}%) — not registered yet</label>
               <div className="flex justify-end gap-2"><button type="button" onClick={() => setEditingInvoice(null)} className="rounded-md border border-slate-300 px-4 py-2 font-semibold text-slate-700 cursor-pointer">Cancel</button><button type="submit" className="rounded-md bg-[#16223A] px-4 py-2 font-semibold text-white cursor-pointer">Save Invoice</button></div>
             </form>
           </div>
@@ -2414,10 +2426,10 @@ export const InvoicesView: React.FC = () => {
                     onChange={(e) => setApplyTax(e.target.checked)}
                     className="w-4 h-4 rounded text-[#16223A] cursor-pointer"
                   />
-                  <span className="font-bold text-[#16223A]">Charge SST Tax (8%)</span>
+                  <span className="font-bold text-[#16223A]">Apply SST ({Math.round(sstRate * 100)}%) — not registered yet</span>
                 </label>
                 <span className="text-[11px] font-semibold text-slate-600">
-                  {applyTax ? 'SST 8% Applied' : 'Excluded Tax (0% SST)'}
+                  {applyTax ? `SST ${Math.round(sstRate * 100)}% applied` : 'Not applicable'}
                 </span>
               </div>
 
@@ -2476,6 +2488,7 @@ export const PaymentsView: React.FC = () => {
     addPaymentVoucher,
     cases,
     showToast,
+    getNextSequenceId,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'CLAIMS' | 'VOUCHERS' | 'COLLECTIONS' | 'GMAIL_LOGS'>('OVERVIEW');
@@ -2584,7 +2597,7 @@ export const PaymentsView: React.FC = () => {
   const handleSavePayment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!invoiceId) return alert('Please select an invoice');
-    const paymentId = `OR-${Math.floor(1000 + Math.random() * 9000)}`;
+    const paymentId = getNextSequenceId('receipt');
     const parsedAmount = parseFloat(paymentAmount) || 0;
 
     addPayment({
@@ -2615,7 +2628,7 @@ export const PaymentsView: React.FC = () => {
     const totalClaim = km * rate + otherAmount;
 
     const newClaim: TravelClaim = {
-      id: `TC-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: getNextSequenceId('claim'),
       date: new Date().toISOString().slice(0, 10),
       claimant,
       purposeType,
@@ -2646,7 +2659,7 @@ export const PaymentsView: React.FC = () => {
 
   const handleSavePv = async (e: React.FormEvent) => {
     e.preventDefault();
-    const pvId = `PV-2026-${Math.floor(100 + Math.random() * 900)}`;
+    const pvId = getNextSequenceId('voucher');
     const parsedAmount = parseFloat(pvAmount) || 0;
     const pvDate = new Date().toISOString().slice(0, 10);
 
@@ -3472,7 +3485,7 @@ export const PaymentsView: React.FC = () => {
 
 /* ================= 6. RECEIPTS (OR) VIEW ================= */
 export const ReceiptsView: React.FC = () => {
-  const { receipts, addReceipt, showToast } = useApp();
+  const { receipts, addReceipt, showToast, getNextSequenceId } = useApp();
   const [docPreviewId, setDocPreviewId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -3488,7 +3501,7 @@ export const ReceiptsView: React.FC = () => {
     if (!receivedFrom) return alert('Please enter recipient name');
 
     addReceipt({
-      id: `OR-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: getNextSequenceId('receipt'),
       date,
       accountSet,
       receivedFrom,
@@ -3683,7 +3696,7 @@ export const ReceiptsView: React.FC = () => {
 
 /* ================= 7. PAYMENT VOUCHERS (PV) VIEW ================= */
 export const PaymentVouchersView: React.FC = () => {
-  const { paymentVouchers, addPaymentVoucher, approvePaymentVoucher, currentPartnerCode, isPartner, cases, showToast } = useApp();
+  const { paymentVouchers, addPaymentVoucher, approvePaymentVoucher, currentPartnerCode, isPartner, cases, showToast, getNextSequenceId } = useApp();
   const [docPreviewId, setDocPreviewId] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -3736,7 +3749,7 @@ export const PaymentVouchersView: React.FC = () => {
     e.preventDefault();
     if (!description || !amount) return alert('Please enter description and amount');
 
-    const newPvId = `PV-2026-${Math.floor(100 + Math.random() * 900)}`;
+    const newPvId = getNextSequenceId('voucher');
 
     addPaymentVoucher({
       id: newPvId,

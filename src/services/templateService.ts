@@ -41,6 +41,13 @@ export interface PracticeSettings {
   email: string;
   barRef: string;
   sstNo: string;
+  /** Whether the firm is SST-registered yet. Defaults false — set true once registration
+   * actually goes through. This is the firm-wide default for the "Apply SST" tick on new
+   * documents; each document can still be ticked/unticked individually. */
+  sstRegistered: boolean;
+  /** Decimal rate, e.g. 0.08 for 8%, 0.06 for 6%. Only meaningful when sstRegistered (or a
+   * document's own SST tick) is on. */
+  sstRate: number;
   bankName: string;
   bankAccountNo: string;
   bankAccounts?: FirmBankAccount[];
@@ -96,6 +103,8 @@ export const DEFAULT_PRACTICE_SETTINGS: PracticeSettings = {
   email: 'billing@shcolaw.com',
   barRef: 'BC/S/2024/9912',
   sstNo: 'W10-2401-3200019',
+  sstRegistered: false,
+  sstRate: 0.08,
   bankName: 'Hong Leong Bank Berhad',
   bankAccountNo: 'Office: 36301134253 | Client A/C: 36301136440',
   headerStyle: 'formal',

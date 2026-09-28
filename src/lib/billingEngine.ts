@@ -9,15 +9,18 @@
 import { QuotationLineItem, QuoteTemplate, TimeEntry } from '../types';
 import { calculateSroTransferFee, calculateSroLoanFee } from './sroCalculator';
 
-export const SST_RATE = 0.08; // 8% service tax on professional fees
+/** Fallback rate when no Firm & Practice Settings rate is passed in — kept in sync with
+ * DEFAULT_PRACTICE_SETTINGS.sstRate. Prefer passing the real configured rate. */
+export const SST_RATE = 0.08;
 
 export type BillingDocType = 'Quotation' | 'Proforma' | 'Invoice' | 'Receipt';
 
 export interface BillingTotals {
-  fees: number;           // professional fees (SST-chargeable)
-  disbursements: number;
-  reimbursements: number;
-  sst: number;            // 8% on professional fees only
+  fees: number;           // professional fees
+  disbursements: number;  // never SST-chargeable
+  reimbursements: number; // SST-chargeable, same as fees
+  sstRate: number;        // the rate actually used (0 when SST wasn't applied)
+  sst: number;            // rate × (fees + reimbursements) — disbursements are excluded
   grandTotal: number;
 }
 
@@ -30,8 +33,14 @@ const getItemTotal = (item: QuotationLineItem): number => {
   return Number.isFinite(total) ? total : 0;
 };
 
-/** Accounting-style totals: fees + SST on fees + disbursements + reimbursements */
-export function computeTotals(items: QuotationLineItem[]): BillingTotals {
+/**
+ * Accounting-style totals: fees + disbursements + reimbursements, plus SST when applied.
+ * SST is charged on professional fees AND reimbursements — never on disbursements (per the
+ * firm's document format: "DISBURSEMENT (never SST)"). The firm isn't SST-registered yet, so
+ * `applySst` defaults to false; pass Firm & Practice Settings' sstRegistered/sstRate (or a
+ * document's own tick) to apply it.
+ */
+export function computeTotals(items: QuotationLineItem[], applySst = false, rate = SST_RATE): BillingTotals {
   const fees = items
     .filter((i) => i.category === 'Fee - Fixed' || i.category === 'Fee - SRO')
     .reduce((s, i) => s + getItemTotal(i), 0);
@@ -41,11 +50,13 @@ export function computeTotals(items: QuotationLineItem[]): BillingTotals {
   const reimbursements = items
     .filter((i) => i.category === 'Reimbursement')
     .reduce((s, i) => s + getItemTotal(i), 0);
-  const sst = round2(fees * SST_RATE);
+  const effectiveRate = applySst ? rate : 0;
+  const sst = round2((fees + reimbursements) * effectiveRate);
   return {
     fees: round2(fees),
     disbursements: round2(disbursements),
     reimbursements: round2(reimbursements),
+    sstRate: effectiveRate,
     sst,
     grandTotal: round2(fees + sst + disbursements + reimbursements),
   };

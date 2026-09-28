@@ -17,7 +17,13 @@ export interface SROCalculationResult {
  * - Next RM 7,500,000 (RM 500,001 to RM 7,500,000): 1.00%
  * - Where consideration exceeds RM 7,500,000: Negotiable on the excess over RM 7.5M, but not exceeding 1.00%
  */
-export function calculateSroTransferFee(propertyPrice: number, isDiscounted = false, discountPct = 0): SROCalculationResult {
+export function calculateSroTransferFee(
+  propertyPrice: number,
+  isDiscounted = false,
+  discountPct = 0,
+  applySst = false,
+  sstRate = 0.08
+): SROCalculationResult {
   let remaining = propertyPrice;
   let scaleFee = 0;
   const breakdown: { tier: string; rate: string; amount: number; fee: number }[] = [];
@@ -56,7 +62,9 @@ export function calculateSroTransferFee(propertyPrice: number, isDiscounted = fa
     scaleFee = scaleFee * (1 - cappedDiscount / 100);
   }
 
-  const sstAmount = scaleFee * 0.08; // 8% Service Tax on Legal Fees
+  // The firm isn't SST-registered yet (design_handoff_my_dashboard/ACCOUNTS_AND_FINANCE.md),
+  // so this is 0 unless the caller explicitly opts in.
+  const sstAmount = applySst ? scaleFee * sstRate : 0;
 
   // Estimate Stamp Duty (Mot / Memorandum of Transfer)
   let stampDutyEstimate = 0;
@@ -79,6 +87,6 @@ export function calculateSroTransferFee(propertyPrice: number, isDiscounted = fa
  * Calculates Scale Fees for Loan / Charge under SRO 2023 Third Schedule:
  * - Same percentages as First Schedule
  */
-export function calculateSroLoanFee(loanAmount: number): SROCalculationResult {
-  return calculateSroTransferFee(loanAmount);
+export function calculateSroLoanFee(loanAmount: number, applySst = false, sstRate = 0.08): SROCalculationResult {
+  return calculateSroTransferFee(loanAmount, false, 0, applySst, sstRate);
 }

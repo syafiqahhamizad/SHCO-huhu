@@ -480,6 +480,9 @@ export interface Quotation {
   approvedBy: string;
   approvedDate: string;
   lineItems: QuotationLineItem[];
+  /** Whether SST was ticked on for this document — the firm isn't SST-registered yet, so
+   * this defaults false; `total` already has SST baked in when true (see computeTotals). */
+  sstApplied?: boolean;
   lastEditedBy?: string;
   lastEditedAt?: string;
   documents?: ClaimDocument[];

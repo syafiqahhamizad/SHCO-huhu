@@ -658,6 +658,32 @@ export const PracticeSettingsView: React.FC = () => {
                   />
                 </div>
               </div>
+
+              <div className="grid grid-cols-2 gap-2 items-end">
+                <label className="flex items-center gap-2 p-2 bg-amber-50/70 border border-amber-200 rounded cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings.sstRegistered}
+                    onChange={(e) => setSettings((prev) => ({ ...prev, sstRegistered: e.target.checked }))}
+                    className="rounded text-[#16223A]"
+                  />
+                  <span className="text-[11px] font-bold text-slate-700">
+                    SST Registered
+                    <span className="block font-normal text-[9.5px] text-slate-500">Default for new documents — each can still be ticked on/off individually</span>
+                  </span>
+                </label>
+                <div>
+                  <label className="font-bold text-slate-700 uppercase block mb-0.5">SST Rate</label>
+                  <select
+                    value={settings.sstRate}
+                    onChange={(e) => setSettings((prev) => ({ ...prev, sstRate: Number(e.target.value) }))}
+                    className="w-full p-2 bg-white border border-slate-300 rounded text-[11px] font-mono"
+                  >
+                    <option value={0.06}>6%</option>
+                    <option value={0.08}>8%</option>
+                  </select>
+                </div>
+              </div>
             </div>
           </div>
 
