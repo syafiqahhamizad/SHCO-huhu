@@ -6,6 +6,35 @@ import { Case, Client } from '../types';
  */
 
 /**
+ * Extracts the numeric matter-sequence ("running number") embedded in a case ref, e.g.
+ * '.../0001/08-2026' -> 1, or the legacy 'CS-001' -> 1. Returns -1 when the ref doesn't
+ * contain a recognizable running number, so callers (sorting, sequence generation) can
+ * treat "no number found" as distinct from "running number 0".
+ */
+export const extractMatterRunningNumber = (ref?: string): number => {
+  if (!ref) return -1;
+  const segments = ref.split('/').map((segment) => segment.trim());
+  const dateIndex = segments.findIndex((segment) => /^\d{2}-\d{2}(?:\d{2})?$/.test(segment));
+
+  if (dateIndex > 0) {
+    const runningNumber = Number(segments[dateIndex - 1]);
+    if (Number.isInteger(runningNumber) && runningNumber >= 0 && runningNumber < 1000) return runningNumber;
+  }
+
+  // Legacy references may end with a standalone year, e.g. .../001/2025.
+  if (/^\d{4}$/.test(segments.at(-1) || '')) {
+    const runningNumber = Number(segments.at(-2));
+    if (Number.isInteger(runningNumber) && runningNumber >= 0 && runningNumber < 1000) return runningNumber;
+  }
+
+  // Preserve support for legacy references such as CS-001 without reading years.
+  const legacyMatch = ref.match(/CS-(\d{3,4})(?:$|\/)/i);
+  if (legacyMatch) return Number(legacyMatch[1]);
+
+  return -1;
+};
+
+/**
  * Computes the next 3-digit auto-incrementing matter sequence number (e.g. '001', '002', '003').
  * It checks existing cases in the registry to determine the highest existing sequence
  * and compares it against sequenceCounter to ensure consistent, non-duplicating sequence IDs.
@@ -14,37 +43,7 @@ export const generateNextMatterSequenceNumber = (
   cases: Case[] = [],
   sequenceCounter: number = 1
 ): string => {
-  let highestFound = 0;
-
-  cases.forEach((c) => {
-    if (!c.ref) return;
-    const segments = c.ref.split('/').map((segment) => segment.trim());
-    const dateIndex = segments.findIndex((segment) => /^\d{2}-\d{2}(?:\d{2})?$/.test(segment));
-
-    if (dateIndex > 0) {
-      const runningNumber = Number(segments[dateIndex - 1]);
-      if (Number.isInteger(runningNumber) && runningNumber >= 0 && runningNumber < 1000 && runningNumber > highestFound) {
-        highestFound = runningNumber;
-      }
-      return;
-    }
-
-    // Legacy references may end with a standalone year, e.g. .../001/2025.
-    if (/^\d{4}$/.test(segments.at(-1) || '')) {
-      const runningNumber = Number(segments.at(-2));
-      if (Number.isInteger(runningNumber) && runningNumber >= 0 && runningNumber < 1000 && runningNumber > highestFound) {
-        highestFound = runningNumber;
-      }
-      return;
-    }
-
-    // Preserve support for legacy references such as CS-001 without reading years.
-    const legacyMatch = c.ref.match(/CS-(\d{3,4})(?:$|\/)/i);
-    if (legacyMatch) {
-      const runningNumber = Number(legacyMatch[1]);
-      if (runningNumber > highestFound) highestFound = runningNumber;
-    }
-  });
+  const highestFound = cases.reduce((max, c) => Math.max(max, extractMatterRunningNumber(c.ref)), 0);
 
   // Older parsing treated a trailing year such as 2028 as the running number.
   // Ignore year-sized persisted counters so existing browser data self-corrects.

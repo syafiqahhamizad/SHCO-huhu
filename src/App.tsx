@@ -19,8 +19,6 @@ const AIAgentView = React.lazy(() => import('./components/views/AIAgentView').th
 const PracticeViews = import('./components/views/PracticeViews');
 const HearingsView = React.lazy(() => PracticeViews.then((module) => ({ default: module.HearingsView })));
 const CalendarView = React.lazy(() => PracticeViews.then((module) => ({ default: module.CalendarView })));
-const DocumentsView = React.lazy(() => PracticeViews.then((module) => ({ default: module.DocumentsView })));
-const TemplatesView = React.lazy(() => PracticeViews.then((module) => ({ default: module.TemplatesView })));
 const CaseStatusView = React.lazy(() => PracticeViews.then((module) => ({ default: module.CaseStatusView })));
 const TasksView = React.lazy(() => PracticeViews.then((module) => ({ default: module.TasksView })));
 const DeadlinesView = React.lazy(() => PracticeViews.then((module) => ({ default: module.DeadlinesView })));
@@ -136,10 +134,6 @@ const MainContent: React.FC = () => {
         return <HearingsView />;
       case 'calendar':
         return <CalendarView />;
-      case 'documents':
-        return <DocumentsView />;
-      case 'templates':
-        return <TemplatesView />;
       case 'tasks':
       case 'caseStatus':
       case 'case-status':

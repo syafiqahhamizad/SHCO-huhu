@@ -5,6 +5,7 @@ import { scanClientConflicts } from '../../lib/conflictUtils';
 import { exportToWordDoc } from '../../lib/exportUtils';
 import { useConfirmation } from '../../hooks/useConfirmation';
 import { getPracticeSettings } from '../../services/templateService';
+import { extractMatterRunningNumber } from '../../services/matterService';
 import { CourtMemoModal } from '../modals/CourtMemoModal';
 import { FileCoverModal } from '../modals/FileCoverModal';
 import { NewCaseModal } from '../NewCaseModal';
@@ -626,8 +627,15 @@ export const CasesView: React.FC = () => {
 
   const isPartnerOrAdmin = isAdmin || isSuperAdmin;
 
-  // Sort cases in descending order (latest registered cases at the top for Admin/Partner view)
+  // Sort by the matter's running number (the sequence embedded in its file ref, e.g.
+  // .../0007/09-2026 -> 7) in descending order — latest number at the top. createdDate/id
+  // are only a fallback for refs with no parseable running number (or a tie), since id
+  // isn't reliably chronological (seed data uses 'CS-001' while real matters use
+  // 'CASE-<timestamp>', which don't sort against each other meaningfully).
   const sortedCases = [...cases].sort((a, b) => {
+    const numA = extractMatterRunningNumber(a.ref);
+    const numB = extractMatterRunningNumber(b.ref);
+    if (numA !== -1 && numB !== -1 && numA !== numB) return numB - numA;
     const dateA = a.createdDate ? new Date(a.createdDate).getTime() : 0;
     const dateB = b.createdDate ? new Date(b.createdDate).getTime() : 0;
     if (dateA !== dateB) return dateB - dateA;
