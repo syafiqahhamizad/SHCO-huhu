@@ -37,71 +37,7 @@ import {
   BankReconciliationEntry,
 } from '../types';
 
-export const INITIAL_LEADS: Lead[] = [
-  {
-    id: 'LD-001',
-    name: 'Nur Syakirah Aiman',
-    phone: '012-3456789',
-    email: 'syakirah@example.com',
-    practiceArea: 'Civil Litigation',
-    source: 'Referral',
-    warmth: 'Hot',
-    warmthLevel: 5,
-    stage: 'Consultation',
-    conflictCheck: {
-      status: 'Clear',
-      notes: 'No match against existing clients or opposing parties.',
-      checkedBy: 'SH',
-      checkedDate: '2026-07-10',
-    },
-    quoteAmount: 8000,
-    assignedTo: 'SH',
-    followupDate: '2026-07-28',
-  },
-  {
-    id: 'LD-002',
-    name: 'Hafiz Rizal Holdings Sdn Bhd',
-    phone: '03-77889900',
-    email: 'admin@hrholdings.my',
-    practiceArea: 'Corporate/Commercial',
-    source: 'Website',
-    warmth: 'Warm',
-    warmthLevel: 4,
-    stage: 'Quoted',
-    autoConflictMatches: [
-      { label: 'Hafiz Rizal', detail: 'Opposing party in SHC/LIT/SH/QAL/001/2025' }
-    ],
-    conflictCheck: {
-      status: 'Flagged',
-      notes: 'Director shares surname with an opposing party in SHC/LIT/SH/QAL/001/2025 — needs partner review.',
-      checkedBy: 'AH',
-      checkedDate: '2026-07-15',
-    },
-    quoteAmount: 15000,
-    assignedTo: 'AH',
-    followupDate: '2026-07-26',
-  },
-  {
-    id: 'LD-003',
-    name: 'Encik Farid Iskandar',
-    phone: '019-2223344',
-    email: 'farid.iskandar@gmail.com',
-    practiceArea: 'Conveyancing',
-    source: 'Walk-in',
-    warmth: 'Cold',
-    warmthLevel: 2,
-    stage: 'Inquiry',
-    conflictCheck: {
-      status: 'Not Started',
-      notes: '',
-      checkedBy: '',
-      checkedDate: '',
-    },
-    quoteAmount: 3500,
-    assignedTo: 'ZA',
-    followupDate: '2026-07-27',
-  },
-];
+export const INITIAL_LEADS: Lead[] = [];
 
 export const INITIAL_CLIENTS: Client[] = [
   {
@@ -562,87 +498,11 @@ export const INITIAL_QUOTE_TEMPLATES: QuoteTemplate[] = [
   { id: 'TMP-011', practiceArea: 'Civil Litigation', courtLevel: 'Sessions Court', stage: 'Full Trial', description: 'Photocopy, travel, phone/courier', category: 'Reimbursement', amount: 300 },
 ];
 
-export const INITIAL_QUOTATIONS: Quotation[] = [
-  {
-    id: 'Q-0001',
-    date: '2026-07-05',
-    practiceArea: 'Conveyancing',
-    fileRef: '',
-    leadId: 'LD-003',
-    clientName: 'Encik Farid Iskandar',
-    status: 'Draft',
-    total: 3500,
-    billedSoFar: 0,
-    remaining: 3500,
-    courtLevel: '',
-    stage: '',
-    feeMethod: 'SRO Scale',
-    subtype: 'Transfer',
-    approvalStatus: 'Pending',
-    approvedBy: '',
-    approvedDate: '',
-    lineItems: [{ description: 'Professional fee — SRO 2023 Scale (Transfer, Tier 1)', category: 'Fee - SRO', amount: 3500 }],
-  },
-  {
-    id: 'Q-0002',
-    date: '2026-07-12',
-    practiceArea: 'Corporate/Commercial',
-    fileRef: 'SHCO/AH/SH/CORP/0002/07-26',
-    leadId: '',
-    clientName: 'ANGROUP Sdn Bhd',
-    status: 'Sent',
-    total: 15000,
-    billedSoFar: 0,
-    remaining: 15000,
-    courtLevel: '',
-    stage: '',
-    feeMethod: 'Fixed',
-    subtype: '',
-    approvalStatus: 'Approved',
-    approvedBy: 'SH',
-    approvedDate: '2026-07-13',
-    lineItems: [{ description: 'Professional fee — shareholder restructuring advisory', category: 'Fee - Fixed', amount: 15000 }],
-  },
-  {
-    id: 'Q-0003',
-    date: '2026-07-18',
-    practiceArea: 'Civil Litigation',
-    fileRef: 'SHCO/SH/AH/CIVIL/0001/04-25',
-    leadId: 'LD-001',
-    clientName: 'Nur Syakirah Aiman',
-    status: 'Draft',
-    total: 10350,
-    billedSoFar: 0,
-    remaining: 10350,
-    courtLevel: 'Sessions Court',
-    stage: 'Full Trial',
-    feeMethod: 'Template',
-    subtype: '',
-    approvalStatus: 'Pending',
-    approvedBy: '',
-    approvedDate: '',
-    lineItems: [
-      { description: 'Retainer & Interim charges', category: 'Fee - Fixed', amount: 10000 },
-      { description: 'Court filing fee', category: 'Disbursement', amount: 50 },
-      { description: 'Photocopy, travel, phone/courier', category: 'Reimbursement', amount: 300 },
-    ],
-  },
-];
+export const INITIAL_QUOTATIONS: Quotation[] = [];
 
-export const INITIAL_REFERRALS: ReferralPartner[] = [
-  { id: 'RF-001', name: 'Encik Zaidi Rahman', type: 'External', contact: '012-3345566', commissionType: 'Percentage', commissionValue: 10, amountOwed: 800, paymentStatus: 'Owing', lastPaymentDate: '2026-05-01', notes: 'BNI chapter — Selangor Central', active: true },
-  { id: 'RF-002', name: 'Puan Aina Zulkifli', type: 'External', contact: '019-8871122', commissionType: 'Flat', commissionValue: 500, amountOwed: 0, paymentStatus: 'Paid', lastPaymentDate: '2026-06-15', notes: 'Accountant referral', active: true },
-  { id: 'RF-003', name: 'Amer Haiqal', type: 'Partner', contact: '', commissionType: 'None', commissionValue: 0, amountOwed: 0, paymentStatus: 'N/A', lastPaymentDate: '', notes: 'Internal — brought in via existing client relationship', active: true },
-  { id: 'RF-004', name: 'Front Desk Assistant', type: 'Internal Staff', contact: '', commissionType: 'None', commissionValue: 0, amountOwed: 0, paymentStatus: 'N/A', lastPaymentDate: '', notes: 'Walk-in handled by front desk', active: true },
-];
+export const INITIAL_REFERRALS: ReferralPartner[] = [];
 
-export const INITIAL_OFFICE_BUCKETS: OfficeBucket[] = [
-  { code: '1010', name: 'Office Bank — General', balance: 47700, target: null, purpose: 'The hub — day-to-day operating cash: salaries, rent, subscriptions, drawing requests.' },
-  { code: '1011', name: 'Office Bank — Cash Reserve', balance: 10000, target: 30000, purpose: 'Emergency buffer — aim for 2-3 months of overhead. Currently below target.' },
-  { code: '1012', name: 'Sinking Fund', balance: -4500, target: 15000, purpose: 'Lumpy, predictable annual costs: PII renewal, Bar practising certificate, tax. Currently under-funded — allocate before the next renewal date.' },
-  { code: '1013', name: 'Petty Cash', balance: 0, target: 500, purpose: 'Small tracked float for minor office purchases.' },
-  { code: '1014', name: 'Disbursement Bucket', balance: -500, target: 5000, purpose: "Firm money advanced for client costs, billed back via Disbursements. Currently under-funded relative to what's been advanced." },
-];
+export const INITIAL_OFFICE_BUCKETS: OfficeBucket[] = [];
 
 export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
   { code: '1010', name: 'Office Bank — General', type: 'Asset', notes: 'The hub' },
@@ -666,58 +526,19 @@ export const INITIAL_CHART_OF_ACCOUNTS: ChartOfAccount[] = [
   { code: '5900', name: 'Other Expenses', type: 'Expense', notes: 'General operating overhead' },
 ];
 
-export const INITIAL_TRAVEL_CLAIMS: TravelClaim[] = [
-  { id: 'TC-0001', date: '2026-07-15', claimant: 'AH', purposeType: 'Client Matter', fileRef: 'SHCO/SH/AH/CIVIL/0001/04-25', type: 'Mileage', purpose: 'Attend Case Management at Sessions Court Kuala Terengganu', from: 'Office', to: 'Sessions Court KT', km: 38, rate: 0.6, mileageAmount: 22.8, otherAmount: 0, total: 22.8, paidFrom: 'Disbursement Bucket', billed: 'N', invoiceNo: '', postedRef: '' },
-  { id: 'TC-0002', date: '2026-07-10', claimant: 'SH', purposeType: 'Firm/Internal', fileRef: '', firmCategory: 'Networking (BNI)', type: 'Mileage', purpose: 'BNI weekly chapter meeting', from: 'Office', to: 'BNI Selangor Central venue', km: 15, rate: 0.6, mileageAmount: 9.0, otherAmount: 20, total: 29.0, paidFrom: 'Office Bank — General', billed: 'N/A', invoiceNo: '', postedRef: '' },
-];
+export const INITIAL_TRAVEL_CLAIMS: TravelClaim[] = [];
 
-export const INITIAL_RECEIPTS: Receipt[] = [
-  { id: 'HQ-OR-0001', date: '2026-05-02', accountSet: 'OFFICE', receivedFrom: 'Partners', description: 'Partner capital contribution', amount: 50000, debit: '1010', credit: '3000', clientId: '', fileRef: '', bankRef: 'TT-0502', receivedBy: 'SH' },
-  { id: 'HQ-OR-0002', date: '2026-05-04', accountSet: 'CLIENT', receivedFrom: 'Nur Syakirah Aiman', description: 'Purchase deposit into client account', amount: 50000, debit: '1020', credit: '2010', clientId: 'HQ-C001', fileRef: 'SHCO/SH/AH/CIVIL/0001/04-25', bankRef: 'TT-0504', receivedBy: 'SH' },
-  { id: 'HQ-OR-0003', date: '2026-06-01', accountSet: 'OFFICE', receivedFrom: 'Nur Syakirah Aiman', description: 'Fee collection — INV-0001', amount: 8000, debit: '1010', credit: '4000', clientId: 'HQ-C001', fileRef: 'SHCO/SH/AH/CIVIL/0001/04-25', bankRef: 'TT-0601', receivedBy: 'SH' },
-];
+export const INITIAL_RECEIPTS: Receipt[] = [];
 
-export const INITIAL_PAYMENT_VOUCHERS: PaymentVoucher[] = [
-  { id: 'HQ-PV-0001', date: '2026-05-06', accountSet: 'OFFICE', voucherCategory: 'Office Account', description: 'To cash reserve', amount: 10000, debit: '1011', credit: '1010', clientId: '', fileRef: '', bankRef: '', preparedBy: 'SH', approvedBy: 'SH', approved: true },
-  { id: 'HQ-PV-0002', date: '2026-05-15', accountSet: 'CLIENT', voucherCategory: 'Disbursement', description: 'Stamp duty from client funds', amount: 3000, debit: '2010', credit: '1020', clientId: 'HQ-C001', fileRef: 'SHCO/SH/AH/CIVIL/0001/04-25', bankRef: 'TT-0515', preparedBy: 'SH', approvedBy: 'SH', approved: true },
-  { id: 'HQ-PV-0003', date: '2026-07-15', accountSet: 'OFFICE', voucherCategory: 'Travelling', description: 'Mileage claim reimbursement — AH (TC-0001)', amount: 22.8, debit: '1014', credit: '1010', clientId: 'HQ-C001', fileRef: 'SHCO/SH/AH/CIVIL/0001/04-25', bankRef: '', preparedBy: 'AH', approvedBy: 'SH', approved: true },
-  { id: 'HQ-PV-0004', date: '2026-07-20', accountSet: 'CLIENT', voucherCategory: 'Client Account', description: 'Partial refund of excess trust balance', amount: 1000, debit: '2010', credit: '1020', clientId: 'HQ-C002', fileRef: 'SHCO/AH/SH/CORP/0002/07-26', bankRef: '', preparedBy: 'AH', approvedBy: '', approved: false },
-];
+export const INITIAL_PAYMENT_VOUCHERS: PaymentVoucher[] = [];
 
-export const INITIAL_GENERAL_LEDGER: GeneralLedgerEntry[] = [
-  { glNo: 1, date: '2026-05-02', docType: 'OR', docNo: 'HQ-OR-0001', accountSet: 'OFFICE', debit: '1010', credit: '3000', amount: 50000, clientId: '', fileRef: '', description: 'Partner capital', reconciled: 'Y' },
-  { glNo: 2, date: '2026-05-04', docType: 'OR', docNo: 'HQ-OR-0002', accountSet: 'CLIENT', debit: '1020', credit: '2010', amount: 50000, clientId: 'HQ-C001', fileRef: 'SHC/L/SH/AH/QAL/0001/04-25', description: 'Purchase deposit into client account', reconciled: 'Y' },
-  { glNo: 3, date: '2026-05-06', docType: 'PV', docNo: 'HQ-PV-0001', accountSet: 'OFFICE', debit: '1011', credit: '1010', amount: 10000, clientId: '', fileRef: '', description: 'To cash reserve', reconciled: 'Y' },
-  { glNo: 4, date: '2026-05-15', docType: 'PV', docNo: 'HQ-PV-0002', accountSet: 'CLIENT', debit: '2010', credit: '1020', amount: 3000, clientId: 'HQ-C001', fileRef: 'SHC/L/SH/AH/QAL/0001/04-25', description: 'Stamp duty from client funds', reconciled: 'Y' },
-  { glNo: 5, date: '2026-06-01', docType: 'OR', docNo: 'HQ-OR-0003', accountSet: 'OFFICE', debit: '1010', credit: '4000', amount: 8000, clientId: 'HQ-C001', fileRef: 'SHC/L/SH/AH/QAL/0001/04-25', description: 'Fee collection — INV-0001', reconciled: 'Y' },
-];
+export const INITIAL_GENERAL_LEDGER: GeneralLedgerEntry[] = [];
 
-export const INITIAL_TRIAL_BALANCE: TrialBalanceRow[] = [
-  { code: '1010', account: 'Office Bank — General', debit: 58000, credit: 10300, balance: 47700 },
-  { code: '1011', account: 'Office Bank — Cash Reserve', debit: 10000, credit: 0, balance: 10000 },
-  { code: '1012', account: 'Sinking Fund', debit: 0, credit: 4500, balance: -4500 },
-  { code: '1014', account: 'Disbursement Bucket', debit: 0, credit: 500, balance: -500 },
-  { code: '1020', account: 'Client Bank — Trust', debit: 50000, credit: 3000, balance: 47000 },
-  { code: '1100', account: 'Accounts Receivable', debit: 20000, credit: 8000, balance: 12000 },
-  { code: '2010', account: 'Client Funds Held', debit: 3000, credit: 50000, balance: -47000 },
-  { code: '3000', account: "Partners' Capital", debit: 0, credit: 50000, balance: -50000 },
-  { code: '4000', account: 'Fee Income', debit: 0, credit: 20000, balance: -20000 },
-  { code: '5200', account: 'Software & Subscriptions', debit: 300, credit: 0, balance: 300 },
-];
+export const INITIAL_TRIAL_BALANCE: TrialBalanceRow[] = [];
 
-export const INITIAL_CASH_FLOW: CashFlowRow[] = [
-  { month: 'Jan 2026', opening: 0, moneyIn: 0, moneyOut: 0, closing: 0 },
-  { month: 'Feb 2026', opening: 0, moneyIn: 0, moneyOut: 0, closing: 0 },
-  { month: 'Mar 2026', opening: 0, moneyIn: 0, moneyOut: 0, closing: 0 },
-  { month: 'Apr 2026', opening: 0, moneyIn: 0, moneyOut: 0, closing: 0 },
-  { month: 'May 2026', opening: 0, moneyIn: 50000, moneyOut: 10300, closing: 39700 },
-  { month: 'Jun 2026', opening: 39700, moneyIn: 8000, moneyOut: 0, closing: 47700 },
-  { month: 'Jul 2026', opening: 47700, moneyIn: 0, moneyOut: 0, closing: 47700 },
-];
+export const INITIAL_CASH_FLOW: CashFlowRow[] = [];
 
-export const INITIAL_3WAY_REC: ThreeWayRecRow[] = [
-  { month: 'Jun 2026', bankStatement: 47000, depositsNotCleared: 0, paymentsNotPresented: 0, adjustedBank: 47000, cashBookGL: 47000, matterLedgerTotal: 47000, bankVsCashBook: 0, cashBookVsLedger: 0, status: 'MATCHED' },
-];
+export const INITIAL_3WAY_REC: ThreeWayRecRow[] = [];
 
 export const INITIAL_DOC_TEMPLATES: DocTemplate[] = [
   { id: 'TPL1', name: 'Engagement Letter', category: 'Engagement Letter' },
@@ -726,23 +547,11 @@ export const INITIAL_DOC_TEMPLATES: DocTemplate[] = [
   { id: 'TPL4', name: 'Warrant to Act', category: 'Court Filing' },
 ];
 
-export const INITIAL_DEADLINES: Deadline[] = [
-  { id: 'DL1', caseId: 'CS-001', title: 'File reply to defence', type: 'Filing', dueDate: '2026-07-20', priority: 'Urgent', status: 'In Progress', reminderDays: 7, notes: '', partner: 'SH', lawyer: 'AH' },
-  { id: 'DL2', caseId: 'CS-002', title: 'Complete SHA review', type: 'Compliance', dueDate: '2026-07-30', priority: 'Normal', status: 'In Review', reminderDays: 5, notes: '', partner: 'AH', lawyer: 'ZA' },
-];
+export const INITIAL_DEADLINES: Deadline[] = [];
 
-export const INITIAL_MEETINGS: Meeting[] = [
-  { id: 'MTG1', title: "Partners' meeting (monthly)", date: '2026-09-28', time: '10:00', location: 'Boardroom', note: 'AH, ZA', type: 'Internal', attendees: ['AH', 'ZA'] },
-  { id: 'MTG2', title: 'Lunch · BNI Bangi chapter', date: '2026-09-28', time: '12:30', location: 'Hotel Bangi', note: '2 referrals expected', type: 'Network' },
-  { id: 'MTG3', title: 'Mega Holdings: SPA review', date: '2026-09-28', time: '15:00', location: 'Zoom', note: 'with AH', type: 'Client', attendees: ['AH'] },
-  { id: 'MTG4', title: '1-to-1: Aqilah Rahim', date: '2026-09-28', time: '17:00', location: 'Your room', note: 'workload check', type: 'Team' },
-];
+export const INITIAL_MEETINGS: Meeting[] = [];
 
-export const INITIAL_PROGRAMMES: Programme[] = [
-  { id: 'PRG1', title: 'BNI Bangi Chapter — Weekly Meeting', type: 'BNI', date: '2026-09-28', location: 'Hotel Bangi', registrations: 24, attendance: 22, notes: '2 referrals expected this week' },
-  { id: 'PRG2', title: 'Estate Planning & Wills Seminar', type: 'Seminar', date: '2026-10-08', location: 'Firm Boardroom, Bangi Sentral', registrations: 18 },
-  { id: 'PRG3', title: 'Selangor Central Networking Night', type: 'Networking', date: '2026-09-15', location: 'Hotel Selangor Central', registrations: 12, attendance: 10 },
-];
+export const INITIAL_PROGRAMMES: Programme[] = [];
 
 export const INITIAL_COURTS: Court[] = [
   { id: 'CRT1', name: 'Sessions Court Kuala Terengganu', city: 'Kuala Terengganu' },
@@ -753,27 +562,15 @@ export const INITIAL_JUDGES: Judge[] = [
   { id: 'J1', name: 'YA Puan Hakim Zarina', courtId: 'CRT1' },
 ];
 
-export const INITIAL_TIME_ENTRIES: TimeEntry[] = [
-  { id: 'TE1', caseId: 'CS-001', feeEarner: 'AH', date: '2026-07-15', hours: 2.5, rate: 400, billable: true, description: 'Research on vicarious liability precedents' },
-];
+export const INITIAL_TIME_ENTRIES: TimeEntry[] = [];
 
-export const INITIAL_EXPENSES: Expense[] = [
-  { id: 'EX1', caseId: 'CS-001', date: '2026-07-10', category: 'Court Filing Fees', amount: 250, billable: true, description: 'Filing fees paid via e-Kehakiman' },
-];
+export const INITIAL_EXPENSES: Expense[] = [];
 
-export const INITIAL_INVOICES: Invoice[] = [
-  { id: 'INV-0001', clientId: 'HQ-C001', caseId: 'CS-001', amount: 8000, discount: 0, tax: 0, total: 8000, date: '2026-06-01', dueDate: '2026-07-01', status: 'Paid' },
-];
+export const INITIAL_INVOICES: Invoice[] = [];
 
-export const INITIAL_PAYMENTS: Payment[] = [
-  { id: 'HQ-OR-0003', invoiceId: 'INV-0001', amount: 8000, date: '2026-06-01', method: 'Bank Transfer' },
-];
+export const INITIAL_PAYMENTS: Payment[] = [];
 
-export const INITIAL_RETAINERS: Retainer[] = [
-  { id: 'RTN-0001', clientId: 'HQ-C002', caseId: 'CS-002', type: 'Deposit', amount: 20000, date: '2026-06-05', remarks: 'Advance retainer' },
-  { id: 'RTN-0002', clientId: 'HQ-C001', caseId: 'CS-001', type: 'Deposit', amount: 50000, date: '2026-05-04', remarks: 'Purchase deposit into client account (OR HQ-OR-0002)' },
-  { id: 'RTN-0003', clientId: 'HQ-C001', caseId: 'CS-001', type: 'Apply', amount: 3000, date: '2026-05-15', remarks: 'Stamp duty from client funds (PV HQ-PV-0002)' },
-];
+export const INITIAL_RETAINERS: Retainer[] = [];
 
 export const INITIAL_USERS: User[] = [
   { id: 'U1', name: 'Syafiqah Hamizad', username: 'syafiqahhamizad', email: 'syafiqahhamizad@shcolaw.com', role: 'Partner', isAdmin: true, isSuperAdmin: true, status: 'Active' },
@@ -781,9 +578,7 @@ export const INITIAL_USERS: User[] = [
   { id: 'U3', name: 'Zulaikha Afendi', username: 'zulaikhaafendi', email: 'zulaikha@shcolaw.com', role: 'Partner', isAdmin: false, isSuperAdmin: false, status: 'Active' },
 ];
 
-export const INITIAL_FIRM_ANNOUNCEMENTS: FirmAnnouncement[] = [
-  { id: 'ANN-001', title: 'Welcome to the Firm Start Centre', body: 'Your daily workspace for matters, deadlines, tasks and connected Google Workspace tools.', category: 'Announcement', createdAt: '2026-08-25T08:00:00.000Z', createdBy: 'System', published: true, internalOnly: true },
-];
+export const INITIAL_FIRM_ANNOUNCEMENTS: FirmAnnouncement[] = [];
 
 export const INITIAL_FIRM_START_CENTRE_PAGES: FirmStartCentrePage[] = [
   {
@@ -824,11 +619,7 @@ export const INITIAL_FIRM_START_CENTRE_PAGES: FirmStartCentrePage[] = [
   },
 ];
 
-export const INITIAL_LOGS: ActivityLog[] = [
-  { ts: '2026-07-24 09:12', user: 'AH', action: 'Hearing Added', details: 'Case Management — CS-001, 04 Aug 2026' },
-  { ts: '2026-07-23 16:40', user: 'SH', action: 'Lead Converted', details: 'Nur Syakirah Aiman → HQ-C001' },
-  { ts: '2026-07-22 11:05', user: 'ZA', action: 'Invoice Created', details: 'INV-0001 — RM 8,000.00' },
-];
+export const INITIAL_LOGS: ActivityLog[] = [];
 
 export const INITIAL_ROLES_MATRIX: RolePermissionsMatrix = {
   Partner: {
@@ -936,311 +727,13 @@ export const INITIAL_ROLES_MATRIX: RolePermissionsMatrix = {
   },
 };
 
-export const INITIAL_LAW_FIRM_REGISTRY: LawFirmRegistryEntry[] = [
-  {
-    id: 'LFR-001',
-    firmName: 'Messrs. Aziz & Co Advocates & Solicitors',
-    registrationNo: 'BC/A/2005/1102',
-    address: 'Suite 3.01, Wisma Sri Terengganu, Jalan Sultan Ismail',
-    cityState: 'Kuala Terengganu, Terengganu',
-    phone: '09-622 1188',
-    email: 'litigation@azizco.com.my',
-    defaultRefFormat: 'AC/LIT/2026/{NO}',
-    counsels: [
-      { id: 'AC-101', name: 'Encik Abdul Aziz bin Omar', roleTitle: 'Managing Partner', phone: '019-9881122', email: 'aziz@azizco.com.my' },
-      { id: 'AC-102', name: 'Encik Roslan Ahmad', roleTitle: 'Senior Litigation Partner', phone: '012-9812233', email: 'roslan@azizco.com.my' },
-      { id: 'AC-103', name: 'Puan Hafizah Husna', roleTitle: 'Legal Associate', phone: '017-6655441', email: 'hafizah@azizco.com.my' },
-    ],
-    notes: 'Frequently opposing counsel in East Coast civil litigation and tort claims.',
-  },
-  {
-    id: 'LFR-002',
-    firmName: 'Messrs. Ramli, Kamarudin & Partners',
-    registrationNo: 'BC/R/1998/4021',
-    address: 'No. 88A, Jalan Bandar, Pusat Bandar',
-    cityState: 'Kuala Terengganu, Terengganu',
-    phone: '09-624 3322',
-    email: 'civil@rkplaw.com.my',
-    defaultRefFormat: 'RKP/CV/2026/{NO}',
-    counsels: [
-      { id: 'AC-201', name: 'Datuk Ramli Abdullah', roleTitle: 'Senior Counsel / Founder', phone: '019-9110022', email: 'ramli@rkplaw.com.my' },
-      { id: 'AC-202', name: 'Puan Siti Zubaidah bin Kamarudin', roleTitle: 'Partner', phone: '013-9221100', email: 'zubaidah@rkplaw.com.my' },
-    ],
-    notes: 'Handles government agencies, statutory body defence, and public law disputes.',
-  },
-  {
-    id: 'LFR-003',
-    firmName: 'Messrs. Shearn Delamore & Co.',
-    registrationNo: 'BC/S/1905/0001',
-    address: '7th Floor, Wisma Hamzah-Kwong Hing, No. 1, Leboh Ampang',
-    cityState: 'Kuala Lumpur',
-    phone: '03-2027 2727',
-    email: 'info@shearndelamore.com',
-    defaultRefFormat: 'SD/LIT/2026/{NO}',
-    counsels: [
-      { id: 'AC-301', name: 'Mr. Nicholas Tan', roleTitle: 'Senior Litigation Partner', phone: '03-2027 2800', email: 'nicholas.tan@shearndelamore.com' },
-      { id: 'AC-302', name: 'Puan Sarah Farahana', roleTitle: 'Partner (Dispute Resolution)', phone: '03-2027 2815', email: 'sarah.f@shearndelamore.com' },
-    ],
-    notes: 'Tier-1 law firm handling complex corporate disputes, IP, and appellate litigation.',
-  },
-  {
-    id: 'LFR-004',
-    firmName: 'Messrs. Zul Rafique & Partners',
-    registrationNo: 'BC/Z/1999/8810',
-    address: 'D3-3-8 Solaris Dutamas, No. 1 Jalan Dutamas 1',
-    cityState: 'Kuala Lumpur',
-    phone: '03-6209 8228',
-    email: 'zrp@zulrafique.com.my',
-    defaultRefFormat: 'ZRP/CORP/2026/{NO}',
-    counsels: [
-      { id: 'AC-401', name: 'Dato’ Zulhashim Ariff', roleTitle: 'Senior Partner', phone: '012-3009988', email: 'zulhashim@zulrafique.com.my' },
-      { id: 'AC-402', name: 'Cik Anis Sofea', roleTitle: 'Senior Associate', phone: '012-3882211', email: 'anis.sofea@zulrafique.com.my' },
-    ],
-    notes: 'Specialists in banking litigation, loan recovery, and corporate restructuring.',
-  },
-  {
-    id: 'LFR-005',
-    firmName: 'Messrs. Thomas Philip',
-    registrationNo: 'BC/T/2002/3341',
-    address: '5-1 Jalan 26/70A, Desa Sri Hartamas',
-    cityState: 'Kuala Lumpur',
-    phone: '03-6201 5678',
-    email: 'tp@thomasphilip.com.my',
-    defaultRefFormat: 'TP/CIVIL/2026/{NO}',
-    counsels: [
-      { id: 'AC-501', name: 'Mr. Mathew Thomas Philip', roleTitle: 'Managing Partner', phone: '03-6201 5679', email: 'mathew@thomasphilip.com.my' },
-      { id: 'AC-502', name: 'Encik Farhan Mirza', roleTitle: 'Partner', phone: '012-6119900', email: 'farhan@thomasphilip.com.my' },
-    ],
-    notes: 'Civil litigation practice, shareholder disputes, and injunction proceedings.',
-  },
-];
+export const INITIAL_LAW_FIRM_REGISTRY: LawFirmRegistryEntry[] = [];
 
-export const INITIAL_BANK_ACCOUNTS: BankAccount[] = [
-  {
-    id: 'BANK-001',
-    bankName: 'Maybank Berhad',
-    accountName: 'Messrs Syafiqah Hamizad & Co - Client Trust Account',
-    accountNo: '514011223344',
-    type: 'Trust',
-    functions: ['Trust Account'],
-    branch: 'KL Main Branch',
-    swiftCode: 'MBBEMYKL',
-    openingBalance: 150000,
-    currentBalance: 185000,
-    status: 'Active',
-    notes: 'Primary SAR 1990 designated client trust account for stakeholder funds and deposits.',
-    virtualPots: [
-      { id: 'POT-001', name: 'Litigation Deposit Reserves', allocatedAmount: 110000, purpose: 'Client stakeholder monies held for ongoing civil trials' },
-      { id: 'POT-002', name: 'Conveyancing Stakeholder Monies', allocatedAmount: 75000, purpose: 'Property completion retention sums held in trust' },
-    ],
-  },
-  {
-    id: 'BANK-002',
-    bankName: 'CIMB Bank Berhad',
-    accountName: 'Messrs Syafiqah Hamizad & Co - Office Operating Account',
-    accountNo: '800122334455',
-    type: 'Office',
-    functions: ['Office Account', 'Payroll', 'Disbursement'],
-    branch: 'Damansara Heights Branch',
-    swiftCode: 'CIMBEMYKL',
-    openingBalance: 85000,
-    currentBalance: 142500,
-    status: 'Active',
-    notes: 'Primary firm office account for collecting fee billing invoices and operational expenses.',
-    virtualPots: [
-      { id: 'POT-003', name: 'Office Tax & Service Reserve', allocatedAmount: 25000, purpose: 'SST and tax liability reserve' },
-      { id: 'POT-004', name: 'Disbursement Float', allocatedAmount: 15000, purpose: 'Filing fees, travel claims, and court search floats' },
-    ],
-  },
-  {
-    id: 'BANK-003',
-    bankName: 'RHB Islamic Bank',
-    accountName: 'Messrs Syafiqah Hamizad & Co - Sinking & Partner Reserve Account',
-    accountNo: '212001198822',
-    type: 'Office',
-    functions: ['Sinking Fund', 'Partner Draws'],
-    branch: 'Ampang Branch',
-    swiftCode: 'RHBEMYKL',
-    openingBalance: 50000,
-    currentBalance: 98000,
-    status: 'Active',
-    notes: 'Secondary office reserve account for partner distribution reserves and emergency sinking fund.',
-    virtualPots: [
-      { id: 'POT-005', name: 'Partner Profit Draw Pool', allocatedAmount: 60000, purpose: 'Quarterly partner equity distribution reserve' },
-    ],
-  },
-  {
-    id: 'BANK-004',
-    bankName: 'Public Bank Berhad',
-    accountName: 'Messrs Syafiqah Hamizad & Co - Petty Cash Account',
-    accountNo: '3119882211',
-    type: 'Office',
-    functions: ['Petty Cash'],
-    branch: 'Mont Kiara Branch',
-    openingBalance: 5000,
-    currentBalance: 3450,
-    status: 'Active',
-    notes: 'Imprest petty cash operating account for front desk counter dispatch and minor disbursements.',
-  },
-];
+export const INITIAL_BANK_ACCOUNTS: BankAccount[] = [];
 
-export const INITIAL_TRUST_AUDIT_LOGS: TrustAuditLog[] = [
-  {
-    id: 'TAL-2026-001',
-    timestamp: '2026-08-01 09:30:15',
-    userId: 'USR-001',
-    userName: 'Syafiqah Hamizad',
-    clientName: 'Nur Syakirah Aiman',
-    caseRef: 'SHC/LIT/SH/QAL/001/2025',
-    bankAccountId: 'BANK-001',
-    bankAccountName: 'Maybank Berhad (Trust Account 514011223344)',
-    action: 'Deposit',
-    amount: 25000,
-    previousBalance: 160000,
-    newBalance: 185000,
-    remarks: 'SAR 1990 Trust Deposit received via Maybank Interbank Transfer ref MBK-99821. Endorsed by Partner.',
-    complianceStatus: 'Compliant',
-  },
-  {
-    id: 'TAL-2026-002',
-    timestamp: '2026-08-05 14:15:00',
-    userId: 'USR-002',
-    userName: 'Amer Haiqal',
-    clientName: 'Tan Ah Kow',
-    caseRef: 'SHC/CV/AH/TAK/002/2025',
-    bankAccountId: 'BANK-001',
-    bankAccountName: 'Maybank Berhad (Trust Account 514011223344)',
-    action: 'Disbursal',
-    amount: 5000,
-    previousBalance: 190000,
-    newBalance: 185000,
-    remarks: 'Approved Trust Disbursal voucher PV-TR-2026-002 for Court Filing Fee e-Filing Portal. Compliance Verified.',
-    complianceStatus: 'Compliant',
-  },
-  {
-    id: 'TAL-2026-003',
-    timestamp: '2026-08-10 11:00:22',
-    userId: 'USR-001',
-    userName: 'Syafiqah Hamizad',
-    clientName: 'Siti Zulaikha',
-    caseRef: 'SHC/CONV/ZA/SZ/003/2026',
-    bankAccountId: 'BANK-001',
-    bankAccountName: 'Maybank Berhad (Trust Account 514011223344)',
-    action: 'Reconciliation',
-    amount: 0,
-    previousBalance: 185000,
-    newBalance: 185000,
-    remarks: 'Monthly 3-Way Trust Reconciliation executed against Maybank e-Statement. Zero discrepancy.',
-    complianceStatus: 'Compliant',
-  },
-];
+export const INITIAL_TRUST_AUDIT_LOGS: TrustAuditLog[] = [];
 
-export const INITIAL_INVENTORY_ITEMS: InventoryItem[] = [
-  {
-    id: 'INV-001',
-    name: 'Standard Legal File Covers (High-Density Manila)',
-    category: 'Stationery',
-    quantity: 350,
-    unit: 'Pieces',
-    minThreshold: 100,
-    location: 'Filing Cabinet Room A - Shelf 2',
-    lastRestocked: '2026-07-20',
-    unitPrice: 4.5,
-    status: 'In Stock',
-  },
-  {
-    id: 'INV-002',
-    name: 'Malaysian Rules of Court 2012 (Annotated 2025 Ed.)',
-    category: 'Law Library',
-    quantity: 4,
-    unit: 'Books',
-    minThreshold: 2,
-    location: 'Partner Library Room - Bay 3',
-    lastRestocked: '2026-01-15',
-    unitPrice: 380.0,
-    status: 'In Stock',
-    isbnOrSerial: 'ISBN 978-967-89-2910-4',
-  },
-  {
-    id: 'INV-003',
-    name: 'High-Speed Court Bundles Scanner (Fujitsu ScanSnap iX1600)',
-    category: 'IT Equipment',
-    quantity: 2,
-    unit: 'Units',
-    minThreshold: 1,
-    location: 'Front Desk & Litigation Typing Pool',
-    lastRestocked: '2025-11-10',
-    unitPrice: 2450.0,
-    status: 'In Stock',
-    isbnOrSerial: 'SN-IX1600-MY-88910',
-  },
-  {
-    id: 'INV-004',
-    name: 'A4 High-Grade Paper Reams (80gsm Double A)',
-    category: 'Stationery',
-    quantity: 12,
-    unit: 'Boxes',
-    minThreshold: 15,
-    location: 'Store Room B',
-    lastRestocked: '2026-06-01',
-    unitPrice: 68.0,
-    status: 'Low Stock',
-  },
-  {
-    id: 'INV-005',
-    name: 'Malayan Law Journal (MLJ) Bound Reports (2020-2025)',
-    category: 'Law Library',
-    quantity: 18,
-    unit: 'Volumes',
-    minThreshold: 5,
-    location: 'Main Law Library',
-    lastRestocked: '2026-02-10',
-    unitPrice: 520.0,
-    status: 'In Stock',
-    isbnOrSerial: 'MLJ-2020-2025-SET',
-  },
-];
+export const INITIAL_INVENTORY_ITEMS: InventoryItem[] = [];
 
-export const INITIAL_BANK_RECONCILIATION_ENTRIES: BankReconciliationEntry[] = [
-  {
-    id: 'BRE-001',
-    date: '2026-08-01',
-    bankAccountId: 'BANK-001',
-    bankAccountName: 'Maybank Client Trust Account (514011223344)',
-    description: 'Trust Stakeholder Deposit - Nur Syakirah Aiman',
-    referenceNo: 'MBK-99821',
-    debit: 0,
-    credit: 25000,
-    matchedGlNo: 1010,
-    status: 'Reconciled',
-    reconciledBy: 'Syafiqah Hamizad',
-    reconciledDate: '2026-08-02',
-  },
-  {
-    id: 'BRE-002',
-    date: '2026-08-04',
-    bankAccountId: 'BANK-002',
-    bankAccountName: 'CIMB Office Operating Account (800122334455)',
-    description: 'Client Invoice Payment - Invoice #INV-2026-001',
-    referenceNo: 'CIMB-44102',
-    debit: 0,
-    credit: 8800,
-    matchedGlNo: 1020,
-    status: 'Reconciled',
-    reconciledBy: 'Amer Haiqal',
-    reconciledDate: '2026-08-05',
-  },
-  {
-    id: 'BRE-003',
-    date: '2026-08-08',
-    bankAccountId: 'BANK-002',
-    bankAccountName: 'CIMB Office Operating Account (800122334455)',
-    description: 'Payment Voucher PV-2026-012 Office Rental & Utilities',
-    referenceNo: 'CIMB-OUT-8812',
-    debit: 12500,
-    credit: 0,
-    matchedGlNo: 5010,
-    status: 'Unreconciled',
-  },
-];
+export const INITIAL_BANK_RECONCILIATION_ENTRIES: BankReconciliationEntry[] = [];
 
