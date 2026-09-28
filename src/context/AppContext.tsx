@@ -1074,7 +1074,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return readStored(STORAGE_KEY + '_paymentVouchers', operationalFallback(INITIAL_PAYMENT_VOUCHERS));
   });
 
-  const [generalLedger, setGeneralLedger] = useState<GeneralLedgerEntry[]>(operationalFallback(INITIAL_GENERAL_LEDGER));
+  const [generalLedger, setGeneralLedger] = useState<GeneralLedgerEntry[]>(() =>
+    readStored(STORAGE_KEY + '_generalLedger', operationalFallback(INITIAL_GENERAL_LEDGER))
+  );
   const [trialBalance] = useState<TrialBalanceRow[]>(operationalFallback(INITIAL_TRIAL_BALANCE));
   const [cashFlowOffice] = useState<CashFlowRow[]>(operationalFallback(INITIAL_CASH_FLOW));
   const [threeWayRec] = useState<ThreeWayRecRow[]>(operationalFallback(INITIAL_3WAY_REC));
@@ -1411,8 +1413,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [courts] = useState<Court[]>(INITIAL_COURTS);
   const [judges] = useState<Judge[]>(INITIAL_JUDGES);
 
-  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>(operationalFallback(INITIAL_TIME_ENTRIES));
-  const [expenses, setExpenses] = useState<Expense[]>(operationalFallback(INITIAL_EXPENSES));
+  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>(() =>
+    readStored(STORAGE_KEY + '_timeEntries', operationalFallback(INITIAL_TIME_ENTRIES))
+  );
+  const [expenses, setExpenses] = useState<Expense[]>(() =>
+    readStored(STORAGE_KEY + '_expenses', operationalFallback(INITIAL_EXPENSES))
+  );
 
   const [invoices, setInvoices] = useState<Invoice[]>(() => {
     return readStored(STORAGE_KEY + '_invoices', operationalFallback(INITIAL_INVOICES));
@@ -1426,7 +1432,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return readStored(STORAGE_KEY + '_retainers', operationalFallback(INITIAL_RETAINERS));
   });
 
-  const [logs, setLogs] = useState<ActivityLog[]>(operationalFallback(INITIAL_LOGS));
+  const [logs, setLogs] = useState<ActivityLog[]>(() =>
+    readStored(STORAGE_KEY + '_logs', operationalFallback(INITIAL_LOGS))
+  );
   const [rolesMatrix, setRolesMatrix] = useState<RolePermissionsMatrix>(() => {
     return readStored(STORAGE_KEY + '_rolesMatrix', INITIAL_ROLES_MATRIX);
   });
@@ -1906,10 +1914,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return true;
     }
 
-    if ((currentUser.isSuperAdmin || currentUser.isAdmin) && effectiveRole === 'Partner') {
-      return true;
-    }
-
     const modulePerm = roleMatrix[moduleKey] || { v: 0, a: 0, e: 0 };
     const permissionValue = modulePerm[action];
     return permissionValue === 1;
@@ -1948,6 +1952,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY + '_rolesMatrix', JSON.stringify(rolesMatrix));
   }, [rolesMatrix]);
+
+  // timeEntries/expenses/generalLedger/logs never persisted at all (no readStored on
+  // init, no write effect) — every billable hour, expense claim and GL posting reverted
+  // to seed data on refresh. These four effects plus the readStored() on their useState
+  // above fix that; the cloud-sync additions below cover the multi-device side of it.
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY + '_timeEntries', JSON.stringify(timeEntries));
+  }, [timeEntries]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY + '_expenses', JSON.stringify(expenses));
+  }, [expenses]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY + '_generalLedger', JSON.stringify(generalLedger));
+  }, [generalLedger]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY + '_logs', JSON.stringify(logs));
+  }, [logs]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY + '_clients', JSON.stringify(clients));
@@ -2037,6 +2061,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (Array.isArray(state.leaveApplications)) setLeaveApplications(state.leaveApplications as LeaveApplication[]);
       if (Array.isArray(state.meetings)) setMeetings(state.meetings as Meeting[]);
       if (Array.isArray(state.programmes)) setProgrammes(state.programmes as Programme[]);
+      // The following were local-localStorage-only (same bug class as meetings/programmes
+      // above) — never reached anyone else in the firm, and timeEntries/expenses/
+      // generalLedger/logs didn't even persist locally (readStored() added on their
+      // useState declarations above; see the write effects added alongside them).
+      if (Array.isArray(state.timeEntries)) setTimeEntries(state.timeEntries as TimeEntry[]);
+      if (Array.isArray(state.expenses)) setExpenses(state.expenses as Expense[]);
+      if (Array.isArray(state.generalLedger)) setGeneralLedger(state.generalLedger as GeneralLedgerEntry[]);
+      if (Array.isArray(state.logs)) setLogs(state.logs as ActivityLog[]);
+      if (Array.isArray(state.announcements)) setAnnouncements(state.announcements as FirmAnnouncement[]);
+      if (Array.isArray(state.auditLogs)) setAuditLogs(state.auditLogs as AuditLogEntry[]);
+      if (Array.isArray(state.firmStartCentrePages)) setFirmStartCentrePages(state.firmStartCentrePages as FirmStartCentrePage[]);
+      if (Array.isArray(state.bankAccounts)) setBankAccounts(state.bankAccounts as BankAccount[]);
+      if (Array.isArray(state.trustAuditLogs)) setTrustAuditLogs(state.trustAuditLogs as TrustAuditLog[]);
+      if (Array.isArray(state.inventoryItems)) setInventoryItems(state.inventoryItems as InventoryItem[]);
+      if (Array.isArray(state.bankReconciliationEntries)) setBankReconciliationEntries(state.bankReconciliationEntries as BankReconciliationEntry[]);
       if (Array.isArray(state.notifications)) setNotifications(state.notifications as NotificationItem[]);
       if (Array.isArray(state.lawFirmRegistry)) setLawFirmRegistry((state.lawFirmRegistry as LawFirmRegistryEntry[]).filter((firm) => isActive('Law Firm', firm)));
       if (state.sequenceCounters && typeof state.sequenceCounters === 'object') setSequenceCounters(state.sequenceCounters as SequenceCounters);
@@ -2067,6 +2106,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             receipts, deadlines, invoices, payments, retainers, users, attendanceRecords,
             leaveApplications, meetings, programmes, notifications, lawFirmRegistry, sequenceCounters, deletedRecords,
             rolesMatrix, customRoles, practiceSettings: getPracticeSettings(),
+            timeEntries, expenses, generalLedger, logs, announcements, auditLogs,
+            firmStartCentrePages, bankAccounts, trustAuditLogs, inventoryItems, bankReconciliationEntries,
           });
         }
 
@@ -2101,13 +2142,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       receipts, deadlines, invoices, payments, retainers, users, attendanceRecords,
       leaveApplications, meetings, programmes, notifications, lawFirmRegistry, sequenceCounters, deletedRecords,
       rolesMatrix, customRoles,
+      timeEntries, expenses, generalLedger, logs, announcements, auditLogs,
+      firmStartCentrePages, bankAccounts, trustAuditLogs, inventoryItems, bankReconciliationEntries,
     }).catch((error) => {
       console.error('Cloud state save failed; signing out to prevent unsynced data entry.', error);
       sessionStorage.removeItem(SESSION_STORAGE_KEY);
       setCloudSyncReady(false);
       setIsAuthenticated(false);
     });
-  }, [cloudSyncReady, leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims, receipts, deadlines, invoices, payments, retainers, users, attendanceRecords, leaveApplications, meetings, programmes, notifications, lawFirmRegistry, sequenceCounters, deletedRecords, rolesMatrix, customRoles]);
+  }, [cloudSyncReady, leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims, receipts, deadlines, invoices, payments, retainers, users, attendanceRecords, leaveApplications, meetings, programmes, notifications, lawFirmRegistry, sequenceCounters, deletedRecords, rolesMatrix, customRoles, timeEntries, expenses, generalLedger, logs, announcements, auditLogs, firmStartCentrePages, bankAccounts, trustAuditLogs, inventoryItems, bankReconciliationEntries]);
 
   const addActivityLog = (action: string, details: string) => {
     const newLog: ActivityLog = {

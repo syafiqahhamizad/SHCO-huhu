@@ -1394,7 +1394,11 @@ export const AutoPvPromptModal: React.FC<{
     });
 
     setIsSendingEmail(false);
-    showToast(`🎉 Payment Voucher ${pvId} auto-generated! Email notification dispatched to Finance Department (${emailRes.message}).`);
+    showToast(
+      emailRes.success
+        ? `🎉 Payment Voucher ${pvId} auto-generated! Email notification dispatched to Finance Department (${emailRes.message}).`
+        : `Payment Voucher ${pvId} auto-generated. ⚠ ${emailRes.message}`
+    );
     if (onPvGenerated) onPvGenerated(pvId);
     onClose();
   };
@@ -2496,7 +2500,7 @@ export const PaymentsView: React.FC = () => {
     const res = await sendFinancePvNotificationEmail(testPayload);
     setEmailLogs(getEmailAuditLogs());
     setIsTestingEmail(false);
-    showToast(`📧 Finance notification email dispatched to finance@shcolaw.com! (${res.message})`);
+    showToast(res.success ? `📧 Finance notification email dispatched to finance@shcolaw.com! (${res.message})` : `⚠ ${res.message}`);
   };
 
   // Modals state
@@ -2676,7 +2680,11 @@ export const PaymentsView: React.FC = () => {
     });
 
     setIsNewPvOpen(false);
-    showToast(`📧 Payment Voucher ${pvId} generated! Email notification dispatched to Finance Dept (${emailRes.message}).`);
+    showToast(
+      emailRes.success
+        ? `📧 Payment Voucher ${pvId} generated! Email notification dispatched to Finance Dept (${emailRes.message}).`
+        : `Payment Voucher ${pvId} generated. ⚠ ${emailRes.message}`
+    );
   };
 
   return (

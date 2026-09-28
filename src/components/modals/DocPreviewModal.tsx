@@ -531,7 +531,7 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
                 recipientEmail: 'finance@shcolaw.com',
               });
               setIsDispatchingEmail(false);
-              showToast(`📧 Verification Email sent to finance@shcolaw.com (${res.message})`);
+              showToast(res.success ? `📧 Verification email sent to finance@shcolaw.com (${res.message})` : `⚠ ${res.message}`);
             }}
             disabled={isDispatchingEmail}
             className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-3 py-1.5 rounded-md text-xs flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-50"

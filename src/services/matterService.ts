@@ -87,8 +87,11 @@ export const syncClientMatterLinks = (
       });
     }
 
-    // 3. Fallback: match by clientName if ID not explicit
-    if (cs.clientName) {
+    // 3. Fallback: match by clientName, but ONLY when 1 & 2 found nothing — otherwise a
+    // case titled ".../ ABC Realty Sdn Bhd" (the opposing party, not a linked client)
+    // would get substring-matched onto any client whose name happens to appear in the
+    // title, e.g. a client literally named "ABC".
+    if (linkedClientIds.size === 0 && cs.clientName) {
       const lowerCsName = cs.clientName.toLowerCase();
       allClients.forEach((client) => {
         if (client.name && lowerCsName.includes(client.name.toLowerCase())) {

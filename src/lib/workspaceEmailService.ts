@@ -199,22 +199,24 @@ export async function sendFinancePvNotificationEmail(
 
       if (res.ok) {
         sentSuccessfully = true;
-        statusMessage = `Direct Gmail API delivery to ${recipient} succeeded!`;
+        statusMessage = `Delivered to ${recipient} via Gmail API`;
       } else {
-        const errorData = await res.json();
-        console.warn('Gmail API returned error, recording simulated workspace dispatch:', errorData);
-        sentSuccessfully = true;
-        statusMessage = `Dispatched via Google Workspace API pipeline to ${recipient}`;
+        const errorData = await res.json().catch(() => null);
+        console.warn('Gmail API returned an error; not marking the email as sent.', errorData);
+        sentSuccessfully = false;
+        statusMessage = `Not sent — Gmail API rejected the message for ${recipient}`;
       }
     } catch (err) {
-      console.warn('Network or CORS error invoking Gmail API directly, logging dispatch:', err);
-      sentSuccessfully = true;
-      statusMessage = `Dispatched via Google Workspace API pipeline to ${recipient}`;
+      console.warn('Network or CORS error invoking Gmail API; not marking the email as sent.', err);
+      sentSuccessfully = false;
+      statusMessage = `Not sent — could not reach the Gmail API for ${recipient}`;
     }
   } else {
-    // If token is not initialized in browser local session yet, simulate seamless delivery
-    sentSuccessfully = true;
-    statusMessage = `Google Workspace email queued & sent to ${recipient} (Google Workspace Integration Active)`;
+    // No caller in this app ever calls setGmailAccessToken(), so this branch is what
+    // actually runs every time in practice — there is no real Gmail connection to send
+    // through. Log it honestly instead of claiming a delivery that never happened.
+    sentSuccessfully = false;
+    statusMessage = `Not sent — no Gmail connection is configured (logged for ${recipient})`;
   }
 
   // Create audit log entry
