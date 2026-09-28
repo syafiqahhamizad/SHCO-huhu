@@ -336,46 +336,6 @@ export const CasesView: React.FC = () => {
   // List view filters
   const [statusFilter, setStatusFilter] = useState<string>('');
 
-  // Process Case Intake Modal State
-  const [isCaseIntakeModalOpen, setIsCaseIntakeModalOpen] = useState(false);
-
-  // New Case Form Fields State
-  const [ncClientId, setNcClientId] = useState(clients[0]?.id || '');
-  const [ncPracticeArea, setNcPracticeArea] = useState('Civil Litigation');
-  const [ncMatterCode, setNcMatterCode] = useState('L');
-  const [ncClientRole, setNcClientRole] = useState('Plaintiff');
-  const [ncCustomRole, setNcCustomRole] = useState('');
-  const [ncSubtype, setNcSubtype] = useState('');
-  const [ncClientTag, setNcClientTag] = useState('QAL');
-  const [ncSelectedPartners, setNcSelectedPartners] = useState<PartnerCode[]>(['SH']);
-  const [ncLawyerInCharge, setNcLawyerInCharge] = useState<PartnerCode>('SH');
-  const [ncManualRefOverride, setNcManualRefOverride] = useState('');
-  const [ncCourt, setNcCourt] = useState('Sessions Court Kuala Terengganu');
-  const [ncJudge, setNcJudge] = useState('YA Puan Hakim Zarina');
-  const [ncCourtCaseNo, setNcCourtCaseNo] = useState('');
-  const [ncPropertyTitleNo, setNcPropertyTitleNo] = useState('');
-  const [ncPropertyAddress, setNcPropertyAddress] = useState('');
-  const [ncPurchasePrice, setNcPurchasePrice] = useState('');
-  const [ncFinancierBank, setNcFinancierBank] = useState('');
-  const [ncCorporateMatterType, setNcCorporateMatterType] = useState('');
-  const [ncContractValue, setNcContractValue] = useState('');
-  const [ncRegulatoryAuthority, setNcRegulatoryAuthority] = useState('');
-  const [ncGoverningLaw, setNcGoverningLaw] = useState('');
-  const [ncOpposing, setNcOpposing] = useState('');
-  const [ncOpposingFirm, setNcOpposingFirm] = useState('');
-  const [ncOpposingSolicitor, setNcOpposingSolicitor] = useState('');
-  const [ncOpposingRef, setNcOpposingRef] = useState('');
-
-  // Multi Opposing Party State during New Case Creation
-  const [ncOpposingPartiesList, setNcOpposingPartiesList] = useState<PartyRecord[]>([]);
-  const [ncAddOppPartyName, setNcAddOppPartyName] = useState<string>('');
-  const [ncAddOppPartyRole, setNcAddOppPartyRole] = useState<string>('1st Defendant');
-
-  // Multi-Client Representation (Our Side - SHCO) during New Case Creation State
-  const [ncClientsList, setNcClientsList] = useState<PartyRecord[]>([]);
-  const [ncAddClientSelectId, setNcAddClientSelectId] = useState<string>(''); // existing client id
-  const [ncAddClientRole, setNcAddClientRole] = useState<string>('1st Plaintiff');
-
   // Change Opposing Solicitors Modal State
   const [isChangeOpposingModalOpen, setIsChangeOpposingModalOpen] = useState(false);
   const [chgFirmName, setChgFirmName] = useState('');
@@ -417,13 +377,6 @@ export const CasesView: React.FC = () => {
   // SHCO Lawyer attendance helpers in Court Diary
   const [shcoSelectedLawyer, setShcoSelectedLawyer] = useState('Syafiqah Hamizad (SH)');
   const [shcoCustomLawyer, setShcoCustomLawyer] = useState('');
-
-  // New Case Modal - Multiple Opposing Solicitors Registry State & Builder
-  const [ncOpposingRegistry, setNcOpposingRegistry] = useState<OpposingSolicitorRecord[]>([]);
-  const [ncAddPartyRep, setNcAddPartyRep] = useState('2nd Defendant');
-  const [ncAddFirmName, setNcAddFirmName] = useState('');
-  const [ncAddSolicitors, setNcAddSolicitors] = useState('');
-  const [ncAddFirmRef, setNcAddFirmRef] = useState('');
 
   // Folder state in Documents tab
   const [openDocFolder, setOpenDocFolder] = useState<string | null>(null);
@@ -862,14 +815,6 @@ export const CasesView: React.FC = () => {
     return parts.join('/');
   };
 
-  const handlePracticeAreaChange = (area: string) => {
-    setNcPracticeArea(area);
-    setNcMatterCode(getConfiguredMatterCodes(area)[0]?.code || getMatterCodes(area)[0].code);
-    const availableRoles = PRACTICE_CLIENT_ROLES[area] || ['Client'];
-    setNcClientRole(availableRoles[0]);
-    setNcCustomRole('');
-  };
-
   // Helper: Sync opposing firm & counsel details into central Law Firm Registry
   const syncOpposingFirmToRegistry = (
     firmName: string,
@@ -925,207 +870,6 @@ export const CasesView: React.FC = () => {
         notes: 'Auto-linked during matter record entry',
       });
     }
-  };
-
-  const handleSaveNewCase = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (ncSelectedPartners.length === 0) return alert('Select at least one partner in charge');
-
-    const clientObj = clients.find((c) => c.id === ncClientId);
-    const clientNameStr = clientObj ? clientObj.name : 'Client';
-    const selectedMatterCode = ncMatterCode === 'CUSTOM' ? ncSubtype : ncMatterCode;
-    if (!selectedMatterCode.trim()) {
-      showToast('Enter a custom Matter Code before registering this matter.');
-      return;
-    }
-    const generatedRef = generateRefString(ncPracticeArea, selectedMatterCode, ncSelectedPartners, ncLawyerInCharge, ncClientTag);
-    const finalRef = ncManualRefOverride.trim() || generatedRef;
-
-    if (cases.some((matter) => matter.ref.trim() === finalRef)) {
-      showToast('That file reference is already assigned to another matter. Please choose a different reference.');
-      return;
-    }
-
-    const finalRole = ncClientRole === 'Other' ? (ncCustomRole.trim() || 'Client') : ncClientRole;
-
-    // Ensure represented clients list is populated
-    const finalClientsList: PartyRecord[] = ncClientsList.length > 0
-      ? ncClientsList
-      : [
-          {
-            id: `CP-init-${Date.now()}`,
-            clientId: ncClientId,
-            name: clientNameStr,
-            role: finalRole,
-            phone: clientObj?.phone,
-            email: clientObj?.email,
-          },
-        ];
-
-    const leadClientName = finalClientsList[0]?.name || clientNameStr;
-    const leadClientId = finalClientsList[0]?.clientId || ncClientId;
-
-    const finalOpposingPartiesList: PartyRecord[] = ncOpposingPartiesList.length > 0
-      ? ncOpposingPartiesList
-      : [
-          {
-            id: `OP-init-${Date.now()}`,
-            name: ncOpposing.trim() || 'Opposing Party',
-            role: '1st Defendant',
-          },
-        ];
-
-    const leadOpposingName = finalOpposingPartiesList[0]?.name || ncOpposing.trim() || 'Opposing Party';
-
-    const newCaseId = `CS-${Math.floor(100 + Math.random() * 900)}`;
-    const builtRegistry: OpposingSolicitorRecord[] = [];
-    if (ncOpposingFirm.trim()) {
-      builtRegistry.push({
-        id: `OSR-primary-${Date.now()}`,
-        partyRepresented: finalOpposingPartiesList[0]?.role ? `Representing ${finalOpposingPartiesList[0].name} (${finalOpposingPartiesList[0].role})` : 'Opposing Party Representative',
-        firmName: ncOpposingFirm.trim(),
-        solicitors: '',
-        firmRef: ncOpposingRef.trim(),
-        isPrimary: true,
-      });
-
-      // Sync with Law Firm Registry database!
-      syncOpposingFirmToRegistry(ncOpposingFirm);
-    }
-
-    if (ncOpposingRegistry.length > 0) {
-      builtRegistry.push(...ncOpposingRegistry);
-      ncOpposingRegistry.forEach((reg) => {
-        syncOpposingFirmToRegistry(reg.firmName, '', reg.contactNumber, reg.email);
-      });
-    }
-
-    const clientKycDocs = (clients || []).find((c) => c.id === leadClientId)?.kyc || [];
-    const autoDriveDocs = [
-      {
-        id: `DOC-${Date.now()}-1`,
-        name: `[DRAFT] Writ of Summons & Statement of Claim.docx`,
-        category: '01. Cause Papers/Drafts',
-        uploadedDate: new Date().toISOString().slice(0, 10),
-        driveUrl: `https://drive.google.com/file/d/${generatedRef}_CP_Draft_1`,
-      },
-      {
-        id: `DOC-${Date.now()}-2`,
-        name: `[EXTRACTED] Sealed Writ of Summons & Court Seal.pdf`,
-        category: '01. Cause Papers/Extracted',
-        uploadedDate: new Date().toISOString().slice(0, 10),
-        driveUrl: `https://drive.google.com/file/d/${generatedRef}_CP_Extracted_1`,
-      },
-      {
-        id: `DOC-${Date.now()}-3`,
-        name: `[DRAFT] Notice of Demand to Opposing Party.docx`,
-        category: '02. Correspondences/Drafts',
-        uploadedDate: new Date().toISOString().slice(0, 10),
-        driveUrl: `https://drive.google.com/file/d/${generatedRef}_Corr_Draft_1`,
-      },
-      {
-        id: `DOC-${Date.now()}-4`,
-        name: `Signed Retainer Agreement & Authority to Act (${leadClientName}).pdf`,
-        category: '03. Client Documents',
-        uploadedDate: new Date().toISOString().slice(0, 10),
-        driveUrl: `https://drive.google.com/file/d/${generatedRef}_Client_Docs_1`,
-      },
-      {
-        id: `DOC-${Date.now()}-5`,
-        name: `Client Identity Record & NRIC Copy (KYC Sync).pdf`,
-        category: '04. Client KYC & Identification',
-        uploadedDate: new Date().toISOString().slice(0, 10),
-        driveUrl: `https://drive.google.com/file/d/${generatedRef}_KYC_1`,
-      },
-      {
-        id: `DOC-${Date.now()}-6`,
-        name: `Initial Legal Strategy Opinion & Precedents Research.pdf`,
-        category: '05. Research & Memos',
-        uploadedDate: new Date().toISOString().slice(0, 10),
-        driveUrl: `https://drive.google.com/file/d/${generatedRef}_Research_1`,
-      },
-      {
-        id: `DOC-${Date.now()}-7`,
-        name: `Client Intake & Case Strategy Consultation Minutes.pdf`,
-        category: '06. Meeting Notes & Minutes',
-        uploadedDate: new Date().toISOString().slice(0, 10),
-        driveUrl: `https://drive.google.com/file/d/${generatedRef}_MeetingNotes_1`,
-      },
-    ];
-
-    (clientKycDocs || []).forEach((k: any, idx: number) => {
-      autoDriveDocs.push({
-        id: `DOC-KYC-${Date.now()}-${idx}`,
-        name: `[Client Database KYC] ${k.name || 'KYC Document'} (${k.type || 'Identity Verification'})`,
-        category: '04. Client KYC & Identification',
-        uploadedDate: k.uploadedDate || new Date().toISOString().slice(0, 10),
-        driveUrl: `https://drive.google.com/file/d/KYC_${k.id || idx}`,
-      });
-    });
-
-    const newCaseObj: Case = {
-      id: newCaseId,
-      ref: finalRef,
-      title: `${leadClientName} — ${ncPracticeArea} (${finalRole})`,
-      clientId: leadClientId,
-      clientName: leadClientName,
-      clientsList: finalClientsList,
-      createdDate: new Date().toISOString(),
-      type: ncPracticeArea,
-      practiceArea: ncPracticeArea,
-      matterCode: selectedMatterCode.toUpperCase(),
-      clientRole: finalRole,
-      court: ncCourt,
-      judge: ncJudge,
-      courtCaseNo: ncCourtCaseNo || undefined,
-      propertyTitleNo: ncPropertyTitleNo || undefined,
-      propertyAddress: ncPropertyAddress || undefined,
-      purchasePrice: ncPurchasePrice || undefined,
-      financierBank: ncFinancierBank || undefined,
-      corporateMatterType: ncCorporateMatterType || undefined,
-      contractValue: ncContractValue || undefined,
-      regulatoryAuthority: ncRegulatoryAuthority || undefined,
-      governingLaw: ncGoverningLaw || undefined,
-      opposingParty: leadOpposingName,
-      opposingPartiesList: finalOpposingPartiesList,
-      opposingCounsel: Array.from(new Set(builtRegistry.map((r) => r.firmName))),
-      opposingSolicitorsFirm: builtRegistry[0]?.firmName || ncOpposingFirm.trim() || undefined,
-      opposingSolicitorsName: undefined,
-      opposingSolicitorsRef: builtRegistry[0]?.firmRef || ncOpposingRef.trim() || undefined,
-      opposingSolicitorsRegistry: builtRegistry,
-      opposingSolicitorsHistory: ncOpposingFirm.trim()
-        ? [
-            {
-              id: `OSH-${Date.now()}`,
-              firmName: ncOpposingFirm.trim(),
-              solicitorName: '',
-              firmRef: ncOpposingRef.trim(),
-              effectiveDate: new Date().toISOString().slice(0, 10),
-              remarks: 'Initial appointment upon file opening',
-            },
-          ]
-        : [],
-      partners: ncSelectedPartners,
-      lawyers: [ncLawyerInCharge === 'SH' ? 'Syafiqah Hamizad' : ncLawyerInCharge === 'AH' ? 'Amer Haiqal' : 'Zulaikha Afendi'],
-      lawyerInCharge: ncLawyerInCharge === 'SH' ? 'Syafiqah Hamizad' : ncLawyerInCharge === 'AH' ? 'Amer Haiqal' : 'Zulaikha Afendi',
-      status: 'Active',
-      nextHearing: '',
-      lastAccessed: new Date().toISOString().slice(0, 10),
-      caseNotes: '',
-      hearings: [],
-      documents: autoDriveDocs,
-      courtDiary: [],
-      tasks: [],
-      serviceRecord: [],
-      meetingNotes: [],
-      internalNotes: [],
-    };
-
-    addCase(newCaseObj);
-    showToast(`Matter ${finalRef} created! Google Drive folder hierarchy generated automatically with Cause Papers (Drafts & Extracted), Correspondences (Drafts), Client Documents, KYC (Synced), Research, & Meeting Notes.`);
-    setNcManualRefOverride('');
-    setIsNewCaseModalOpen(false);
-    setCurrentCaseId(newCaseId);
   };
 
   // Opposing Solicitors Management
@@ -5351,10 +5095,7 @@ export const CasesView: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => {
-              setNcManualRefOverride('');
-              setIsNewCaseModalOpen(true);
-            }}
+            onClick={() => setIsNewCaseModalOpen(true)}
             className="bg-[#16223A] hover:bg-[#16223A] text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 transition-colors cursor-pointer shadow-md"
           >
             <Plus className="w-4 h-4 text-white" />
