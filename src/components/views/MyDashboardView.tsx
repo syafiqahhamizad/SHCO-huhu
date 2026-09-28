@@ -30,6 +30,10 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { PartnerDashboardView } from './PartnerDashboardView';
+import { AccountingCentreView } from './AccountingCentreView';
+import { ComprehensiveDashboardView } from './ComprehensiveDashboardView';
+import { UsersAndPermissionsView } from './SystemViews';
+import { ClientsView } from './ClientsView';
 import { Case, Meeting, Task, TaskChecklistItem } from '../../types';
 import { identityTokens, isMine, partnerCode } from '../../lib/identity';
 import { Donut, MiniBarChart, ProgressBar, TaskFormModal, blankTaskDraft } from '../ui';
@@ -169,7 +173,7 @@ export const MyDashboardView: React.FC = () => {
   const [meetingTab, setMeetingTab] = useState<'today' | 'week'>('today');
   const [meetingFormOpen, setMeetingFormOpen] = useState(false);
   const [meetingDraft, setMeetingDraft] = useState({ title: '', date: '', time: '', location: '', note: '', type: 'Internal' as Meeting['type'] });
-  const [subTab, setSubTab] = useState<'work' | 'partnerKpis'>('work');
+  const [subTab, setSubTab] = useState<'work' | 'partnerKpis' | 'finance' | 'clientAccount' | 'team' | 'compliance' | 'direction'>('work');
   const { confirm, ConfirmationModal } = useConfirmation();
 
   const todayStr = iso(new Date());
@@ -896,18 +900,21 @@ export const MyDashboardView: React.FC = () => {
   // access check in App.tsx as a second line of defence.
   const allLauncherCards: { key: string; label: string; sub: string; icon: React.ElementType; visible: boolean; active?: boolean; onClick?: () => void }[] = [
     { key: 'work', label: 'My work', sub: 'Tasks, meetings, approvals', icon: Scale, visible: true, active: subTab === 'work', onClick: () => setSubTab('work') },
-    { key: 'finance', label: 'Finance', sub: 'Margin, cash, funds', icon: DollarSign, visible: isMP, onClick: () => setCurrentView('accountingCentre') },
-    { key: 'clientAccount', label: 'Client account', sub: 'Balances & items to check', icon: FolderOpen, visible: canSeeClientAccountTile, onClick: () => setCurrentView('retainers') },
-    { key: 'team', label: 'Team', sub: 'Workload, pay, goals', icon: UsersIcon, visible: isMP, onClick: () => setCurrentView('users') },
+    { key: 'finance', label: 'Finance', sub: 'Margin, cash, funds', icon: DollarSign, visible: isMP, active: subTab === 'finance', onClick: () => setSubTab('finance') },
+    { key: 'clientAccount', label: 'Client account', sub: 'Balances & items to check', icon: FolderOpen, visible: canSeeClientAccountTile, active: subTab === 'clientAccount', onClick: () => setSubTab('clientAccount') },
+    { key: 'team', label: 'Team', sub: 'Workload, pay, goals', icon: UsersIcon, visible: isMP, active: subTab === 'team', onClick: () => setSubTab('team') },
     { key: 'partnerKpis', label: 'Partner KPIs', sub: isMP ? 'Scorecards — all partners' : 'Your scorecard', icon: Target, visible: canSeePartnerKpisTile, active: subTab === 'partnerKpis', onClick: () => setSubTab('partnerKpis') },
-    { key: 'compliance', label: 'Compliance', sub: 'Checklist & submissions', icon: ShieldCheck, visible: canSeeComplianceTile, onClick: () => setCurrentView('clients') },
-    { key: 'direction', label: 'Direction', sub: 'Vision, roadmap, growth', icon: Compass, visible: isMP, onClick: () => setCurrentView('firmDashboard') },
+    { key: 'compliance', label: 'Compliance', sub: 'Checklist & submissions', icon: ShieldCheck, visible: canSeeComplianceTile, active: subTab === 'compliance', onClick: () => setSubTab('compliance') },
+    { key: 'direction', label: 'Direction', sub: 'Vision, roadmap, growth', icon: Compass, visible: isMP, active: subTab === 'direction', onClick: () => setSubTab('direction') },
   ];
   const launcherCards = allLauncherCards.filter((c) => c.visible);
 
   React.useEffect(() => {
     if (subTab === 'partnerKpis' && !canSeePartnerKpisTile) setSubTab('work');
-  }, [subTab, canSeePartnerKpisTile]);
+    else if ((subTab === 'finance' || subTab === 'team' || subTab === 'direction') && !isMP) setSubTab('work');
+    else if (subTab === 'clientAccount' && !canSeeClientAccountTile) setSubTab('work');
+    else if (subTab === 'compliance' && !canSeeComplianceTile) setSubTab('work');
+  }, [subTab, canSeePartnerKpisTile, isMP, canSeeClientAccountTile, canSeeComplianceTile]);
 
   return (
     <div className="space-y-4 pb-8 text-[12px]">
@@ -937,6 +944,16 @@ export const MyDashboardView: React.FC = () => {
 
       {subTab === 'partnerKpis' ? (
         <PartnerDashboardView />
+      ) : subTab === 'finance' ? (
+        <AccountingCentreView initialTab="home" />
+      ) : subTab === 'clientAccount' ? (
+        <AccountingCentreView initialTab="client" />
+      ) : subTab === 'team' ? (
+        <UsersAndPermissionsView />
+      ) : subTab === 'compliance' ? (
+        <ClientsView />
+      ) : subTab === 'direction' ? (
+        <ComprehensiveDashboardView />
       ) : (
       <>
       <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
