@@ -94,9 +94,17 @@ export const SimplifiedAccountingView: React.FC = () => {
     addBankAccount,
     updateBankAccount,
     showToast,
+    currentView,
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<Tab>('invoices');
+  const [activeTab, setActiveTab] = useState<Tab>(() => VIEW_TO_TAB[currentView] || 'invoices');
+  // Every one of the 14+ sidebar/nav routes that render this shared component (bank
+  // accounts, bank reconciliation, claims, trial balance, etc.) was landing on whichever
+  // tab was last active instead of its own — VIEW_TO_TAB existed but was never applied.
+  useEffect(() => {
+    const mapped = VIEW_TO_TAB[currentView];
+    if (mapped) setActiveTab(mapped);
+  }, [currentView]);
   const [searchTerm, setSearchTerm] = useState('');
 
   // =============== INVOICES TAB ===============
