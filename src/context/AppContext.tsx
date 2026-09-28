@@ -1483,17 +1483,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(STORAGE_KEY + '_sequenceCounters', JSON.stringify(sequenceCounters));
   }, [sequenceCounters]);
 
+  // Highest N found in ids already shaped "<prefix><digits>" (case-insensitive) — lets
+  // getNextSequenceId stay correct even when real records were seeded/imported with ids
+  // in its own numbering scheme instead of being created through it.
+  const highestNumericSuffix = (ids: string[], prefix: string): number => {
+    const re = new RegExp('^' + prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(\\d+)$', 'i');
+    return ids.reduce((max, id) => {
+      const m = id.match(re);
+      if (!m) return max;
+      const n = Number(m[1]);
+      return Number.isFinite(n) && n > max ? n : max;
+    }, 0);
+  };
+
   const getNextSequenceId = (
     type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead'
   ): string => {
     const key = (type + 'Seq') as keyof SequenceCounters;
-    const current = sequenceCounters[key] || 0;
-    const nextNum = current === 0 ? 1 : current;
+    const counterValue = sequenceCounters[key] || 0;
     // Nothing ever called incrementSequenceCounter() for any of these types (only 'case'
     // does, and that branch below ignores the counter entirely anyway) — every call to
     // getNextSequenceId('invoice'/'quotation'/etc.) was returning the exact same first ID
     // forever, so a second invoice/quotation/receipt/voucher/client/lead would silently
-    // get the same id as the first. Advance the counter here, once, at the source.
+    // get the same id as the first.
+    //
+    // The counter alone also isn't enough: seed/imported data (e.g. INITIAL_LEADS'
+    // 'LD-001'..'LD-003') already occupies ids in this exact scheme without ever having
+    // advanced the counter, so a naive counter-only fix can still hand out an id that
+    // collides with an existing real record. Take whichever is higher.
+    const highestReal = (() => {
+      switch (type) {
+        case 'invoice': return highestNumericSuffix(invoices.map((i) => i.id), 'INV-2026-');
+        case 'quotation': return highestNumericSuffix(quotations.map((q) => q.id), 'QUOT-2026-');
+        case 'receipt': return highestNumericSuffix(receipts.map((r) => r.id), 'HQ-OR-');
+        case 'voucher': return highestNumericSuffix(paymentVouchers.map((v) => v.id), 'HQ-PV-');
+        case 'claim': return highestNumericSuffix(travelClaims.map((t) => t.id), 'TC-');
+        case 'client': return highestNumericSuffix(clients.map((c) => c.id), 'HQ-C');
+        case 'lead': return highestNumericSuffix(leads.map((l) => l.id), 'LD-');
+        default: return 0;
+      }
+    })();
+    const nextNum = Math.max(counterValue === 0 ? 1 : counterValue, highestReal + 1);
     if (type !== 'case') {
       setSequenceCounters((prev) => ({ ...prev, [key]: nextNum + 1 }));
     }

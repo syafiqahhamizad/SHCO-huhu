@@ -1071,7 +1071,7 @@ export const CasesView: React.FC = () => {
         targetClientId = existing.id;
       } else {
         // Auto-register in central clients database with conflict search screening!
-        const newClientId = `HQ-C${Math.floor(100 + Math.random() * 900)}`;
+        const newClientId = getNextSequenceId('client');
         const autoConflicts = scanClientConflicts({ name: targetName, email: cpEmail }, clients, cases);
         const newClientObj = {
           id: newClientId,

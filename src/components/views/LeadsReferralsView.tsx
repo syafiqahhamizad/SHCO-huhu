@@ -49,6 +49,7 @@ export const LeadsReferralsView: React.FC = () => {
     addLead,
     currentUser,
     showToast,
+    getNextSequenceId,
   } = useApp() as any;
 
   const [subTab, setSubTab] = useState<SubTab>('overview');
@@ -109,7 +110,7 @@ export const LeadsReferralsView: React.FC = () => {
   // existing Edit-lead flow), since a programme sign-up here has no attendee list to pull from.
   const makeLeadFromProgramme = (p: Programme) => {
     addLead({
-      id: `LD-${Math.floor(100 + Math.random() * 900)}`,
+      id: getNextSequenceId('lead'),
       name: `New lead — ${p.title}`,
       phone: '',
       email: '',

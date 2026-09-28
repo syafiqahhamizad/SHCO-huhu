@@ -37,7 +37,7 @@ const HONORIFIC_PREFIXES = [
 ];
 
 export const LeadsView: React.FC = () => {
-  const { leads, clients, cases, addLead, updateLead, deleteLead, addClient, addDeadline, openNewCaseWithPrefill, showToast, currentUser } = useApp();
+  const { leads, clients, cases, addLead, updateLead, deleteLead, addClient, addDeadline, openNewCaseWithPrefill, showToast, currentUser, getNextSequenceId } = useApp();
 
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
   const [conflictLead, setConflictLead] = useState<Lead | null>(null);
@@ -229,7 +229,7 @@ export const LeadsView: React.FC = () => {
     const warmthCategory: LeadWarmth = warmthLevel === 3 ? 'Hot' : warmthLevel === 2 ? 'Warm' : 'Cold';
 
     const newLeadObj: Lead = {
-      id: `LD-${Math.floor(100 + Math.random() * 900)}`,
+      id: getNextSequenceId('lead'),
       name: name.trim(),
       phone,
       email,
@@ -349,7 +349,7 @@ export const LeadsView: React.FC = () => {
 
   const handleDoConvert = () => {
     if (!convertLead) return;
-    const clientId = `HQ-C${Math.floor(100 + Math.random() * 900)}`;
+    const clientId = getNextSequenceId('client');
 
     addClient({
       id: clientId,
@@ -438,7 +438,7 @@ export const LeadsView: React.FC = () => {
       // Auto conflict check before converting to client
       const autoConflicts = scanClientConflicts({ name: l.name, email: l.email, contactPerson: l.name }, clients, cases);
 
-      targetClientId = `HQ-C${Math.floor(100 + Math.random() * 900)}`;
+      targetClientId = getNextSequenceId('client');
       targetClientName = l.name;
 
       addClient({
@@ -498,7 +498,7 @@ export const LeadsView: React.FC = () => {
     if (!targetClientId) {
       // Auto conflict check before converted to client
       const autoConflicts = scanClientConflicts({ name: l.name, email: l.email, contactPerson: l.name }, clients, cases);
-      targetClientId = `HQ-C${Math.floor(100 + Math.random() * 900)}`;
+      targetClientId = getNextSequenceId('client');
 
       addClient({
         id: targetClientId,
