@@ -1,6 +1,6 @@
 import React from 'react';
 import { CourtDiaryEntry, Case } from '../../types';
-import { X, Printer, Download } from 'lucide-react';
+import { X, Printer } from 'lucide-react';
 
 interface CourtMemoModalProps {
   entry: CourtDiaryEntry;

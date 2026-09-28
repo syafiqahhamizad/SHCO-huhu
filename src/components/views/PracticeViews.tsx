@@ -2277,7 +2277,7 @@ export const ReferralView: React.FC = () => {
     if (!refName.trim()) return;
 
     addReferralPartner({
-      id: `REF${Math.floor(100 + Math.random() * 900)}`,
+      id: `REF-${Date.now()}`,
       name: refName.trim(),
       type: refType,
       contact: refContact,

@@ -318,7 +318,7 @@ export const MyDashboardView: React.FC = () => {
           caseId: t.caseId,
           dueDate: t.date || '',
           status: 'Pending approval',
-          view: 'timeTracking',
+          view: 'time',
         });
       });
 
@@ -387,7 +387,7 @@ export const MyDashboardView: React.FC = () => {
           caseId: i.caseId,
           dueDate: i.dueDate || i.date || '',
           status: 'Pending review',
-          view: 'billingPipeline',
+          view: 'time',
         });
       });
     }
@@ -415,7 +415,7 @@ export const MyDashboardView: React.FC = () => {
         caseId,
         dueDate: '',
         status: 'Write up',
-        view: 'billingPipeline',
+        view: 'time',
       });
     });
 
@@ -666,7 +666,14 @@ export const MyDashboardView: React.FC = () => {
   };
 
   const saveTaskDraft = (): boolean => {
-    if (!taskDraft.title.trim() || list !== 'matter') return false;
+    if (!taskDraft.title.trim()) return false;
+    if (list !== 'matter') {
+      // Private to-dos are meant to sync straight to Google Tasks (no file attached) —
+      // that integration isn't built, so say so instead of silently doing nothing when
+      // someone fills out the whole form and hits Create.
+      showToast?.('Private to-dos sync to Google Tasks directly — that connection isn’t set up yet, so this can’t be saved here.');
+      return false;
+    }
     const caseId = taskDraft.caseId || myCases[0]?.id;
     if (!caseId) {
       showToast?.('No matters available to attach this task to.');
@@ -784,8 +791,8 @@ export const MyDashboardView: React.FC = () => {
     { label: 'To-do open', value: rows.filter((r) => r.stream === 'task').length, note: 'tasks', desc: 'Requires your attention this week', icon: CheckCircle2, color: '#2E7D7A', filter: 'all' },
     { label: 'Waiting on you', value: waitingCount, note: 'approvals', desc: 'Requires your attention this week', icon: Inbox, color: palette.gold, filter: 'waiting' },
     { label: 'Unbilled time', value: unbilledRows.length, note: 'matters', desc: 'Billable write-ups awaiting billing', icon: Timer, color: palette.green, filter: 'unbilled' },
-    { label: 'My billed (RM)', value: billing.billedThisMonth.toLocaleString(), note: '', desc: '', icon: DollarSign, color: palette.gold, onClickView: 'billingPipeline' },
-    { label: 'My collected (RM)', value: billing.collectedThisMonth.toLocaleString(), note: '', desc: '', icon: DollarSign, color: palette.blue, onClickView: 'billingPipeline' },
+    { label: 'My billed (RM)', value: billing.billedThisMonth.toLocaleString(), note: '', desc: '', icon: DollarSign, color: palette.gold, onClickView: 'time' },
+    { label: 'My collected (RM)', value: billing.collectedThisMonth.toLocaleString(), note: '', desc: '', icon: DollarSign, color: palette.blue, onClickView: 'time' },
     { label: 'Files I brought', value: filesBroughtIn, note: '', desc: '', icon: FolderOpen, color: palette.navy, onClickView: 'cases' },
   ];
 
@@ -1188,7 +1195,7 @@ export const MyDashboardView: React.FC = () => {
             <div className="flex items-center gap-2 bg-[#F6F8FA] px-3.5 py-2.5 text-[10.5px] text-[#5B6478]">
               <CheckCircle2 className="h-3.5 w-3.5 text-[#2F6F4E]" />
               <span>{list === 'matter' ? `${rows.length} open matter items` : '0 open items'}</span>
-              <button type="button" onClick={() => setCurrentView(list === 'matter' ? 'tasks' : 'activityLogs')} className="ml-auto font-bold text-[#8A6D3B]">
+              <button type="button" onClick={() => setCurrentView(list === 'matter' ? 'tasks' : 'logs')} className="ml-auto font-bold text-[#8A6D3B]">
                 {list === 'matter' ? 'All matter tasks ->' : 'Open in Google Tasks ->'}
               </button>
             </div>

@@ -480,7 +480,7 @@ export const LeadsView: React.FC = () => {
     });
   };
 
-  const handleConvertToClient = (l: Lead) => {
+  const handleConvertToClient = async (l: Lead) => {
     if (l.stage === 'Converted') {
       showToast(`Lead "${l.name}" is already converted into a registered Client.`);
       return;
@@ -498,6 +498,25 @@ export const LeadsView: React.FC = () => {
     if (!targetClientId) {
       // Auto conflict check before converted to client
       const autoConflicts = scanClientConflicts({ name: l.name, email: l.email, contactPerson: l.name }, clients, cases);
+
+      // A flagged conflict used to just show a toast and convert anyway — no partner ever
+      // actually had to look at it before the client record (and any matter opened on it)
+      // went live. Require an explicit confirm so a real person makes the call, matching
+      // the "under Malaysian Bar rules" screening this screen already claims to do.
+      if (autoConflicts.length > 0) {
+        const proceed = await confirm({
+          title: 'Potential Conflict of Interest',
+          message: `Auto conflict screening flagged ${autoConflicts.length} potential match(es) against the firm's existing clients/opposing parties for "${l.name}". A partner must confirm this can proceed before the client record is created.`,
+          variant: 'danger',
+          confirmText: 'Confirm — No Conflict, Proceed',
+          details: autoConflicts.slice(0, 5).map((c) => ({ label: c.label, value: c.detail })),
+        });
+        if (!proceed) {
+          showToast(`Conversion of "${l.name}" cancelled — conflict not cleared.`);
+          return;
+        }
+      }
+
       targetClientId = getNextSequenceId('client');
 
       addClient({

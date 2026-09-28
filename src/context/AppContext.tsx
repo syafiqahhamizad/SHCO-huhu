@@ -1101,7 +1101,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             type: 'invoice',
             timestamp: '2026-08-11 11:15',
             read: false,
-            linkTab: 'invoices',
+            linkTab: 'billing',
             linkId: 'INV-2026-003',
           },
           {
@@ -2661,7 +2661,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       title: 'Invoice Payment Verified & Marked Paid',
       message: `Tax Invoice ${p.invoiceId} (RM ${p.amount.toLocaleString('en-MY', { minimumFractionDigits: 2 })}) has been marked as PAID by Finance.`,
       type: 'invoice',
-      linkTab: 'invoices',
+      linkTab: 'billing',
       linkId: p.invoiceId,
     });
     addActivityLog('Payment Recorded', `${p.id} against ${p.invoiceId}`);

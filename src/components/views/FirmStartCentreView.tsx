@@ -160,10 +160,13 @@ const QUICK_LINK_GROUPS: QuickLinkGroup[] = [
 const SMALL_TILES: LauncherTile[] = [
   { label: 'Practice', view: 'cases', icon: Scale, bg: '#3D6B9C' },
   { label: 'Calendar', view: 'calendar', icon: CalendarDays, bg: '#2F6F4E' },
-  { label: 'Billing', view: 'invoices', icon: FileSpreadsheet, bg: '#B2542F', module: 'invoices' },
+  { label: 'Billing', view: 'billing', icon: FileSpreadsheet, bg: '#B2542F', module: 'invoices' },
   { label: 'Claims', view: 'reimbursements', icon: Receipt, bg: '#8A6D3B', module: 'reimbursements' },
   { label: 'Accounting', view: 'accountingCentre', icon: Building2, bg: '#2E7D7A', module: 'accountingCentre' },
-  { label: 'Trust Account', view: 'clientAccount', icon: ShieldCheck, bg: '#1F7A5C', module: 'clientAccount' },
+  // 'clientAccount' isn't a real view or module key — silently fell back to the
+  // always-visible 'dashboard' module, so this tile showed to every role regardless of
+  // Client Trust Account access. 'retainers' is the real, correctly-gated one.
+  { label: 'Trust Account', view: 'retainers', icon: ShieldCheck, bg: '#1F7A5C', module: 'retainers' },
   { label: 'Staff Portal', view: 'staff-portal', icon: UserCog, bg: '#6B3D8C', module: 'staffPortal' },
   { label: 'Client Portal', view: 'client-portal', icon: UserCheck, bg: '#16223A' },
   { label: 'Firm Inventory', view: 'inventory', icon: Package, bg: '#4C5A72', module: 'inventory' },

@@ -126,10 +126,6 @@ export const Header: React.FC = () => {
         return { title: 'Court Hearings', sub: 'Schedule of court appearances and management sessions' };
       case 'calendar':
         return { title: 'Calendar', sub: 'Integrated hearings and compliance deadlines' };
-      case 'documents':
-        return { title: 'Documents', sub: 'Centralized Google Drive document repository per matter' };
-      case 'templates':
-        return { title: 'Doc Templates', sub: 'Merge-field templates for Notices, Fee Agreements & Engagement letters' };
       case 'tasks':
         return { title: 'Tasks', sub: 'Matter tasks, assignments and turnarounds' };
       case 'deadlines':

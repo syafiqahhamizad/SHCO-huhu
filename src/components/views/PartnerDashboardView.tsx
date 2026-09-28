@@ -64,6 +64,7 @@ export const PartnerDashboardView: React.FC = () => {
     deadlines,
     paymentVouchers,
     receipts,
+    payments,
     referralPartners,
     users,
     timeEntries,
@@ -402,16 +403,23 @@ export const PartnerDashboardView: React.FC = () => {
   const revenueByPartner = useMemo(() => partnersKPIMatrix.map((p) => ({ label: p.name.split(' ')[0], value: p.billed, color: '' })), [partnersKPIMatrix]);
   const collectionByPartner = useMemo(() => partnersKPIMatrix.map((p) => ({ label: p.name.split(' ')[0], value: p.collected, color: '' })), [partnersKPIMatrix]);
 
+  // Balance owed, not the invoice's original total — a 'Partial' invoice already has some
+  // of it paid, and counting the full total again overstates the debt (matches the
+  // balance-based pattern MyDashboardView.tsx already uses for the same aging calc).
+  const paidForInvoice5 = (invId: string) => (payments || []).filter((p) => p.invoiceId === invId).reduce((s, p) => s + Number(p.amount || 0), 0);
+
   const top5Debtors = useMemo(() => {
     const byClient = new Map<string, { name: string; amount: number }>();
     invoices.filter((i) => i.status !== 'Paid' && i.status !== 'Voided').forEach((i) => {
+      const balance = Number(i.total || 0) - paidForInvoice5(i.id);
+      if (balance <= 0) return;
       const key = i.clientId || i.partyName || 'Unknown';
       const existing = byClient.get(key) || { name: i.partyName || 'Client', amount: 0 };
-      existing.amount += Number(i.total || 0);
+      existing.amount += balance;
       byClient.set(key, existing);
     });
     return Array.from(byClient.values()).sort((a, b) => b.amount - a.amount).slice(0, 5);
-  }, [invoices]);
+  }, [invoices, payments]);
 
   const top5Matters = useMemo(() => {
     const byCase = new Map<string, { ref: string; amount: number }>();
@@ -428,7 +436,8 @@ export const PartnerDashboardView: React.FC = () => {
   const agingBuckets5 = useMemo(() => {
     const buckets = { current: 0, d31: 0, d61: 0, d91: 0, over120: 0 };
     invoices.filter((i) => i.status !== 'Paid' && i.status !== 'Voided').forEach((i) => {
-      const balance = Number(i.total || 0);
+      const balance = Number(i.total || 0) - paidForInvoice5(i.id);
+      if (balance <= 0) return;
       const due = i.dueDate || i.date;
       const days = due ? Math.floor((Date.now() - new Date(due).getTime()) / 86400000) : 0;
       if (days <= 30) buckets.current += balance;
@@ -438,7 +447,7 @@ export const PartnerDashboardView: React.FC = () => {
       else buckets.over120 += balance;
     });
     return buckets;
-  }, [invoices]);
+  }, [invoices, payments]);
 
   const unbilledAgingByType = useMemo(() => {
     const bucketOf = (dateStr?: string) => {

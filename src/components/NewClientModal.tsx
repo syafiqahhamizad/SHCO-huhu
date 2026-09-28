@@ -429,7 +429,7 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { clients, cases, addClient, showToast } = useApp();
+  const { clients, cases, addClient, showToast, getNextSequenceId } = useApp();
 
   // Form State
   const [type, setType] = useState<'Individual' | 'Corporate'>('Individual');
@@ -826,7 +826,7 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({
     const fullFormattedAddress =
       addressParts.length > 0 ? addressParts.join('\n') : 'Address Not Provided';
 
-    const autoId = `CL-2026-${Math.floor(100 + Math.random() * 900)}`;
+    const autoId = getNextSequenceId('client');
 
     const liveConflicts = scanClientConflicts(
       {

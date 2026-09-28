@@ -403,7 +403,7 @@ export const FileCoverModal: React.FC<FileCoverModalProps> = ({
               <div className="space-y-1 text-xs">
                 <div className="font-bold text-[#16223A] uppercase text-[10px]">Parties / Partners in Charge:</div>
                 <div className="font-mono font-extrabold text-slate-900">
-                  Partner(s): {selectedCase.partners.join(', ')}
+                  Partner(s): {(selectedCase.partners || []).join(', ') || '—'}
                 </div>
                 <div className="text-slate-600 text-[11px]">
                   Assigned Advocates: Syafiqah Hamizad, Advocates &amp; Solicitors
