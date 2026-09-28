@@ -299,8 +299,8 @@ interface AppContextType {
   addDeadline: (d: Deadline) => void;
   addActivityLog: (action: string, details: string) => void;
   sequenceCounters: SequenceCounters;
-  getNextSequenceId: (type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead') => string;
-  incrementSequenceCounter: (type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead') => void;
+  getNextSequenceId: (type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense') => string;
+  incrementSequenceCounter: (type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense') => void;
   resetSequenceCounters: () => void;
   factoryResetSystem: () => Promise<void>;
   resetAllData: () => void;
@@ -1473,6 +1473,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       claimSeq: 2,
       clientSeq: 3,
       leadSeq: 3,
+      expenseSeq: 1,
     });
     return storedCounters.caseSeq >= 1000 ? { ...storedCounters, caseSeq: 1 } : storedCounters;
   });
@@ -1497,7 +1498,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const getNextSequenceId = (
-    type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead'
+    type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense'
   ): string => {
     const key = (type + 'Seq') as keyof SequenceCounters;
     const counterValue = sequenceCounters[key] || 0;
@@ -1520,6 +1521,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         case 'claim': return highestNumericSuffix(travelClaims.map((t) => t.id), 'TC-');
         case 'client': return highestNumericSuffix(clients.map((c) => c.id), 'HQ-C');
         case 'lead': return highestNumericSuffix(leads.map((l) => l.id), 'LD-');
+        case 'expense': return highestNumericSuffix(expenses.map((e) => e.id), 'EX-');
         default: return 0;
       }
     })();
@@ -1546,13 +1548,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return `HQ-C${String(nextNum).padStart(3, '0')}`;
       case 'lead':
         return `LD-${String(nextNum).padStart(3, '0')}`;
+      case 'expense':
+        return `EX-${String(nextNum).padStart(4, '0')}`;
       default:
         return String(nextNum);
     }
   };
 
   const incrementSequenceCounter = (
-    type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead'
+    type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense'
   ) => {
     const key = (type + 'Seq') as keyof SequenceCounters;
     setSequenceCounters((prev) => ({
@@ -1571,6 +1575,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       claimSeq: 0,
       clientSeq: 0,
       leadSeq: 0,
+      expenseSeq: 0,
     };
     setSequenceCounters(zeros);
     localStorage.setItem(STORAGE_KEY + '_sequenceCounters', JSON.stringify(zeros));

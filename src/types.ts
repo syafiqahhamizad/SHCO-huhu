@@ -972,6 +972,7 @@ export interface SequenceCounters {
   claimSeq: number;
   clientSeq: number;
   leadSeq: number;
+  expenseSeq: number;
 }
 
 export interface PracticeAreaConfig {

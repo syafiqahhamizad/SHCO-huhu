@@ -552,6 +552,7 @@ export const ReimbursementsClaimsView: React.FC<ClaimsViewProps> = ({
     addActivityLog,
     addNotification,
     canViewModule,
+    getNextSequenceId,
   } = useApp();
 
   const isAccessAllowed =
@@ -1009,7 +1010,7 @@ export const ReimbursementsClaimsView: React.FC<ClaimsViewProps> = ({
       : [];
 
     const newClaim: TravelClaim = {
-      id: `TC-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: getNextSequenceId('claim'),
       date: new Date().toISOString().slice(0, 10),
       claimant: travelForm.claimant,
       purposeType: travelForm.purposeType,
@@ -1134,7 +1135,7 @@ export const ReimbursementsClaimsView: React.FC<ClaimsViewProps> = ({
       : [];
 
     const newExp: Expense = {
-      id: isMatter ? `EX-${Math.floor(1000 + Math.random() * 9000)}` : `FIRM-EX-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: getNextSequenceId('expense'),
       caseId: isMatter ? selectedCase?.id || expenseForm.caseId : 'FIRM_OPERATIONS',
       accountSet: isMatter ? 'CLIENT' : 'OFFICE',
       date: new Date().toISOString().slice(0, 10),
@@ -1162,7 +1163,7 @@ export const ReimbursementsClaimsView: React.FC<ClaimsViewProps> = ({
     // If claimant did NOT advance personal money, auto-generate Payment Voucher to Vendor directly
     if (!expenseForm.isClaimantAdvance) {
       const pv: PaymentVoucher = {
-        id: `PV-${Math.floor(10000 + Math.random() * 90000)}`,
+        id: getNextSequenceId('voucher'),
         accountSet: isMatter ? 'CLIENT' : 'OFFICE',
         voucherCategory: isMatter ? 'Client Disb' : 'Office Operating',
         payee: expenseForm.category,
@@ -1257,7 +1258,7 @@ export const ReimbursementsClaimsView: React.FC<ClaimsViewProps> = ({
       : [];
 
     const newPv: PaymentVoucher = {
-      id: `PV-${Math.floor(10000 + Math.random() * 90000)}`,
+      id: getNextSequenceId('voucher'),
       accountSet: isClientSet ? 'CLIENT' : 'OFFICE',
       voucherCategory: pvForm.voucherCategory,
       payee: pvForm.payee,
