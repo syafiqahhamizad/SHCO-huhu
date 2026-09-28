@@ -28,7 +28,6 @@ const CourtsView = React.lazy(() => PracticeViews.then((module) => ({ default: m
 const ReferralView = React.lazy(() => PracticeViews.then((module) => ({ default: module.ReferralView })));
 const FileClosingView = React.lazy(() => PracticeViews.then((module) => ({ default: module.FileClosingView })));
 const SimplifiedAccountingView = React.lazy(() => import('./components/views/SimplifiedAccountingView').then((module) => ({ default: module.SimplifiedAccountingView })));
-const SimplifiedAccountingCentreView = React.lazy(() => import('./components/views/SimplifiedAccountingCentreView').then((module) => ({ default: module.SimplifiedAccountingCentreView })));
 const AccountingCentreView = React.lazy(() => import('./components/views/AccountingCentreView').then((module) => ({ default: module.AccountingCentreView })));
 const SystemViews = import('./components/views/SystemViews');
 const WorkspaceView = React.lazy(() => SystemViews.then((module) => ({ default: module.WorkspaceView })));
