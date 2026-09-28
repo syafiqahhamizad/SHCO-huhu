@@ -81,8 +81,11 @@ export const QuotationsView: React.FC = () => {
     }));
     const withDefaults = (items: QuotationLineItem[]) => [...items, ...defaultRecoverableItems];
     if (isConveyancing) return ([
+      // No separate SST line here on purpose: computeTotals() derives SST from this fee
+      // line itself (fees × rate) whenever applySst is on. Adding a second, pre-computed
+      // SST line tagged the same taxable category would double-tax it — computeTotals
+      // would then charge SST on (scaleFee + that SST line) instead of just scaleFee.
       { description: `Professional Fee — SRO 2023 Scale (Property Value: RM ${propertyPrice.toLocaleString()})`, category: 'Fee - SRO', amount: sroResult.scaleFee },
-      ...(applySst ? [{ description: `SST Service Tax (${Math.round(sstRate * 100)}%)`, category: 'Fee - SRO', amount: sroResult.sstAmount } as QuotationLineItem] : []),
       { description: 'Estimated Stamp Duty (Memorandum of Transfer)', category: 'Disbursement', amount: sroResult.stampDutyEstimate },
       { description: 'Title Search & Land Registry Registration Fees', category: 'Disbursement', amount: 300 },
     ] as QuotationLineItem[]).concat(defaultRecoverableItems);
@@ -296,17 +299,15 @@ export const QuotationsView: React.FC = () => {
     let calculatedTotal = 0;
 
     if (isConveyancing) {
+      // No separate SST line item here either — see the matching note in
+      // defaultQuoteLineItems() above; sroResult.totalWithDisbursements already has SST
+      // folded in once, correctly.
       lineItems = [
         {
           description: `Professional Fee — SRO 2023 Scale (Property Value: RM ${propertyPrice.toLocaleString()})`,
           category: 'Fee - SRO',
           amount: sroResult.scaleFee,
         },
-        ...(applySst ? [{
-          description: `SST Service Tax (${Math.round(sstRate * 100)}%)`,
-          category: 'Fee - SRO' as const,
-          amount: sroResult.sstAmount,
-        }] : []),
         {
           description: 'Estimated Stamp Duty (Memorandum of Transfer)',
           category: 'Disbursement',
