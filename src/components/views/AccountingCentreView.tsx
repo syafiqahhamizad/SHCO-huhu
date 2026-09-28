@@ -1,43 +1,65 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
-  LayoutDashboard,
-  ListChecks,
   Timer,
   Wallet,
   Landmark,
-  Building,
-  Receipt as ReceiptIcon,
   AlertTriangle,
   Play,
   Square,
   CreditCard,
   BadgeCheck,
   ArrowRight,
+  ShieldCheck,
+  Construction,
+  ExternalLink,
 } from 'lucide-react';
-import { StatCard, Donut, MiniBarChart, TabPills } from '../ui';
+import { StatCard, Donut, MiniBarChart, TabPills, StatusBadge } from '../ui';
 import { palette, tint } from '../../lib/designTokens';
-import { TimeView, PaymentVouchersView, RetainersView, CoaView, OfficeAccountsView, ReceiptsView } from './AccountingViews';
+import {
+  TimeView,
+  PaymentVouchersView,
+  RetainersView,
+  CoaView,
+  OfficeAccountsView,
+  ReceiptsView,
+  InvoicesView,
+  StatementView,
+  GLView,
+  TrialBalanceView,
+  BalanceSheetView,
+  CashFlowView,
+  BillingReportsView,
+  TrustReportsView,
+  OfficeReportsView,
+} from './AccountingViews';
 
-type AccTab = 'dashboard' | 'unbilled' | 'timebilling' | 'claims' | 'trust' | 'office' | 'vouchers';
+// The 7-page IA from design_handoff_my_dashboard/ACCOUNTS_AND_FINANCE.md (+ Finance
+// Workflow.dc.html's old-menu -> new-home mapping). Each tab below wraps already-real,
+// already-wired views from AccountingViews.tsx — this is a reorganization of the
+// existing 17-item finance menu into 7 pages, not a rebuild of the underlying data/logic.
+type AccTab = 'home' | 'billing' | 'client' | 'office' | 'approvals' | 'payroll' | 'reports';
 
 const TABS: { id: AccTab; label: string }[] = [
-  { id: 'dashboard', label: 'Dashboard' },
-  { id: 'unbilled', label: 'Unbilled Items' },
-  { id: 'timebilling', label: 'Time Billing' },
-  { id: 'claims', label: 'Staff Claims' },
-  { id: 'trust', label: 'Client Trust' },
+  { id: 'home', label: 'Finance Home' },
+  { id: 'billing', label: 'Billing & Collections' },
+  { id: 'client', label: 'Client Account' },
   { id: 'office', label: 'Office Account' },
-  { id: 'vouchers', label: 'Receipts & Payments' },
+  { id: 'approvals', label: 'Approvals' },
+  { id: 'payroll', label: 'Payroll' },
+  { id: 'reports', label: 'Books & Reports' },
 ];
 
 const fmt = (n: number) => `RM ${Math.round(n).toLocaleString()}`;
 
-/** SHCO Accounting Centre — the redesigned 7-tab module (Dashboard/Unbilled Items/Time Billing/
- *  Staff Claims/Client Trust/Office Account/Receipts & Payments) from design/shco-portal-redesign.
- *  Wraps the existing, already-correctly-wired AccountingViews.tsx exports under the mockup's IA,
- *  and adds the two sections that didn't exist yet: the Dashboard tab and a firm-wide Unbilled Items list. */
-export const AccountingCentreView: React.FC<{ initialTab?: AccTab }> = ({ initialTab = 'dashboard' }) => {
+/** SHCO Accounting Centre — the firm's finance menu reorganized into 7 pages per
+ *  design_handoff_my_dashboard/ACCOUNTS_AND_FINANCE.md: Finance Home, Billing & Collections,
+ *  Client Account, Office Account, Approvals, Payroll, Books & Reports. Every tab wraps
+ *  already-real, already-wired AccountingViews.tsx exports — this reorganizes where they live,
+ *  it doesn't change how they work. The individual legacy sidebar items (Chart of Accounts, Trial
+ *  Balance, Bank Accounts, etc.) still also work as before; this is an additional, better-organized
+ *  path to the same real data, not a replacement of them. */
+export const AccountingCentreView: React.FC<{ initialTab?: AccTab }> = ({ initialTab = 'home' }) => {
   const [tab, setTab] = useState<AccTab>(initialTab);
   const [period, setPeriod] = useState<'month' | 'year'>('month');
 
@@ -68,18 +90,13 @@ export const AccountingCentreView: React.FC<{ initialTab?: AccTab }> = ({ initia
 
       <TabPills items={TABS} activeId={tab} onSelect={(id) => setTab(id as AccTab)} />
 
-      {tab === 'dashboard' && <AccountingDashboardTab period={period} />}
-      {tab === 'unbilled' && <UnbilledItemsFirmWideTab />}
-      {tab === 'timebilling' && <TimeBillingTab />}
-      {tab === 'claims' && <PaymentVouchersView />}
-      {tab === 'trust' && <ClientTrustTab />}
-      {tab === 'office' && (
-        <div className="space-y-4">
-          <OfficeAccountsView />
-          <CoaView />
-        </div>
-      )}
-      {tab === 'vouchers' && <ReceiptsView />}
+      {tab === 'home' && <AccountingDashboardTab period={period} />}
+      {tab === 'billing' && <BillingCollectionsTab />}
+      {tab === 'client' && <ClientAccountTab />}
+      {tab === 'office' && <OfficeAccountTab />}
+      {tab === 'approvals' && <ApprovalsTab />}
+      {tab === 'payroll' && <PayrollTab />}
+      {tab === 'reports' && <BooksReportsTab />}
     </div>
   );
 };
@@ -126,9 +143,9 @@ const QuickActionsPanel: React.FC<{ onNavigate: (tab: AccTab) => void }> = ({ on
 
   const actions = [
     { id: 'bill', label: 'Bill a client', note: `${billableCases.length} matter${billableCases.length === 1 ? '' : 's'} with unbilled work`, icon: CreditCard, color: palette.gold, onClick: () => setBillOpen((v) => !v) },
-    { id: 'payment', label: 'Record a payment', note: 'Issue a receipt or payment voucher', icon: Wallet, color: palette.green, onClick: () => onNavigate('vouchers') },
-    { id: 'claim', label: 'Approve a staff claim', note: 'Review pending disbursement vouchers', icon: BadgeCheck, color: palette.blue, onClick: () => onNavigate('claims') },
-    { id: 'trust', label: 'Check trust balance', note: 'SAR 1990 client trust ledger', icon: Landmark, color: palette.purple, onClick: () => onNavigate('trust') },
+    { id: 'payment', label: 'Record a payment', note: 'Issue a receipt or payment voucher', icon: Wallet, color: palette.green, onClick: () => onNavigate('billing') },
+    { id: 'claim', label: 'Approve a staff claim', note: 'Review pending disbursement vouchers', icon: BadgeCheck, color: palette.blue, onClick: () => onNavigate('approvals') },
+    { id: 'trust', label: 'Check trust balance', note: 'SAR 1990 client trust ledger', icon: Landmark, color: palette.purple, onClick: () => onNavigate('client') },
   ];
 
   return (
@@ -568,6 +585,245 @@ const ClientTrustTab: React.FC = () => {
           </table>
         </div>
       </div>
+    </div>
+  );
+};
+
+/* ================= Billing & Collections = Unbilled + Time + Invoices + Receipts ================= */
+type BillingSub = 'unbilled' | 'time' | 'invoices' | 'receipts';
+const BILLING_SUBTABS: { id: BillingSub; label: string }[] = [
+  { id: 'unbilled', label: 'Unbilled Items' },
+  { id: 'time', label: 'Time Billing' },
+  { id: 'invoices', label: 'Invoices' },
+  { id: 'receipts', label: 'Receipts & Payments' },
+];
+const BillingCollectionsTab: React.FC = () => {
+  const [sub, setSub] = useState<BillingSub>('unbilled');
+  return (
+    <div className="space-y-4">
+      <TabPills items={BILLING_SUBTABS} activeId={sub} onSelect={(id) => setSub(id as BillingSub)} />
+      {sub === 'unbilled' && <UnbilledItemsFirmWideTab />}
+      {sub === 'time' && <TimeBillingTab />}
+      {sub === 'invoices' && <InvoicesView />}
+      {sub === 'receipts' && <ReceiptsView />}
+    </div>
+  );
+};
+
+/* ================= Client Account = Ledger (trust) + Statement + Reports ================= */
+type ClientSub = 'ledger' | 'statement' | 'reports';
+const CLIENT_SUBTABS: { id: ClientSub; label: string }[] = [
+  { id: 'ledger', label: 'Client Trust Ledger' },
+  { id: 'statement', label: 'Client Statement' },
+  { id: 'reports', label: 'Client Account Reports' },
+];
+const ClientAccountTab: React.FC = () => {
+  const [sub, setSub] = useState<ClientSub>('ledger');
+  return (
+    <div className="space-y-4">
+      <TabPills items={CLIENT_SUBTABS} activeId={sub} onSelect={(id) => setSub(id as ClientSub)} />
+      {sub === 'ledger' && <ClientTrustTab />}
+      {sub === 'statement' && <StatementView />}
+      {sub === 'reports' && <TrustReportsView />}
+    </div>
+  );
+};
+
+/* ================= Office Account = balances + a cross-link to bank accounts/reconciliation ================= */
+const OfficeAccountTab: React.FC = () => {
+  const { setCurrentView } = useApp() as any;
+  return (
+    <div className="space-y-4">
+      <OfficeAccountsView />
+      <button
+        type="button"
+        onClick={() => setCurrentView('bankAccounts')}
+        className="flex w-full items-center justify-between rounded-xl border border-[#DDE3EB] bg-white p-4 text-left hover:bg-[#F6F8FA]"
+      >
+        <span className="flex items-center gap-2">
+          <Landmark className="h-4 w-4" style={{ color: palette.blue }} />
+          <span>
+            <span className="block text-[12.5px] font-bold text-[#16223A]">Bank accounts &amp; virtual pots, bank reconciliation</span>
+            <span className="block text-[10.5px] text-[#5B6478]">Per-account balances, sinking funds, cash reserve and month-end reconciliation</span>
+          </span>
+        </span>
+        <ExternalLink className="h-3.5 w-3.5 text-[#5B6478]" />
+      </button>
+    </div>
+  );
+};
+
+/* ================= Approvals — claims, vouchers, write-offs pending sign-off ================= */
+/** Limits per ACCOUNTS_AND_FINANCE.md: < RM5k any partner; >= RM5k or client account = MP + 1.
+ *  This surfaces the limit as guidance on each item; it does not (yet) hard-enforce a second
+ *  signatory — that needs a real second-approver workflow, which isn't built yet. */
+const approvalLimitNote = (amount: number, isClientAccount: boolean) =>
+  amount >= 5000 || isClientAccount ? 'Needs Managing Partner + 1' : 'Any partner can approve';
+
+const ApprovalsTab: React.FC = () => {
+  const { paymentVouchers, travelClaims, updatePaymentVoucher, updateTravelClaim, currentUser, showToast } = useApp() as any;
+
+  const pendingVouchers = useMemo(
+    () => (paymentVouchers || []).filter((v: any) => v.approvalStatus === 'Pending Approval'),
+    [paymentVouchers]
+  );
+  const pendingClaims = useMemo(
+    () => (travelClaims || []).filter((t: any) => t.approvalStatus === 'Pending Approval' || t.approvalStatus === 'Pending PIC Approval'),
+    [travelClaims]
+  );
+
+  const approveVoucher = (id: string) => {
+    updatePaymentVoucher(id, { approvalStatus: 'Approved', approved: true, approvedBy: currentUser?.name });
+    showToast?.('Voucher approved.');
+  };
+  const rejectVoucher = (id: string) => {
+    updatePaymentVoucher(id, { approvalStatus: 'Rejected', approved: false, approvedBy: currentUser?.name });
+    showToast?.('Voucher rejected.');
+  };
+  const approveClaim = (id: string) => {
+    updateTravelClaim(id, { approvalStatus: 'Approved', approvedBy: currentUser?.name });
+    showToast?.('Claim approved.');
+  };
+  const rejectClaim = (id: string) => {
+    updateTravelClaim(id, { approvalStatus: 'Rejected', approvedBy: currentUser?.name });
+    showToast?.('Claim rejected.');
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+        <StatCard label="Pending vouchers" value={pendingVouchers.length} icon={ShieldCheck} color={palette.blue} />
+        <StatCard label="Pending claims" value={pendingClaims.length} icon={BadgeCheck} color={palette.gold} />
+        <StatCard label="Total awaiting sign-off" value={fmt(pendingVouchers.reduce((s: number, v: any) => s + Number(v.amount || 0), 0) + pendingClaims.reduce((s: number, c: any) => s + Number(c.total || 0), 0))} color={palette.navy} />
+      </div>
+
+      <div className="overflow-hidden rounded-xl border border-[#DDE3EB] bg-white">
+        <div className="border-b border-[#DDE3EB] bg-[#F6F8FA] p-3 text-[12px] font-bold text-[#16223A]">Payment vouchers &amp; disbursements</div>
+        <table className="w-full text-left text-[11.5px]">
+          <thead>
+            <tr className="border-b border-[#DDE3EB] text-[10px] uppercase text-[#5B6478]">
+              <th className="p-2.5">Date</th>
+              <th className="p-2.5">Payee</th>
+              <th className="p-2.5">Description</th>
+              <th className="p-2.5 text-right">Amount</th>
+              <th className="p-2.5">Signatory needed</th>
+              <th className="p-2.5 text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {pendingVouchers.length === 0 ? (
+              <tr><td colSpan={6} className="p-6 text-center text-slate-400">Nothing pending approval.</td></tr>
+            ) : (
+              pendingVouchers.map((v: any) => (
+                <tr key={v.id}>
+                  <td className="p-2.5">{v.date}</td>
+                  <td className="p-2.5 font-bold">{v.payee || '—'}</td>
+                  <td className="p-2.5">{v.description}</td>
+                  <td className="p-2.5 text-right font-mono font-bold">{fmt(v.amount)}</td>
+                  <td className="p-2.5"><StatusBadge label={approvalLimitNote(v.amount, v.accountSet === 'CLIENT')} tone={v.amount >= 5000 || v.accountSet === 'CLIENT' ? 'gold' : 'green'} /></td>
+                  <td className="p-2.5 text-right">
+                    <div className="flex justify-end gap-1.5">
+                      <button type="button" onClick={() => approveVoucher(v.id)} className="rounded-md px-2 py-1 text-[10.5px] font-bold text-white" style={{ backgroundColor: palette.green }}>Approve</button>
+                      <button type="button" onClick={() => rejectVoucher(v.id)} className="rounded-md border border-[#DDE3EB] px-2 py-1 text-[10.5px] font-bold text-[#5B6478]">Reject</button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="overflow-hidden rounded-xl border border-[#DDE3EB] bg-white">
+        <div className="border-b border-[#DDE3EB] bg-[#F6F8FA] p-3 text-[12px] font-bold text-[#16223A]">Staff travel &amp; expense claims</div>
+        <table className="w-full text-left text-[11.5px]">
+          <thead>
+            <tr className="border-b border-[#DDE3EB] text-[10px] uppercase text-[#5B6478]">
+              <th className="p-2.5">Date</th>
+              <th className="p-2.5">Claimant</th>
+              <th className="p-2.5">Purpose</th>
+              <th className="p-2.5 text-right">Amount</th>
+              <th className="p-2.5 text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {pendingClaims.length === 0 ? (
+              <tr><td colSpan={5} className="p-6 text-center text-slate-400">Nothing pending approval.</td></tr>
+            ) : (
+              pendingClaims.map((c: any) => (
+                <tr key={c.id}>
+                  <td className="p-2.5">{c.date}</td>
+                  <td className="p-2.5 font-bold">{c.claimant}</td>
+                  <td className="p-2.5">{c.purpose}</td>
+                  <td className="p-2.5 text-right font-mono font-bold">{fmt(c.total)}</td>
+                  <td className="p-2.5 text-right">
+                    <div className="flex justify-end gap-1.5">
+                      <button type="button" onClick={() => approveClaim(c.id)} className="rounded-md px-2 py-1 text-[10.5px] font-bold text-white" style={{ backgroundColor: palette.green }}>Approve</button>
+                      <button type="button" onClick={() => rejectClaim(c.id)} className="rounded-md border border-[#DDE3EB] px-2 py-1 text-[10.5px] font-bold text-[#5B6478]">Reject</button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+/* ================= Payroll — not yet built ================= */
+/** Deliberately NOT faking payroll numbers: EPF/SOCSO/EIS/PCB are statutory deductions with real
+ *  compliance consequences, and this needs the official KWSP/PERKESO/LHDN tables (per
+ *  ACCOUNTS_AND_FINANCE.md) before it can run real payroll. Until then, "Staff Salaries & EPF/SOCSO"
+ *  stays an expense-category entry in Office Account, same as today. */
+const PayrollTab: React.FC = () => {
+  const { setCurrentView } = useApp() as any;
+  return (
+    <div className="rounded-xl border border-dashed border-[#DDE3EB] bg-white p-8 text-center">
+      <Construction className="mx-auto h-8 w-8" style={{ color: palette.gold }} />
+      <p className="mt-3 text-[14px] font-bold text-[#16223A]">Payroll isn't built yet</p>
+      <p className="mx-auto mt-1.5 max-w-md text-[11.5px] leading-relaxed text-[#5B6478]">
+        A real Draft → Checked → Approved → Paid payroll workflow needs the official KWSP (EPF),
+        PERKESO (SOCSO/EIS) and LHDN (PCB) statutory tables wired in first — getting those wrong has
+        real consequences for staff pay and firm compliance, so this isn't faked with placeholder
+        numbers. Until it's built, salaries are still recorded as an expense under Office Account.
+      </p>
+      <button
+        type="button"
+        onClick={() => setCurrentView('officeAccounts')}
+        className="mx-auto mt-4 flex items-center gap-1.5 rounded-lg px-4 py-2 text-[12px] font-bold text-white"
+        style={{ backgroundColor: palette.navy }}
+      >
+        Record a salary expense <ArrowRight className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+};
+
+/* ================= Books & Reports = CoA/GL/TB/Balance Sheet/Cash Flow/Reports ================= */
+type ReportsSub = 'coa' | 'gl' | 'tb' | 'bs' | 'cf' | 'billing' | 'office';
+const REPORTS_SUBTABS: { id: ReportsSub; label: string }[] = [
+  { id: 'coa', label: 'Chart of Accounts' },
+  { id: 'gl', label: 'General Ledger' },
+  { id: 'tb', label: 'Trial Balance' },
+  { id: 'bs', label: 'Balance Sheet' },
+  { id: 'cf', label: 'Cash Flow' },
+  { id: 'billing', label: 'Billing Reports' },
+  { id: 'office', label: 'Office Reports' },
+];
+const BooksReportsTab: React.FC = () => {
+  const [sub, setSub] = useState<ReportsSub>('coa');
+  return (
+    <div className="space-y-4">
+      <TabPills items={REPORTS_SUBTABS} activeId={sub} onSelect={(id) => setSub(id as ReportsSub)} />
+      {sub === 'coa' && <CoaView />}
+      {sub === 'gl' && <GLView />}
+      {sub === 'tb' && <TrialBalanceView />}
+      {sub === 'bs' && <BalanceSheetView />}
+      {sub === 'cf' && <CashFlowView />}
+      {sub === 'billing' && <BillingReportsView />}
+      {sub === 'office' && <OfficeReportsView />}
     </div>
   );
 };

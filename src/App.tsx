@@ -156,29 +156,43 @@ const MainContent: React.FC = () => {
       case 'file-closing':
         return <FileClosingView />;
 
-      // Accounting & Finance — redesigned Accounting Centre (design/shco-portal-redesign).
-      // Covers the mockup's 7-tab IA (Dashboard/Unbilled Items/Time Billing/Staff Claims/
-      // Client Trust/Office Account/Receipts & Payments). Routes outside that IA (bank
-      // accounts/reconciliation, reimbursements, travel claims, expenses, statements,
-      // balance sheet, cash flow, the *Reports views) are untouched — still SimplifiedAccountingView.
+      // Accounting & Finance — the Accounting Centre's 7-page IA (Finance Home/Billing &
+      // Collections/Client Account/Office Account/Approvals/Payroll/Books & Reports) per
+      // design_handoff_my_dashboard/ACCOUNTS_AND_FINANCE.md. Chart of Accounts/General
+      // Ledger/Trial Balance/Balance Sheet/Cash Flow/*Reports now live under its Books &
+      // Reports tab, and Client Statement under its Client Account tab. Bank accounts/
+      // reconciliation, reimbursements, travel claims and expenses are untouched — still
+      // SimplifiedAccountingView (Office Account cross-links to Bank Accounts).
       case 'accountingCentre':
       case 'accounting-centre':
       case 'accounting':
-        return <AccountingCentreView initialTab="dashboard" />;
+        return <AccountingCentreView initialTab="home" />;
       case 'paymentVouchers':
       case 'pv':
-        return <AccountingCentreView initialTab="claims" />;
+        return <AccountingCentreView initialTab="approvals" />;
       case 'time':
-        return <AccountingCentreView initialTab="timebilling" />;
+        return <AccountingCentreView initialTab="billing" />;
       case 'retainers':
-        return <AccountingCentreView initialTab="trust" />;
+      case 'statement':
+        return <AccountingCentreView initialTab="client" />;
       case 'officeAccounts':
       case 'office-accounts':
+        return <AccountingCentreView initialTab="office" />;
       case 'coa':
       case 'gl':
       case 'tb':
       case 'trialBalance':
-        return <AccountingCentreView initialTab="office" />;
+      case 'balanceSheet':
+      case 'balance-sheet':
+      case 'cashFlow':
+      case 'cashflow':
+      case 'billingReports':
+      case 'reports-billing':
+      case 'trustReports':
+      case 'reports-trust':
+      case 'officeReports':
+      case 'reports-office':
+        return <AccountingCentreView initialTab="reports" />;
       case 'bankAccounts':
       case 'bank-accounts':
       case 'bankReconciliation':
@@ -190,17 +204,6 @@ const MainContent: React.FC = () => {
       case 'travelClaims':
       case 'travel-claims':
       case 'expenses':
-      case 'statement':
-      case 'balanceSheet':
-      case 'balance-sheet':
-      case 'cashFlow':
-      case 'cashflow':
-      case 'billingReports':
-      case 'reports-billing':
-      case 'trustReports':
-      case 'reports-trust':
-      case 'officeReports':
-      case 'reports-office':
         return <SimplifiedAccountingView />;
 
       case 'trustAuditLogs':
