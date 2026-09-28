@@ -107,15 +107,15 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
     : DEFAULT_PRACTICE_SETTINGS.bankAccounts || [];
 
   const defaultOfficeBank = accounts.find((a) => a.isDefaultOffice) || accounts.find((a) => a.accountType === 'Office Operating') || accounts[0] || {
-    accountName: 'MESSRS SYAFIQAH HAMIZAD & CO - OFFICE OPERATING',
-    bankName: 'CIMB Bank Berhad',
-    accountNo: '8001092834',
+    accountName: 'Syafiqah Hamizad & Co',
+    bankName: 'Hong Leong Bank Berhad',
+    accountNo: '36301134253',
   };
 
   const defaultClientBank = accounts.find((a) => a.isDefaultClient) || accounts.find((a) => a.accountType === 'Client Trust') || accounts[1] || {
-    accountName: 'MESSRS SYAFIQAH HAMIZAD & CO - CLIENT TRUST ACCOUNT',
-    bankName: 'Bank Islam Malaysia Berhad',
-    accountNo: '1209384752',
+    accountName: 'Syafiqah Hamizad & Co – Client A/C',
+    bankName: 'Hong Leong Bank Berhad',
+    accountNo: '36301136440',
   };
 
   let docTitle = '';
@@ -236,6 +236,14 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
             )}
           </tbody>
           <tfoot>
+            <tr className="text-black font-semibold text-[11px]">
+              <td className="p-1.5 border border-black text-right">TOTAL (EXCLUDING SST):</td>
+              <td className="p-1.5 border border-black text-right font-mono">{q.total.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
+            </tr>
+            <tr className="text-black text-[11px]">
+              <td className="p-1.5 border border-black text-right">SST: Not applicable</td>
+              <td className="p-1.5 border border-black text-right font-mono">-</td>
+            </tr>
             <tr className="text-black font-bold text-xs">
               <td className="p-2.5 border border-black text-right">TOTAL AMOUNT TO BE PAID:</td>
               <td className="p-2.5 border border-black text-right font-mono text-sm">{q.total.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
@@ -348,12 +356,17 @@ export const DocPreviewModal: React.FC<DocPreviewModalProps> = ({ type, docId, o
               </tr>
             )}
 
-            {inv.tax > 0 && (
+            {inv.tax > 0 ? (
               <tr>
                 <td className="p-2 pl-4 text-slate-700">Service Tax (SST 8%)</td>
                 <td className="p-2 text-right font-mono">
                   {inv.tax.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
                 </td>
+              </tr>
+            ) : (
+              <tr>
+                <td className="p-2 pl-4 text-slate-700">SST: Not applicable</td>
+                <td className="p-2 text-right font-mono">-</td>
               </tr>
             )}
           </tbody>
