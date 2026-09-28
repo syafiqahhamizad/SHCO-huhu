@@ -259,7 +259,7 @@ const AccountingDashboardTab: React.FC<{ period: 'month' | 'year' }> = ({ period
     return buckets;
   }, [invoices, payments]);
 
-  const billed = (invoices || []).reduce((s: number, i: any) => s + Number(i.total || 0), 0);
+  const billed = (invoices || []).filter((i: any) => i.status !== 'Voided').reduce((s: number, i: any) => s + Number(i.total || 0), 0);
   const unbilledTotal = unbilledActivities + unbilledDisbursements;
   const billedPct = billed + unbilledTotal > 0 ? Math.round((billed / (billed + unbilledTotal)) * 100) : 0;
 
@@ -267,7 +267,7 @@ const AccountingDashboardTab: React.FC<{ period: 'month' | 'year' }> = ({ period
     const months = Array.from({ length: 12 }, (_, i) => new Date(2026, i, 1).toLocaleString('en-US', { month: 'short' }));
     return months.map((label, i) => ({
       label,
-      value: (invoices || []).filter((inv: any) => inv.date && new Date(inv.date).getMonth() === i).reduce((s: number, inv: any) => s + Number(inv.total || 0), 0),
+      value: (invoices || []).filter((inv: any) => inv.status !== 'Voided' && inv.date && new Date(inv.date).getMonth() === i).reduce((s: number, inv: any) => s + Number(inv.total || 0), 0),
       color: palette.gold,
     }));
   }, [invoices]);

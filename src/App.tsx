@@ -160,9 +160,6 @@ const MainContent: React.FC = () => {
       case 'accounting-centre':
       case 'accounting':
         return <AccountingCentreView initialTab="home" />;
-      case 'paymentVouchers':
-      case 'pv':
-        return <AccountingCentreView initialTab="approvals" />;
       case 'time':
         return <AccountingCentreView initialTab="billing" />;
       case 'retainers':
@@ -179,8 +176,6 @@ const MainContent: React.FC = () => {
       case 'balance-sheet':
       case 'cashFlow':
       case 'cashflow':
-      case 'billingReports':
-      case 'reports-billing':
       case 'trustReports':
       case 'reports-trust':
       case 'officeReports':
@@ -191,12 +186,6 @@ const MainContent: React.FC = () => {
       case 'bankReconciliation':
       case 'bank-reconciliation':
       case 'reimbursements':
-      case 'reimbursements-claims':
-      case 'claimsManagement':
-      case 'claims-management':
-      case 'travelClaims':
-      case 'travel-claims':
-      case 'expenses':
         return <SimplifiedAccountingView />;
 
       case 'trustAuditLogs':
