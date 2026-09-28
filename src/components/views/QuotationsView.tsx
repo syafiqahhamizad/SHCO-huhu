@@ -170,9 +170,11 @@ export const QuotationsView: React.FC = () => {
       quotationId: q.id,
       partyType: q.partyType || 'Client',
       partyName: q.clientName,
-      amount: q.total * 0.92,
+      // The firm isn't SST-registered yet (see ACCOUNTS_AND_FINANCE.md) — q.total already
+      // carries no tax, so don't fabricate an 8% split on top of it.
+      amount: q.total,
       discount: 0,
-      tax: q.total * 0.08,
+      tax: 0,
       total: q.total,
       date: new Date().toISOString().slice(0, 10),
       dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),

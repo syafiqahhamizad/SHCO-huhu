@@ -1931,6 +1931,7 @@ export const InvoicesView: React.FC = () => {
     travelClaims,
     updateTravelClaim,
     updateInvoice,
+    getNextSequenceId,
     showToast,
   } = useApp();
 
@@ -2036,7 +2037,7 @@ export const InvoicesView: React.FC = () => {
     e.preventDefault();
     if (!clientId || !caseId) return alert('Please select a client and matter');
 
-    const invId = `INV-2026-${Math.floor(100 + Math.random() * 900)}`;
+    const invId = getNextSequenceId('invoice');
 
     addInvoice({
       id: invId,

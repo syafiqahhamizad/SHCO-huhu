@@ -1489,6 +1489,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const key = (type + 'Seq') as keyof SequenceCounters;
     const current = sequenceCounters[key] || 0;
     const nextNum = current === 0 ? 1 : current;
+    // Nothing ever called incrementSequenceCounter() for any of these types (only 'case'
+    // does, and that branch below ignores the counter entirely anyway) — every call to
+    // getNextSequenceId('invoice'/'quotation'/etc.) was returning the exact same first ID
+    // forever, so a second invoice/quotation/receipt/voucher/client/lead would silently
+    // get the same id as the first. Advance the counter here, once, at the source.
+    if (type !== 'case') {
+      setSequenceCounters((prev) => ({ ...prev, [key]: nextNum + 1 }));
+    }
     switch (type) {
       case 'invoice':
         return `INV-2026-${String(nextNum).padStart(4, '0')}`;
