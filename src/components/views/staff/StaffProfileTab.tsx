@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useApp } from '../../../context/AppContext';
 import type { StaffProfile, User } from '../../../types';
 import { card, cardTitle, labelWrap, serif } from './staffPortalShared';
+import { partnerCode } from '../../../lib/identity';
 
 const LBL: React.CSSProperties = { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#5B6478' };
 const INP: React.CSSProperties = { border: '1px solid #DDE3EB', borderRadius: 6, padding: '6px 8px', fontSize: 11.5, color: '#16223A', background: '#fff', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' };
@@ -13,6 +14,9 @@ type Editable = Pick<
   StaffProfile,
   'designation' | 'department' | 'phone' | 'emergencyContact' | 'joinDate' | 'officeLocation' | 'employmentType' | 'bio'
 > & {
+  fullName: string;
+  displayName: string;
+  code: string;
   birthday: string;
   callToBarDate: string;
   celebrationOptOut: boolean;
@@ -26,6 +30,9 @@ type Editable = Pick<
 const editableOf = (u: User): Editable => {
   const p = u.staffProfile;
   return {
+    fullName: p?.fullName || '',
+    displayName: u.name,
+    code: u.code || partnerCode(u) || '',
     designation: p?.designation || String(u.role || ''),
     department: p?.department || '',
     phone: p?.phone || '',
@@ -88,7 +95,7 @@ export const StaffProfileTab: React.FC = () => {
       {admin && (
         <div style={{ ...card, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 14px' }}>
           <strong style={cardTitle}>Staff profiles</strong>
-          <span style={{ fontSize: 10.5, color: '#5B6478' }}>as an admin you can open and edit anyone’s profile</span>
+          <span style={{ fontSize: 10.5, color: '#5B6478' }}>HR record · as an admin you can open and edit anyone’s profile</span>
           <select value={id} onChange={(e) => setSelId(e.target.value)} style={{ ...INP, width: 280, marginLeft: 'auto', cursor: 'pointer' }}>
             {!staff.some((u) => u.id === currentUser.id) && <option value={currentUser.id}>{currentUser.name} (you)</option>}
             {staff.map((u) => (
@@ -109,7 +116,8 @@ export const StaffProfileTab: React.FC = () => {
 };
 
 const ProfileForm: React.FC<{ user: User; admin: boolean; self: boolean }> = ({ user, admin, self }) => {
-  const { users, updateUserStaffProfile, showToast } = useApp();
+  const { users, updateUserStaffProfile, updateUserIdentity, showToast } = useApp();
+  const canEdit = admin;
   const [f, setForm] = useState<Editable>(() => editableOf(user));
   const setF = (p: Partial<Editable>) => setForm((s) => ({ ...s, ...p }));
   const saved = editableOf(user);
@@ -120,14 +128,24 @@ const ProfileForm: React.FC<{ user: User; admin: boolean; self: boolean }> = ({ 
     const t = (v: string) => v.trim();
     const n: Editable = {
       ...f,
+      fullName: t(f.fullName), displayName: t(f.displayName), code: t(f.code).toUpperCase(),
       designation: t(f.designation), department: t(f.department), phone: t(f.phone), emergencyContact: t(f.emergencyContact),
       officeLocation: t(f.officeLocation), bio: t(f.bio), nric: t(f.nric), epfNo: t(f.epfNo), socsoNo: t(f.socsoNo),
       bankName: t(f.bankName), bankAccountNo: t(f.bankAccountNo),
     };
     const opt = (v: string) => v || undefined;
+    if (!n.displayName) { showToast('Display name can’t be empty.'); return; }
+    if (n.displayName !== saved.displayName || n.code !== saved.code) {
+      const ok = updateUserIdentity(user.id, {
+        ...(n.displayName !== saved.displayName ? { name: n.displayName } : {}),
+        ...(n.code !== saved.code ? { code: n.code } : {}),
+      });
+      if (!ok) return;
+    }
     // Merge onto the latest stored profile so goals, check-ins and targets are kept.
     updateUserStaffProfile(user.id, {
       ...baseProfile(user),
+      fullName: opt(n.fullName),
       designation: n.designation,
       department: n.department,
       phone: n.phone,
@@ -157,7 +175,11 @@ const ProfileForm: React.FC<{ user: User; admin: boolean; self: boolean }> = ({ 
   const text = (k: keyof Editable, label: string, ph = '', type = 'text') => (
     <label style={labelWrap}>
       <span style={LBL}>{label}</span>
-      <input type={type} value={String(f[k] ?? '')} placeholder={ph} onChange={(e) => setF({ [k]: e.target.value } as Partial<Editable>)} style={{ ...INP, cursor: type === 'date' ? 'pointer' : 'text' }} />
+      {canEdit ? (
+        <input type={type} value={String(f[k] ?? '')} placeholder={ph} onChange={(e) => setF({ [k]: e.target.value } as Partial<Editable>)} style={{ ...INP, cursor: type === 'date' ? 'pointer' : 'text' }} />
+      ) : (
+        <span style={{ ...INP, background: '#F6F8FA', minHeight: 29 }}>{String(f[k] ?? '') || '—'}</span>
+      )}
     </label>
   );
 
@@ -175,16 +197,22 @@ const ProfileForm: React.FC<{ user: User; admin: boolean; self: boolean }> = ({ 
           <span style={{ flex: 'none', width: 40, height: 40, borderRadius: 9999, background: '#16223A', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: serif, fontSize: 17, fontWeight: 700 }}>{user.name.slice(0, 1)}</span>
           <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <strong style={{ fontFamily: serif, fontSize: 17, color: '#16223A' }}>{user.name}</strong>
-            <span style={{ fontSize: 10.5, color: '#5B6478' }}>{self ? 'Your profile' : 'Editing as admin'} · name, staff ID, role and email are managed in Users &amp; Permissions</span>
+            <span style={{ fontSize: 10.5, color: '#5B6478' }}>{canEdit ? (self ? 'Your HR record · editing as admin' : 'HR record · editing as admin') : 'Your HR record · managed by HR — ask an admin if anything is wrong'}</span>
           </span>
+          {canEdit && (
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
             {dirty && <span style={{ fontSize: 10.5, fontWeight: 700, color: '#8A6534' }}>Unsaved changes</span>}
             <button type="button" disabled={!dirty} onClick={() => setForm(editableOf(user))} style={{ border: '1px solid #DDE3EB', borderRadius: 6, padding: '6px 12px', fontSize: 11, fontWeight: 700, background: '#fff', color: '#16223A', cursor: dirty ? 'pointer' : 'default', fontFamily: 'inherit', opacity: dirty ? 1 : 0.5 }}>Discard</button>
             <button type="button" disabled={!dirty} onClick={save} style={{ border: 0, borderRadius: 6, padding: '6px 14px', fontSize: 11, fontWeight: 700, background: '#16223A', color: '#fff', cursor: dirty ? 'pointer' : 'default', fontFamily: 'inherit', opacity: dirty ? 1 : 0.5 }}>Save profile</button>
           </div>
+          )}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 14, padding: '12px 14px' }}>
-          {ro('Name', user.name)}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 10, padding: '12px 14px 0' }}>
+          {text('fullName', 'Full name (as per IC)', 'e.g. Muhammad Hafizuddin bin Ahmad')}
+          {text('displayName', 'Display name', 'e.g. Hafizuddin')}
+          {text('code', 'User code', 'e.g. MH')}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 14, padding: '12px 14px' }}>
           {ro(
             'Staff ID',
             staffId ? (
@@ -215,7 +243,7 @@ const ProfileForm: React.FC<{ user: User; admin: boolean; self: boolean }> = ({ 
               {text('officeLocation', 'Office location', 'e.g. Kuala Lumpur Office')}
               <label style={labelWrap}>
                 <span style={LBL}>Employment type</span>
-                <select value={f.employmentType} onChange={(e) => setF({ employmentType: e.target.value as StaffProfile['employmentType'] })} style={{ ...INP, cursor: 'pointer' }}>
+                <select disabled={!canEdit} value={f.employmentType} onChange={(e) => setF({ employmentType: e.target.value as StaffProfile['employmentType'] })} style={{ ...INP, cursor: 'pointer' }}>
                   {EMPLOYMENT.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </label>
@@ -225,7 +253,7 @@ const ProfileForm: React.FC<{ user: User; admin: boolean; self: boolean }> = ({ 
             </div>
             <label style={labelWrap}>
               <span style={LBL}>Professional bio</span>
-              <textarea value={f.bio} onChange={(e) => setF({ bio: e.target.value })} rows={4} placeholder="Practice focus and relevant experience, for the internal directory" style={{ ...INP, resize: 'vertical', lineHeight: 1.5 }} />
+              <textarea readOnly={!canEdit} value={f.bio} onChange={(e) => setF({ bio: e.target.value })} rows={4} placeholder="Practice focus and relevant experience, for the internal directory" style={{ ...INP, resize: 'vertical', lineHeight: 1.5 }} />
             </label>
             <div style={{ borderTop: '1px solid #EEF1F5', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
               <span style={SUB}>Milestones</span>
@@ -234,7 +262,7 @@ const ProfileForm: React.FC<{ user: User; admin: boolean; self: boolean }> = ({ 
                 {text('callToBarDate', 'Call-to-the-bar date', '', 'date')}
               </div>
               <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 11.5, color: '#16223A', cursor: 'pointer' }}>
-                <input type="checkbox" checked={f.celebrationOptOut} onChange={(e) => setF({ celebrationOptOut: e.target.checked })} style={{ marginTop: 2, cursor: 'pointer' }} />
+                <input type="checkbox" disabled={!canEdit} checked={f.celebrationOptOut} onChange={(e) => setF({ celebrationOptOut: e.target.checked })} style={{ marginTop: 2, cursor: 'pointer' }} />
                 <span>
                   <strong>Hide my birthday and milestone announcements</strong>
                   <span style={{ display: 'block', fontSize: 10.5, color: '#5B6478' }}>The dates stay on file, but celebrations won’t appear on the Firm Start Centre. The birth year is never shown.</span>

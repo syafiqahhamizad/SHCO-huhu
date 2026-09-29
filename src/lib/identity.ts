@@ -53,6 +53,7 @@ export const isMine = (value: unknown, tokens: Set<string>): boolean => {
 
 /** Partner code for a user, when their name maps to one. */
 export const partnerCode = (user?: Partial<User> | null): string | undefined => {
+  if (user?.code) return user.code.toUpperCase();
   const initials = String(user?.name ?? '')
     .split(/\s+/)
     .filter(Boolean)

@@ -2,6 +2,7 @@ import { readCloudState, subscribeToCloudState, writeCloudState, type CloudState
 import { applyCloudPracticeSettings, getPracticeSettings, savePracticeSettings, type PracticeSettings } from '../services/templateService';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { normalizeClientName } from '../lib/stringUtils';
+import { partnerCode } from '../lib/identity';
 import { generateNextMatterSequenceNumber, syncClientMatterLinks } from '../services/matterService';
 import {
   Role,
@@ -168,6 +169,7 @@ interface AppContextType {
   addUser: (newUser: User) => boolean;
   deleteUser: (userId: string) => boolean;
   updateUserStaffProfile: (userId: string, profile: User['staffProfile']) => void;
+  updateUserIdentity: (userId: string, updates: { name?: string; code?: string }) => boolean;
   addStaffGoal: (userId: string, goal: StaffGoal) => void;
   updateStaffGoal: (userId: string, goalId: string, updates: Partial<StaffGoal>) => void;
   addAttendanceRecord: (record: AttendanceRecord) => void;
@@ -1017,6 +1019,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast(`${newUser.email} is already in the roster.`);
       return false;
     }
+    if (newUser.code && users.some((user) => (partnerCode(user) || '') === newUser.code!.toUpperCase())) {
+      showToast(`Code ${newUser.code.toUpperCase()} is already used by someone else.`);
+      return false;
+    }
 
     setUsers((prev) => {
       const staffUsers = prev.filter((user) => user.role !== 'Client');
@@ -1031,6 +1037,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ? newUser.staffProfile
         : {
             staffId,
+            fullName: newUser.staffProfile?.fullName,
             designation: newUser.staffProfile?.designation || newUser.role,
             department: newUser.staffProfile?.department || 'Legal Practice',
             phone: newUser.staffProfile?.phone || '',
@@ -1066,6 +1073,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logAuditEvent('DELETE', 'USERS', target.id, target.name, 'User account removed by Super Admin.');
     addActivityLog('User Removed', `${target.name} (${target.email})`);
     showToast(`User ${target.name} removed.`);
+    return true;
+  };
+
+  // HR-owned identity fields — display name and staff code. Admins only; codes stay unique.
+  const updateUserIdentity = (userId: string, updates: { name?: string; code?: string }): boolean => {
+    if (!(isAdmin || currentUser.isSuperAdmin)) {
+      showToast('Only an admin can change a staff member\'s name or code.');
+      return false;
+    }
+    const code = updates.code?.trim().toUpperCase();
+    if (code !== undefined) {
+      if (!/^[A-Z]{2,4}$/.test(code)) {
+        showToast('Code must be 2–4 letters, e.g. SH or NFA.');
+        return false;
+      }
+      if (users.some((u) => u.id !== userId && (partnerCode(u) || '') === code)) {
+        showToast(`Code ${code} is already used by someone else.`);
+        return false;
+      }
+    }
+    const patch: Partial<User> = {
+      ...(updates.name?.trim() ? { name: updates.name.trim() } : {}),
+      ...(code ? { code } : {}),
+    };
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...patch } : u)));
+    if (userId === currentUser.id) setCurrentUser((prev) => ({ ...prev, ...patch }));
+    logAuditEvent('UPDATE', 'USERS', userId, patch.name || userId, `Staff identity updated${code ? ` (code ${code})` : ''}.`);
     return true;
   };
 
@@ -3224,6 +3258,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addUser,
         deleteUser,
         updateUserStaffProfile,
+        updateUserIdentity,
         addStaffGoal,
         updateStaffGoal,
         addAttendanceRecord,
