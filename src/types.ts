@@ -712,6 +712,11 @@ export interface Retainer {
   amount: number;
   date: string;
   remarks: string;
+  /** True when a receipt/deposit came in without a clear client/matter link and could not
+   * be auto-matched to this clientId/caseId. Nothing in the app sets this yet — the
+   * "Items to check" list on My Dashboard → Client account shows an honest empty state
+   * until an intake flow starts flagging these. */
+  unidentified?: boolean;
 }
 
 export interface OfficeBucket {
@@ -807,6 +812,23 @@ export interface StaffProfile {
     files: number;
     referrals: number;
   };
+  /** Target billable hours per month used by the Team tab's workload rule (My Dashboard -> Team).
+   * Additive field — no target-hours data existed before, so this defaults to 160 (a standard
+   * full-time month) rather than being fabricated per person. */
+  targetHoursPerMonth?: number;
+  /** Career & personal development goals shown on the Team tab's expanded row (My Dashboard -> Team).
+   * Added and edited by the Managing Partner via addStaffGoal/updateStaffGoal. */
+  goals?: StaffGoal[];
+}
+
+export interface StaffGoal {
+  id: string;
+  type: 'Career' | 'Personal';
+  text: string;
+  /** Progress toward the goal, 0-100. */
+  pct: number;
+  /** "How you can help" note — what the Managing Partner/firm can do to support this goal. */
+  help: string;
 }
 
 export interface AttendanceRecord {
@@ -963,6 +985,16 @@ export interface BankReconciliationEntry {
   reconciledDate?: string;
 }
 
+/** Audit trail for a "My Dashboard → Client account → Items to check" row being marked
+ * checked. itemKey identifies the flagged item (e.g. `overdrawn:<clientId>:<caseId>`,
+ * `dormant:<clientId>:<caseId>`, `stakeholder:<clientId>:<caseId>`). Additive — does not
+ * change how the underlying Retainer balances are computed. */
+export interface ClientAccountCheck {
+  itemKey: string;
+  checkedBy: string;
+  checkedAt: string;
+}
+
 export interface SequenceCounters {
   invoiceSeq: number;
   quotationSeq: number;
@@ -981,6 +1013,29 @@ export interface PracticeAreaConfig {
   code: string;
   color?: string;
   description?: string;
+}
+
+/** One row in the firm's office compliance register (My Dashboard → Compliance sub-tab). */
+export interface ComplianceItem {
+  id: string;
+  group: 'AMLA' | 'Client account' | 'Bar Council' | 'PDPA' | 'Tax/payroll/licences';
+  label: string;
+  note?: string;
+  frequency: 'Monthly' | 'Quarterly' | 'Annual' | 'One-off';
+  due: string; // ISO date (yyyy-mm-dd) — the current period's due date
+  owner: string; // staff initials/code
+  done: boolean;
+  history?: { period: string; completedAt: string; completedBy: string }[];
+}
+
+/** A client complaint or piece of feedback logged from the Compliance sub-tab. */
+export interface ComplaintRecord {
+  id: string;
+  matterRef?: string;
+  summary: string;
+  receivedDate: string; // ISO date
+  status: 'Open' | 'Resolved';
+  owner?: string;
 }
 
 export interface DeletedRecord {
@@ -1004,5 +1059,51 @@ export interface AuditLogEntry {
   details: string;
   performedBy: string;
   changes?: Record<string, any>;
+}
+
+/** One roadmap item on the firm's Business roadmap 2026-2028 (My Dashboard -> Direction,
+ * Managing Partner only). Grouped by `year`; status is cycled Not started -> On track ->
+ * Behind -> Done by clicking the pill. Firm-maintained — no other real data source for
+ * a multi-year plan, so this starts empty until the Managing Partner adds milestones. */
+export interface Milestone {
+  id: string;
+  year: number;
+  text: string;
+  status: 'Not started' | 'On track' | 'Behind' | 'Done';
+}
+
+/** A bank/insurer/GLC panel appointment tracked on My Dashboard -> Direction -> Growth ->
+ * Panelships. Files and fees are partner-entered until Case/Invoice records carry a
+ * panel reference — firm-maintained, not derived. */
+export interface Panelship {
+  id: string;
+  name: string;
+  kind: string;
+  status: string;
+  files: number;
+  feesYtd: number;
+  nextStep: string;
+}
+
+/** A marketing/business-development spend channel tracked on My Dashboard -> Direction ->
+ * Growth -> "Where to put money". Firm-maintained — spend and fees won have no other real
+ * data source in this system. */
+export interface InvestmentChannel {
+  id: string;
+  name: string;
+  spend: number;
+  feesWon: number;
+}
+
+/** A 2026-plan target on My Dashboard -> Direction (Managing Partner only). `now` is
+ * overridden with a computed value at render time for goals the app can measure for
+ * real (fee income, new clients); otherwise it is the partner-entered figure. */
+export interface FirmGoal {
+  id: string;
+  label: string;
+  now: number;
+  goal: number;
+  status: string;
+  note?: string;
 }
 

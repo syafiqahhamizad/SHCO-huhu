@@ -1,5 +1,5 @@
 import React from 'react';
-import { Building2, Landmark, LayoutDashboard, Share2 } from 'lucide-react';
+import { Building2, LayoutDashboard, Share2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 type DashboardTabsProps = {
@@ -56,8 +56,6 @@ export const DASHBOARD_TAB_VIEWS = [
 export const DashboardTabs: React.FC<DashboardTabsProps> = ({ myDashboardCount }) => {
   const { currentView, setCurrentView } = useApp() as any;
 
-  const isAccountingView = (ACCOUNTING_VIEWS as readonly string[]).includes(currentView);
-
   const tabs = [
     {
       key: 'myDashboard',
@@ -80,13 +78,6 @@ export const DashboardTabs: React.FC<DashboardTabsProps> = ({ myDashboardCount }
       icon: Building2,
       action: () => setCurrentView('firmDashboard'),
       active: currentView === 'firmDashboard',
-    },
-    {
-      key: 'accountingCentre',
-      label: 'Accounts & Compliance',
-      icon: Landmark,
-      action: () => setCurrentView('accountingCentre'),
-      active: isAccountingView,
     },
   ];
 

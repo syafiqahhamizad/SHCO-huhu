@@ -29,11 +29,12 @@ import {
   Zap,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { PartnerDashboardView } from './PartnerDashboardView';
-import { AccountingCentreView } from './AccountingCentreView';
-import { ComprehensiveDashboardView } from './ComprehensiveDashboardView';
-import { UsersAndPermissionsView } from './SystemViews';
-import { ClientsView } from './ClientsView';
+import ClientAccountTab from './dashboard/ClientAccountTab';
+import ComplianceTab from './dashboard/ComplianceTab';
+import FinanceTab from './dashboard/FinanceTab';
+import TeamTab from './dashboard/TeamTab';
+import PartnerKpisTab from './dashboard/PartnerKpisTab';
+import DirectionTab from './dashboard/DirectionTab';
 import { Case, Meeting, Task, TaskChecklistItem } from '../../types';
 import { identityTokens, isMine, partnerCode } from '../../lib/identity';
 import { Donut, MiniBarChart, ProgressBar, TaskFormModal, blankTaskDraft } from '../ui';
@@ -943,17 +944,17 @@ export const MyDashboardView: React.FC = () => {
       </section>
 
       {subTab === 'partnerKpis' ? (
-        <PartnerDashboardView />
+        <PartnerKpisTab scope={isMP ? 'all' : 'own'} />
       ) : subTab === 'finance' ? (
-        <AccountingCentreView initialTab="home" />
+        <FinanceTab />
       ) : subTab === 'clientAccount' ? (
-        <AccountingCentreView initialTab="client" />
+        <ClientAccountTab />
       ) : subTab === 'team' ? (
-        <UsersAndPermissionsView />
+        <TeamTab />
       ) : subTab === 'compliance' ? (
-        <ClientsView />
+        <ComplianceTab />
       ) : subTab === 'direction' ? (
-        <ComprehensiveDashboardView />
+        <DirectionTab />
       ) : (
       <>
       <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">

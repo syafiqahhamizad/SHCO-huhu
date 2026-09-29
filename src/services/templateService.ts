@@ -1,5 +1,6 @@
 // Practice Settings & Document Template Service
 import { writeCloudState } from './firestoreSyncService';
+import type { ComplianceItem, ComplaintRecord, Milestone, Panelship, InvestmentChannel, FirmGoal } from '../types';
 
 export interface FirmBankAccount {
   id: string;
@@ -23,6 +24,29 @@ export interface DefaultBillingItem {
   unitPrice: number;
   quantity: number;
   chargeType: 'Per Quantity' | 'Fixed';
+}
+
+/** A firm cash-reserve / sinking fund line, edited on the Managing Partner's Finance
+ * dashboard ("Cash reserve & sinking funds"). Purely firm-maintained figures — there is no
+ * other real data source for target/monthly-contribution amounts, so these are entered and
+ * persisted here rather than computed. */
+export interface SinkingFund {
+  id: string;
+  name: string;
+  target: number;
+  monthly: number;
+  balance: number;
+}
+
+/** A recurring firm commitment (fixed cost), edited on the Managing Partner's Finance
+ * dashboard ("Commitments"). Same rationale as SinkingFund — firm-maintained, not derived. */
+export interface Commitment {
+  id: string;
+  name: string;
+  amount: number;
+  due: string;
+  paid: boolean;
+  frequency: 'Monthly' | 'Annual';
 }
 
 export interface PracticeSettings {
@@ -75,7 +99,84 @@ export interface PracticeSettings {
     practiceArea: string;
     description?: string;
   }>;
+  /** Per-partner KPI scorecard targets (My Dashboard -> Partner KPIs), editable by the Managing
+   * Partner ("Edit targets"). Keyed by partner code (e.g. 'SH'), then by metric key
+   * ('feesBilled' | 'collectedWithin60' | 'newClients' | 'billableHours' | 'clientRating' |
+   * 'complianceOnTime' | 'mentoring'). Additive — falls back to DEFAULT_PARTNER_KPI_TARGETS
+   * per metric when a partner or metric has no override yet. */
+  partnerKpiTargets?: Record<string, Record<string, number>>;
+  /** KPI scorecard weights (My Dashboard -> Partner KPIs footer: "Weighting: Fees 25% ·
+   * Collections 20% · New clients 15% · Hours 10% · Client rating 10% · Compliance 10% ·
+   * Mentoring 10%"), editable by the Managing Partner. Falls back to DEFAULT_PARTNER_KPI_WEIGHTS. */
+  partnerKpiWeights?: Record<string, number>;
+  /** Cash reserve & sinking fund lines (My Dashboard -> Finance, Managing Partner only:
+   * "Cash reserve & sinking funds"). Firm-maintained — no other real data source for
+   * target/monthly-contribution amounts. Empty until the Managing Partner adds one. */
+  sinkingFunds?: SinkingFund[];
+  /** Recurring firm commitments / fixed costs (My Dashboard -> Finance, Managing Partner
+   * only: "Commitments"). Firm-maintained — empty until the Managing Partner adds one. */
+  commitments?: Commitment[];
+  /** Office compliance register (My Dashboard -> Compliance, partners + Managing Partner),
+   * grouped by AMLA, Client account, Bar Council, PDPA and Tax/payroll/licences. Seeded with
+   * the firm's real statutory obligations; ticked/edited/added to from the Compliance tab. */
+  complianceRegister?: ComplianceItem[];
+  /** Client complaints / feedback logged from My Dashboard -> Compliance. Starts empty — no
+   * sample complaints; only what partners actually log. */
+  complaints?: ComplaintRecord[];
+  /** My Dashboard -> Direction (Managing Partner only, Growth merged in): editable Vision /
+   * Mission / 2028 target statements. Firm-maintained — starts blank until set. */
+  vision?: string;
+  mission?: string;
+  target2028?: string;
+  /** Business roadmap 2026-2028 milestones. Firm-maintained — empty until the Managing
+   * Partner adds one ("+ Add milestone"). */
+  roadmap?: Milestone[];
+  /** "2026 plan" targets shown as the 4 stat cards under the roadmap. `now` is recomputed
+   * from real data at render time where a goal maps to something measurable (fee income,
+   * new clients); otherwise the partner-entered figure is used as-is. */
+  firmGoals?: FirmGoal[];
+  /** Growth -> Panelships table (banks, insurers, GLCs). Firm-maintained. */
+  panelships?: Panelship[];
+  /** Growth -> "Where to put money" spend-vs-fees-won table. Firm-maintained. */
+  investmentChannels?: InvestmentChannel[];
+  /** Direction -> "Notes for partners' meeting" — private to the Managing Partner. */
+  partnersNotes?: string;
 }
+
+/** Metric keys used by the Partner KPIs scorecard, in mockup display order. */
+export const PARTNER_KPI_METRICS = [
+  'feesBilled',
+  'collectedWithin60',
+  'newClients',
+  'billableHours',
+  'clientRating',
+  'complianceOnTime',
+  'mentoring',
+] as const;
+export type PartnerKpiMetric = (typeof PARTNER_KPI_METRICS)[number];
+
+/** Weighting: Fees 25% · Collections 20% · New clients 15% · Hours 10% · Client rating 10% ·
+ * Compliance 10% · Mentoring 10% (My Dashboard.dc.html isKpi footer, exact). */
+export const DEFAULT_PARTNER_KPI_WEIGHTS: Record<PartnerKpiMetric, number> = {
+  feesBilled: 25,
+  collectedWithin60: 20,
+  newClients: 15,
+  billableHours: 10,
+  clientRating: 10,
+  complianceOnTime: 10,
+  mentoring: 10,
+};
+
+/** Default per-partner targets, used until the Managing Partner sets real ones via "Edit targets". */
+export const DEFAULT_PARTNER_KPI_TARGETS: Record<PartnerKpiMetric, number> = {
+  feesBilled: 360000,
+  collectedWithin60: 90,
+  newClients: 15,
+  billableHours: 1100,
+  clientRating: 4.5,
+  complianceOnTime: 100,
+  mentoring: 12,
+};
 
 export interface DocumentTemplate {
   id: string;
@@ -206,6 +307,45 @@ export const DEFAULT_PRACTICE_SETTINGS: PracticeSettings = {
       isActive: true,
     },
   ],
+  sinkingFunds: [],
+  commitments: [],
+  complianceRegister: [
+    // AMLA — Bank Negara Malaysia (Anti-Money Laundering Act obligations)
+    { id: 'cmp-amla-officer', group: 'AMLA', label: 'Compliance officer appointed', note: 'Zulaikha Afendi · notified to BNM', frequency: 'One-off', due: '2025-01-15', owner: 'ZA', done: true },
+    { id: 'cmp-amla-dcr', group: 'AMLA', label: 'Data & Compliance Report (DCR)', note: 'Annual return to BNM', frequency: 'Annual', due: '2027-03-31', owner: 'ZA', done: false },
+    { id: 'cmp-amla-cdd', group: 'AMLA', label: 'CDD / KYC on new clients', note: 'Verify ID on all new client onboardings', frequency: 'Monthly', due: '2026-09-15', owner: 'AH', done: false },
+    { id: 'cmp-amla-risk', group: 'AMLA', label: 'Firm-wide AML risk assessment', note: 'Yearly review', frequency: 'Annual', due: '2027-02-28', owner: 'ZA', done: true, history: [{ period: '2026', completedAt: '2026-02-20', completedBy: 'Zulaikha Afendi' }] },
+    { id: 'cmp-amla-training', group: 'AMLA', label: 'Staff AML/CFT training', note: 'All fee-earning staff', frequency: 'Annual', due: '2026-09-20', owner: 'ZA', done: false },
+    { id: 'cmp-amla-str', group: 'AMLA', label: 'Suspicious transaction reports (STR) log', note: 'Reviewed and kept up to date', frequency: 'Monthly', due: '2026-09-30', owner: 'ZA', done: true },
+    // Client account — Solicitors' Account Rules 1990
+    { id: 'cmp-cacc-recon', group: 'Client account', label: 'Monthly client account reconciliation', note: 'Bank vs ledgers', frequency: 'Monthly', due: '2026-10-15', owner: 'SH', done: false },
+    { id: 'cmp-cacc-audit', group: 'Client account', label: "Accountant's report to Bar Council", note: 'Auditor: Tan & Co', frequency: 'Annual', due: '2026-10-02', owner: 'SH', done: false },
+    { id: 'cmp-cacc-unclaimed', group: 'Client account', label: 'Unclaimed client money review', note: 'Dormant balances over 12 months — Registrar of Unclaimed Moneys', frequency: 'Annual', due: '2026-10-31', owner: 'SH', done: false },
+    // Bar Council
+    { id: 'cmp-bc-pc', group: 'Bar Council', label: 'Practising certificates renewal', note: 'All practising lawyers', frequency: 'Annual', due: '2026-12-31', owner: 'SH', done: false },
+    { id: 'cmp-bc-pii', group: 'Bar Council', label: 'Professional indemnity insurance (PII)', note: 'Mandatory scheme renewal', frequency: 'Annual', due: '2027-01-01', owner: 'SH', done: false },
+    { id: 'cmp-bc-cpd', group: 'Bar Council', label: 'CPD points', note: 'Minimum points per lawyer', frequency: 'Annual', due: '2026-12-31', owner: 'AH', done: false },
+    // PDPA
+    { id: 'cmp-pdpa-register', group: 'PDPA', label: 'Personal data register', note: 'Reviewed annually', frequency: 'Annual', due: '2027-06-15', owner: 'ZA', done: true, history: [{ period: '2026', completedAt: '2026-06-15', completedBy: 'Zulaikha Afendi' }] },
+    { id: 'cmp-pdpa-notice', group: 'PDPA', label: 'Privacy notice on forms & website', note: 'Incl. online booking & registration', frequency: 'Annual', due: '2027-01-01', owner: 'ZA', done: true },
+    { id: 'cmp-pdpa-breach', group: 'PDPA', label: 'Data breach log', note: 'No incidents on record', frequency: 'Monthly', due: '2026-09-30', owner: 'ZA', done: true },
+    // Tax, payroll & licences — LHDN · KWSP · PERKESO · PBT
+    { id: 'cmp-tax-sst', group: 'Tax/payroll/licences', label: 'SST return', note: 'Filed bi-monthly', frequency: 'Quarterly', due: '2026-11-30', owner: 'SH', done: true, history: [{ period: 'Jul–Aug 2026', completedAt: '2026-09-30', completedBy: 'Syafiqah Hamizad' }] },
+    { id: 'cmp-tax-einvoice', group: 'Tax/payroll/licences', label: 'e-Invoicing (LHDN MyInvois)', note: 'Set up ahead of go-live for firm size', frequency: 'One-off', due: '2027-01-01', owner: 'SH', done: false },
+    { id: 'cmp-tax-statutory', group: 'Tax/payroll/licences', label: 'EPF, SOCSO, EIS & PCB', note: 'Monthly statutory contributions', frequency: 'Monthly', due: '2026-10-15', owner: 'SH', done: false },
+    { id: 'cmp-tax-premises', group: 'Tax/payroll/licences', label: 'Business premises licence', note: 'Majlis Perbandaran Kajang', frequency: 'Annual', due: '2027-01-31', owner: 'SH', done: true },
+    { id: 'cmp-tax-insurance', group: 'Tax/payroll/licences', label: 'Fire & office insurance', note: 'Firm premises cover', frequency: 'Annual', due: '2027-03-01', owner: 'SH', done: true },
+    { id: 'cmp-tax-formp', group: 'Tax/payroll/licences', label: 'Annual tax return (Form P)', note: 'Partnership return', frequency: 'Annual', due: '2027-06-30', owner: 'SH', done: true },
+  ],
+  complaints: [],
+  vision: '',
+  mission: '',
+  target2028: '',
+  roadmap: [],
+  firmGoals: [],
+  panelships: [],
+  investmentChannels: [],
+  partnersNotes: '',
 };
 
 export const DEFAULT_TEMPLATES: DocumentTemplate[] = [
@@ -480,6 +620,31 @@ export function applyCloudPracticeSettings(settings: PracticeSettings): void {
   } catch (e) {
     console.error('Failed to apply cloud practice settings:', e);
   }
+}
+
+/** Merge a partial per-partner KPI target update into settings and persist (My Dashboard ->
+ * Partner KPIs -> "Edit targets", Managing Partner only). Follows the same
+ * get-merge-savePracticeSettings pattern as every other Practice Settings editor. */
+export function setPartnerKpiTarget(partnerCode: string, metric: PartnerKpiMetric, value: number): void {
+  const settings = getPracticeSettings();
+  const next: PracticeSettings = {
+    ...settings,
+    partnerKpiTargets: {
+      ...(settings.partnerKpiTargets || {}),
+      [partnerCode]: { ...(settings.partnerKpiTargets?.[partnerCode] || {}), [metric]: value },
+    },
+  };
+  savePracticeSettings(next);
+}
+
+/** Merge a partial KPI weight update into settings and persist. */
+export function setPartnerKpiWeight(metric: PartnerKpiMetric, weight: number): void {
+  const settings = getPracticeSettings();
+  const next: PracticeSettings = {
+    ...settings,
+    partnerKpiWeights: { ...(settings.partnerKpiWeights || DEFAULT_PARTNER_KPI_WEIGHTS), [metric]: weight },
+  };
+  savePracticeSettings(next);
 }
 
 // Helper to retrieve templates from localStorage or fallback to default
