@@ -168,7 +168,7 @@ export const Header: React.FC = () => {
         return { title: 'Users Management', sub: 'Firm members and admin privileges' };
       case 'staffPortal':
       case 'staff-portal':
-        return { title: 'Staff Portal', sub: 'Staff profiles, attendance, leave and internal operations' };
+        return { title: 'Staff Portal', sub: [currentUser?.name, currentUser?.staffProfile?.designation || currentUser?.role, 'only your own records are shown here'].filter(Boolean).join(' · ') };
       case 'settings':
         return { title: 'System Settings', sub: 'Practice references & system preferences' };
       case 'logs':

@@ -639,6 +639,8 @@ export interface Expense {
   documents?: ClaimDocument[];
   isClientUpfrontCovered?: boolean;
   clientTrustBalanceSnapshot?: number;
+  /** Staff Portal claim form this item was submitted on (e.g. 'CF-26-0413'). */
+  formNo?: string;
 }
 
 export interface Invoice {
@@ -715,6 +717,14 @@ export interface PaymentVoucher {
   attachmentName?: string;
   attachmentUrl?: string;
   documents?: ClaimDocument[];
+  /** Staff Portal payment request (PV) form number, e.g. 'PV-O-26-0012'. */
+  formNo?: string;
+  /** Staff Portal payment request type. */
+  requestKind?: 'Despatch' | 'Disbursement' | 'Office bill';
+  /** Vendor's bank + account no. (bank-transfer payment requests). */
+  vendorBank?: string;
+  /** Case / bill / assessment no. (online-portal payment requests). */
+  portalRef?: string;
 }
 
 export interface TravelClaim {
@@ -749,6 +759,8 @@ export interface TravelClaim {
   approvedBy?: string;
   approvedAt?: string;
   postedToGl?: boolean;
+  /** Staff Portal claim form this item was submitted on (e.g. 'CF-26-0413'). */
+  formNo?: string;
 }
 
 export interface Retainer {
@@ -866,6 +878,17 @@ export interface StaffProfile {
   /** Career & personal development goals shown on the Team tab's expanded row (My Dashboard -> Team).
    * Added and edited by the Managing Partner via addStaffGoal/updateStaffGoal. */
   goals?: StaffGoal[];
+  /** Monthly wellbeing check-ins from Staff Portal -> Goals & wellbeing. Only the Managing
+   * Partner should see these. `period` is 'YYYY-MM' (one per month); `mood` is 1-5 where
+   * 5 = Great, 4 = Good, 3 = Okay, 2 = Stretched, 1 = Struggling, and 0 = no rating given.
+   * When `anonymous` is true, MP-facing views must show the note without the staff name. */
+  moodCheckins?: { period: string; mood: number; note?: string; at: string; topics?: string[]; anonymous?: boolean; chatRequested?: boolean }[];
+  /** Payroll identity shown on the Staff Portal payslip / EA form. Blank until HR fills them in. */
+  nric?: string;
+  epfNo?: string;
+  socsoNo?: string;
+  bankName?: string;
+  bankAccountNo?: string;
 }
 
 export interface StaffGoal {
@@ -876,6 +899,10 @@ export interface StaffGoal {
   pct: number;
   /** "How you can help" note — what the Managing Partner/firm can do to support this goal. */
   help: string;
+  /** Target date, free text as typed in Staff Portal (e.g. 'Mar 2027'). */
+  by?: string;
+  /** Staff Portal status pill. */
+  status?: 'Not started' | 'On track' | 'Behind' | 'Done';
 }
 
 export interface AttendanceRecord {
@@ -891,7 +918,7 @@ export interface AttendanceRecord {
 export interface LeaveApplication {
   id: string;
   userId: string;
-  leaveType: 'Annual' | 'Medical' | 'Emergency' | 'Unpaid' | 'Replacement';
+  leaveType: 'Annual' | 'Medical' | 'Emergency' | 'Unpaid' | 'Replacement' | 'Hospitalisation' | 'Maternity' | 'Paternity' | 'Compassionate' | 'Marriage' | 'Study / exam' | 'Hajj' | 'Umrah';
   startDate: string;
   endDate: string;
   days: number;
@@ -901,6 +928,12 @@ export interface LeaveApplication {
   reviewedBy?: string;
   reviewedAt?: string;
   reviewerNote?: string;
+  /** Colleague covering this person's files while away (Staff Portal). */
+  pic?: string;
+  /** Half-day leave on a single day. */
+  halfDay?: 'AM' | 'PM';
+  /** Supporting document (MC, discharge note, exam slip...) file name. */
+  attachmentName?: string;
 }
 
 export interface ActivityLog {
@@ -1152,5 +1185,27 @@ export interface FirmGoal {
   goal: number;
   status: string;
   note?: string;
+}
+
+export interface Payslip {
+  id: string;
+  userId: string;
+  period: string; // 'YYYY-MM'
+  status: 'Draft' | 'Checked' | 'Approved' | 'Paid';
+  basic: number;
+  allowances: { name: string; amount: number }[];
+  referralFee: number;
+  referralNote?: string;
+  profitShare: number;
+  profitShareNote?: string;
+  bonus: number;
+  bonusNote?: string;
+  epfEmployee: number;
+  epfEmployer: number;
+  socsoEis: number;
+  pcb: number;
+  zakat: number;
+  otherDeductions: { name: string; amount: number }[];
+  paidAt?: string;
 }
 
