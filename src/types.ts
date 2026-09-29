@@ -74,8 +74,12 @@ export interface Lead {
   email: string;
   practiceArea: string;
   source: string;
-  referralSourceCategory?: 'Social Media' | 'Existing Client' | 'Referral Partner' | 'Walk-In' | 'Website' | 'Event / Seminar' | 'Other';
-  socialMediaPlatform?: 'Facebook' | 'Instagram' | 'TikTok' | 'LinkedIn' | 'XiaoHongShu / XHS' | 'YouTube' | 'WhatsApp / Telegram' | 'Other';
+  /** Lead source ("cat" in the Leads & Referrals design). Widened with `string & {}` so the
+   * firm-editable source list (PracticeSettings.leadSources — Partner, Staff, Outside Referrer,
+   * BNI, or any custom source added via "Edit lists") can be stored without a type change. */
+  referralSourceCategory?: 'Social Media' | 'Existing Client' | 'Referral Partner' | 'Walk-In' | 'Website' | 'Event / Seminar' | 'Other' | (string & {});
+  /** Widened for the firm-editable platform list (PracticeSettings.leadSocialPlatforms). */
+  socialMediaPlatform?: 'Facebook' | 'Instagram' | 'TikTok' | 'LinkedIn' | 'XiaoHongShu / XHS' | 'YouTube' | 'WhatsApp / Telegram' | 'Other' | (string & {});
   referralDetail?: string;
   warmth?: LeadWarmth;
   warmthLevel?: number; // 1 to 3 (1: Cold, 2: Warm, 3: Hot)
@@ -85,17 +89,60 @@ export interface Lead {
   quoteAmount: number;
   assignedTo?: string;
   followupDate: string;
+  // --- Leads & Referrals page (additive, all optional) ---
+  /** "Reached us through" (design `ch`) — Direct / in person, WhatsApp, Instagram, Facebook,
+   * TikTok, Event. Required for Partner / Staff / Existing Client / Outside Referrer leads;
+   * BNI leads are always "BNI". */
+  channel?: string;
+  /** Programme the lead came from (source = Event / Seminar). */
+  programmeId?: string;
+  /** Client record created/linked when the lead was converted. */
+  clientId?: string;
+  /** Matter (file) opened for this lead, when known. */
+  caseId?: string;
+  /** ISO date (YYYY-MM-DD) the enquiry was received. */
+  createdAt?: string;
+  /** Consultation booking as "YYYY-MM-DD|h:mm AM". */
+  consultationBooked?: string;
+  /** Why the lead was lost (stage = Lost). */
+  lostReason?: string;
+}
+
+/** One person registered for a Programme (Leads & Referrals -> Programmes). */
+export interface ProgrammeAttendee {
+  id: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  /** How they registered: "Link", "QR code", "Staff entry". */
+  via?: string;
+  interest?: string;
+  attended?: boolean;
+  wantsConsultation?: boolean;
 }
 
 export interface Programme {
   id: string;
   title: string;
-  type: 'Seminar' | 'Networking' | 'BNI' | 'Webinar' | 'Other';
+  type: 'Seminar' | 'Networking' | 'BNI' | 'Webinar' | 'Other' | 'Talk' | 'Roadshow' | 'Booth / exhibition';
   date: string;
   location?: string;
   registrations: number;
   attendance?: number;
   notes?: string;
+  // --- Leads & Referrals page (additive, all optional) ---
+  /** "Firm" or "Joint with <partner>". */
+  organiser?: string;
+  time?: string;
+  capacity?: number;
+  /** Person in charge — user display name. */
+  pic?: string;
+  slug?: string;
+  /** Fields the registration form asks attendees for. */
+  askFields?: string[];
+  /** Auto-create a lead when a registrant asks for a consultation. */
+  autoCreateLeads?: boolean;
+  attendees?: ProgrammeAttendee[];
 }
 
 export interface KycDoc {

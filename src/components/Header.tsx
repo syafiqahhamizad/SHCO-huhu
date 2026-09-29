@@ -118,6 +118,9 @@ export const Header: React.FC = () => {
         return { title: 'Firm-Wide Dashboard', sub: 'Firm-wide operational and financial snapshot' };
       case 'leads':
         return { title: 'Leads / Intake', sub: 'Conflict of interest check starts here before conversion' };
+      case 'leadsReferrals':
+      case 'leads-referrals':
+        return { title: 'Leads & Referrals', sub: 'Every enquiry, where it came from, and whether it became a client' };
       case 'clients':
         return { title: 'Clients', sub: 'Client profiles, KYC due diligence documents & instructions' };
       case 'cases':

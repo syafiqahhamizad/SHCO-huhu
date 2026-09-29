@@ -141,7 +141,57 @@ export interface PracticeSettings {
   investmentChannels?: InvestmentChannel[];
   /** Direction -> "Notes for partners' meeting" — private to the Managing Partner. */
   partnersNotes?: string;
+  /** Leads & Referrals -> "Edit lists" (admin only): lead sources. `key` is what
+   * Lead.referralSourceCategory stores and never changes; `label` is renamable. Falls back to
+   * DEFAULT_LEAD_SOURCES when unset. */
+  leadSources?: LeadSourceDef[];
+  /** Leads & Referrals -> "Edit lists": social media platforms. `key` is what
+   * Lead.socialMediaPlatform stores. Falls back to DEFAULT_LEAD_SOCIAL_PLATFORMS when unset. */
+  leadSocialPlatforms?: LeadPlatformDef[];
+  /** Leads & Referrals -> "Set up online booking": pasted Google Form link. */
+  leadBookingFormLink?: string;
+  /** Leads & Referrals -> "Set up online booking": pasted Google Calendar appointment / Calendly link. */
+  leadBookingCalendarLink?: string;
 }
+
+export interface LeadSourceDef {
+  key: string;
+  label: string;
+  /** Swatch / dot colour. */
+  color: string;
+  /** Pill background. */
+  tint: string;
+  /** Pill text colour. */
+  fg: string;
+}
+
+export interface LeadPlatformDef {
+  key: string;
+  label: string;
+}
+
+/** Default lead sources (Leads and Referrals.dc.html, exact colours and order). */
+export const DEFAULT_LEAD_SOURCES: LeadSourceDef[] = [
+  { key: 'Partner', label: 'Partner', color: '#3D6B9C', tint: '#E7EEF6', fg: '#2F5680' },
+  { key: 'Staff', label: 'Staff', color: '#5E6F2F', tint: '#EEF1E3', fg: '#4E5C26' },
+  { key: 'Existing Client', label: 'Existing client', color: '#2F6F4E', tint: '#E6EFE9', fg: '#2F6F4E' },
+  { key: 'Event / Seminar', label: 'Programme', color: '#B2542F', tint: '#FBEDE4', fg: '#9A4526' },
+  { key: 'Social Media', label: 'Social media', color: '#6B3D8C', tint: '#F1EBF6', fg: '#6B3D8C' },
+  { key: 'Walk-In', label: 'Walk-in', color: '#8A6D3B', tint: '#FBF2E9', fg: '#8A6534' },
+  { key: 'Website', label: 'Website', color: '#2E7D7A', tint: '#E3F1F0', fg: '#236462' },
+  { key: 'BNI', label: 'BNI', color: '#A33B5B', tint: '#F7E9EE', fg: '#8C2F4C' },
+  { key: 'Outside Referrer', label: 'Outside referrer', color: '#8A6D3B', tint: '#F5EFE3', fg: '#6F5730' },
+];
+
+export const DEFAULT_LEAD_SOCIAL_PLATFORMS: LeadPlatformDef[] = [
+  'Facebook',
+  'Instagram',
+  'TikTok',
+  'LinkedIn',
+  'XiaoHongShu / XHS',
+  'YouTube',
+  'WhatsApp / Telegram',
+].map((p) => ({ key: p, label: p }));
 
 /** Metric keys used by the Partner KPIs scorecard, in mockup display order. */
 export const PARTNER_KPI_METRICS = [
