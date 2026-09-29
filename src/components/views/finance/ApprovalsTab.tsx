@@ -1,9 +1,12 @@
 import React from 'react';
 import type { ApItem, FinanceCtrl, PayItem } from './useFinanceController';
 import { css, rm, rm2 } from './financeModel';
+import { twoSignatoryThreshold } from '../../../services/templateService';
 
 export const ApprovalsTab = ({ F }: { F: FinanceCtrl }) => {
   const { apF, setApF, rk } = F;
+  const thr = twoSignatoryThreshold();
+  const lim = thr % 1000 === 0 ? `RM ${thr / 1000}k` : `RM ${thr.toLocaleString('en-MY')}`;
   const T: Record<ApItem['type'], [string, string]> = { 'Staff claim': ['#E7EEF6', '#2F5680'], 'Payment voucher': ['#F1EBF6', '#6B3D8C'], 'Referral fees': ['#F7E9EE', '#8C2F4C'], 'Client account': ['#FBEDE9', '#B23A2E'], 'Write-off': ['#FBF2E9', '#8A6534'] };
   const pendingKeys = new Set(F.apItems.map((a) => a.key));
   const all = [...F.apItems.map((item) => ({ item, d: undefined as undefined | 'ok' | 'no' })), ...Object.values(F.decided).filter((x) => !pendingKeys.has(x.item.key)).map((x) => ({ item: x.item, d: x.d }))];
@@ -31,7 +34,7 @@ export const ApprovalsTab = ({ F }: { F: FinanceCtrl }) => {
             {done && <span style={css(`justify-self:end;font-size:10.5px;font-weight:700;color:${d === 'ok' ? '#2F6F4E' : d ? '#B23A2E' : '#8A6534'}`)}>{d === 'ok' ? 'Approved ✓' : d ? 'Rejected' : 'With partner to approve'}</span>}
           </div>
         ); })}
-        <div style={css('padding:9px 14px;background:#F6F8FA;font-size:10.5px;color:#5B6478')}>Under RM 5k: any partner · RM 5k and above, or anything from the client account: Managing Partner + 1 more signatory</div>
+        <div style={css('padding:9px 14px;background:#F6F8FA;font-size:10.5px;color:#5B6478')}>Under {lim}: any partner · {lim} and above, or anything from the client account: Managing Partner + 1 more signatory</div>
       </div>
       <div style={css('overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
         <div style={css('display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css('font-family:ui-serif, Georgia, serif;font-size:14.5px;color:#16223A')}>Approved · to pay</strong><span style={css('font-size:10.5px;color:#5B6478')}>staff claims and payment requests (PV) approved by partners · details come straight from the staff form</span><span style={css('margin-left:auto;font-size:12px;font-weight:700;color:#16223A')}>{rm2(F.toPay.reduce((s, x) => s + x.amount, 0))} to pay</span></div>

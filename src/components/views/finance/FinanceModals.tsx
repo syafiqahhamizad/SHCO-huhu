@@ -3,6 +3,13 @@ import type { FinanceCtrl, EditorState } from './useFinanceController';
 import { css, filesToProofs, proofUrl, rm2 } from './financeModel';
 import * as SD from '../../../lib/financeDocs';
 import type { FinanceProof, Invoice, Quotation } from '../../../types';
+import { getPracticeSettings, DEFAULT_EXPENSE_CATEGORIES } from '../../../services/templateService';
+
+/** Office expense categories from Firm & Practice Settings → Lists & sources. */
+const expenseCategories = (): string[] => {
+  const l = (getPracticeSettings().expenseCategories || []).map((x) => x.trim()).filter(Boolean);
+  return l.length ? l : DEFAULT_EXPENSE_CATEGORIES;
+};
 
 const seg = (opts: string[], cur: string, set: (v: string) => void) => opts.map((o) => { const on = o === cur; return <button key={o} type="button" onClick={() => set(o)} style={css(`border-radius:14px;padding:4px 11px;font-size:10.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;border:1px solid ${on ? '#16223A' : '#DDE3EB'};background:${on ? '#16223A' : '#fff'};color:${on ? '#fff' : '#16223A'}`)}>{o}</button>; });
 const INPUT = 'width:100%;border:1px solid #DDE3EB;border-radius:6px;padding:6px 8px;font-size:11.5px;font-family:inherit;color:#16223A;background:#fff';
@@ -165,7 +172,7 @@ export const FormModal = ({ F }: { F: FinanceCtrl }) => {
     journal: ['Manual journal (goes to Approvals)', [['date', 'Date', 'dd.mm.yyyy'], ['account', 'Account', ['Office', 'Client account', 'Disbursement', 'Petty cash']], ['dir', 'Direction', ['Money out', 'Money in']], ['details', 'Details', 'e.g. bank charges Sep'], ['amount', 'Amount (RM)'], ['reason', 'Reason for adjustment']]],
     payOut: ['Pay out from client account', [['client', 'For client'], ['payee', 'Pay to', 'e.g. LHDN'], ['amount', 'Amount (RM)'], ['purpose', 'Purpose', 'e.g. stamp duty']]],
     transfer: ['Transfer fees to office', [['client', 'From client ledger'], ['forNo', 'For invoice', 'INV-2026-…'], ['amount', 'Amount (RM)']]],
-    expense: ['Record office expense', [['payee', 'Paid to'], ['what', 'For'], ['cat', 'Category', ['Utilities', 'Rent', 'IT', 'Marketing', 'Stationery', 'Courier', 'Other']], ['amount', 'Amount (RM)'], ['from', 'Paid from', ['Hong Leong', 'CIMB', 'Petty cash']]]],
+    expense: ['Record office expense', [['payee', 'Paid to'], ['what', 'For'], ['cat', 'Category', expenseCategories()], ['amount', 'Amount (RM)'], ['from', 'Paid from', ['Hong Leong', 'CIMB', 'Petty cash']]]],
     fund: ['Add sinking fund', [['name', 'Fund name'], ['target', 'Target (RM)'], ['saved', 'Saved so far (RM)'], ['due', 'Due', 'e.g. Dec 2026'], ['monthly', 'Set aside / month (RM)']]],
     writeoff: ['Request write-off for ' + (f.vals.title || '') + ' (Managing Partner approves)', [['amount', 'Amount to write off (RM)'], ['reason', 'Reason', 'e.g. client wound up, 14 months unpaid']]],
     payslip: [`Payslip · ${f.vals.name || ''} · ${F.monthName} ${F.now.getFullYear()}`, [['basic', 'Basic salary (RM)'], ['allow', 'Allowances (RM)'], ['ref', 'Referral fees (RM)'], ['refNote', 'Referral fee note'], ['ps', 'Profit sharing (RM)'], ['psNote', 'Profit sharing note'], ['bonus', 'Bonus (RM)'], ['bonusNote', 'Bonus note'], ['epf', 'EPF, employee share (RM)'], ['epfEr', 'EPF, employer share (RM)'], ['socso', 'SOCSO + EIS, employee (RM)'], ['pcb', 'PCB / income tax (RM)'], ['zakat', 'Zakat via employer (RM)'], ['otherDedName', 'Other deduction (name)'], ['otherDed', 'Other deduction (RM)']], 'Enter EPF, SOCSO, EIS and PCB from the official KWSP, PERKESO and LHDN tables. Nothing here is calculated for you.'],

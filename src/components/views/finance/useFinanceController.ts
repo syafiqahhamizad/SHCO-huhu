@@ -9,7 +9,7 @@ import type {
   Case, Expense, FinanceProof, FinanceSignatory, GeneralLedgerEntry, Invoice, ManualJournal, Payslip,
   PaymentVoucher, Quotation, Receipt, Retainer, TravelClaim, User,
 } from '../../../types';
-import { getPracticeSettings, savePracticeSettings, type SinkingFund } from '../../../services/templateService';
+import { getPracticeSettings, savePracticeSettings, twoSignatoryThreshold, type SinkingFund } from '../../../services/templateService';
 import { computeTotals } from '../../../lib/billingEngine';
 import { identityTokens, isMine } from '../../../lib/identity';
 import * as SD from '../../../lib/financeDocs';
@@ -289,7 +289,8 @@ export function useFinanceController(initialTab: FinTab) {
     if ((item.kind === 'writeoff' || item.kind === 'referral') && !isMP) { toastMsg(item.kind === 'writeoff' ? 'Write-offs need the Managing Partner.' : 'Referral fees are approved by the Managing Partner.'); return; }
     if (item.signatories.some((s) => norm(s.name) === norm(me))) { toastMsg('You have already signed this. It needs another signatory.'); return; }
     const sigs = [...item.signatories, { name: me, at, isManagingPartner: isMP }];
-    const needTwo = item.clientAccount || item.amount >= 5000;
+    // Threshold from Firm & Practice Settings → Permissions & limits (default RM 5,000).
+    const needTwo = item.clientAccount || item.amount >= twoSignatoryThreshold();
     const complete = item.kind === 'writeoff' || item.kind === 'referral' ? isMP : needTwo ? sigs.length >= 2 && sigs.some((s) => s.isManagingPartner) : true;
     // Client-account payments: the ledger can never go below zero.
     if (item.kind === 'pv' && item.clientAccount) {

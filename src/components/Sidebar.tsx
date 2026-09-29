@@ -126,7 +126,6 @@ export const Sidebar: React.FC = () => {
     {
       group: 'System',
       items: [
-        { id: 'users', label: 'Users & Permissions', icon: <UserCog className="w-3.5 h-3.5" />, systemOnly: true },
         { id: 'practiceSettings', label: 'Firm & Practice Settings', icon: <Settings className="w-3.5 h-3.5" /> },
         { id: 'inventory', label: 'Office Inventory & Library', icon: <BookMarked className="w-3.5 h-3.5 text-emerald-300" /> },
         { id: 'logs', label: 'Activity Logs', icon: <History className="w-3.5 h-3.5" /> },
@@ -203,7 +202,7 @@ export const Sidebar: React.FC = () => {
                   </div>
                   <div id={`group-${group.group}`} className="space-y-0.5">
                     {visibleItems.map((item) => {
-                      const isActive = currentView === item.id || (item.id === 'billing' && ['quotations', 'time'].includes(currentView)) || (item.id === 'retainers' && currentView === 'statement') || (item.id === 'reports' && ['coa', 'gl', 'tb', 'trialBalance', 'balanceSheet', 'cashFlow', 'trustReports', 'officeReports'].includes(currentView));
+                      const isActive = currentView === item.id || (item.id === 'practiceSettings' && ['users', 'roles', 'settings', 'firmSettings'].includes(currentView)) || (item.id === 'billing' && ['quotations', 'time'].includes(currentView)) || (item.id === 'retainers' && currentView === 'statement') || (item.id === 'reports' && ['coa', 'gl', 'tb', 'trialBalance', 'balanceSheet', 'cashFlow', 'trustReports', 'officeReports'].includes(currentView));
 
                       return (
                         <button
