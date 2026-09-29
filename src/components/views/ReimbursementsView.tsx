@@ -25,8 +25,9 @@ import {
   X,
   FileCheck2,
 } from 'lucide-react';
-import { TravelClaim, Expense, PaymentVoucher, ClaimDocument } from '../../types';
+import { TravelClaim, Expense, PaymentVoucher, ClaimDocument, ClaimAttachment } from '../../types';
 import { claimsStorageService } from '../../services/claimsStorageService';
+import { describeStorageError, getClaimAttachmentUrl } from '../../services/firebaseStorageService';
 
 /* CSV Export Utility */
 const exportToCsv = (filename: string, rows: Record<string, any>[]) => {
@@ -600,9 +601,31 @@ export const ReimbursementsClaimsView: React.FC<ClaimsViewProps> = ({
   } | null>(null);
 
   // Helper to trigger claim document viewer with vault support
-  const handleViewClaimDocuments = (claim: { id: string; attachmentName?: string; attachmentUrl?: string; documents?: ClaimDocument[] }) => {
+  const handleViewClaimDocuments = async (claim: { id: string; attachmentName?: string; attachmentUrl?: string; documents?: ClaimDocument[]; attachments?: ClaimAttachment[] }) => {
+    // Receipts in Firebase Storage open on any device.
+    if (claim.attachments && claim.attachments.length) {
+      try {
+        const stored: ClaimDocument[] = await Promise.all(
+          claim.attachments.map(async (a, i) => ({
+            id: `DOC-STORED-${claim.id}-${i}`,
+            name: a.name,
+            url: await getClaimAttachmentUrl(a.path),
+            type: a.contentType,
+            size: a.size,
+            category: claimsStorageService.detectDocumentCategory(a.name, a.contentType),
+          }))
+        );
+        setViewingAttachment({ id: claim.id, name: stored[0].name, url: stored[0].url, documents: stored, activeDocIndex: 0 });
+      } catch (err) {
+        showToast('Could not open the receipt. ' + describeStorageError(err));
+      }
+      return;
+    }
+    // Older records: synced documents carry names only; the content is in the uploading device's vault.
     const vaultDocs = claimsStorageService.getClaimDocuments(claim.id);
-    const combined = (claim.documents && claim.documents.length) ? claim.documents : vaultDocs;
+    const combined = (claim.documents && claim.documents.length)
+      ? claim.documents.map((d) => (d.url ? d : vaultDocs.find((v) => v.id === d.id || v.name === d.name) || d))
+      : vaultDocs;
 
     if (combined.length > 0) {
       setViewingAttachment({
@@ -3215,7 +3238,9 @@ export const ReimbursementsClaimsView: React.FC<ClaimsViewProps> = ({
                         Category: <strong className="text-slate-800">{currentDoc.category || 'Supporting File'}</strong> • Size: <span className="font-mono">{claimsStorageService.formatFileSize(currentDoc.size || 0)}</span>
                       </div>
                       <p className="text-[11px] text-slate-400 mt-2">
-                        Document verified and archived in SHCO Claims Document Vault.
+                        {currentDoc.url
+                          ? 'Document verified and archived in SHCO Claims Document Vault.'
+                          : 'Stored on the device it was uploaded from, so it cannot be opened here.'}
                       </p>
                     </div>
                   </div>
@@ -3238,6 +3263,8 @@ export const ReimbursementsClaimsView: React.FC<ClaimsViewProps> = ({
                     <a
                       href={currentDoc.url}
                       download={currentDoc.name}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs rounded-lg transition-colors flex items-center gap-1"
                     >
                       <Download className="w-3.5 h-3.5 text-emerald-700" />

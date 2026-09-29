@@ -519,7 +519,7 @@ export const FirmStartCentreView: React.FC = () => {
                 <div className="flex flex-wrap items-end justify-between gap-3 sm:col-span-2">
                   <div>
                     <label className="text-[10px] font-bold uppercase tracking-wider text-[#5B6478]">Event date<input type="date" value={announcementDraft.eventDate} onChange={(event) => setAnnouncementDraft({ ...announcementDraft, eventDate: event.target.value })} className="mt-1 block rounded-lg border border-[#DDE3EB] bg-white px-3 py-1.5 text-xs normal-case tracking-normal text-[#16223A]" /></label>
-                    <p className="mt-1 text-[10px] text-[#5B6478]">Birthdays and call-to-the-bar dates come from Staff Portal profiles.</p>
+                    <p className="mt-1 text-[10px] text-[#5B6478]">Birthdays and call-to-the-bar dates come from each person’s Staff Portal → My profile.</p>
                   </div>
                   <div className="flex gap-2">
                     <button type="button" onClick={() => setAnnouncementOpen(false)} className="rounded-lg border border-[#DDE3EB] bg-white px-3 py-2 text-xs font-semibold text-[#16223A]">Cancel</button>

@@ -21,7 +21,8 @@ service firebase.storage {
           request.auth.token.role == 'partner' ||
           request.auth.token.role == 'lawyer' ||
           request.auth.token.role == 'assistant' ||
-          request.auth.token.role == 'reviewer'
+          request.auth.token.role == 'reviewer' ||
+          request.auth.token.role == 'accountant'
         ));
     }
 

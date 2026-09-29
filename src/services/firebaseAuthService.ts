@@ -18,7 +18,7 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:560462370115:web:602e0f3e9110f6a8eb4bf6',
 };
 
-const firebaseApp = getApps().length > 0 ? getApps()[0] : initializeApp(firebaseConfig);
+export const firebaseApp = getApps().length > 0 ? getApps()[0] : initializeApp(firebaseConfig);
 export const firebaseAuth = getAuth(firebaseApp);
 initializeFirebaseAppCheck(firebaseApp);
 

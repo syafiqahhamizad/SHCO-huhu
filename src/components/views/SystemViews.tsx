@@ -577,7 +577,7 @@ export const UsersManagementView: React.FC = () => {
 
             <form onSubmit={handleAddUserSubmit} className="space-y-3 text-xs">
               <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] text-blue-900">
-                Registering an internal user also creates a linked staff record and assigns the next unique Staff ID. Complete employment details and staff milestones later in Staff Portal.
+                Registering an internal user also creates a linked staff record and assigns the next unique Staff ID. Complete employment details, payslip details and staff milestones later in Staff Portal → My profile.
               </div>
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Full User Name *</label>
