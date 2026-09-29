@@ -338,7 +338,7 @@ export const MyDashboardView: React.FC = () => {
           caseId: e.caseId,
           dueDate: e.date || '',
           status: 'Pending approval',
-          view: 'reimbursements',
+          view: 'approvals',
         });
       });
 
@@ -352,7 +352,7 @@ export const MyDashboardView: React.FC = () => {
           matterTitle: t.purpose,
           dueDate: t.date || '',
           status: 'Pending approval',
-          view: 'reimbursements',
+          view: 'approvals',
         });
       });
 

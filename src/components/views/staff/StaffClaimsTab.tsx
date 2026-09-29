@@ -358,7 +358,7 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
       title: '[APPROVAL REQUIRED] ' + (D ? 'Payment request ' : 'Claim form ') + no,
       message: currentUser.name + ' submitted ' + no + ' (' + n + ' item' + (n > 1 ? 's' : '') + ', ' + rm(tot) + ')' + (D ? ' to pay ' + payee : '') + '. Waiting for approval by ' + apps.join(', ') + '. Accounts copied.',
       type: 'invoice',
-      linkTab: 'reimbursements',
+      linkTab: 'approvals',
       linkId: no,
     });
     addActivityLog(D ? 'Payment Request Submitted' : 'Claim Form Submitted', no + ' — ' + rm(tot) + ' (' + now.slice(0, 10) + ')');

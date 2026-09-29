@@ -14,7 +14,6 @@ const ACCOUNTING_VIEWS = [
   'bank-accounts',
   'bankReconciliation',
   'bank-reconciliation',
-  'reimbursements',
   'reimbursements-claims',
   'claimsManagement',
   'claims-management',

@@ -117,7 +117,6 @@ export const Header: React.FC = () => {
       case 'firmDashboard':
         return { title: 'Firm-Wide Dashboard', sub: 'Firm-wide operational and financial snapshot' };
       case 'leads':
-        return { title: 'Leads / Intake', sub: 'Conflict of interest check starts here before conversion' };
       case 'leadsReferrals':
       case 'leads-referrals':
         return { title: 'Leads & Referrals', sub: 'Every enquiry, where it came from, and whether it became a client' };
@@ -173,6 +172,7 @@ export const Header: React.FC = () => {
         return { title: 'Users Management', sub: 'Firm members and admin privileges' };
       case 'staffPortal':
       case 'staff-portal':
+      case 'reimbursements':
         return { title: 'Staff Portal', sub: [currentUser?.name, currentUser?.staffProfile?.designation || currentUser?.role, 'only your own records are shown here'].filter(Boolean).join(' · ') };
       case 'settings':
         return { title: 'System Settings', sub: 'Practice references & system preferences' };

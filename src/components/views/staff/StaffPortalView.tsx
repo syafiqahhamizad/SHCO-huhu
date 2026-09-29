@@ -40,8 +40,12 @@ const useLetterhead = () => {
 };
 
 export const StaffPortalView: React.FC = () => {
-  const { currentUser, users, payslips, travelClaims, expenses, paymentVouchers, cases, clients, leaveApplications, showToast } = useApp();
-  const [tab, setTab] = useState<Tab>('profile');
+  const { currentUser, users, payslips, travelClaims, expenses, paymentVouchers, cases, clients, leaveApplications, showToast, currentView } = useApp();
+  const [tab, setTab] = useState<Tab>(currentView === 'reimbursements' ? 'claims' : 'profile');
+  // Sidebar "My Claims" opens this page on the claims tab.
+  useEffect(() => {
+    if (currentView === 'reimbursements') setTab('claims');
+  }, [currentView]);
   const lh = useLetterhead();
 
   const me = useMemo(() => identityTokens(currentUser), [currentUser]);

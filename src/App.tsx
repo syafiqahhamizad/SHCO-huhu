@@ -8,9 +8,7 @@ import { SignInPortal } from './components/SignInPortal';
 import { ShieldAlert } from 'lucide-react';
 import { FINANCE_VIEW_TO_TAB, isFinanceView } from './lib/financeAccess';
 
-const PartnerDashboardView = React.lazy(() => import('./components/views/PartnerDashboardView').then((module) => ({ default: module.PartnerDashboardView })));
 const ComprehensiveDashboardView = React.lazy(() => import('./components/views/ComprehensiveDashboardView').then((module) => ({ default: module.ComprehensiveDashboardView })));
-const LeadsView = React.lazy(() => import('./components/views/LeadsView').then((module) => ({ default: module.LeadsView })));
 const LeadsReferralsView = React.lazy(() => import('./components/views/LeadsReferralsView').then((module) => ({ default: module.LeadsReferralsView })));
 const ClientsView = React.lazy(() => import('./components/views/ClientsView').then((module) => ({ default: module.ClientsView })));
 const CasesView = React.lazy(() => import('./components/views/CasesView').then((module) => ({ default: module.CasesView })));
@@ -31,7 +29,6 @@ const SimplifiedAccountingView = React.lazy(() => import('./components/views/Sim
 const AccountsFinanceView = React.lazy(() => import('./components/views/finance/AccountsFinanceView').then((module) => ({ default: module.AccountsFinanceView })));
 const SystemViews = import('./components/views/SystemViews');
 const WorkspaceView = React.lazy(() => SystemViews.then((module) => ({ default: module.WorkspaceView })));
-const SecurityView = React.lazy(() => SystemViews.then((module) => ({ default: module.SecurityView })));
 const UsersAndPermissionsView = React.lazy(() => SystemViews.then((module) => ({ default: module.UsersAndPermissionsView })));
 const PracticeSettingsView = React.lazy(() => import('./components/views/PracticeSettingsView').then((module) => ({ default: module.PracticeSettingsView })));
 const TrustAuditLogsView = React.lazy(() => import('./components/views/TrustAuditLogsView').then((module) => ({ default: module.TrustAuditLogsView })));
@@ -116,17 +113,14 @@ const MainContent: React.FC = () => {
         return <MyDashboardView />;
       case 'firmDashboard':
         return <ComprehensiveDashboardView />;
-      case 'partnerDashboard':
-      case 'partner-dashboard':
-        return <PartnerDashboardView />;
       case 'clientPortal':
       case 'client-portal':
         return <ClientPortalView />;
       case 'staffPortal':
       case 'staff-portal':
+      case 'reimbursements':
         return <StaffPortalView />;
       case 'leads':
-        return <LeadsView />;
       case 'leadsReferrals':
       case 'leads-referrals':
         return <LeadsReferralsView />;
@@ -160,7 +154,6 @@ const MainContent: React.FC = () => {
       case 'bank-accounts':
       case 'bankReconciliation':
       case 'bank-reconciliation':
-      case 'reimbursements':
         return <SimplifiedAccountingView />;
 
       case 'trustAuditLogs':
@@ -172,8 +165,6 @@ const MainContent: React.FC = () => {
       // System Integrations
       case 'workspace':
         return <WorkspaceView />;
-      case 'security':
-        return <SecurityView />;
       case 'logs':
         return <ActivityLogsView />;
       case 'users':
