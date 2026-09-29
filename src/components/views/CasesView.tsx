@@ -503,11 +503,6 @@ export const CasesView: React.FC = () => {
   const [resApplicationToCase, setResApplicationToCase] = useState('');
   const [resLexisUrl, setResLexisUrl] = useState('');
 
-  // AI Meeting Summarizer State
-  const [isAiMeetingModalOpen, setIsAiMeetingModalOpen] = useState(false);
-  const [rawMeetingTranscript, setRawMeetingTranscript] = useState('');
-  const [isGeneratingAiMeeting, setIsGeneratingAiMeeting] = useState(false);
-
   // Enhanced Task State
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [matterTaskLayout, setMatterTaskLayout] = useState<'kanban' | 'table'>('kanban');
@@ -1517,54 +1512,6 @@ export const CasesView: React.FC = () => {
     showToast('Legal research note saved & archived to Central Research Library!');
   };
 
-  const handleGenerateAiMeetingNote = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedCase || !rawMeetingTranscript.trim()) return;
-
-    setIsGeneratingAiMeeting(true);
-
-    try {
-      const response = await fetch('/api/ai/meeting-summary', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transcript: rawMeetingTranscript,
-          caseTitle: selectedCase.title,
-          clientName: selectedCase.clientName || 'Client',
-          meetingDate: new Date().toISOString().slice(0, 10),
-        }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.error || 'AI meeting summary failed.');
-      }
-
-      const gdocUrl = `https://docs.google.com/document/d/ai-gen-${Date.now()}`;
-      const newM: MeetingNote = {
-        id: `MN-${Date.now()}`,
-        date: new Date().toISOString().slice(0, 10),
-        ourLawyers: 'Syafiqah Hamizad & Amer Haiqal',
-        clientAttendees: selectedCase.clientName || 'Client',
-        meetingNotes: `[AI Summarized Transcript]\n${data.summary || 'No summary generated.'}\n\nKey Decisions:\n${data.decisions || 'No decisions recorded.'}\n\nNext Steps:\n${data.nextSteps || 'No next steps identified.'}\n\nRisks:\n${data.risks || 'No material risks identified.'}`,
-        decisions: data.decisions || 'No decisions recorded.',
-        recordedBy: currentPartnerCode,
-        gdriveDocUrl: gdocUrl,
-        isAiGenerated: true,
-      };
-
-      updateCase(selectedCase.id, { meetingNotes: [newM, ...(selectedCase.meetingNotes || [])] });
-      setIsAiMeetingModalOpen(false);
-      setRawMeetingTranscript('');
-      showToast('AI meeting summary generated and saved to the case timeline.');
-    } catch (error: any) {
-      console.error('Meeting summary generation failed:', error);
-      showToast(error?.message || 'AI meeting summary is unavailable right now.');
-    } finally {
-      setIsGeneratingAiMeeting(false);
-    }
-  };
-
   const handleSaveService = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCase) return;
@@ -1599,7 +1546,6 @@ export const CasesView: React.FC = () => {
     setCaseSubTab('service');
     setIsAddServiceModalOpen(false);
     setIsAddMeetingModalOpen(false);
-    setIsAiMeetingModalOpen(false);
     setIsAddResearchModalOpen(false);
     setIsAddInternalModalOpen(false);
     setIsAddCashbookModalOpen(false);
@@ -3600,23 +3546,15 @@ export const CasesView: React.FC = () => {
           </div>
         )}
 
-        {/* Tab 8: Client Meeting Notes & AI Summarizer */}
+        {/* Tab 8: Client Meeting Notes */}
         {caseSubTab === 'meetings' && (
           <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-[#DDE3EB] pb-3">
               <div>
-                <h3 className="font-serif font-bold text-sm text-[#16223A]">Client Consultation Minutes &amp; AI Summarizer</h3>
-                <p className="text-xs text-slate-500">Record consultation notes or generate AI summaries saved directly to Google Drive.</p>
+                <h3 className="font-serif font-bold text-sm text-[#16223A]">Client Consultation Minutes</h3>
+                <p className="text-xs text-slate-500">Record consultation notes for this matter.</p>
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsAiMeetingModalOpen(true)}
-                  className="bg-[#3D6B9C] hover:bg-[#8A6D3B] text-white text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1.5 cursor-pointer shadow-xs"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>AI Meeting Summarizer</span>
-                </button>
                 <button
                   type="button"
                   onClick={() => setIsAddMeetingModalOpen(true)}
@@ -4947,25 +4885,6 @@ export const CasesView: React.FC = () => {
                 <textarea value={mnDecisions} onChange={(e) => setMnDecisions(e.target.value)} placeholder="Agreed action items" className="w-full p-2 border border-[#DDE3EB] rounded-lg" rows={3} />
               </div>
               <button type="submit" className="w-full bg-[#16223A] hover:bg-[#16223A] text-white p-2 rounded-lg font-bold cursor-pointer">Save Meeting Note</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* AI Meeting Summarizer — self-contained modal, isolated from the multi-purpose modal above */}
-      {selectedCase && isAiMeetingModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl max-w-lg w-full p-5 shadow-2xl space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
-              <h3 className="font-serif font-bold text-[#16223A]">Generate AI Meeting Summary</h3>
-              <button type="button" onClick={() => setIsAiMeetingModalOpen(false)} className="text-slate-500 text-xl cursor-pointer">×</button>
-            </div>
-            <form onSubmit={handleGenerateAiMeetingNote} className="space-y-3 text-xs">
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Meeting Transcript *</label>
-                <textarea required value={rawMeetingTranscript} onChange={(e) => setRawMeetingTranscript(e.target.value)} placeholder="Paste the meeting transcript here" className="w-full p-2 border border-[#DDE3EB] rounded-lg" rows={8} />
-              </div>
-              <button type="submit" disabled={isGeneratingAiMeeting} className="w-full bg-[#16223A] hover:bg-[#16223A] text-white p-2 rounded-lg font-bold cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">{isGeneratingAiMeeting ? 'Generating...' : 'Generate Summary'}</button>
             </form>
           </div>
         </div>

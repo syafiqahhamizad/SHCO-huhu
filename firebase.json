@@ -59,37 +59,12 @@
         }
       },
       {
-        "source": "/api/ai/draft-billing-items",
-        "function": {
-          "functionId": "draftBillingItems",
-          "region": "asia-southeast1"
-        }
-      },
-      {
-        "source": "/api/ai/assistant",
-        "function": {
-          "functionId": "aiAssistant",
-          "region": "asia-southeast1"
-        }
-      },
-      {
-        "source": "/api/ai/meeting-summary",
-        "function": {
-          "functionId": "aiMeetingSummary",
-          "region": "asia-southeast1"
-        }
-      },
-      {
         "source": "**",
         "destination": "/index.html"
       }
     ]
   },
   "functions": [
-    {
-      "source": "functions",
-      "codebase": "default"
-    },
     {
       "source": "functions-user",
       "codebase": "user"

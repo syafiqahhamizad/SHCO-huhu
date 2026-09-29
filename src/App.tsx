@@ -15,7 +15,6 @@ const LeadsReferralsView = React.lazy(() => import('./components/views/LeadsRefe
 const ClientsView = React.lazy(() => import('./components/views/ClientsView').then((module) => ({ default: module.ClientsView })));
 const CasesView = React.lazy(() => import('./components/views/CasesView').then((module) => ({ default: module.CasesView })));
 const ClientPortalView = React.lazy(() => import('./components/views/ClientPortalView').then((module) => ({ default: module.ClientPortalView })));
-const AIAgentView = React.lazy(() => import('./components/views/AIAgentView').then((module) => ({ default: module.AIAgentView })));
 const PracticeViews = import('./components/views/PracticeViews');
 const HearingsView = React.lazy(() => PracticeViews.then((module) => ({ default: module.HearingsView })));
 const CalendarView = React.lazy(() => PracticeViews.then((module) => ({ default: module.CalendarView })));
@@ -186,9 +185,6 @@ const MainContent: React.FC = () => {
       case 'firm-settings':
       case 'settings':
         return <PracticeSettingsView />;
-      case 'aiAgent':
-      case 'ai-agent':
-        return <AIAgentView />;
       case 'about':
         return <AboutAppView />;
       case 'account':
