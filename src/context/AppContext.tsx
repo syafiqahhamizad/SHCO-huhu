@@ -43,6 +43,7 @@ import {
   TrustAuditLog,
   InventoryItem,
   BankReconciliationEntry,
+  Payslip,
   ComplianceItem,
   ComplaintRecord,
   Milestone,
@@ -219,6 +220,7 @@ interface AppContextType {
   trustAuditLogs: TrustAuditLog[];
   inventoryItems: InventoryItem[];
   bankReconciliationEntries: BankReconciliationEntry[];
+  payslips: Payslip[];
   clientAccountChecks: ClientAccountCheck[];
   toggleClientAccountCheck: (itemKey: string) => void;
   deletedRecords: DeletedRecord[];
@@ -1569,6 +1571,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return readStored(STORAGE_KEY + '_clientAccountChecks', [] as ClientAccountCheck[]);
   });
 
+  // Payroll payslips (Accounts & Finance -> Payroll owns the mutators; Staff Portal only reads
+  // the current user's Approved/Paid slips). Starts empty — no sample payslips.
+  const [payslips, setPayslips] = useState<Payslip[]>(() => {
+    return readStored(STORAGE_KEY + '_payslips', [] as Payslip[]);
+  });
+
   const [sequenceCounters, setSequenceCounters] = useState<SequenceCounters>(() => {
     const storedCounters = readStored(STORAGE_KEY + '_sequenceCounters', {
       invoiceSeq: 5,
@@ -1748,6 +1756,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY + '_bankReconciliationEntries', JSON.stringify(bankReconciliationEntries));
   }, [bankReconciliationEntries]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY + '_payslips', JSON.stringify(payslips));
+  }, [payslips]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY + '_clientAccountChecks', JSON.stringify(clientAccountChecks));
@@ -2406,6 +2418,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (Array.isArray(state.trustAuditLogs)) setTrustAuditLogs(state.trustAuditLogs as TrustAuditLog[]);
       if (Array.isArray(state.inventoryItems)) setInventoryItems(state.inventoryItems as InventoryItem[]);
       if (Array.isArray(state.bankReconciliationEntries)) setBankReconciliationEntries(state.bankReconciliationEntries as BankReconciliationEntry[]);
+      if (Array.isArray(state.payslips)) setPayslips(state.payslips as Payslip[]);
       if (Array.isArray(state.clientAccountChecks)) setClientAccountChecks(state.clientAccountChecks as ClientAccountCheck[]);
       if (Array.isArray(state.notifications)) setNotifications(state.notifications as NotificationItem[]);
       if (Array.isArray(state.lawFirmRegistry)) setLawFirmRegistry((state.lawFirmRegistry as LawFirmRegistryEntry[]).filter((firm) => isActive('Law Firm', firm)));
@@ -2439,6 +2452,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             rolesMatrix, customRoles, practiceSettings: getPracticeSettings(),
             timeEntries, expenses, generalLedger, logs, announcements, auditLogs,
             firmStartCentrePages, bankAccounts, trustAuditLogs, inventoryItems, bankReconciliationEntries, clientAccountChecks,
+            payslips,
           });
         }
 
@@ -2475,13 +2489,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       rolesMatrix, customRoles,
       timeEntries, expenses, generalLedger, logs, announcements, auditLogs,
       firmStartCentrePages, bankAccounts, trustAuditLogs, inventoryItems, bankReconciliationEntries, clientAccountChecks,
+      payslips,
     }).catch((error) => {
       console.error('Cloud state save failed; signing out to prevent unsynced data entry.', error);
       sessionStorage.removeItem(SESSION_STORAGE_KEY);
       setCloudSyncReady(false);
       setIsAuthenticated(false);
     });
-  }, [cloudSyncReady, leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims, receipts, deadlines, invoices, payments, retainers, users, attendanceRecords, leaveApplications, meetings, programmes, notifications, lawFirmRegistry, sequenceCounters, deletedRecords, rolesMatrix, customRoles, timeEntries, expenses, generalLedger, logs, announcements, auditLogs, firmStartCentrePages, bankAccounts, trustAuditLogs, inventoryItems, bankReconciliationEntries, clientAccountChecks]);
+  }, [cloudSyncReady, leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims, receipts, deadlines, invoices, payments, retainers, users, attendanceRecords, leaveApplications, meetings, programmes, notifications, lawFirmRegistry, sequenceCounters, deletedRecords, rolesMatrix, customRoles, timeEntries, expenses, generalLedger, logs, announcements, auditLogs, firmStartCentrePages, bankAccounts, trustAuditLogs, inventoryItems, bankReconciliationEntries, clientAccountChecks, payslips]);
 
   const addActivityLog = (action: string, details: string) => {
     const newLog: ActivityLog = {
@@ -3177,6 +3192,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         trustAuditLogs,
         inventoryItems,
         bankReconciliationEntries,
+        payslips,
         clientAccountChecks,
         toggleClientAccountCheck,
         deletedRecords,
