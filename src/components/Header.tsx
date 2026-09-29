@@ -136,9 +136,14 @@ export const Header: React.FC = () => {
         return { title: 'Referral Sources', sub: 'Track lead & matter originators and commission status' };
       case 'fileClosing':
         return { title: 'File Closing Checklist', sub: 'Invoice, Trust & Document return verifications before matter closure' };
+      case 'accountingCentre':
       case 'quotations':
       case 'billing':
-        return { title: 'Billing', sub: 'Quotation to Proforma Invoice to Official Receipt' };
+      case 'officeAccounts':
+      case 'approvals':
+      case 'payroll':
+      case 'reports':
+        return { title: 'Finance & Accounts', sub: 'Restricted: Accounts, Partners and Managing Partner only' };
       case 'time':
         return { title: 'Time Entries', sub: 'Fee earner billable hours and activities' };
       case 'expenses':
@@ -148,7 +153,7 @@ export const Header: React.FC = () => {
       case 'paymentVouchers':
         return { title: 'Payment Vouchers (PV)', sub: 'Disbursements and firm expenses with partner sign-off' };
       case 'retainers':
-        return { title: 'Client Account (Trust)', sub: "Solicitors' Account Rules 1990 Trust Ledger & 3-Way Reconciliation" };
+        return { title: 'Finance & Accounts', sub: 'Restricted: Accounts, Partners and Managing Partner only' };
       case 'trialBalance':
         return { title: 'Trial Balance', sub: 'Debits vs Credits balancing ledger' };
       case 'balanceSheet':

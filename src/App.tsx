@@ -6,6 +6,7 @@ import { Toast } from './components/Toast';
 import { DASHBOARD_TAB_VIEWS, DashboardTabs } from './components/DashboardTabs';
 import { SignInPortal } from './components/SignInPortal';
 import { ShieldAlert } from 'lucide-react';
+import { FINANCE_VIEW_TO_TAB, isFinanceView } from './lib/financeAccess';
 
 const PartnerDashboardView = React.lazy(() => import('./components/views/PartnerDashboardView').then((module) => ({ default: module.PartnerDashboardView })));
 const ComprehensiveDashboardView = React.lazy(() => import('./components/views/ComprehensiveDashboardView').then((module) => ({ default: module.ComprehensiveDashboardView })));
@@ -13,7 +14,6 @@ const LeadsView = React.lazy(() => import('./components/views/LeadsView').then((
 const LeadsReferralsView = React.lazy(() => import('./components/views/LeadsReferralsView').then((module) => ({ default: module.LeadsReferralsView })));
 const ClientsView = React.lazy(() => import('./components/views/ClientsView').then((module) => ({ default: module.ClientsView })));
 const CasesView = React.lazy(() => import('./components/views/CasesView').then((module) => ({ default: module.CasesView })));
-const QuotationsView = React.lazy(() => import('./components/views/QuotationsView').then((module) => ({ default: module.QuotationsView })));
 const ClientPortalView = React.lazy(() => import('./components/views/ClientPortalView').then((module) => ({ default: module.ClientPortalView })));
 const AIAgentView = React.lazy(() => import('./components/views/AIAgentView').then((module) => ({ default: module.AIAgentView })));
 const PracticeViews = import('./components/views/PracticeViews');
@@ -26,7 +26,10 @@ const CourtsView = React.lazy(() => PracticeViews.then((module) => ({ default: m
 const ReferralView = React.lazy(() => PracticeViews.then((module) => ({ default: module.ReferralView })));
 const FileClosingView = React.lazy(() => PracticeViews.then((module) => ({ default: module.FileClosingView })));
 const SimplifiedAccountingView = React.lazy(() => import('./components/views/SimplifiedAccountingView').then((module) => ({ default: module.SimplifiedAccountingView })));
-const AccountingCentreView = React.lazy(() => import('./components/views/AccountingCentreView').then((module) => ({ default: module.AccountingCentreView })));
+// Accounts & Finance (design pack finance_latest) replaces Accounting Centre, Finance & Billing,
+// Quotations, reimbursement approvals and the trust pages as what users see. The old view files
+// are kept (not deleted) but no longer routed to for these ids.
+const AccountsFinanceView = React.lazy(() => import('./components/views/finance/AccountsFinanceView').then((module) => ({ default: module.AccountsFinanceView })));
 const SystemViews = import('./components/views/SystemViews');
 const WorkspaceView = React.lazy(() => SystemViews.then((module) => ({ default: module.WorkspaceView })));
 const SecurityView = React.lazy(() => SystemViews.then((module) => ({ default: module.SecurityView })));
@@ -67,6 +70,11 @@ const MainContent: React.FC = () => {
   }
 
   const renderView = () => {
+    // Finance & Accounts decides access itself (Managing Partner & Accounts: all tabs; Partners:
+    // Billing, Client Account, Approvals; Reviewer: Client Account + Books) — see lib/financeAccess.
+    if (isFinanceView(currentView)) {
+      return <AccountsFinanceView initialTab={FINANCE_VIEW_TO_TAB[currentView]} />;
+    }
     if (!canViewModule(currentView)) {
       return (
         <div className="bg-white border border-rose-200 rounded-lg sm:rounded-2xl p-6 sm:p-8 max-w-2xl mx-auto my-6 sm:my-12 text-center shadow-lg space-y-4">
@@ -127,9 +135,6 @@ const MainContent: React.FC = () => {
         return <ClientsView />;
       case 'cases':
         return <CasesView />;
-      case 'quotations':
-      case 'billing':
-        return <QuotationsView />;
       case 'hearings':
         return <HearingsView />;
       case 'calendar':
@@ -149,38 +154,9 @@ const MainContent: React.FC = () => {
       case 'file-closing':
         return <FileClosingView />;
 
-      // Accounting & Finance — the Accounting Centre's 7-page IA (Finance Home/Billing &
-      // Collections/Client Account/Office Account/Approvals/Payroll/Books & Reports) per
-      // design_handoff_my_dashboard/ACCOUNTS_AND_FINANCE.md. Chart of Accounts/General
-      // Ledger/Trial Balance/Balance Sheet/Cash Flow/*Reports now live under its Books &
-      // Reports tab, and Client Statement under its Client Account tab. Bank accounts/
-      // reconciliation, reimbursements, travel claims and expenses are untouched — still
-      // SimplifiedAccountingView (Office Account cross-links to Bank Accounts).
-      case 'accountingCentre':
-      case 'accounting-centre':
-      case 'accounting':
-        return <AccountingCentreView initialTab="home" />;
-      case 'time':
-        return <AccountingCentreView initialTab="billing" />;
-      case 'retainers':
-      case 'statement':
-        return <AccountingCentreView initialTab="client" />;
-      case 'officeAccounts':
-      case 'office-accounts':
-        return <AccountingCentreView initialTab="office" />;
-      case 'coa':
-      case 'gl':
-      case 'tb':
-      case 'trialBalance':
-      case 'balanceSheet':
-      case 'balance-sheet':
-      case 'cashFlow':
-      case 'cashflow':
-      case 'trustReports':
-      case 'reports-trust':
-      case 'officeReports':
-      case 'reports-office':
-        return <AccountingCentreView initialTab="reports" />;
+      // Accounts & Finance ids (accountingCentre, billing, quotations, time, retainers, statement,
+      // officeAccounts, approvals, payroll, reports, coa, gl, trialBalance, …) are handled above.
+      // Bank accounts / reconciliation and staff claims entry stay on SimplifiedAccountingView.
       case 'bankAccounts':
       case 'bank-accounts':
       case 'bankReconciliation':
@@ -229,7 +205,7 @@ const MainContent: React.FC = () => {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#F6F8FA] dark:bg-[#0A0E1A]">
         <main className="flex-1 p-4 pt-16 sm:p-6 sm:pt-6 overflow-y-auto bg-[#F6F8FA] dark:bg-[#0A0E1A]">
           <Header />
-          {DASHBOARD_TAB_VIEWS.includes(currentView) && (
+          {DASHBOARD_TAB_VIEWS.includes(currentView) && !isFinanceView(currentView) && (
             <div className="mt-4 sm:mt-6">
               <DashboardTabs />
             </div>

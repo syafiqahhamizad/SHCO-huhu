@@ -50,6 +50,8 @@ import {
   InvestmentChannel,
   FirmGoal,
   ClientAccountCheck,
+  Payslip,
+  ManualJournal,
   SequenceCounters,
   ThemePreference,
   DeletedRecord,
@@ -221,6 +223,16 @@ interface AppContextType {
   bankReconciliationEntries: BankReconciliationEntry[];
   clientAccountChecks: ClientAccountCheck[];
   toggleClientAccountCheck: (itemKey: string) => void;
+  /** Accounts & Finance → Payroll. */
+  payslips: Payslip[];
+  addPayslip: (p: Payslip) => void;
+  updatePayslip: (id: string, updates: Partial<Payslip>) => void;
+  /** Moves the given payslips one step along Draft → Checked → Approved → Paid. */
+  advancePayslipStatus: (ids: string[]) => void;
+  /** Accounts & Finance → Books & Reports → Manual journal (goes to Approvals). */
+  manualJournals: ManualJournal[];
+  addManualJournal: (j: ManualJournal) => void;
+  updateManualJournal: (id: string, updates: Partial<ManualJournal>) => void;
   deletedRecords: DeletedRecord[];
   restoreDeletedRecord: (id: string) => void;
   purgeDeletedRecordPermanently: (id: string) => void;
@@ -312,6 +324,8 @@ interface AppContextType {
   addTravelClaim: (tc: TravelClaim) => void;
   updateTravelClaim: (id: string, updates: Partial<TravelClaim>) => void;
   addReceipt: (r: Receipt) => void;
+  /** Additive (Accounts & Finance): attach proof of payment etc. to an existing receipt. */
+  updateReceipt: (id: string, updates: Partial<Receipt>) => void;
   addPaymentVoucher: (pv: PaymentVoucher) => void;
   updatePaymentVoucher: (id: string, updates: Partial<PaymentVoucher>) => void;
   approvePaymentVoucher: (id: string, approvedBy: string) => void;
@@ -331,7 +345,7 @@ interface AppContextType {
   addDeadline: (d: Deadline) => void;
   addActivityLog: (action: string, details: string) => void;
   sequenceCounters: SequenceCounters;
-  getNextSequenceId: (type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense') => string;
+  getNextSequenceId: (type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense' | 'journal') => string;
   incrementSequenceCounter: (type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense') => void;
   resetSequenceCounters: () => void;
   factoryResetSystem: () => Promise<void>;
@@ -1569,6 +1583,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return readStored(STORAGE_KEY + '_clientAccountChecks', [] as ClientAccountCheck[]);
   });
 
+  const [payslips, setPayslips] = useState<Payslip[]>(() => {
+    return readStored(STORAGE_KEY + '_payslips', [] as Payslip[]);
+  });
+
+  const [manualJournals, setManualJournals] = useState<ManualJournal[]>(() => {
+    return readStored(STORAGE_KEY + '_manualJournals', [] as ManualJournal[]);
+  });
+
   const [sequenceCounters, setSequenceCounters] = useState<SequenceCounters>(() => {
     const storedCounters = readStored(STORAGE_KEY + '_sequenceCounters', {
       invoiceSeq: 5,
@@ -1604,7 +1626,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const getNextSequenceId = (
-    type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense'
+    type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense' | 'journal'
   ): string => {
     const key = (type + 'Seq') as keyof SequenceCounters;
     const counterValue = sequenceCounters[key] || 0;
@@ -1628,6 +1650,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         case 'client': return highestNumericSuffix(clients.map((c) => c.id), 'HQ-C');
         case 'lead': return highestNumericSuffix(leads.map((l) => l.id), 'LD-');
         case 'expense': return highestNumericSuffix(expenses.map((e) => e.id), 'EX-');
+        case 'journal': return highestNumericSuffix(manualJournals.map((j) => j.id), `JV-${new Date().getFullYear()}-`);
         default: return 0;
       }
     })();
@@ -1656,13 +1679,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return `LD-${String(nextNum).padStart(3, '0')}`;
       case 'expense':
         return `EX-${String(nextNum).padStart(4, '0')}`;
+      case 'journal':
+        return `JV-${new Date().getFullYear()}-${String(nextNum).padStart(4, '0')}`;
       default:
         return String(nextNum);
     }
   };
 
   const incrementSequenceCounter = (
-    type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense'
+    type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense' | 'journal'
   ) => {
     const key = (type + 'Seq') as keyof SequenceCounters;
     setSequenceCounters((prev) => ({
@@ -1752,6 +1777,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY + '_clientAccountChecks', JSON.stringify(clientAccountChecks));
   }, [clientAccountChecks]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY + '_payslips', JSON.stringify(payslips));
+  }, [payslips]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY + '_manualJournals', JSON.stringify(manualJournals));
+  }, [manualJournals]);
 
   const addBankAccount = (acc: Omit<BankAccount, 'id'>) => {
     const newAcc: BankAccount = { ...acc, id: `BANK-${Date.now()}` };
@@ -2407,6 +2440,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (Array.isArray(state.inventoryItems)) setInventoryItems(state.inventoryItems as InventoryItem[]);
       if (Array.isArray(state.bankReconciliationEntries)) setBankReconciliationEntries(state.bankReconciliationEntries as BankReconciliationEntry[]);
       if (Array.isArray(state.clientAccountChecks)) setClientAccountChecks(state.clientAccountChecks as ClientAccountCheck[]);
+      if (Array.isArray(state.payslips)) setPayslips(state.payslips as Payslip[]);
+      if (Array.isArray(state.manualJournals)) setManualJournals(state.manualJournals as ManualJournal[]);
       if (Array.isArray(state.notifications)) setNotifications(state.notifications as NotificationItem[]);
       if (Array.isArray(state.lawFirmRegistry)) setLawFirmRegistry((state.lawFirmRegistry as LawFirmRegistryEntry[]).filter((firm) => isActive('Law Firm', firm)));
       if (state.sequenceCounters && typeof state.sequenceCounters === 'object') setSequenceCounters(state.sequenceCounters as SequenceCounters);
@@ -2439,6 +2474,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             rolesMatrix, customRoles, practiceSettings: getPracticeSettings(),
             timeEntries, expenses, generalLedger, logs, announcements, auditLogs,
             firmStartCentrePages, bankAccounts, trustAuditLogs, inventoryItems, bankReconciliationEntries, clientAccountChecks,
+            payslips, manualJournals,
           });
         }
 
@@ -2475,13 +2511,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       rolesMatrix, customRoles,
       timeEntries, expenses, generalLedger, logs, announcements, auditLogs,
       firmStartCentrePages, bankAccounts, trustAuditLogs, inventoryItems, bankReconciliationEntries, clientAccountChecks,
+      payslips, manualJournals,
     }).catch((error) => {
       console.error('Cloud state save failed; signing out to prevent unsynced data entry.', error);
       sessionStorage.removeItem(SESSION_STORAGE_KEY);
       setCloudSyncReady(false);
       setIsAuthenticated(false);
     });
-  }, [cloudSyncReady, leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims, receipts, deadlines, invoices, payments, retainers, users, attendanceRecords, leaveApplications, meetings, programmes, notifications, lawFirmRegistry, sequenceCounters, deletedRecords, rolesMatrix, customRoles, timeEntries, expenses, generalLedger, logs, announcements, auditLogs, firmStartCentrePages, bankAccounts, trustAuditLogs, inventoryItems, bankReconciliationEntries, clientAccountChecks]);
+  }, [cloudSyncReady, leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims, receipts, deadlines, invoices, payments, retainers, users, attendanceRecords, leaveApplications, meetings, programmes, notifications, lawFirmRegistry, sequenceCounters, deletedRecords, rolesMatrix, customRoles, timeEntries, expenses, generalLedger, logs, announcements, auditLogs, firmStartCentrePages, bankAccounts, trustAuditLogs, inventoryItems, bankReconciliationEntries, clientAccountChecks, payslips, manualJournals]);
 
   const addActivityLog = (action: string, details: string) => {
     const newLog: ActivityLog = {
@@ -2893,6 +2930,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Official Receipt generated');
   };
 
+  const updateReceipt = (id: string, updates: Partial<Receipt>) => {
+    setReceipts((prev) => prev.map((r) => (r.id === id ? { ...r, ...updates } : r)));
+  };
+
   const addPaymentVoucher = (pv: PaymentVoucher) => {
     setPaymentVouchers((prev) => [pv, ...prev]);
     addActivityLog('Payment Voucher Created', `${pv.id} (${pv.voucherCategory}) — RM ${pv.amount}`);
@@ -3012,6 +3053,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setGeneralLedger((prev) => [newEntry, ...prev]);
     addActivityLog('GL Entry Posted', `GL #${newEntry.glNo} [${newEntry.docType} ${newEntry.docNo}] — RM ${newEntry.amount}`);
     showToast(`Posted to General Ledger (GL #${newEntry.glNo})`);
+  };
+
+  const addPayslip = (p: Payslip) => {
+    setPayslips((prev) => (prev.some((x) => x.id === p.id) ? prev.map((x) => (x.id === p.id ? p : x)) : [p, ...prev]));
+    addActivityLog('Payslip Created', `${p.id} (${p.period})`);
+  };
+
+  const updatePayslip = (id: string, updates: Partial<Payslip>) => {
+    setPayslips((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)));
+  };
+
+  const PAYSLIP_FLOW: Payslip['status'][] = ['Draft', 'Checked', 'Approved', 'Paid'];
+  const advancePayslipStatus = (ids: string[]) => {
+    const idSet = new Set(ids);
+    const now = new Date().toISOString();
+    setPayslips((prev) => prev.map((p) => {
+      if (!idSet.has(p.id)) return p;
+      const i = PAYSLIP_FLOW.indexOf(p.status);
+      if (i < 0 || i >= PAYSLIP_FLOW.length - 1) return p;
+      const next = PAYSLIP_FLOW[i + 1];
+      return next === 'Paid' ? { ...p, status: next, paidAt: now } : { ...p, status: next };
+    }));
+    addActivityLog('Payroll Status Changed', `${ids.length} payslip(s) moved to the next step`);
+  };
+
+  const addManualJournal = (j: ManualJournal) => {
+    setManualJournals((prev) => [j, ...prev]);
+    addActivityLog('Manual Journal Prepared', `${j.id} — RM ${j.amount} (${j.account}) · sent to Approvals`);
+  };
+
+  const updateManualJournal = (id: string, updates: Partial<ManualJournal>) => {
+    setManualJournals((prev) => prev.map((j) => (j.id === id ? { ...j, ...updates } : j)));
   };
 
   const addDeadline = (d: Deadline) => {
@@ -3179,6 +3252,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         bankReconciliationEntries,
         clientAccountChecks,
         toggleClientAccountCheck,
+        payslips,
+        addPayslip,
+        updatePayslip,
+        advancePayslipStatus,
+        manualJournals,
+        addManualJournal,
+        updateManualJournal,
         deletedRecords,
         restoreDeletedRecord,
         purgeDeletedRecordPermanently,
@@ -3249,6 +3329,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addTravelClaim,
         updateTravelClaim,
         addReceipt,
+        updateReceipt,
         addPaymentVoucher,
         updatePaymentVoucher,
         approvePaymentVoucher,

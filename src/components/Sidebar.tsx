@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Role, PartnerCode } from '../types';
+import { canSeeFinanceNav, finRoleKey, isFinanceView } from '../lib/financeAccess';
 import {
   LayoutDashboard,
   UserCheck,
@@ -36,6 +37,8 @@ import {
   Sparkles,
   Palette,
   Home,
+  BadgeCheck,
+  Wallet,
   Menu,
   X,
 } from 'lucide-react';
@@ -90,6 +93,7 @@ export const Sidebar: React.FC = () => {
         { id: 'clientPortal', label: 'Client Access Portal', icon: <UserCheck className="w-3.5 h-3.5 text-amber-300" /> },
         { id: 'staffPortal', label: 'Staff Portal', icon: <UserCog className="w-3.5 h-3.5 text-amber-300" /> },
         { id: 'aiAgent', label: 'AI Agent', icon: <Sparkles className="w-3.5 h-3.5 text-amber-300" /> },
+        { id: 'reimbursements', label: 'My Claims', icon: <Receipt className="w-3.5 h-3.5 text-amber-300 font-bold" /> },
       ],
     },
     {
@@ -108,35 +112,17 @@ export const Sidebar: React.FC = () => {
       ],
     },
     {
-      group: 'Finance & Accounting',
+      // Accounts & Finance (design pack finance_latest): 17 old finance menu items become 7 pages.
+      // Visibility per role comes from lib/financeAccess (hidden, not just locked).
+      group: 'Finance & Accounts',
       items: [
-        { id: 'reimbursements', label: 'Claims', icon: <Receipt className="w-3.5 h-3.5 text-amber-300 font-bold" /> },
-        { id: 'accountingCentre', label: 'Accounting Centre', icon: <BarChart3 className="w-3.5 h-3.5 text-amber-300" /> },
-        { id: 'billing', label: 'Finance & Billing', icon: <FileText className="w-3.5 h-3.5 text-amber-300" /> },
-      ],
-    },
-    {
-      group: 'Client Accounting (Trust Account)',
-      items: [
-        { id: 'retainers', label: 'Client Trust Account (SAR 1990)', icon: <Building className="w-3.5 h-3.5 text-emerald-400" /> },
-        { id: 'statement', label: 'Client Statement', icon: <FileCheck2 className="w-3.5 h-3.5" /> },
-        { id: 'trustAuditLogs', label: 'Trust Audit Log (SAR 1990)', icon: <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> },
-        { id: 'trustReports', label: 'Client Account Reports', icon: <PieChart className="w-3.5 h-3.5" />, partnerOnly: true },
-      ],
-    },
-    {
-      group: 'Firm Accounting (Office & GL)',
-      items: [
-        { id: 'officeAccounts', label: 'Office Accounts (CFO)', icon: <Building className="w-3.5 h-3.5" /> },
-        { id: 'bankAccounts', label: 'Bank Accounts & Virtual Pots', icon: <Landmark className="w-3.5 h-3.5 text-amber-300" /> },
-        { id: 'bankReconciliation', label: 'Bank Reconciliation', icon: <FileCheck2 className="w-3.5 h-3.5 text-blue-300" /> },
-        { id: 'coa', label: 'Chart of Accounts', icon: <BookOpen className="w-3.5 h-3.5" /> },
-        { id: 'inventory', label: 'Office Inventory & Library', icon: <BookMarked className="w-3.5 h-3.5 text-emerald-300" /> },
-        { id: 'gl', label: 'General Ledger', icon: <BookMarked className="w-3.5 h-3.5" /> },
-        { id: 'trialBalance', label: 'Trial Balance', icon: <Scale className="w-3.5 h-3.5" /> },
-        { id: 'balanceSheet', label: 'Balance Sheet', icon: <LineChart className="w-3.5 h-3.5" /> },
-        { id: 'cashFlow', label: 'Cash Flow', icon: <TrendingUp className="w-3.5 h-3.5" /> },
-        { id: 'officeReports', label: 'Office Account Reports', icon: <BarChart3 className="w-3.5 h-3.5" />, partnerOnly: true },
+        { id: 'accountingCentre', label: 'Finance Home', icon: <BarChart3 className="w-3.5 h-3.5 text-amber-300" /> },
+        { id: 'billing', label: 'Billing & Collections', icon: <FileText className="w-3.5 h-3.5 text-amber-300" /> },
+        { id: 'retainers', label: 'Client Account (SAR 1990)', icon: <Building className="w-3.5 h-3.5 text-emerald-400" /> },
+        { id: 'officeAccounts', label: 'Office Account', icon: <Landmark className="w-3.5 h-3.5" /> },
+        { id: 'approvals', label: 'Approvals', icon: <BadgeCheck className="w-3.5 h-3.5 text-amber-300" /> },
+        { id: 'payroll', label: 'Payroll', icon: <Wallet className="w-3.5 h-3.5" /> },
+        { id: 'reports', label: 'Books & Reports', icon: <BookOpen className="w-3.5 h-3.5" /> },
       ],
     },
     {
@@ -144,6 +130,7 @@ export const Sidebar: React.FC = () => {
       items: [
         { id: 'users', label: 'Users & Permissions', icon: <UserCog className="w-3.5 h-3.5" />, systemOnly: true },
         { id: 'practiceSettings', label: 'Firm & Practice Settings', icon: <Settings className="w-3.5 h-3.5" /> },
+        { id: 'inventory', label: 'Office Inventory & Library', icon: <BookMarked className="w-3.5 h-3.5 text-emerald-300" /> },
         { id: 'logs', label: 'Activity Logs', icon: <History className="w-3.5 h-3.5" /> },
         { id: 'about', label: 'About App', icon: <Info className="w-3.5 h-3.5" /> },
         { id: 'account', label: 'My Account', icon: <User className="w-3.5 h-3.5" /> },
@@ -203,6 +190,7 @@ export const Sidebar: React.FC = () => {
           <nav className="space-y-2" role="menubar">
             {NAV_GROUPS.map((group) => {
               const visibleItems = group.items.filter((item) => {
+                if (isFinanceView(item.id)) return canSeeFinanceNav(item.id, finRoleKey(currentRole, currentUser, isAdmin));
                 if (item.partnerOnly && !isPartner) return false;
                 if (item.systemOnly && !isAdmin) return false;
                 return canViewModule(item.id);
@@ -217,7 +205,7 @@ export const Sidebar: React.FC = () => {
                   </div>
                   <div id={`group-${group.group}`} className="space-y-0.5">
                     {visibleItems.map((item) => {
-                      const isActive = currentView === item.id;
+                      const isActive = currentView === item.id || (item.id === 'billing' && ['quotations', 'time'].includes(currentView)) || (item.id === 'retainers' && currentView === 'statement') || (item.id === 'reports' && ['coa', 'gl', 'tb', 'trialBalance', 'balanceSheet', 'cashFlow', 'trustReports', 'officeReports'].includes(currentView));
 
                       return (
                         <button
