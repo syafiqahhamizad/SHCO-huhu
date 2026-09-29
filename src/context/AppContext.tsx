@@ -1,5 +1,5 @@
 import { readCloudState, subscribeToCloudState, writeCloudState, type CloudState } from '../services/firestoreSyncService';
-import { applyCloudPracticeSettings, getPracticeSettings, type PracticeSettings } from '../services/templateService';
+import { applyCloudPracticeSettings, getPracticeSettings, savePracticeSettings, type PracticeSettings } from '../services/templateService';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { normalizeClientName } from '../lib/stringUtils';
 import { generateNextMatterSequenceNumber, syncClientMatterLinks } from '../services/matterService';
@@ -34,6 +34,7 @@ import {
   Payment,
   Retainer,
   User,
+  StaffGoal,
   ActivityLog,
   RolePermissionsMatrix,
   LawFirmRegistryEntry,
@@ -42,6 +43,13 @@ import {
   TrustAuditLog,
   InventoryItem,
   BankReconciliationEntry,
+  ComplianceItem,
+  ComplaintRecord,
+  Milestone,
+  Panelship,
+  InvestmentChannel,
+  FirmGoal,
+  ClientAccountCheck,
   SequenceCounters,
   ThemePreference,
   DeletedRecord,
@@ -58,6 +66,7 @@ import {
   getCurrentFirebaseAccessClaims,
   getCurrentFirebaseClaims,
   getFirebaseAuthErrorMessage,
+  getGoogleWorkspaceAccessClaims,
   signInClientWithPassword,
   signInExternalWithPassword,
   signInStaffWithGoogle,
@@ -156,6 +165,8 @@ interface AppContextType {
   addUser: (newUser: User) => boolean;
   deleteUser: (userId: string) => boolean;
   updateUserStaffProfile: (userId: string, profile: User['staffProfile']) => void;
+  addStaffGoal: (userId: string, goal: StaffGoal) => void;
+  updateStaffGoal: (userId: string, goalId: string, updates: Partial<StaffGoal>) => void;
   addAttendanceRecord: (record: AttendanceRecord) => void;
   addLeaveApplication: (application: LeaveApplication) => void;
   updateLeaveApplication: (id: string, updates: Partial<LeaveApplication>) => void;
@@ -208,6 +219,8 @@ interface AppContextType {
   trustAuditLogs: TrustAuditLog[];
   inventoryItems: InventoryItem[];
   bankReconciliationEntries: BankReconciliationEntry[];
+  clientAccountChecks: ClientAccountCheck[];
+  toggleClientAccountCheck: (itemKey: string) => void;
   deletedRecords: DeletedRecord[];
   restoreDeletedRecord: (id: string) => void;
   purgeDeletedRecordPermanently: (id: string) => void;
@@ -259,6 +272,25 @@ interface AppContextType {
   addInventoryItem: (item: Omit<InventoryItem, 'id'>) => void;
   updateInventoryItem: (id: string, updates: Partial<InventoryItem>) => void;
   toggleReconcileEntry: (id: string) => void;
+  toggleComplianceItem: (id: string) => void;
+  updateComplianceItem: (id: string, patch: Partial<ComplianceItem>) => void;
+  addComplianceItem: (group: ComplianceItem['group'], item: Partial<Omit<ComplianceItem, 'id' | 'group'>>) => void;
+  addComplaint: (complaint: Omit<ComplaintRecord, 'id'>) => void;
+  updateComplaint: (id: string, patch: Partial<ComplaintRecord>) => void;
+  updateDirectionStatement: (field: 'vision' | 'mission' | 'target2028', text: string) => void;
+  updatePartnersNotes: (text: string) => void;
+  addMilestone: (year: number, text?: string) => void;
+  updateMilestone: (id: string, patch: Partial<Omit<Milestone, 'id'>>) => void;
+  cycleMilestoneStatus: (id: string) => void;
+  addFirmGoal: (goal: Omit<FirmGoal, 'id'>) => void;
+  updateFirmGoal: (id: string, patch: Partial<Omit<FirmGoal, 'id'>>) => void;
+  removeFirmGoal: (id: string) => void;
+  addPanelship: (panel: Omit<Panelship, 'id'>) => void;
+  updatePanelship: (id: string, patch: Partial<Omit<Panelship, 'id'>>) => void;
+  removePanelship: (id: string) => void;
+  addInvestmentChannel: (channel: Omit<InvestmentChannel, 'id'>) => void;
+  updateInvestmentChannel: (id: string, patch: Partial<Omit<InvestmentChannel, 'id'>>) => void;
+  removeInvestmentChannel: (id: string) => void;
   addLead: (lead: Lead) => void;
   updateLead: (id: string, updates: Partial<Lead>) => void;
   deleteLead: (id: string) => void;
@@ -612,25 +644,67 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const loginWithGoogleSSO = async (): Promise<{ success: boolean; error?: string }> => {
     try {
       const firebaseUser = await signInStaffWithGoogle();
-      const access = await getCurrentFirebaseAccessClaims(firebaseUser);
+      // signInStaffWithGoogle already enforces the @shcolaw.com Google Workspace domain
+      // (via the Google `hd` param and a client-side endsWith check), so by this point the
+      // signed-in account is a verified firm identity even if Firebase custom claims for
+      // it were never set — which is expected the very FIRST time a real staff member signs
+      // in, since their Firebase Auth record and any custom claims can only be created
+      // after that first sign-in.
+      const access = await getGoogleWorkspaceAccessClaims(firebaseUser);
       const email = access.email || firebaseUser.email?.toLowerCase() || '';
-      const claimRole = normalizeRoleClaim(String(access.role || ''));
       const existingUser = users.find((u) => u.email.toLowerCase() === email);
-      const signedInUser: User = {
-        ...(existingUser || {
+
+      if (existingUser?.role === 'Client') {
+        throw new Error('This email is registered as a Client account. Staff SSO is not available for it.');
+      }
+      if (existingUser && existingUser.status === 'Inactive') {
+        throw new Error('This staff account has been deactivated. Ask a Partner to reactivate it.');
+      }
+
+      let signedInUser: User;
+      let provisionedAtLowestPrivilege = false;
+
+      if (access.hasProvisionedRole) {
+        // Normal path: Firebase custom claims already carry a real, Super-Admin-assigned role.
+        const claimRole = normalizeRoleClaim(String(access.role || ''));
+        signedInUser = {
+          ...(existingUser || {
+            id: firebaseUser.uid,
+            name: firebaseUser.displayName || email.split('@')[0].replace('.', ' '),
+            email,
+            status: 'Active',
+          }),
+          id: existingUser?.id || firebaseUser.uid,
+          name: existingUser?.name || firebaseUser.displayName || email.split('@')[0].replace('.', ' '),
+          email,
+          role: claimRole,
+          isAdmin: access.isAdmin,
+          isSuperAdmin: access.isSuperAdmin,
+          status: 'Active',
+        };
+      } else if (existingUser) {
+        // Verified @shcolaw.com sign-in, but this Firebase account's custom claims haven't
+        // been (re-)synced yet — e.g. their first-ever SSO sign-in. They already have a
+        // Partner-approved role in the firm's own roster, so honour that instead of hard
+        // -blocking a legitimate staff member. A Super Admin can still use "Repair Access"
+        // in Users & Permissions to push matching custom claims to Firebase.
+        signedInUser = { ...existingUser, email, status: 'Active' };
+      } else {
+        // Genuinely new @shcolaw.com Google Workspace account with no roster entry at all.
+        // Provision at the lowest-privilege real staff role rather than rejecting a
+        // legitimate domain-verified sign-in outright, and flag it for a Partner to assign
+        // proper access.
+        provisionedAtLowestPrivilege = true;
+        signedInUser = {
           id: firebaseUser.uid,
           name: firebaseUser.displayName || email.split('@')[0].replace('.', ' '),
           email,
+          role: 'Reviewer',
+          isAdmin: false,
+          isSuperAdmin: false,
           status: 'Active',
-        }),
-        id: existingUser?.id || firebaseUser.uid,
-        name: existingUser?.name || firebaseUser.displayName || email.split('@')[0].replace('.', ' '),
-        email,
-        role: claimRole,
-        isAdmin: access.isAdmin,
-        isSuperAdmin: access.isSuperAdmin,
-        status: 'Active',
-      };
+        };
+      }
 
       if (!existingUser) setUsers((prev) => [...prev, signedInUser]);
       setCurrentUser(signedInUser);
@@ -638,7 +712,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setIsAdmin(Boolean(signedInUser.isAdmin));
       setIsAuthenticated(true);
       setCurrentView('firmStartCentre');
-      showToast(`Welcome back, ${signedInUser.name}.`);
+      if (provisionedAtLowestPrivilege) {
+        showToast(`Welcome, ${signedInUser.name}. Your @shcolaw.com account was verified but has no role assigned yet, so you've been given limited (Reviewer) access. Ask a Partner to set your correct role in Users & Permissions.`);
+      } else {
+        showToast(`Welcome back, ${signedInUser.name}.`);
+      }
       return { success: true };
     } catch (error) {
       const errorMsg = getFirebaseAuthErrorMessage(error);
@@ -974,6 +1052,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (userId === currentUser.id) setCurrentUser((prev) => ({ ...prev, staffProfile: profile }));
     logAuditEvent('UPDATE', 'USERS', userId, profile?.staffId || userId, 'Staff profile updated.');
     showToast('Staff profile saved.');
+  };
+
+  // Career/personal development goal on a staff member's profile (My Dashboard -> Team ->
+  // expanded row -> "+ Add goal"). Follows the same setUsers/setCurrentUser mirror pattern as
+  // updateUserStaffProfile above, just scoped to the nested staffProfile.goals array.
+  const addStaffGoal = (userId: string, goal: StaffGoal) => {
+    const apply = (profile: User['staffProfile']): User['staffProfile'] => ({
+      ...(profile || ({} as NonNullable<User['staffProfile']>)),
+      goals: [...(profile?.goals || []), goal],
+    });
+    setUsers((prev) => prev.map((user) => (user.id === userId ? { ...user, staffProfile: apply(user.staffProfile) } : user)));
+    if (userId === currentUser.id) setCurrentUser((prev) => ({ ...prev, staffProfile: apply(prev.staffProfile) }));
+    logAuditEvent('UPDATE', 'USERS', userId, goal.id, `Goal added: ${goal.text}`);
+    showToast('Goal added.');
+  };
+
+  const updateStaffGoal = (userId: string, goalId: string, updates: Partial<StaffGoal>) => {
+    const apply = (profile: User['staffProfile']): User['staffProfile'] => ({
+      ...(profile || ({} as NonNullable<User['staffProfile']>)),
+      goals: (profile?.goals || []).map((g) => (g.id === goalId ? { ...g, ...updates } : g)),
+    });
+    setUsers((prev) => prev.map((user) => (user.id === userId ? { ...user, staffProfile: apply(user.staffProfile) } : user)));
+    if (userId === currentUser.id) setCurrentUser((prev) => ({ ...prev, staffProfile: apply(prev.staffProfile) }));
+    logAuditEvent('UPDATE', 'USERS', userId, goalId, 'Goal updated.');
   };
 
   const addAttendanceRecord = (record: AttendanceRecord) => {
@@ -1463,6 +1565,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return readStored(STORAGE_KEY + '_bankReconciliationEntries', INITIAL_BANK_RECONCILIATION_ENTRIES);
   });
 
+  const [clientAccountChecks, setClientAccountChecks] = useState<ClientAccountCheck[]>(() => {
+    return readStored(STORAGE_KEY + '_clientAccountChecks', [] as ClientAccountCheck[]);
+  });
+
   const [sequenceCounters, setSequenceCounters] = useState<SequenceCounters>(() => {
     const storedCounters = readStored(STORAGE_KEY + '_sequenceCounters', {
       invoiceSeq: 5,
@@ -1643,6 +1749,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(STORAGE_KEY + '_bankReconciliationEntries', JSON.stringify(bankReconciliationEntries));
   }, [bankReconciliationEntries]);
 
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY + '_clientAccountChecks', JSON.stringify(clientAccountChecks));
+  }, [clientAccountChecks]);
+
   const addBankAccount = (acc: Omit<BankAccount, 'id'>) => {
     const newAcc: BankAccount = { ...acc, id: `BANK-${Date.now()}` };
     setBankAccounts((prev) => [...prev, newAcc]);
@@ -1696,6 +1806,183 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       )
     );
     showToast('Reconciliation status updated');
+  };
+
+  /** Advance a recurring compliance item's due date by one period. */
+  const advanceComplianceDue = (dueISO: string, freq: ComplianceItem['frequency']): string => {
+    const d = new Date(dueISO);
+    if (Number.isNaN(d.getTime())) return dueISO;
+    if (freq === 'Monthly') d.setMonth(d.getMonth() + 1);
+    else if (freq === 'Quarterly') d.setMonth(d.getMonth() + 3);
+    else if (freq === 'Annual') d.setFullYear(d.getFullYear() + 1);
+    return d.toISOString().slice(0, 10);
+  };
+
+  /**
+   * Toggles a compliance register item. Recurring items (Monthly/Quarterly/Annual) that were
+   * ticked for a prior period but whose due date has since passed are treated as reset (not
+   * done for the current period) — a simple date check done here on read, not a cron job. So
+   * "toggle" always acts on the item's *current-period* done state: ticking a stale item marks
+   * it done for the new period (logs history, rolls the due date forward); ticking a genuinely
+   * done item un-ticks it.
+   */
+  const toggleComplianceItem = (id: string) => {
+    const settings = getPracticeSettings();
+    const register = settings.complianceRegister || [];
+    const idx = register.findIndex((i) => i.id === id);
+    if (idx === -1) return;
+    const item = register[idx];
+    const today = new Date().toISOString().slice(0, 10);
+    const stale = item.frequency !== 'One-off' && item.done && item.due < today;
+    const currentlyDone = item.done && !stale;
+    const updated: ComplianceItem = currentlyDone
+      ? { ...item, done: false }
+      : {
+          ...item,
+          done: true,
+          due: item.frequency === 'One-off' ? item.due : advanceComplianceDue(item.due, item.frequency),
+          history: [...(item.history || []), { period: item.due, completedAt: today, completedBy: currentUser.name }],
+        };
+    const newRegister = register.map((i, x) => (x === idx ? updated : i));
+    savePracticeSettings({ ...settings, complianceRegister: newRegister });
+    addActivityLog('Compliance Item Updated', `${item.label} marked ${updated.done ? 'done' : 'open'}`);
+    showToast(updated.done ? 'Marked as done' : 'Marked as open');
+  };
+
+  const updateComplianceItem = (id: string, patch: Partial<ComplianceItem>) => {
+    const settings = getPracticeSettings();
+    const register = (settings.complianceRegister || []).map((i) => (i.id === id ? { ...i, ...patch } : i));
+    savePracticeSettings({ ...settings, complianceRegister: register });
+  };
+
+  const addComplianceItem = (group: ComplianceItem['group'], item: Partial<Omit<ComplianceItem, 'id' | 'group'>>) => {
+    const settings = getPracticeSettings();
+    const newItem: ComplianceItem = {
+      id: `CMP-${Date.now()}`,
+      group,
+      label: item.label || 'New item',
+      note: item.note || '',
+      frequency: item.frequency || 'Annual',
+      due: item.due || new Date().toISOString().slice(0, 10),
+      owner: item.owner || currentUser.name,
+      done: item.done ?? false,
+      history: item.history || [],
+    };
+    savePracticeSettings({ ...settings, complianceRegister: [...(settings.complianceRegister || []), newItem] });
+    addActivityLog('Compliance Item Added', `${newItem.label} (${group})`);
+    showToast(`Added item to ${group}`);
+  };
+
+  const addComplaint = (complaint: Omit<ComplaintRecord, 'id'>) => {
+    const settings = getPracticeSettings();
+    const newComplaint: ComplaintRecord = { ...complaint, id: `CMPLT-${Date.now()}` };
+    savePracticeSettings({ ...settings, complaints: [...(settings.complaints || []), newComplaint] });
+    addActivityLog('Complaint Logged', newComplaint.summary);
+    showToast('Complaint logged');
+  };
+
+  const updateComplaint = (id: string, patch: Partial<ComplaintRecord>) => {
+    const settings = getPracticeSettings();
+    const complaints = (settings.complaints || []).map((c) => (c.id === id ? { ...c, ...patch } : c));
+    savePracticeSettings({ ...settings, complaints });
+    showToast('Complaint updated');
+  };
+
+  // --- My Dashboard -> Direction (Managing Partner only, Growth merged in) -----------------
+  // Same rationale/pattern as the Compliance register above: PracticeSettings is the only
+  // store for this firm-maintained content, so mutators read-modify-write via
+  // getPracticeSettings/savePracticeSettings rather than going through the reducer state.
+
+  const updateDirectionStatement = (field: 'vision' | 'mission' | 'target2028', text: string) => {
+    const settings = getPracticeSettings();
+    savePracticeSettings({ ...settings, [field]: text });
+  };
+
+  const updatePartnersNotes = (text: string) => {
+    const settings = getPracticeSettings();
+    savePracticeSettings({ ...settings, partnersNotes: text });
+  };
+
+  const addMilestone = (year: number, text = 'New milestone') => {
+    const settings = getPracticeSettings();
+    const newMilestone: Milestone = { id: `MS-${Date.now()}`, year, text, status: 'Not started' };
+    savePracticeSettings({ ...settings, roadmap: [...(settings.roadmap || []), newMilestone] });
+    addActivityLog('Milestone Added', `${text} (${year})`);
+  };
+
+  const updateMilestone = (id: string, patch: Partial<Omit<Milestone, 'id'>>) => {
+    const settings = getPracticeSettings();
+    const roadmap = (settings.roadmap || []).map((m) => (m.id === id ? { ...m, ...patch } : m));
+    savePracticeSettings({ ...settings, roadmap });
+  };
+
+  const cycleMilestoneStatus = (id: string) => {
+    const ORDER: Milestone['status'][] = ['Not started', 'On track', 'Behind', 'Done'];
+    const settings = getPracticeSettings();
+    const roadmap = (settings.roadmap || []).map((m) =>
+      m.id === id ? { ...m, status: ORDER[(ORDER.indexOf(m.status) + 1) % ORDER.length] } : m
+    );
+    savePracticeSettings({ ...settings, roadmap });
+  };
+
+  const addFirmGoal = (goal: Omit<FirmGoal, 'id'>) => {
+    const settings = getPracticeSettings();
+    const newGoal: FirmGoal = { ...goal, id: `GOAL-${Date.now()}` };
+    savePracticeSettings({ ...settings, firmGoals: [...(settings.firmGoals || []), newGoal] });
+  };
+
+  const updateFirmGoal = (id: string, patch: Partial<Omit<FirmGoal, 'id'>>) => {
+    const settings = getPracticeSettings();
+    const firmGoals = (settings.firmGoals || []).map((g) => (g.id === id ? { ...g, ...patch } : g));
+    savePracticeSettings({ ...settings, firmGoals });
+  };
+
+  const removeFirmGoal = (id: string) => {
+    const settings = getPracticeSettings();
+    savePracticeSettings({ ...settings, firmGoals: (settings.firmGoals || []).filter((g) => g.id !== id) });
+  };
+
+  const addPanelship = (panel: Omit<Panelship, 'id'>) => {
+    const settings = getPracticeSettings();
+    const newPanel: Panelship = { ...panel, id: `PANEL-${Date.now()}` };
+    savePracticeSettings({ ...settings, panelships: [...(settings.panelships || []), newPanel] });
+    addActivityLog('Panelship Added', newPanel.name);
+  };
+
+  const updatePanelship = (id: string, patch: Partial<Omit<Panelship, 'id'>>) => {
+    const settings = getPracticeSettings();
+    const panelships = (settings.panelships || []).map((p) => (p.id === id ? { ...p, ...patch } : p));
+    savePracticeSettings({ ...settings, panelships });
+  };
+
+  const removePanelship = (id: string) => {
+    const settings = getPracticeSettings();
+    savePracticeSettings({ ...settings, panelships: (settings.panelships || []).filter((p) => p.id !== id) });
+  };
+
+  const addInvestmentChannel = (channel: Omit<InvestmentChannel, 'id'>) => {
+    const settings = getPracticeSettings();
+    const newChannel: InvestmentChannel = { ...channel, id: `INV-${Date.now()}` };
+    savePracticeSettings({ ...settings, investmentChannels: [...(settings.investmentChannels || []), newChannel] });
+  };
+
+  const updateInvestmentChannel = (id: string, patch: Partial<Omit<InvestmentChannel, 'id'>>) => {
+    const settings = getPracticeSettings();
+    const investmentChannels = (settings.investmentChannels || []).map((c) => (c.id === id ? { ...c, ...patch } : c));
+    savePracticeSettings({ ...settings, investmentChannels });
+  };
+
+  const removeInvestmentChannel = (id: string) => {
+    const settings = getPracticeSettings();
+    savePracticeSettings({ ...settings, investmentChannels: (settings.investmentChannels || []).filter((c) => c.id !== id) });
+  };
+
+  const toggleClientAccountCheck = (itemKey: string) => {
+    setClientAccountChecks((prev) => {
+      const already = prev.some((c) => c.itemKey === itemKey);
+      if (already) return prev.filter((c) => c.itemKey !== itemKey);
+      return [...prev, { itemKey, checkedBy: currentUser.name, checkedAt: new Date().toISOString() }];
+    });
   };
 
   const resetClientPassword = (clientIdentifier: string, newPass: string): { success: boolean; message: string } => {
@@ -2119,6 +2406,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (Array.isArray(state.trustAuditLogs)) setTrustAuditLogs(state.trustAuditLogs as TrustAuditLog[]);
       if (Array.isArray(state.inventoryItems)) setInventoryItems(state.inventoryItems as InventoryItem[]);
       if (Array.isArray(state.bankReconciliationEntries)) setBankReconciliationEntries(state.bankReconciliationEntries as BankReconciliationEntry[]);
+      if (Array.isArray(state.clientAccountChecks)) setClientAccountChecks(state.clientAccountChecks as ClientAccountCheck[]);
       if (Array.isArray(state.notifications)) setNotifications(state.notifications as NotificationItem[]);
       if (Array.isArray(state.lawFirmRegistry)) setLawFirmRegistry((state.lawFirmRegistry as LawFirmRegistryEntry[]).filter((firm) => isActive('Law Firm', firm)));
       if (state.sequenceCounters && typeof state.sequenceCounters === 'object') setSequenceCounters(state.sequenceCounters as SequenceCounters);
@@ -2150,7 +2438,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             leaveApplications, meetings, programmes, notifications, lawFirmRegistry, sequenceCounters, deletedRecords,
             rolesMatrix, customRoles, practiceSettings: getPracticeSettings(),
             timeEntries, expenses, generalLedger, logs, announcements, auditLogs,
-            firmStartCentrePages, bankAccounts, trustAuditLogs, inventoryItems, bankReconciliationEntries,
+            firmStartCentrePages, bankAccounts, trustAuditLogs, inventoryItems, bankReconciliationEntries, clientAccountChecks,
           });
         }
 
@@ -2186,14 +2474,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       leaveApplications, meetings, programmes, notifications, lawFirmRegistry, sequenceCounters, deletedRecords,
       rolesMatrix, customRoles,
       timeEntries, expenses, generalLedger, logs, announcements, auditLogs,
-      firmStartCentrePages, bankAccounts, trustAuditLogs, inventoryItems, bankReconciliationEntries,
+      firmStartCentrePages, bankAccounts, trustAuditLogs, inventoryItems, bankReconciliationEntries, clientAccountChecks,
     }).catch((error) => {
       console.error('Cloud state save failed; signing out to prevent unsynced data entry.', error);
       sessionStorage.removeItem(SESSION_STORAGE_KEY);
       setCloudSyncReady(false);
       setIsAuthenticated(false);
     });
-  }, [cloudSyncReady, leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims, receipts, deadlines, invoices, payments, retainers, users, attendanceRecords, leaveApplications, meetings, programmes, notifications, lawFirmRegistry, sequenceCounters, deletedRecords, rolesMatrix, customRoles, timeEntries, expenses, generalLedger, logs, announcements, auditLogs, firmStartCentrePages, bankAccounts, trustAuditLogs, inventoryItems, bankReconciliationEntries]);
+  }, [cloudSyncReady, leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims, receipts, deadlines, invoices, payments, retainers, users, attendanceRecords, leaveApplications, meetings, programmes, notifications, lawFirmRegistry, sequenceCounters, deletedRecords, rolesMatrix, customRoles, timeEntries, expenses, generalLedger, logs, announcements, auditLogs, firmStartCentrePages, bankAccounts, trustAuditLogs, inventoryItems, bankReconciliationEntries, clientAccountChecks]);
 
   const addActivityLog = (action: string, details: string) => {
     const newLog: ActivityLog = {
@@ -2837,6 +3125,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addUser,
         deleteUser,
         updateUserStaffProfile,
+        addStaffGoal,
+        updateStaffGoal,
         addAttendanceRecord,
         addLeaveApplication,
         updateLeaveApplication,
@@ -2887,6 +3177,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         trustAuditLogs,
         inventoryItems,
         bankReconciliationEntries,
+        clientAccountChecks,
+        toggleClientAccountCheck,
         deletedRecords,
         restoreDeletedRecord,
         purgeDeletedRecordPermanently,
@@ -2917,6 +3209,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addInventoryItem,
         updateInventoryItem,
         toggleReconcileEntry,
+        toggleComplianceItem,
+        updateComplianceItem,
+        addComplianceItem,
+        addComplaint,
+        updateComplaint,
+        updateDirectionStatement,
+        updatePartnersNotes,
+        addMilestone,
+        updateMilestone,
+        cycleMilestoneStatus,
+        addFirmGoal,
+        updateFirmGoal,
+        removeFirmGoal,
+        addPanelship,
+        updatePanelship,
+        removePanelship,
+        addInvestmentChannel,
+        updateInvestmentChannel,
+        removeInvestmentChannel,
         addLead,
         updateLead,
         deleteLead,

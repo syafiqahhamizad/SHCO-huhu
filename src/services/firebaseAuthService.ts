@@ -44,8 +44,10 @@ export async function signInStaffWithGoogle(): Promise<User> {
   return result.user;
 }
 
-export async function getCurrentFirebaseAccessClaims(firebaseUser: User): Promise<{
-  role: 'Partner' | 'Lawyer' | 'Assistant' | 'Accountant' | 'Reviewer' | 'Client';
+type MappedSHCORole = 'Partner' | 'Lawyer' | 'Assistant' | 'Accountant' | 'Reviewer' | 'Client';
+
+async function resolveAccessClaims(firebaseUser: User): Promise<{
+  mappedRole: MappedSHCORole | null;
   isAdmin: boolean;
   isSuperAdmin: boolean;
   email: string;
@@ -55,7 +57,7 @@ export async function getCurrentFirebaseAccessClaims(firebaseUser: User): Promis
   const roleClaim = String(claims.role ?? '').toLowerCase();
   const isVerifiedOwner = firebaseUser.email?.toLowerCase() === SHCO_SUPER_ADMIN_EMAIL && firebaseUser.emailVerified;
 
-  const mappedRole = (() => {
+  const mappedRole: MappedSHCORole | null = (() => {
     if (roleClaim === 'partner') return 'Partner';
     if (roleClaim === 'lawyer') return 'Lawyer';
     if (roleClaim === 'assistant') return 'Assistant';
@@ -65,16 +67,49 @@ export async function getCurrentFirebaseAccessClaims(firebaseUser: User): Promis
     return isVerifiedOwner ? 'Partner' : null;
   })();
 
-  if (!mappedRole) {
-    throw new Error('This Firebase account has no valid SHCO role. Ask the Super Admin to provision the account.');
-  }
-
   return {
-    role: mappedRole,
+    mappedRole,
     isAdmin: isVerifiedOwner || Boolean(claims.admin) || Boolean(claims.superAdmin),
     isSuperAdmin: isVerifiedOwner || Boolean(claims.superAdmin),
     email: (firebaseUser.email || '').toLowerCase(),
   };
+}
+
+export async function getCurrentFirebaseAccessClaims(firebaseUser: User): Promise<{
+  role: MappedSHCORole;
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+  email: string;
+}> {
+  const { mappedRole, ...rest } = await resolveAccessClaims(firebaseUser);
+
+  if (!mappedRole) {
+    throw new Error('This Firebase account has no valid SHCO role. Ask the Super Admin to provision the account.');
+  }
+
+  return { role: mappedRole, ...rest };
+}
+
+/**
+ * Same claim resolution as getCurrentFirebaseAccessClaims, but never throws when the
+ * Firebase account has no custom-claim role yet. Used for Staff Google Workspace SSO:
+ * a real @shcolaw.com staff member's Firebase Auth record is only created at the moment
+ * of their FIRST Google sign-in (signInWithPopup creates it) — meaning custom claims can
+ * never have been set for them yet either, since claim provisioning requires the account
+ * to already exist. Hard-rejecting that first sign-in would lock out every legitimate
+ * staff member who hasn't already been manually claims-synced by the Super Admin. The
+ * caller decides how to handle a null role (e.g. fall back to the app's own roster entry
+ * for this verified domain account, or provision a limited-access one).
+ */
+export async function getGoogleWorkspaceAccessClaims(firebaseUser: User): Promise<{
+  role: MappedSHCORole | null;
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+  email: string;
+  hasProvisionedRole: boolean;
+}> {
+  const { mappedRole, ...rest } = await resolveAccessClaims(firebaseUser);
+  return { role: mappedRole, hasProvisionedRole: mappedRole !== null, ...rest };
 }
 
 export async function signInClientWithPassword(email: string, password: string): Promise<User> {
