@@ -14,7 +14,7 @@ import { StaffAttendanceTab } from './StaffAttendanceTab';
 import { StaffProfileTab } from './StaffProfileTab';
 
 type Tab = 'pay' | 'claims' | 'leave' | 'attendance' | 'goals' | 'profile';
-const TABS: [Tab, string][] = [['pay', 'Payslips'], ['claims', 'My Claims'], ['leave', 'Leave'], ['attendance', 'Attendance'], ['goals', 'Goals & wellbeing'], ['profile', 'My profile']];
+const TABS: [Tab, string][] = [['profile', 'My profile'], ['pay', 'Payslips'], ['claims', 'My Claims'], ['leave', 'Leave'], ['attendance', 'Attendance'], ['goals', 'Goals & wellbeing']];
 const PAY_GRID = 'minmax(0,1fr) 100px 90px 90px 90px 100px';
 const LH_PATH = import.meta.env.BASE_URL + 'assets/sh-name.png';
 
@@ -41,7 +41,7 @@ const useLetterhead = () => {
 
 export const StaffPortalView: React.FC = () => {
   const { currentUser, users, payslips, travelClaims, expenses, paymentVouchers, cases, clients, leaveApplications, showToast } = useApp();
-  const [tab, setTab] = useState<Tab>('pay');
+  const [tab, setTab] = useState<Tab>('profile');
   const lh = useLetterhead();
 
   const me = useMemo(() => identityTokens(currentUser), [currentUser]);

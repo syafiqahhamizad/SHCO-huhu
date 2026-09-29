@@ -923,10 +923,14 @@ export interface User {
   status: 'Active' | 'Inactive';
   navOverrides?: Record<string, ModulePermissions>;
   staffProfile?: StaffProfile;
+  /** Short unique staff code (e.g. SH, AH, NF) used in file refs and across the system. */
+  code?: string;
 }
 
 export interface StaffProfile {
   staffId: string;
+  /** Legal full name (as per IC) for payslips / EA forms. `User.name` is the display name. */
+  fullName?: string;
   designation: string;
   department: string;
   phone: string;

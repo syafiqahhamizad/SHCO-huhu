@@ -117,7 +117,7 @@ export const staffIdentity = (u: User): StaffIdentity => {
   const sp = u.staffProfile;
   const bank = [sp?.bankName, maskAccount(sp?.bankAccountNo)].filter(Boolean).join(' · ');
   return {
-    name: u.name,
+    name: sp?.fullName || u.name,
     position: sp?.designation || String(u.role || ''),
     staffNo: sp?.staffId || '—',
     nric: sp?.nric || '—',

@@ -66,6 +66,11 @@ export const UsersManagementView: React.FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [repairingUserId, setRepairingUserId] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
+  const [newFullName, setNewFullName] = useState('');
+  const [newCode, setNewCode] = useState('');
+  const [codeTouched, setCodeTouched] = useState(false);
+  const suggestCode = (name: string) =>
+    name.replace(/\b(encik|puan|cik|tuan|dato'?|datin|dr|mr|mrs|ms)\b\.?/gi, '').split(/[\s@.]+/).filter((w) => /^[a-z]/i.test(w) && !/^(bin|binti|bt|bte|a\/l|a\/p)$/i.test(w)).map((w) => w[0]).join('').toUpperCase().slice(0, 3);
   const [newEmail, setNewEmail] = useState('');
   const [newRole, setNewRole] = useState<Role>('Lawyer');
   const [newIsAdmin, setNewIsAdmin] = useState(false);
@@ -131,6 +136,17 @@ export const UsersManagementView: React.FC = () => {
       showToast('Name and Email are required');
       return;
     }
+    const code = newCode.trim().toUpperCase();
+    if (newRole !== 'Client') {
+      if (!newFullName.trim()) {
+        showToast('Full name (as per IC) is required for staff.');
+        return;
+      }
+      if (!/^[A-Z]{2,4}$/.test(code)) {
+        showToast('User code must be 2–4 letters, e.g. SH or NFA.');
+        return;
+      }
+    }
 
     const isFirmRole = newRole === 'Partner' || newRole === 'Lawyer';
     if (isFirmRole && !newEmail.toLowerCase().endsWith('@shcolaw.com')) {
@@ -154,12 +170,16 @@ export const UsersManagementView: React.FC = () => {
         isAdmin: newIsAdmin,
         isSuperAdmin: newIsSuperAdmin,
         status: 'Active' as const,
+        ...(newRole !== 'Client' ? { code, staffProfile: { fullName: newFullName.trim() } as import('../../types').StaffProfile } : {}),
       };
 
       const success = addUser(newUser);
       if (success) {
         setIsAddModalOpen(false);
         setNewName('');
+        setNewFullName('');
+        setNewCode('');
+        setCodeTouched(false);
         setNewEmail('');
         setNewRole('Lawyer');
         setNewIsAdmin(false);
@@ -580,16 +600,51 @@ export const UsersManagementView: React.FC = () => {
                 Registering an internal user also creates a linked staff record and assigns the next unique Staff ID. Complete employment details, payslip details and staff milestones later in Staff Portal → My profile.
               </div>
               <div>
-                <label className="font-bold text-slate-700 block mb-1">Full User Name *</label>
+                <label className="font-bold text-slate-700 block mb-1">Display Name *</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Encik Hafizuddin"
+                  placeholder="e.g. Hafizuddin"
                   value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
+                  onChange={(e) => {
+                    setNewName(e.target.value);
+                    if (!codeTouched) setNewCode(suggestCode(e.target.value));
+                  }}
                   className="w-full p-2 border border-slate-300 rounded-lg outline-none font-semibold"
                 />
+                <p className="text-[10px] text-slate-500 mt-1">How their name appears around the system.</p>
               </div>
+
+              {newRole !== 'Client' && (
+                <div className="grid grid-cols-[1fr_110px] gap-2">
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">Full Name (as per IC) *</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Muhammad Hafizuddin bin Ahmad"
+                      value={newFullName}
+                      onChange={(e) => setNewFullName(e.target.value)}
+                      className="w-full p-2 border border-slate-300 rounded-lg outline-none font-semibold"
+                    />
+                    <p className="text-[10px] text-slate-500 mt-1">Printed on payslips and EA forms.</p>
+                  </div>
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">User Code *</label>
+                    <input
+                      type="text"
+                      maxLength={4}
+                      placeholder="e.g. MH"
+                      value={newCode}
+                      onChange={(e) => {
+                        setCodeTouched(true);
+                        setNewCode(e.target.value.replace(/[^a-z]/gi, '').toUpperCase());
+                      }}
+                      className="w-full p-2 border border-slate-300 rounded-lg outline-none font-mono font-bold uppercase"
+                    />
+                    <p className="text-[10px] text-slate-500 mt-1">2–4 letters, unique.</p>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="font-bold text-slate-700 block mb-1">
