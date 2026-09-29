@@ -376,7 +376,7 @@ export const MyDashboardView: React.FC = () => {
           caseId: c?.id,
           dueDate: v.date || '',
           status: 'Needs sign-off',
-          view: 'paymentVouchers',
+          view: 'approvals',
         });
       });
 
