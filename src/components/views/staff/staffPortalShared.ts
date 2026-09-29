@@ -1,5 +1,5 @@
 import type React from 'react';
-import type { Case, Client, Expense, PaymentVoucher, Payslip, TravelClaim, User } from '../../../types';
+import type { Case, ClaimAttachment, ClaimDocument, Client, Expense, PaymentVoucher, Payslip, TravelClaim, User } from '../../../types';
 import { isMine, partnerCode } from '../../../lib/identity';
 
 /* ------------------------------------------------------------------ formatting */
@@ -312,6 +312,10 @@ export interface ClaimRow {
   approvedBy?: string;
   approvedAt?: string;
   payee?: string;
+  /** Receipts in Firebase Storage — openable on any device. */
+  attachments: ClaimAttachment[];
+  /** Names of older receipts whose content only lives on the device that uploaded them. */
+  localDocNames: string[];
 }
 
 const statusOf = (s?: string, posted?: boolean, approved?: boolean): ClaimStatus => {
@@ -353,7 +357,13 @@ export const buildFileDirectory = (cases: Case[], clients: Client[], users: User
   };
 };
 
-const docCount = (r: { documents?: unknown[]; attachmentName?: string }) => (r.documents?.length ? r.documents.length : r.attachmentName ? 1 : 0);
+type WithDocs = { documents?: ClaimDocument[]; attachmentName?: string; attachments?: ClaimAttachment[] };
+const docCount = (r: WithDocs) => (r.attachments?.length ? r.attachments.length : r.documents?.length ? r.documents.length : r.attachmentName ? 1 : 0);
+/** Stored files plus, for records from before Storage, the names of device-only files. */
+const docsOf = (r: WithDocs) => ({
+  attachments: r.attachments || [],
+  localDocNames: r.attachments?.length ? [] : r.documents?.length ? r.documents.map((d) => d.name) : r.attachmentName ? [r.attachmentName] : [],
+});
 
 /** Every claim / payment request raised by `me` — only their own records. */
 export const buildMyClaimRows = (
@@ -373,7 +383,7 @@ export const buildMyClaimRows = (
       file: dir.label(ref), caseRef: ref, amt: Number(t.total || 0),
       bill: ref ? Number(t.billableClientTotal ?? t.total ?? 0) : 0,
       form: t.formNo || t.id, rec: docCount(t), status: statusOf(t.approvalStatus, t.postedToGl),
-      approver: dir.picOf(ref), approvedBy: t.approvedBy, approvedAt: t.approvedAt,
+      approver: dir.picOf(ref), approvedBy: t.approvedBy, approvedAt: t.approvedAt, ...docsOf(t),
     });
   });
   expenses.forEach((e) => {
@@ -386,7 +396,7 @@ export const buildMyClaimRows = (
       key: 'ex-' + e.id, source: 'expense', iso: e.date || '', kind: ref && e.billable ? 'Disbursement' : 'Office',
       what: e.description || e.category, file: dir.label(ref), caseRef: ref, amt: Number(e.amount || 0),
       bill: ref && e.billable ? Number(e.amount || 0) : 0, form: e.formNo || e.id, rec: docCount(e),
-      status: statusOf(e.approvalStatus, e.postedToGl), approver: dir.picOf(ref), approvedBy: e.approvedBy, approvedAt: e.approvedAt,
+      status: statusOf(e.approvalStatus, e.postedToGl), approver: dir.picOf(ref), approvedBy: e.approvedBy, approvedAt: e.approvedAt, ...docsOf(e),
     });
   });
   paymentVouchers.forEach((v) => {
@@ -399,7 +409,7 @@ export const buildMyClaimRows = (
       key: 'pv-' + v.id, source: 'pv', iso: v.date || '', kind, what: v.description, file: dir.label(ref), caseRef: ref,
       amt: Number(v.amount || 0), bill: ref && v.accountSet !== 'CLIENT' && kind !== 'Office bill' ? Number(v.amount || 0) : 0,
       form: v.formNo || v.id, rec: docCount(v), status: statusOf(v.approvalStatus, v.postedToGl, v.approved),
-      approver: dir.picOf(ref), approvedBy: v.approvedBy, payee: v.payee,
+      approver: dir.picOf(ref), approvedBy: v.approvedBy, payee: v.payee, ...docsOf(v),
     });
   });
   return rows.sort((a, b) => b.iso.localeCompare(a.iso) || b.form.localeCompare(a.form));

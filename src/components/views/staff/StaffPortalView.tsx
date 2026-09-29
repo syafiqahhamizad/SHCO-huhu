@@ -10,9 +10,11 @@ import {
 import { StaffClaimsTab } from './StaffClaimsTab';
 import { StaffLeaveTab } from './StaffLeaveTab';
 import { StaffGoalsTab } from './StaffGoalsTab';
+import { StaffAttendanceTab } from './StaffAttendanceTab';
+import { StaffProfileTab } from './StaffProfileTab';
 
-type Tab = 'pay' | 'claims' | 'leave' | 'goals';
-const TABS: [Tab, string][] = [['pay', 'Payslips'], ['claims', 'My Claims'], ['leave', 'Leave'], ['goals', 'Goals & wellbeing']];
+type Tab = 'pay' | 'claims' | 'leave' | 'attendance' | 'goals' | 'profile';
+const TABS: [Tab, string][] = [['pay', 'Payslips'], ['claims', 'My Claims'], ['leave', 'Leave'], ['attendance', 'Attendance'], ['goals', 'Goals & wellbeing'], ['profile', 'My profile']];
 const PAY_GRID = 'minmax(0,1fr) 100px 90px 90px 90px 100px';
 const LH_PATH = import.meta.env.BASE_URL + 'assets/sh-name.png';
 
@@ -98,7 +100,9 @@ export const StaffPortalView: React.FC = () => {
       {tab === 'pay' && <PayslipsTab slips={mySlips} lh={lh} showToast={showToast} />}
       {tab === 'claims' && <StaffClaimsTab rows={claimRows} dir={dir} />}
       {tab === 'leave' && <StaffLeaveTab myLeaves={myLeaves} used={used} me={me} />}
+      {tab === 'attendance' && <StaffAttendanceTab />}
       {tab === 'goals' && <StaffGoalsTab />}
+      {tab === 'profile' && <StaffProfileTab />}
     </div>
   );
 };

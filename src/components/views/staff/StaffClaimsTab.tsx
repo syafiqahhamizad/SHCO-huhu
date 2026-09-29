@@ -1,7 +1,8 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useApp } from '../../../context/AppContext';
-import type { ClaimDocument, Expense, PaymentVoucher, TravelClaim } from '../../../types';
+import type { ClaimAttachment, ClaimDocument, Expense, PaymentVoucher, TravelClaim } from '../../../types';
 import { claimsStorageService } from '../../../services/claimsStorageService';
+import { openClaimAttachment, uploadClaimAttachment, validateClaimFile } from '../../../services/firebaseStorageService';
 import {
   card, cardTitle, ClaimKind, ClaimRow, ddmm, ddmmyyyy, FileDirectory, KIND_COLORS, labelWrap, OFFICE_LABEL, rm, STATUS_COLORS, todayIso,
 } from './staffPortalShared';
@@ -19,6 +20,16 @@ type Mode = 'Claim' | 'PV';
 type From = 'Disb' | 'Office' | 'Client';
 type Method = 'Bank transfer' | 'Online portal' | 'Cheque';
 
+/** A receipt picked in the form — the File itself is uploaded to Firebase Storage on submit. */
+interface FormDoc {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  category: ClaimDocument['category'];
+  file: File;
+}
+
 interface Item {
   dateIso: string;
   kind: ClaimKind;
@@ -30,7 +41,7 @@ interface Item {
   toll: number;
   amt: number;
   bill: number;
-  docs: ClaimDocument[];
+  docs: FormDoc[];
 }
 
 interface Form {
@@ -54,7 +65,7 @@ interface Form {
   from: From;
   portal: string;
   pref: string;
-  files: ClaimDocument[];
+  files: FormDoc[];
 }
 
 const blankForm = (): Form => ({
@@ -101,6 +112,13 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
   const [drag, setDrag] = useState(false);
   const [readIds, setReadIds] = useState<string[]>(() => loadRead(currentUser.id));
   const blurT = useRef<number | undefined>(undefined);
+  const [busy, setBusy] = useState(false);
+  const [upErr, setUpErr] = useState('');
+  const [recOpen, setRecOpen] = useState<string | null>(null);
+  const openStored = async (a: ClaimAttachment) => {
+    const err = await openClaimAttachment(a);
+    if (err) showToast(err);
+  };
 
   /* ---------------- list ---------------- */
 
@@ -200,18 +218,18 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
     [D ? 'Paid from' : 'Pay back to', D ? (f.from === 'Client' ? 'Client account (HLB)' : f.from === 'Disb' ? 'Disbursement account' : 'Office account (HLB)') : payBack],
   ];
 
-  const addFiles = async (list: FileList | null) => {
+  const addFiles = (list: FileList | null) => {
     if (!list || !list.length) return;
-    const added: ClaimDocument[] = [];
+    const added: FormDoc[] = [];
     for (const file of Array.from(list)) {
-      try {
-        const p = await claimsStorageService.processFileForClaim(file);
-        added.push({ id: 'DOC-' + Date.now() + '-' + Math.floor(Math.random() * 10000), name: p.name, url: p.url, type: p.type, category: p.category, size: p.size, uploadedAt: new Date().toISOString() });
-      } catch {
-        showToast('Could not read ' + file.name);
+      const problem = validateClaimFile(file);
+      if (problem) {
+        showToast(problem);
+        continue;
       }
+      added.push({ id: 'DOC-' + Date.now() + '-' + Math.floor(Math.random() * 10000), name: file.name, size: file.size, type: file.type, category: claimsStorageService.detectDocumentCategory(file.name, file.type), file });
     }
-    setForm((s) => ({ ...s, files: [...s.files, ...added] }));
+    if (added.length) setForm((s) => ({ ...s, files: [...s.files, ...added] }));
   };
 
   const addItem = () => {
@@ -226,63 +244,90 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
     showToast('Item ' + (f.items.length + 1) + ' added');
   };
 
-  /** Receipts: the file content stays in this device's claim-document vault; the synced record
-   * only carries the file names (a photo would blow past the shared Firestore document's size). */
-  const docMeta = (docs: ClaimDocument[]) => docs.map((d) => ({ ...d, url: '' }));
-  const storeDocs = (id: string, docs: ClaimDocument[]) => {
-    if (docs.length) claimsStorageService.setClaimDocuments(id, docs);
-  };
+  /** Receipts: the file itself goes to Firebase Storage (see `attachments`); the synced record
+   * keeps name-only `documents` too so older screens that count / list them still work. */
+  const docMeta = (docs: FormDoc[]): ClaimDocument[] =>
+    docs.map((d) => ({ id: d.id, name: d.name, url: '', type: d.type, category: d.category, size: d.size, uploadedAt: new Date().toISOString() }));
   const seq = (first: string, i: number) => {
     const m = first.match(/^(.*?)(\d+)$/);
     return m ? m[1] + String(Number(m[2]) + i).padStart(m[2].length, '0') : first + '-' + (i + 1);
   };
 
-  const submit = () => {
+  const submit = async () => {
+    if (busy) return;
     if (!f.items.length) return showToast('Add at least one item');
     if (D && PM === 'Bank transfer' && (!f.vendor || !f.vbank)) return showToast('Fill in who to pay and their bank');
     if (D && PM === 'Cheque' && !f.vendor) return showToast('Fill in who the cheque is payable to');
     const no = formNo;
-    const n = f.items.length;
+    const items = f.items;
+    const n = items.length;
     const now = new Date().toISOString();
     const caseOf = (ref: string | null) => (ref ? dir.caseOf(ref) : undefined);
 
+    // Work out every record id first so each receipt can be uploaded under its record.
+    const travel = D ? [] : items.filter((i) => i.kind === 'Travelling');
+    const other = D ? [] : items.filter((i) => i.kind !== 'Travelling');
+    const tc0 = travel.length ? getNextSequenceId('claim') : '';
+    const ex0 = other.length ? getNextSequenceId('expense') : '';
+    const pv0 = D ? getNextSequenceId('voucher') : '';
+    const idOf = new Map<Item, string>();
+    travel.forEach((i, x) => idOf.set(i, seq(tc0, x)));
+    other.forEach((i, x) => idOf.set(i, seq(ex0, x)));
+    if (D) items.forEach((i, x) => idOf.set(i, seq(pv0, x)));
+
+    // Upload receipts to Firebase Storage. If any upload fails, nothing is submitted.
+    setBusy(true);
+    setUpErr('');
+    const stored = new Map<Item, ClaimAttachment[]>();
+    try {
+      await Promise.all(
+        items.map(async (i) => {
+          const id = idOf.get(i) as string;
+          stored.set(i, await Promise.all(i.docs.map((d) => uploadClaimAttachment(currentUser.id, id, d.file))));
+        })
+      );
+    } catch (err) {
+      const msg = 'Not submitted: a receipt could not be uploaded. ' + (err instanceof Error ? err.message : String(err));
+      setUpErr(msg);
+      setBusy(false);
+      showToast(msg);
+      return;
+    }
+    const attsOf = (i: Item) => {
+      const a = stored.get(i) || [];
+      return a.length ? a : undefined;
+    };
+
     if (!D) {
-      const travel = f.items.filter((i) => i.kind === 'Travelling');
-      const other = f.items.filter((i) => i.kind !== 'Travelling');
-      const tc0 = travel.length ? getNextSequenceId('claim') : '';
-      const ex0 = other.length ? getNextSequenceId('expense') : '';
-      travel.forEach((i, x) => {
-        const id = seq(tc0, x);
+      travel.forEach((i) => {
+        const id = idOf.get(i) as string;
         const [from, rest] = i.what.includes('→') ? i.what.split('→') : ['', ''];
         const tc: TravelClaim = {
           id, date: i.dateIso, claimant: currentUser.name, purposeType: i.caseRef ? 'Client Matter' : 'Firm/Internal', fileRef: i.caseRef || 'FIRM_OVERHEAD',
           type: 'Mileage', purpose: i.what, from: from.trim(), to: (rest || '').split('·')[0].trim(), km: i.km, rate: 1.0, mileageAmount: i.km,
           tollAmount: i.toll, parkingAmount: i.parking, otherAmount: 0, total: i.amt, billableClientTotal: i.bill, paidFrom: 'Personal Monies',
           billed: i.caseRef ? 'N' : 'N/A', invoiceNo: '', postedRef: '', attachmentName: i.docs[0]?.name, documents: docMeta(i.docs),
-          approvalStatus: 'Pending Approval', formNo: no,
+          attachments: attsOf(i), approvalStatus: 'Pending Approval', formNo: no,
         };
         addTravelClaim(tc);
-        storeDocs(id, i.docs);
       });
-      other.forEach((i, x) => {
-        const id = seq(ex0, x);
+      other.forEach((i) => {
+        const id = idOf.get(i) as string;
         const c = caseOf(i.caseRef);
         const ex: Expense = {
           id, caseId: c?.id || 'FIRM_OPERATIONS', fileRef: c?.ref || 'FIRM_OVERHEAD', accountSet: c && i.kind !== 'Office' ? 'CLIENT' : 'OFFICE', date: i.dateIso,
           category: i.kind === 'Office' ? '[Firm] Office purchase' : 'Disbursement', amount: i.amt, billable: !!c && i.kind !== 'Office', billed: false,
           description: i.what, claimant: currentUser.name, isClaimantAdvance: true, payee: currentUser.name, attachmentName: i.docs[0]?.name,
-          documents: docMeta(i.docs), approvalStatus: 'Pending Approval', formNo: no,
+          documents: docMeta(i.docs), attachments: attsOf(i), approvalStatus: 'Pending Approval', formNo: no,
         };
         addExpense(ex);
-        storeDocs(id, i.docs);
       });
     } else {
-      const pv0 = getNextSequenceId('voucher');
-      const needExp = f.items.some((i) => i.caseRef && f.from !== 'Client' && i.kind !== 'Office bill');
-      const ex0 = needExp ? getNextSequenceId('expense') : '';
+      const needExp = items.some((i) => i.caseRef && f.from !== 'Client' && i.kind !== 'Office bill');
+      const bx0 = needExp ? getNextSequenceId('expense') : '';
       let exN = 0;
-      f.items.forEach((i, x) => {
-        const id = seq(pv0, x);
+      items.forEach((i) => {
+        const id = idOf.get(i) as string;
         const c = caseOf(i.caseRef);
         const billed = !!c && f.from !== 'Client' && i.kind !== 'Office bill';
         const pv: PaymentVoucher = {
@@ -292,18 +337,17 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
           debit: i.kind === 'Office bill' ? '5010 - Office Overhead' : '5001 - Client Disbursement Expense',
           credit: f.from === 'Client' ? '2010 - Client Trust Account' : '1001 - Malayan Banking Berhad (Office)',
           clientId: c?.clientId || '', fileRef: c?.ref || 'FIRM_OPERATIONS', preparedBy: currentUser.name, approved: false, approvalStatus: 'Pending Approval',
-          attachmentName: i.docs[0]?.name, documents: docMeta(i.docs), formNo: no, requestKind: i.kind as PaymentVoucher['requestKind'],
+          attachmentName: i.docs[0]?.name, documents: docMeta(i.docs), attachments: attsOf(i), formNo: no, requestKind: i.kind as PaymentVoucher['requestKind'],
           vendorBank: PM === 'Bank transfer' ? f.vbank : undefined, portalRef: PM === 'Online portal' ? f.pref || undefined : undefined,
         };
         addPaymentVoucher(pv);
-        storeDocs(id, i.docs);
         // Same pattern as Claims -> Disbursements when the claimant did not advance the money:
         // a billable expense on the file so the cost lands on the client's next invoice.
         if (billed && c) {
           addExpense({
-            id: seq(ex0, exN++), caseId: c.id, fileRef: c.ref, accountSet: 'CLIENT', date: i.dateIso, category: i.kind === 'Despatch' ? 'Despatch' : 'Disbursement',
+            id: seq(bx0, exN++), caseId: c.id, fileRef: c.ref, accountSet: 'CLIENT', date: i.dateIso, category: i.kind === 'Despatch' ? 'Despatch' : 'Disbursement',
             amount: i.amt, billable: true, billed: false, description: i.what, claimant: currentUser.name, isClaimantAdvance: false, payee,
-            attachmentName: i.docs[0]?.name, approvalStatus: 'Pending Approval', formNo: no,
+            attachmentName: i.docs[0]?.name, attachments: attsOf(i), approvalStatus: 'Pending Approval', formNo: no,
           });
         }
       });
@@ -319,11 +363,12 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
     });
     addActivityLog(D ? 'Payment Request Submitted' : 'Claim Form Submitted', no + ' — ' + rm(tot) + ' (' + now.slice(0, 10) + ')');
     setForm((s) => ({ ...s, open: false, items: [], vendor: '', vbank: '', file: '', caseRef: null, fq: '', fOpen: false, pref: '' }));
+    setBusy(false);
     showToast(no + ' sent · ' + apps.join(', ') + ' and Accounts have been alerted');
   };
 
-  const openClaim = () => setForm((s) => ({ ...s, open: true, mode: 'Claim', kind: 'Travelling', items: [], dateIso: todayIso() }));
-  const openPv = () => setForm((s) => ({ ...s, open: true, mode: 'PV', kind: 'Despatch', items: [], dateIso: todayIso() }));
+  const openClaim = () => { setUpErr(''); setForm((s) => ({ ...s, open: true, mode: 'Claim', kind: 'Travelling', items: [], dateIso: todayIso() })); };
+  const openPv = () => { setUpErr(''); setForm((s) => ({ ...s, open: true, mode: 'PV', kind: 'Despatch', items: [], dateIso: todayIso() })); };
 
   const kinds: ClaimKind[] = D ? ['Despatch', 'Disbursement', 'Office bill'] : ['Travelling', 'Disbursement', 'Office'];
   const fromNote = f.from === 'Disb'
@@ -367,7 +412,32 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
                 <span style={{ textAlign: 'right', fontSize: 11.5, fontWeight: 700, color: '#16223A' }}>{rm(c.amt)}</span>
                 <span style={{ textAlign: 'right', fontSize: 11.5, color: '#2F5680' }}>{c.bill ? rm(c.bill) : '—'}</span>
                 <span style={{ fontSize: 10.5, color: '#16223A' }}>{c.form}</span>
-                <span style={{ fontSize: 10.5, fontWeight: 700, color: c.rec ? '#2F6F4E' : '#B23A2E' }}>{c.rec ? c.rec + ' file' + (c.rec > 1 ? 's' : '') : 'Missing'}</span>
+                <span style={{ position: 'relative' }}>
+                  {c.rec ? (
+                    <button
+                      type="button"
+                      onClick={() => (c.attachments.length === 1 && !c.localDocNames.length ? void openStored(c.attachments[0]) : setRecOpen(recOpen === c.key ? null : c.key))}
+                      title={c.attachments.length ? 'Open receipt' : 'Stored on the device it was uploaded from'}
+                      style={{ border: 0, background: 'none', padding: 0, fontSize: 10.5, fontWeight: 700, color: c.attachments.length ? '#3D6B9C' : '#2F6F4E', cursor: 'pointer', fontFamily: 'inherit', textDecoration: c.attachments.length ? 'underline' : 'none' }}
+                    >{c.rec + ' file' + (c.rec > 1 ? 's' : '')}</button>
+                  ) : (
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: '#B23A2E' }}>Missing</span>
+                  )}
+                  {recOpen === c.key && (
+                    <span style={{ position: 'absolute', top: '100%', left: 0, zIndex: 5, marginTop: 4, width: 240, display: 'flex', flexDirection: 'column', background: '#fff', border: '1px solid #DDE3EB', borderRadius: 8, boxShadow: '0 8px 20px rgba(22,34,58,.18)', overflow: 'hidden' }}>
+                      {c.attachments.map((a) => (
+                        <button key={a.path} type="button" onClick={() => { setRecOpen(null); void openStored(a); }} style={{ border: 0, borderBottom: '1px solid #F0F2F5', background: '#fff', padding: '7px 10px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#3D6B9C', cursor: 'pointer', fontFamily: 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</button>
+                      ))}
+                      {c.localDocNames.map((n, i) => (
+                        <span key={i} style={{ padding: '7px 10px', borderBottom: '1px solid #F0F2F5', fontSize: 11, color: '#16223A' }}>
+                          {n}
+                          <span style={{ display: 'block', fontSize: 10, color: '#5B6478' }}>stored on the device it was uploaded from</span>
+                        </span>
+                      ))}
+                      <button type="button" onClick={() => setRecOpen(null)} style={{ border: 0, background: '#F6F8FA', padding: '5px 10px', fontSize: 10.5, fontWeight: 700, color: '#5B6478', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'right' }}>Close</button>
+                    </span>
+                  )}
+                </span>
                 <span style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start' }}>
                   <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 8px', borderRadius: 10, background: sc[0], color: sc[1] }}>{c.status}</span>
                   <span style={{ fontSize: 9.5, color: '#5B6478' }}>{c.withTxt}</span>
@@ -588,15 +658,15 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
                   <div
                     onDragOver={(e) => { e.preventDefault(); if (!drag) setDrag(true); }}
                     onDragLeave={() => setDrag(false)}
-                    onDrop={(e) => { e.preventDefault(); setDrag(false); void addFiles(e.dataTransfer.files); }}
+                    onDrop={(e) => { e.preventDefault(); setDrag(false); addFiles(e.dataTransfer.files); }}
                     style={{ border: '1.5px dashed ' + (drag ? '#16223A' : '#C9D3E0'), borderRadius: 6, background: drag ? '#EEF3F9' : '#fff', padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}
                   >
                     <span style={{ display: 'flex', flexDirection: 'column' }}>
                       <span style={{ fontSize: 11.5, fontWeight: 700, color: '#16223A' }}>Receipts: drop here</span>
-                      <span style={{ fontSize: 10.5, color: '#5B6478' }}>{recHint}</span>
+                      <span style={{ fontSize: 10.5, color: '#5B6478' }}>{recHint} · photo or PDF, up to 10 MB each</span>
                     </span>
                     <label style={{ border: '1px solid #C9D3E0', borderRadius: 4, padding: '5px 10px', fontSize: 11, fontWeight: 700, background: '#fff', color: '#16223A', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                      or choose files<input type="file" multiple accept="image/*,.pdf" onChange={(e) => { void addFiles(e.target.files); e.target.value = ''; }} style={{ display: 'none' }} />
+                      or choose files<input type="file" multiple accept="image/*,.pdf" onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} style={{ display: 'none' }} />
                     </label>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                       {f.files.map((q, i) => (
@@ -617,8 +687,9 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 12 }} />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 12, borderTop: '1px solid #DDE3EB' }}>
-                <button type="button" onClick={() => setF({ open: false, fOpen: false })} style={{ marginLeft: 'auto', border: '1px solid #C9D3E0', borderRadius: 4, padding: '9px 16px', fontSize: 12, fontWeight: 700, background: '#fff', color: '#16223A', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-                <button type="button" onClick={submit} style={{ border: 0, borderRadius: 4, padding: '9px 18px', fontSize: 12, fontWeight: 700, background: '#16223A', color: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>{D ? 'Submit payment request' : 'Submit claim form'}</button>
+                {upErr && <span style={{ flex: 1, fontSize: 11, lineHeight: 1.45, fontWeight: 600, color: '#B23A2E' }}>{upErr}</span>}
+                <button type="button" disabled={busy} onClick={() => { setUpErr(''); setF({ open: false, fOpen: false }); }} style={{ marginLeft: 'auto', border: '1px solid #C9D3E0', borderRadius: 4, padding: '9px 16px', fontSize: 12, fontWeight: 700, background: '#fff', color: '#16223A', cursor: busy ? 'default' : 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                <button type="button" disabled={busy} onClick={() => void submit()} style={{ border: 0, borderRadius: 4, padding: '9px 18px', fontSize: 12, fontWeight: 700, background: '#16223A', color: '#fff', cursor: busy ? 'wait' : 'pointer', fontFamily: 'inherit', opacity: busy ? 0.7 : 1 }}>{busy ? 'Uploading receipts…' : D ? 'Submit payment request' : 'Submit claim form'}</button>
               </div>
             </div>
           </div>

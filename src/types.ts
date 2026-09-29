@@ -615,6 +615,16 @@ export interface ClaimDocument {
   uploadedAt?: string;
 }
 
+/** A receipt / supporting file kept in Firebase Storage. `path` is the Storage fullPath
+ * (e.g. 'confidential/claims/{userId}/{recordId}/{timestamp}-{file}'); open it through
+ * getDownloadURL so it works on every device. */
+export interface ClaimAttachment {
+  name: string;
+  path: string;
+  size?: number;
+  contentType?: string;
+}
+
 export interface Expense {
   id: string;
   caseId: string;
@@ -637,6 +647,8 @@ export interface Expense {
   attachmentName?: string;
   attachmentUrl?: string;
   documents?: ClaimDocument[];
+  /** Receipts stored in Firebase Storage (openable on any device). */
+  attachments?: ClaimAttachment[];
   isClientUpfrontCovered?: boolean;
   clientTrustBalanceSnapshot?: number;
   /** Staff Portal claim form this item was submitted on (e.g. 'CF-26-0413'). */
@@ -717,6 +729,8 @@ export interface PaymentVoucher {
   attachmentName?: string;
   attachmentUrl?: string;
   documents?: ClaimDocument[];
+  /** Supporting files stored in Firebase Storage (openable on any device). */
+  attachments?: ClaimAttachment[];
   /** Staff Portal payment request (PV) form number, e.g. 'PV-O-26-0012'. */
   formNo?: string;
   /** Staff Portal payment request type. */
@@ -753,6 +767,8 @@ export interface TravelClaim {
   attachmentName?: string;
   attachmentUrl?: string;
   documents?: ClaimDocument[];
+  /** Receipts stored in Firebase Storage (openable on any device). */
+  attachments?: ClaimAttachment[];
   isClientUpfrontCovered?: boolean;
   clientTrustBalanceSnapshot?: number;
   approvalStatus?: 'Draft' | 'Pending Approval' | 'Approved' | 'Posted to GL' | 'Rejected' | 'Pending PIC Approval';
