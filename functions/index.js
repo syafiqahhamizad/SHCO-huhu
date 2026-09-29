@@ -13,10 +13,10 @@ const corsHeaders = (req, res) => {
   res.set('Access-Control-Allow-Origin', origin);
   res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.set('Access-Control-Allow-Headers', 'Content-Type');
-}
+
 
 exports.draftBillingItems = onRequest(
-  { secrets: [GEMINI_API_KEY], region: 'asia-southeast1', timeoutSeconds: 60, invoker: 'public' },
+  { secrets: [GEMINI_API_KEY], region: 'asia-southeast1', timeoutSeconds: 60 },
   async (req, res) => {
     corsHeaders(req, res);
     if (req.method === 'OPTIONS') {
@@ -92,7 +92,7 @@ const getAssistantInstruction = (mode) => ({
 }[mode] || 'You are a legal operations assistant.');
 
 exports.aiAssistant = onRequest(
-  { secrets: [GEMINI_API_KEY], region: 'asia-southeast1', timeoutSeconds: 60, invoker: 'public' },
+  { secrets: [GEMINI_API_KEY], region: 'asia-southeast1', timeoutSeconds: 60 },
   async (req, res) => {
     corsHeaders(req, res);
     if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
@@ -117,7 +117,7 @@ exports.aiAssistant = onRequest(
 );
 
 exports.aiMeetingSummary = onRequest(
-  { secrets: [GEMINI_API_KEY], region: 'asia-southeast1', timeoutSeconds: 60, invoker: 'public' },
+  { secrets: [GEMINI_API_KEY], region: 'asia-southeast1', timeoutSeconds: 60 },
   async (req, res) => {
     corsHeaders(req, res);
     if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
