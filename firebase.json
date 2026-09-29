@@ -89,6 +89,10 @@
     {
       "source": "functions",
       "codebase": "default"
+    },
+    {
+      "source": "functions-user",
+      "codebase": "user"
     }
   ],
   "firestore": {
