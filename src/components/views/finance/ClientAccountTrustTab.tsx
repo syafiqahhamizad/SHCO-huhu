@@ -61,7 +61,7 @@ export const ClientAccountTrustTab = ({ F }: { F: FinanceCtrl }) => {
     <div style={css('display:flex;flex-direction:column;gap:16px')}>
       <section style={css('display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:16px;align-items:start')}>
         <div style={css('overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
-          <div style={css('display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css('font-family:ui-serif, Georgia, serif;font-size:14.5px;color:#16223A')}>3-way reconciliation</strong><span style={css('font-size:10.5px;color:#5B6478')}>Solicitors' Account Rules 1990</span></div>
+          <div style={css('display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css('font-family:ui-serif, Georgia, serif;font-size:14.5px;color:#16223A')}>3-way reconciliation</strong><span style={css('font-size:10.5px;color:#5B6478')}>Solicitors' Account Rules 1990</span><button type="button" onClick={() => F.app.setCurrentView('trustAuditLogs')} style={css('margin-left:auto;border:0;background:none;padding:0;font-size:10.5px;font-weight:700;color:#8A6D3B;cursor:pointer;font-family:inherit')}>Audit log -&gt;</button></div>
           <div style={css('display:grid;grid-template-columns:repeat(2,minmax(0,1fr))')}>
             {recon.map((r) => (
               <div key={r.monthLabel} style={css(`padding:12px 14px;border-left:${r.bl};display:flex;flex-direction:column;gap:6px`)}>
