@@ -72,6 +72,7 @@ import {
   signInStaffWithGoogle,
   signOutFromFirebase,
   syncFirebaseUserClaims,
+  provisionFirebaseUser,
 } from '../services/firebaseAuthService';
 import {
   INITIAL_LEADS,
@@ -298,7 +299,9 @@ interface AppContextType {
   updateClient: (id: string, updates: Partial<Client>) => void;
   addClientPortalUpdate: (clientId: string, update: Omit<ClientPortalUpdate, 'id' | 'date'>) => void;
   deleteClient: (id: string) => void;
-  sendClientPortalInvite: (clientId: string) => { success: boolean; inviteDate: string; tempPass: string };
+  sendClientPortalInvite: (
+    clientId: string
+  ) => Promise<{ success: boolean; inviteDate?: string; email?: string; tempPass?: string; error?: string }>;
   addCase: (caseObj: Case) => void;
   updateCase: (id: string, updates: Partial<Case>) => void;
   deleteCase: (id: string) => void;
@@ -2630,33 +2633,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`Client "${clientToDelete.name}" moved to Recycle Bin.`);
   };
 
-  const sendClientPortalInvite = (clientId: string) => {
-    const inviteDate = new Date().toISOString().slice(0, 16).replace('T', ' ');
-    const tempPass = 'shcolaw2026';
-
-    setClients((prev) =>
-      prev.map((c) => {
-        if (c.id === clientId) {
-          return {
-            ...c,
-            lastPortalInviteSent: inviteDate,
-            portalAccessEnabled: true,
-          };
-        }
-        return c;
-      })
-    );
-
+  // Creates the client's real Firebase login (role: client) through the same Super-Admin-only
+  // account server as Users & Permissions → Add New User. No email is sent — the caller
+  // shows the temporary password so the firm can pass it on privately.
+  const sendClientPortalInvite = async (
+    clientId: string
+  ): Promise<{ success: boolean; inviteDate?: string; email?: string; tempPass?: string; error?: string }> => {
+    const fail = (error: string) => {
+      showToast(error);
+      return { success: false, error };
+    };
     const clientObj = clients.find((c) => c.id === clientId);
-    if (clientObj) {
-      addActivityLog(
-        'Portal Invitation Sent',
-        `Sent automated Client Portal login invite email to ${clientObj.name} (${clientObj.email || 'Client Email'})`
-      );
-      showToast(`Client Portal email invitation sent to ${clientObj.email || clientObj.name}!`);
+    if (!clientObj) return fail('Client not found.');
+    const email = (clientObj.email || '').trim().toLowerCase();
+    if (!email) return fail(`Add an email address to ${clientObj.name}'s record first — it becomes their portal login.`);
+    if (!(currentUser.email === 'syafiqahhamizad@shcolaw.com' || currentUser.isSuperAdmin)) {
+      return fail('Only the Super Admin can create client portal logins.');
+    }
+    if (users.some((u) => u.email.toLowerCase() === email)) {
+      return fail(`${email} already has a portal login.`);
     }
 
-    return { success: true, inviteDate, tempPass };
+    try {
+      const provisioned = await provisionFirebaseUser({
+        name: clientObj.name,
+        email,
+        role: 'Client',
+        isAdmin: false,
+        isSuperAdmin: false,
+      });
+      const inviteDate = new Date().toISOString().slice(0, 16).replace('T', ' ');
+      setUsers((prev) => [
+        ...prev,
+        { id: provisioned.id, name: clientObj.name, email, role: 'Client', isAdmin: false, isSuperAdmin: false, status: 'Active' },
+      ]);
+      setClients((prev) =>
+        prev.map((c) => (c.id === clientId ? { ...c, lastPortalInviteSent: inviteDate, portalAccessEnabled: true } : c))
+      );
+      addActivityLog('Client Portal Login Created', `${clientObj.name} (${email})`);
+      logAuditEvent('CREATE', 'CLIENTS', clientObj.id, clientObj.name, `Client Portal login created for ${email}.`);
+      return { success: true, inviteDate, email, tempPass: provisioned.temporaryPassword };
+    } catch (error) {
+      return fail(error instanceof Error ? error.message : 'Unable to create the client portal login.');
+    }
   };
 
   const addCase = async (caseObj: Case) => {

@@ -54,6 +54,14 @@ export const ClientsView: React.FC = () => {
     setIsRegisterClientModalOpen,
   } = useApp();
 
+  const createPortalLogin = async (clientId: string) => {
+    const result = await sendClientPortalInvite(clientId);
+    if (!result.success) return;
+    window.alert(
+      `Client Portal login created.\n\nEmail: ${result.email}\nTemporary password: ${result.tempPass}\n\nNo email has been sent. Give these details to the client privately (e.g. WhatsApp). They sign in at portal.shcolaw.com → Client Access.`
+    );
+  };
+
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [subTab, setSubTab] = useState<'profile' | 'kyc' | 'cases' | 'history'>('profile');
   const [searchTerm, setSearchTerm] = useState('');
@@ -325,14 +333,12 @@ export const ClientsView: React.FC = () => {
 
           <div className="flex items-center gap-2 flex-wrap">
             <button
-              onClick={() => {
-                sendClientPortalInvite(selectedClient.id);
-              }}
+              onClick={() => createPortalLogin(selectedClient.id)}
               className="bg-[#16223A] hover:bg-[#16223A] text-amber-300 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer text-xs shadow-xs"
-              title="Send secure automated portal access email invitation to client"
+              title="Create this client's Client Portal login (uses the email on their record)"
             >
               <Send className="w-3.5 h-3.5 text-amber-300" />
-              <span>Invite to Client Portal</span>
+              <span>Create Portal Login</span>
             </button>
             <button
               onClick={(e) => handleDeleteClick(e, selectedClient)}
@@ -457,11 +463,11 @@ export const ClientsView: React.FC = () => {
 
                 <button
                   type="button"
-                  onClick={() => sendClientPortalInvite(selectedClient.id)}
+                  onClick={() => createPortalLogin(selectedClient.id)}
                   className="px-3.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-[#16223A] rounded-xl text-xs font-extrabold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 shadow-xs"
                 >
                   <Send className="w-3.5 h-3.5 text-[#16223A]" />
-                  <span>Send Portal Email Invitation</span>
+                  <span>Create Portal Login</span>
                 </button>
               </div>
 
