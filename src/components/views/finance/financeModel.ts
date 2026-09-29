@@ -1,0 +1,193 @@
+/**
+ * Accounts & Finance — shared derivations over REAL app data (useApp()).
+ *
+ * Every number here comes from existing records: invoices / payments / receipts / quotations /
+ * retainers (client account) / time entries / expenses / vouchers / claims / payslips / GL.
+ * Where the app keeps an existing calculation, it is reused exactly so figures match across
+ * the app:
+ *   - client-account balance: Deposit − Apply − Refund per client/matter (AccountingViews
+ *     RetainersView, dashboard/ClientAccountTab);
+ *   - debtor ageing: balance = total − payments, days from due date (AccountingCentreView),
+ *     voided invoices excluded, part-paid invoices count only their remaining balance;
+ *   - work not billed: billable && !billed && !writtenOff time + expenses (dashboard/FinanceTab);
+ *   - SST: billingEngine.computeTotals (fees + reimbursements, never disbursements).
+ */
+import type React from 'react';
+import type { Invoice, Quotation, QuotationLineItem, Receipt, Case, Client, FinanceProof } from '../../../types';
+import { computeTotals } from '../../../lib/billingEngine';
+import { type DocLines, type DocLine, type FinanceDoc, areaFromName, TERMS, defaultSstRate } from '../../../lib/financeDocs';
+
+/* ------------------------------ inline-style helper ------------------------------ */
+// The design's inline styles are final — they are copied verbatim as CSS strings and turned
+// into React style objects here, so every value stays byte-identical to the design.
+const cssCache = new Map<string, React.CSSProperties>();
+export const css = (s: string): React.CSSProperties => {
+  const hit = cssCache.get(s);
+  if (hit) return hit;
+  const out: Record<string, string> = {};
+  s.split(';').forEach((decl) => {
+    const i = decl.indexOf(':');
+    if (i < 0) return;
+    const k = decl.slice(0, i).trim();
+    const v = decl.slice(i + 1).trim();
+    if (!k) return;
+    out[k.replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = v;
+  });
+  cssCache.set(s, out as React.CSSProperties);
+  return out as React.CSSProperties;
+};
+
+/* ------------------------------ formatting ------------------------------ */
+export const rm = (n: number) => 'RM ' + Math.round(n || 0).toLocaleString('en-MY');
+export const rm2 = (n: number) => 'RM ' + (n || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+export const MON = MONTHS.map((m) => m.slice(0, 3));
+
+/** Parses ISO (yyyy-mm-dd…), dd.mm.yyyy / dd/mm/yyyy and "12 Jun 2026" into a timestamp (0 if unknown). */
+export const parseDate = (s: unknown): number => {
+  const str = String(s || '').trim();
+  if (!str) return 0;
+  let q = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (q) return new Date(+q[1], +q[2] - 1, +q[3]).getTime();
+  q = str.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
+  if (q) return new Date(+(q[3].length === 2 ? '20' + q[3] : q[3]), +q[2] - 1, +q[1]).getTime();
+  q = str.match(/(\d{1,2})\s+([A-Za-z]{3})\w*\s*(\d{4})?/);
+  if (q) { const mi = MON.findIndex((m) => m.toLowerCase() === q![2].toLowerCase()); return new Date(+(q[3] || new Date().getFullYear()), Math.max(0, mi), +q[1]).getTime(); }
+  const t = new Date(str).getTime();
+  return Number.isNaN(t) ? 0 : t;
+};
+export const isoOf = (t: number) => { if (!t) return ''; const x = new Date(t); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
+export const todayIso = () => isoOf(Date.now());
+/** dd.mm.yyyy — the firm's document date format. */
+export const fd = (s: unknown) => { const t = typeof s === 'number' ? s : parseDate(s); if (!t) return '—'; const x = new Date(t); return String(x.getDate()).padStart(2, '0') + '.' + String(x.getMonth() + 1).padStart(2, '0') + '.' + x.getFullYear(); };
+/** "12 Jun" */
+export const dShort = (s: unknown) => { const t = typeof s === 'number' ? s : parseDate(s); if (!t) return '—'; const x = new Date(t); return x.getDate() + ' ' + MON[x.getMonth()]; };
+export const daysSince = (s: unknown, now = Date.now()) => { const t = parseDate(s); return t ? Math.floor((now - t) / 86400000) : 0; };
+export const periodKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+export const inPeriod = (s: unknown, key: string) => { const t = parseDate(s); return !!t && periodKey(new Date(t)) === key; };
+export const monthEnd = (d = new Date()) => new Date(d.getFullYear(), d.getMonth() + 1, 0);
+export const initials = (name?: string) => String(name || '').split(/\s+/).filter(Boolean).map((w) => w[0]).join('').slice(0, 2).toUpperCase() || '—';
+export const num0 = (v: unknown) => Number(String(v ?? '').replace(/[^0-9.-]/g, '')) || 0;
+
+/* ------------------------------ colours (design maps) ------------------------------ */
+export const SC: Record<string, [string, string]> = { Overdue: ['#FBEDE9', '#B23A2E'], 'Part-paid': ['#FBF2E9', '#8A6534'], Sent: ['#E7EEF6', '#2F5680'], Paid: ['#E6EFE9', '#2F6F4E'], Draft: ['#F0F2F5', '#5B6478'], Accepted: ['#E6EFE9', '#2F6F4E'], Expired: ['#F0F2F5', '#5B6478'], Unpaid: ['#FBF2E9', '#8A6534'], Issued: ['#E6EFE9', '#2F6F4E'], 'Proforma made': ['#E7EEF6', '#2F5680'], Invoiced: ['#E7EEF6', '#2F5680'], 'Pending Approval': ['#FBF2E9', '#8A6534'], Ready: ['#E7EEF6', '#2F5680'], Declined: ['#F0F2F5', '#5B6478'], Voided: ['#F0F2F5', '#94A3B8'], Historical: ['#F1EBF6', '#6B3D8C'] };
+export const PC: Record<string, string> = { SH: '#16223A', AH: '#3D6B9C', ZA: '#6B3D8C' };
+export const picColor = (code: string) => PC[code] || '#2E7D7A';
+
+/* ------------------------------ documents ------------------------------ */
+export const itemAmount = (i: QuotationLineItem) => {
+  const q = Number(i.quantity ?? 1), u = Number(i.unitPrice ?? i.amount ?? 0);
+  const t = i.chargeType === 'Per Quantity' ? q * u : (i.unitPrice != null ? u : Number(i.amount || 0));
+  return Number.isFinite(t) ? t : 0;
+};
+export const itemsToLines = (items?: QuotationLineItem[], fallback?: { desc: string; amount: number }): DocLines => {
+  const L: DocLines = { prof: [], disb: [], reimb: [] };
+  (items || []).forEach((i) => {
+    const row: DocLine = [i.description || '', itemAmount(i)];
+    if (i.category === 'Disbursement') L.disb.push(row);
+    else if (i.category === 'Reimbursement') L.reimb.push(row);
+    else L.prof.push(row);
+  });
+  if (!L.prof.length && !L.disb.length && !L.reimb.length && fallback && fallback.amount) L.prof.push([fallback.desc, fallback.amount]);
+  return L;
+};
+export const linesToItems = (L: DocLines, previous?: QuotationLineItem[]): QuotationLineItem[] => {
+  const sro = new Set((previous || []).filter((p) => p.category === 'Fee - SRO').map((p) => p.description));
+  const mk = (cat: QuotationLineItem['category']) => ([d, a]: DocLine): QuotationLineItem => ({ description: d, category: cat === 'Fee - Fixed' && sro.has(d) ? 'Fee - SRO' : cat, amount: Number(a) || 0, quantity: 1, unitPrice: Number(a) || 0, chargeType: 'Fixed' });
+  return [...L.prof.map(mk('Fee - Fixed')), ...L.disb.map(mk('Disbursement')), ...L.reimb.map(mk('Reimbursement'))].filter((i) => i.description.trim() || i.amount);
+};
+/** Stored totals for a record — billingEngine.computeTotals (SST on fees + reimbursements only). */
+export const recordTotals = (items: QuotationLineItem[], rate: number) => computeTotals(items, rate > 0, rate || 0.08);
+
+/** SST rate actually used by an existing record. */
+export const recordSstRate = (r: { sstApplied?: boolean; sstRate?: number; tax?: number; total?: number; amount?: number }, fallback = defaultSstRate()): number => {
+  if ('sstApplied' in r && r.sstApplied === false) return 0;
+  if (r.sstRate != null) return r.sstRate;
+  if ('sstApplied' in r && r.sstApplied) return fallback || 0.08;
+  if (r.tax && r.tax > 0) return fallback || 0.08;
+  return 0;
+};
+
+export interface Lookups {
+  clientById: Map<string, Client>;
+  clientByName: Map<string, Client>;
+  caseById: Map<string, Case>;
+  caseByRef: Map<string, Case>;
+}
+export const findCase = (lk: Lookups, key?: string, ref?: string) => (key && (lk.caseById.get(key) || lk.caseByRef.get(key))) || (ref ? lk.caseByRef.get(ref) : undefined);
+export const addrOf = (c?: Client) => (c?.address || '').trim();
+
+export const quotationToDoc = (q: Quotation, lk: Lookups, status: string): FinanceDoc => {
+  const kase = findCase(lk, q.caseId, q.fileRef);
+  const client = (q.partyId && lk.clientById.get(q.partyId)) || lk.clientByName.get((q.clientName || '').toLowerCase());
+  const area = areaFromName(q.practiceArea, q.fileRef);
+  const rate = recordSstRate(q);
+  return {
+    id: q.id, type: q.documentType === 'Proforma' ? 'Proforma' : 'Quotation', no: q.id, date: fd(q.date), client: q.clientName || '—', addr: addrOf(client),
+    ref: q.fileRef || '', matter: q.matter || kase?.title || q.subtype || '', area, account: q.payInto || 'Office', status,
+    lines: itemsToLines(q.lineItems, { desc: 'Professional fees', amount: q.total }), sstRate: rate,
+    subject: q.subject, yourRef: q.yourRef, tin: q.tin, desc: q.scope ?? '', terms: q.terms || (q.documentType === 'Proforma' ? [] : TERMS.slice()), inst: q.feeArrangement || null,
+    proofs: [],
+  };
+};
+export const invoiceToDoc = (inv: Invoice, lk: Lookups, status: string): FinanceDoc => {
+  const kase = findCase(lk, inv.caseId, inv.fileRef);
+  const client = lk.clientById.get(inv.clientId) || lk.clientByName.get((inv.partyName || '').toLowerCase());
+  const area = areaFromName(kase?.practiceArea || kase?.type, inv.fileRef || kase?.ref);
+  return {
+    id: inv.id, type: 'Invoice', no: inv.id, date: fd(inv.date), client: inv.partyName || client?.name || '—', addr: addrOf(client),
+    ref: inv.fileRef || kase?.ref || '', matter: inv.matter || kase?.title || '', area, account: inv.payInto || 'Office', status,
+    lines: itemsToLines(inv.lineItems, { desc: 'Professional fees', amount: Number(inv.amount || inv.total || 0) }), sstRate: recordSstRate(inv),
+    subject: inv.subject, yourRef: inv.yourRef, tin: inv.tin, desc: inv.scope ?? '', inst: inv.feeArrangement || null,
+    due: inv.dueDate ? fd(inv.dueDate) : undefined, einv: inv.eInvoiceStatus && inv.eInvoiceStatus !== 'Not Submitted' ? inv.eInvoiceStatus : '—',
+  };
+};
+export const receiptAccount = (r: Receipt) => (r.accountSet === 'CLIENT' ? 'Client account' : 'Office') as 'Office' | 'Client account';
+export const receiptToDoc = (r: Receipt, lk: Lookups, proofs: { name: string; url: string }[]): FinanceDoc => {
+  const client = lk.clientById.get(r.clientId) || lk.clientByName.get((r.receivedFrom || '').toLowerCase());
+  const kase = findCase(lk, r.caseId, r.fileRef);
+  return {
+    id: r.id, type: 'Receipt', no: r.id, date: fd(r.date), client: r.receivedFrom || client?.name || '—', addr: addrOf(client),
+    ref: r.fileRef || '', matter: kase?.title || r.description || '', area: kase ? areaFromName(kase.practiceArea || kase.type, kase.ref) : '',
+    account: receiptAccount(r), status: 'Issued', amount: Number(r.amount || 0), method: r.paymentMethod || (r as unknown as { method?: string }).method || '-',
+    forNo: r.forNo || r.invoiceId || r.quotationId || r.description, proofs, historical: r.historical,
+  };
+};
+
+/* ------------------------------ proofs (session file cache) ------------------------------ */
+// Only proof metadata is synced (the firm has no object storage connected, and the shared
+// Firestore document can't hold files). The actual file stays viewable in this session.
+const proofUrls = new Map<string, string>();
+export const proofKey = (owner: string, name: string) => owner + '::' + name;
+export const filesToProofs = (owner: string, files: FileList | File[] | null | undefined): FinanceProof[] => {
+  const arr = files ? Array.from(files as ArrayLike<File>) : [];
+  return arr.map((f) => { proofUrls.set(proofKey(owner, f.name), URL.createObjectURL(f)); return { name: f.name, size: f.size, type: f.type, uploadedAt: new Date().toISOString() }; });
+};
+export const proofUrl = (owner: string, name: string) => proofUrls.get(proofKey(owner, name)) || '';
+export const rememberProofUrls = (fromOwner: string, toOwner: string, proofs: FinanceProof[]) => {
+  proofs.forEach((p) => { const u = proofUrls.get(proofKey(fromOwner, p.name)); if (u) proofUrls.set(proofKey(toOwner, p.name), u); });
+};
+
+/* ------------------------------ GL accounts (Chart of Accounts codes) ------------------------------ */
+export const GLA = {
+  office: '1010 - Office Bank — General',
+  petty: '1013 - Petty Cash',
+  disb: '1014 - Disbursement Bucket',
+  clientBank: '1020 - Client Bank — Trust',
+  ar: '1100 - Accounts Receivable',
+  clientFunds: '2010 - Client Funds Held',
+  referral: '2020 - Referral Fees Payable',
+  payable: '2100 - Accounts Payable',
+  sst: '2200 - SST Payable',
+  statutory: '2300 - Statutory Payable (EPF/SOCSO/EIS/PCB)',
+  drawings: "3100 - Partners' Drawings",
+  fees: '4000 - Fee Income',
+  disbRec: '4100 - Disbursement Recovery',
+  salaries: '5000 - Salaries & Wages',
+  software: '5200 - Software & Subscriptions',
+  other: '5900 - Other Expenses',
+  suspense: '9990 - Journal Adjustments',
+} as const;
+export const glCode = (s: string) => (String(s || '').match(/^\s*(\d{3,5})/) || [])[1] || '';
+export const cashAccountGL = (acc: string) => (acc === 'Client account' ? GLA.clientBank : acc === 'Petty cash' ? GLA.petty : acc === 'Disbursement' ? GLA.disb : GLA.office);
+export const expenseGL = (cat: string) => (/salar|epf|socso|payroll/i.test(cat) ? GLA.salaries : /\bit\b|software|subscri/i.test(cat) ? GLA.software : GLA.other);

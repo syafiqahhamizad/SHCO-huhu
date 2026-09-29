@@ -36,6 +36,10 @@ export interface SinkingFund {
   target: number;
   monthly: number;
   balance: number;
+  /** Accounts & Finance → Office Account: short note under the fund name and its due date
+   * (free text, e.g. "Dec 2026"). Optional/additive. */
+  note?: string;
+  due?: string;
 }
 
 /** A recurring firm commitment (fixed cost), edited on the Managing Partner's Finance
@@ -154,6 +158,13 @@ export interface PracticeSettings {
   leadBookingFormLink?: string;
   /** Leads & Referrals -> "Set up online booking": pasted Google Calendar appointment / Calendly link. */
   leadBookingCalendarLink?: string;
+  /** Accounts & Finance → Finance Home month-end close checklist ticks, keyed
+   * `${'YYYY-MM'}:${itemId}`. Firm-maintained, shared through the settings sync. */
+  monthEndClose?: Record<string, { by: string; at: string }>;
+  /** Accounts & Finance → Client Account monthly client statement runs, keyed by 'YYYY-MM'. */
+  clientStatementRuns?: Record<string, { at: string; by: string; count: number }>;
+  /** Accounts & Finance → Approvals monthly referral-fee batch decisions, keyed by 'YYYY-MM'. */
+  referralFeeApprovals?: Record<string, { status: 'Approved' | 'Rejected'; by: string; at: string; total: number }>;
 }
 
 export interface LeadSourceDef {

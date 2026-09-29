@@ -1,0 +1,231 @@
+// SH & Co finance documents: firm format (from the firm's own quotation template), totals,
+// on-screen / Word / PDF / CSV output and Excel/CSV import.
+//
+// TypeScript port of design pack `finance-docs.js` (Accounts & Finance handoff). The HTML and
+// inline styles produced by docHtml / tableHtml are kept byte-for-byte; screen, Word and PDF
+// all come from the same docHtml string. Differences from the prototype, all deliberate:
+//   - no seed() sample documents and no sample ADDR address book: the client address comes
+//     from the real Client record and is passed in on the document as `addr`;
+//   - the default SST rate comes from Firm & Practice Settings (sstRegistered / sstRate)
+//     instead of a hard-coded 0 — SST applies to professional fees + reimbursements, never
+//     disbursements (same rule as billingEngine.computeTotals);
+//   - logo assets are served from /assets/ (public/assets/sh-*.png).
+import { getPracticeSettings } from '../services/templateService';
+
+export type DocType = 'Quotation' | 'Proforma' | 'Invoice' | 'Receipt';
+export type DocAccount = 'Office' | 'Client account' | 'Disbursement';
+export type DocLine = [string, number];
+export interface DocLines {
+  prof: DocLine[];
+  disb: DocLine[];
+  reimb: DocLine[];
+}
+export interface DocProof {
+  name: string;
+  url: string;
+}
+export interface DocInstalments {
+  on: boolean;
+  months: number;
+  upfront: number;
+  terms: string;
+}
+
+/** The document shape docHtml renders (same fields as the prototype's documents). */
+export interface FinanceDoc {
+  id: string;
+  type: DocType;
+  no: string;
+  date: string;
+  client: string;
+  /** Client postal address (from the real Client record). */
+  addr?: string;
+  ref?: string;
+  matter?: string;
+  area?: string;
+  account: DocAccount;
+  status?: string;
+  lines?: DocLines;
+  sstRate?: number | null;
+  deposit?: number;
+  subject?: string;
+  yourRef?: string;
+  tin?: string;
+  desc?: string;
+  terms?: string[];
+  arrangement?: string;
+  inst?: DocInstalments | null;
+  due?: string;
+  einv?: string;
+  /** Receipt only */
+  amount?: number;
+  method?: string;
+  forNo?: string;
+  proofs?: DocProof[];
+  historical?: boolean;
+}
+
+export interface DocTotals {
+  rate: number;
+  prof: number;
+  disb: number;
+  reimb: number;
+  sProf: number;
+  sReimb: number;
+  sst: number;
+  net: number;
+  gross: number;
+  less: number;
+  total: number;
+}
+
+/** Firm default SST rate: 0 until Firm & Practice Settings says the firm is SST-registered. */
+export const defaultSstRate = (): number => {
+  const s = getPracticeSettings();
+  return s.sstRegistered ? Number(s.sstRate) || 0 : 0;
+};
+
+export const FIRM = { reg: 'Firm Reg. No.: [to be set]', name: 'SYAFIQAH HAMIZAD & CO', addr: '8-23-03 (2nd Floor), Jalan Medan Pusat Bandar 7A, Bangi Sentral, 43650 Bandar Baru Bangi, Selangor', email: 'billing@shcolaw.com', tel: '+603-8684 1998 / +6011-7382 8754' };
+export const BANK: Record<DocAccount, [string, string, string]> = { Office: ['Syafiqah Hamizad & Co', 'Hong Leong Bank Berhad', '36301134253'], 'Client account': ['Syafiqah Hamizad & Co – Client A/C', 'Hong Leong Bank Berhad', '36301136440'], Disbursement: ['Syafiqah Hamizad & Co – Disbursement A/C', 'Hong Leong Bank Berhad', '[to be set]'] };
+const LOGO: Record<'mono' | 'word' | 'name' | 'header', string> = { mono: '/assets/sh-monogram.png', word: '/assets/sh-wordmark.png', name: '/assets/sh-name.png', header: '' };
+const toData = (k: keyof typeof LOGO) => fetch(LOGO[k]).then((r) => r.blob()).then((b) => new Promise<void>((res) => { const fr = new FileReader(); fr.onload = () => { LOGO[k] = String(fr.result); res(); }; fr.readAsDataURL(b); })).catch(() => {});
+let logosLoaded = false;
+/** Inline the logo artwork as data URLs so Word / PDF copies carry it (idempotent). */
+export const loadLogos = () => {
+  if (logosLoaded || typeof window === 'undefined') return;
+  logosLoaded = true;
+  fetch('/assets/letterhead-header.png', { method: 'HEAD' }).then((r) => { if (r.ok && /image/.test(r.headers.get('content-type') || '')) { LOGO.header = '/assets/letterhead-header.png'; toData('header'); } }).catch(() => {});
+  toData('mono'); toData('word'); toData('name');
+};
+
+export const TERMS = ['The professional fees may vary depending on the actual scope of work performed and any additional requirements imposed by relevant parties;', 'The Firm reserves the right to issue further invoices for any additional fees and/or costs incurred which are not expressly included in this quotation;', 'The Firm shall have the right to invoice progressive professional fees from time to time depending on the stage and progress of work;'];
+const NOTE = 'Note: Please be informed that this document is merely a quotation prepared on the information available to date and is subject to be varied in accordance with further information, requirements and/or events are beyond our control';
+
+export interface AreaTemplate {
+  code: string;
+  desc: string;
+  prof: DocLine[];
+  disb: DocLine[];
+  reimb: DocLine[];
+}
+export const AREAS: Record<string, AreaTemplate> = {
+  Litigation: { code: 'LIT', desc: 'Being our professional charges, for taking instructions, opening file, perusing all the relevant documents forwarded to us, undertake due diligence process, conducting researches including all relevant laws and regulations, preparing and drafting, reviewing and finalizing, filing Memorandum of Appearance, Statement of Defence, Mediation and Settlement on behalf and/or between the parties, Attending Case Managements; Updating and advising your goodself from time to time via email or calls and other related matters incidental thereto not specifically stated herein.',
+    prof: [['Retainer & Interim charges (Non refundable)', 10000], ['Litigation Legal fee (Trial)', 10000]],
+    disb: [['Bankruptcy search (Individual & Company)', 50], ['SSM search', 15.4], ['JPN Search', 50], ['Filing Statement of Defence (& Counter Claim)', 8], ['Filing Statement of Reply to Counter Claim', 8], ['Agreed Facts, Issues to be Tried, Bundle of Documents, Witness Statements (RM8 each)', 100], ['Witness attendance', 500], ['Judgment after Trial', 200]],
+    reimb: [['Photocopy and printing charges', 300], ['Travelling expenses', 1500], ['Telephone, fax, courier, Runner Charges & Postage Charges', 300], ['Miscellaneous expenses', 100]] },
+  Conveyancing: { code: 'CONV', desc: 'Being our professional charges for services rendered in connection with the Sale and Purchase, including taking instructions, perusing and reviewing documents forwarded to us, conducting searches, preparing and drafting the Sale and Purchase Agreement and transfer documents, attending to stamping and registration, liaising with the relevant parties, developer and financier, and rendering legal advice as may be required from time to time, together with all necessary and incidental work related thereto.',
+    prof: [['Legal fees on Sale & Purchase Agreement (scale fee, SRO 2023)', 4200], ['Legal fees on transfer / Deed of Assignment', 800]],
+    disb: [['Land search & Bankruptcy search', 120], ['Stamp duty on Sale & Purchase Agreement', 30], ['Stamp duty on Memorandum of Transfer (Estimated, Subject to Valuation)', 3800], ['Registration fees (Land Office)', 400]],
+    reimb: [['Travelling, Printing & Photocopy charges', 350], ['Telephone, fax, courier, runner charges & postage charges', 150], ['Miscellaneous', 100]] },
+  Corporate: { code: 'CORP', desc: 'Being our professional charges for services rendered in connection with the Agreement, including taking instructions, perusing and reviewing documents forwarded to us, drafting and preparing ONE (1) Agreement, conducting necessary legal research, negotiating on your behalf with the relevant parties, undertaking reasonable due diligence, and rendering legal advice as may be required from time to time, together with all necessary and incidental work related thereto.',
+    prof: [['Professional fees', 5000]],
+    disb: [['Bankruptcy & SSM searches', 35.4], ['Stamp duty on Agreement (Estimated)', 500]],
+    reimb: [['Travelling, Printing & Photocopy charges', 350], ['Miscellaneous', 100]] },
+  Employment: { code: 'EMP', desc: 'Being our professional charges for taking instructions, opening file, perusing all the relevant documents forwarded to us, conducting researches including all relevant laws and regulations, preparing representations, attending conciliation at the Industrial Relations Department and hearings at the Industrial Court, updating and advising your goodself from time to time via email or calls and other related matters incidental thereto not specifically stated herein.',
+    prof: [['Professional fees (Conciliation)', 2500], ['Professional fees (Industrial Court, per hearing)', 3500]],
+    disb: [['SSM search', 15.4], ['Filing fees', 100]],
+    reimb: [['Printing & Photocopy charges', 200], ['Travelling Expenses', 300], ['Miscellaneous', 100]] },
+  'Wills & Probate': { code: 'PRO', desc: 'Being our professional charges for taking instructions, perusing documents forwarded to us, conducting searches on the assets of the estate, preparing, drafting and filing the application for Grant of Probate / Letters of Administration, attending court, extracting the grant and distributing the estate, together with all necessary and incidental work related thereto.',
+    prof: [['Application for Grant of Probate / Letters of Administration', 3500], ['Distribution of estate & transfer of assets', 1500]],
+    disb: [['Land searches', 120], ['Court filing & commissioning fees', 250], ['Newspaper advertisement', 600]],
+    reimb: [['Printing & Photocopy charges', 100], ['Travelling Expenses', 150], ['Miscellaneous', 50]] },
+  'Family & Syariah': { code: 'FAM', desc: 'Being our professional charges for taking instructions, opening file, perusing all the relevant documents, preparing, drafting and filing the application at the Syariah Court, attending sulh and hearings, updating and advising your goodself from time to time via email or calls and other related matters incidental thereto not specifically stated herein.',
+    prof: [['Professional fees', 4000]],
+    disb: [['Syariah Court filing fees', 80], ['Service of documents', 150]],
+    reimb: [['Printing & Photocopy charges', 80], ['Travelling Expenses', 150], ['Miscellaneous', 50]] },
+};
+export const areaFromRef = (ref?: string): string => { const c = (ref || '').split('/')[1]; return Object.keys(AREAS).find((a) => AREAS[a].code === c) || 'Litigation'; };
+/** Best practice-area template for a free-text practice area / matter type (e.g. "Civil Litigation"). */
+export const areaFromName = (name?: string, ref?: string): string => {
+  const n = String(name || '').toLowerCase();
+  if (/convey|property|spa\b|land/.test(n)) return 'Conveyancing';
+  if (/corporate|commercial|company|advisory/.test(n)) return 'Corporate';
+  if (/employ|industrial/.test(n)) return 'Employment';
+  if (/probate|will|estate/.test(n)) return 'Wills & Probate';
+  if (/family|syariah|shariah|divorce/.test(n)) return 'Family & Syariah';
+  if (/litig|dispute|civil|criminal/.test(n)) return 'Litigation';
+  return areaFromRef(ref);
+};
+export const clone = (l?: DocLine[]): DocLine[] => (l || []).map(([d, a]) => [d, a] as DocLine);
+export const fromTemplate = (area: string, f = 1): DocLines => { const T = AREAS[area] || AREAS.Litigation; const r = (l: DocLine[], k: number) => l.map(([d, a]) => [d, k === 1 ? a : Math.max(10, Math.round(a * k / 10) * 10)] as DocLine); return { prof: r(T.prof, f), disb: r(T.disb, 1), reimb: r(T.reimb, 1) }; };
+const sum = (l?: DocLine[]) => (l || []).reduce((s, x) => s + (Number(x[1]) || 0), 0);
+export const totals = (d: Pick<FinanceDoc, 'type' | 'lines' | 'sstRate' | 'deposit' | 'amount'>): DocTotals => {
+  if (d.type === 'Receipt') { const a = d.amount || 0; return { rate: 0, prof: 0, disb: 0, reimb: 0, sProf: 0, sReimb: 0, sst: 0, net: a, gross: a, less: 0, total: a }; }
+  const rate = d.sstRate != null ? d.sstRate : defaultSstRate();
+  const lines = d.lines || { prof: [], disb: [], reimb: [] };
+  const prof = sum(lines.prof), disb = sum(lines.disb), reimb = sum(lines.reimb);
+  const sProf = Math.round(prof * rate * 100) / 100, sReimb = Math.round(reimb * rate * 100) / 100, sst = sProf + sReimb;
+  const net = prof + disb + reimb, gross = net + sst, less = d.deposit || 0;
+  return { rate, prof, disb, reimb, sProf, sReimb, sst, net, gross, less, total: gross - less };
+};
+const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty', 'twenty-one', 'twenty-two', 'twenty-three', 'twenty-four'];
+export const schedule = (total: number, months: number, upfront: number): [string, number][] => { months = Math.max(1, Math.min(24, Math.round(months || 1))); upfront = Math.min(total, Math.max(0, upfront || 0)); if (months === 1) return [['Month 1 (Full Payment)', total]]; const first = upfront || Math.round(total / months * 100) / 100; const each = Math.floor((total - first) / (months - 1)); const out: [string, number][] = [['Month 1 (Upfront Payment)', first]]; for (let i = 2; i < months; i++) out.push(['Month ' + i, each]); out.push(['Month ' + months, Math.round((total - first - each * (months - 2)) * 100) / 100]); return out; };
+export const ARR_TERMS = 'Early Settlement: In the event the matter is settled before the completion of the instalment period, all payments made shall be non-refundable, and the outstanding balance for the remaining unpaid months shall be charged at ten per cent (10%) of the settlement sum.\nDisbursements & Reimbursements: Charged in accordance with the agreed quotation. Any additional disbursements and/or reimbursements incurred shall be notified to and borne by the Client, and any unused portion of disbursements paid shall be refunded to the Client accordingly.\nWork shall not proceed if instalment payments are not settled, unless otherwise agreed in writing.';
+export const num = (n: number | string | undefined) => Number(n || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export const money = (n: number | string | undefined) => 'RM ' + num(n);
+const TITLES: Record<DocType, string> = { Quotation: 'QUOTATION', Proforma: 'PROFORMA INVOICE', Invoice: 'INVOICE', Receipt: 'OFFICIAL RECEIPT' };
+const esc = (s: unknown) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] as string)).replace(/\n/g, '<br>');
+const F = 'font-family:Arial,Helvetica,sans-serif;color:#000;font-size:9.5pt;line-height:1.35';
+const B = 'border:1px solid #000;padding:5px 8px;vertical-align:top';
+const HDR = 'font-family:Georgia,\'Times New Roman\',serif;color:#16223A';
+const firmBlock = () => '<div style="' + HDR + '"><img src="' + LOGO.name + '" alt="' + FIRM.name + '" width="240" style="width:240px;height:auto;display:block"><div style="font-size:8.5pt;font-style:italic;color:#3D6B9C;line-height:1.4;margin-top:4px">Advocates &amp; Solicitors | Syarie Counsel<br>Peguambela &amp; Peguamcara | Peguam Syarie</div><div style="font-size:7.5pt;line-height:1.5;color:#5B6478;margin-top:5px">' + (FIRM.reg ? esc(FIRM.reg) + '<br>' : '') + esc(FIRM.addr) + '<br>' + FIRM.email + ' · ' + FIRM.tel + '</div></div>';
+const boxTable = (rows: [string, unknown][]) => rows.map(([k, v]) => '<div><span style="color:#5B6478">' + k + '</span> ' + esc(v) + '</div>').join('');
+const topHead = (title: string, rows: [string, unknown][]) => '<table style="width:100%;border-collapse:collapse"><tr><td style="vertical-align:top;padding:0">' + firmBlock() + '</td><td style="vertical-align:top;padding:0 0 0 12px;width:200px;text-align:right;' + HDR + ';font-size:8.5pt;line-height:1.6">' + (title ? '<div style="font-size:15pt;font-weight:bold;letter-spacing:.5px;line-height:1.15;margin-bottom:4px">' + title + '</div>' : '') + boxTable(rows) + '</td></tr></table><div style="border-top:2px solid #16223A;margin:12px 0 14px"></div>';
+/** Letterhead only (option 3c) — for letters / statements that build their own body. */
+export const letterhead = () => topHead('', []);
+const receiptOrig = (d: FinanceDoc) => { const bk = BANK[d.account] || BANK.Office;
+  const kv = [['Amount received', '<b style="font-size:15px">' + money(d.amount) + '</b>'], ['Being payment for', esc(d.forNo || d.matter || '-')], ['Payment method', esc(d.method || '-')], ['Paid into', esc(bk[0]) + ' · ' + esc(bk[1]) + ' · A/C ' + bk[2]]].concat((d.proofs || []).length ? [['Proof of payment', esc((d.proofs || []).map((q) => q.name).join('; '))]] : []);
+  return topHead('OFFICIAL RECEIPT', [['No.', d.no], ['Date', d.date], ['Account', d.account]])
+    + '<table style="width:100%;font-size:12px;margin-bottom:14px;font-family:Arial,sans-serif;color:#16223A"><tr><td style="vertical-align:top;width:55%"><div style="font-size:10px;color:#5B6478;text-transform:uppercase;letter-spacing:1px">Received from</div><div style="font-weight:bold">' + esc(d.client) + '</div><div style="color:#5B6478">' + esc(d.addr || '') + '</div></td><td style="vertical-align:top"><div style="font-size:10px;color:#5B6478;text-transform:uppercase;letter-spacing:1px">Matter</div><div style="font-weight:bold">' + esc(d.matter || '-') + '</div><div style="color:#5B6478">' + esc([d.ref, d.area].filter(Boolean).join(' · ')) + '</div></td></tr></table>'
+    + '<table style="width:100%;border-collapse:collapse;font-size:12px;font-family:Arial,sans-serif;color:#16223A">' + kv.map(([k, v]) => '<tr><td style="padding:8px;border:1px solid #DDE3EB;width:35%;color:#5B6478;background:#F6F8FA">' + k + '</td><td style="padding:8px;border:1px solid #DDE3EB">' + v + '</td></tr>').join('') + '</table>'
+    + (d.account === 'Client account' ? '<p style="font-size:10.5px;color:#2F6F4E;font-family:Arial,sans-serif">This money is held in the firm’s Client Account on your behalf under the Solicitors’ Account Rules 1990. It is not the firm’s money.</p>' : '')
+    + '<p style="font-size:10px;color:#5B6478;margin-top:30px;font-family:Arial,sans-serif">This is a computer-generated receipt. No signature is required.</p>'; };
+const head1a = (d: FinanceDoc) => { const t = totals(d); const title = d.type === 'Invoice' && t.sst ? 'TAX INVOICE' : TITLES[d.type];
+  const box: [string, unknown][] = d.type === 'Quotation' ? [['Quot No.', d.no], ['Date', d.date], ['Valid', '30 days']] : d.type === 'Proforma' ? [['Proforma No.', d.no], ['Date', d.date], ['Due', d.due || '14 days']] : d.type === 'Invoice' ? ([['Invoice No.', d.no], ['Date', d.date], ['Due', d.due && d.due !== 'on receipt' ? d.due : 'On receipt']] as [string, unknown][]).concat(d.einv && d.einv !== '—' ? [['e-Invoice', d.einv]] : []) : [['Receipt No.', d.no], ['Date', d.date], ['Amount', 'RM ' + num(d.amount)], ['Account', d.account === 'Client account' ? 'Client A/C' : 'Office A/C']];
+  const lab = 'padding:1px 6px 1px 0;font-weight:bold;white-space:nowrap;vertical-align:top;width:78px', col = 'padding:1px 4px 1px 0;vertical-align:top;width:8px', val = 'padding:1px 0;vertical-align:top';
+  const refs = (d.type === 'Receipt' ? [['Our Ref', esc(d.ref || '-')], ['Being for', '<b>' + esc(d.forNo || d.matter || '-') + '</b>']] : [['Your Ref', esc(d.yourRef || 'Kindly Advised')], ['Our Ref', esc(d.ref || '-')]]).concat([['Subject', '<b>' + esc(d.subject || String(d.matter || '').toUpperCase()) + '</b>']]);
+  return topHead(title, box) + '<table style="width:100%;border-collapse:collapse;' + F + ';margin-bottom:12px"><tr><td style="vertical-align:top;width:48%;padding:0 12px 0 0"><div style="font-size:7.5pt;font-weight:bold;letter-spacing:1px;color:#444;margin-bottom:2px">' + (d.type === 'Receipt' ? 'RECEIVED FROM' : 'TO') + '</div><b>' + esc(d.client) + '</b>' + (d.addr ? '<br>' + esc(d.addr) : '') + '</td><td style="vertical-align:top;padding:0"><table style="border-collapse:collapse;' + F + '">' + refs.map(([k, v]) => '<tr><td style="' + lab + '">' + k + '</td><td style="' + col + '">:</td><td style="' + val + '">' + v + '</td></tr>').join('') + '</table></td></tr></table>'; };
+
+/** The one HTML source for a document: on screen, Word and PDF all use this. */
+export const docHtml = (d: FinanceDoc): string => {
+  if (d.type === 'Receipt') return receiptOrig(d);
+  const lines = d.lines || { prof: [], disb: [], reimb: [] };
+  const t = totals(d); let body = head1a(d);
+  const rate = t.rate, pct = Math.round(rate * 100), sv = (v: number) => rate ? num(v) : '-';
+  const BL = 'border-left:1px solid #000;border-right:1px solid #000;padding:1px 8px;vertical-align:top';
+  const row3 = (a: string, b: string, c: string, st?: string) => `<tr><td style="${B};${st || ''}">${a}</td><td style="${B};text-align:right;${st || ''}">${b}</td><td style="${B};text-align:right;${st || ''}">${c}</td></tr>`;
+  body += `<table style="width:100%;border-collapse:collapse;${F}"><tr><td style="${B};text-align:center;font-weight:bold">DESCRIPTION</td><td style="${B};text-align:center;font-weight:bold;width:105px">AMOUNT (RM)</td><td style="${B};text-align:center;font-weight:bold;width:95px">SST${rate ? ' ' + pct + '%' : ''} (RM)</td></tr>`;
+  ([['PROFESSIONAL FEES:', lines.prof, t.prof, t.sProf, d.desc, true], ['DISBURSEMENT', lines.disb, t.disb, 0, '', false], ['REIMBURSEMENT', lines.reimb, t.reimb, t.sReimb, '', true]] as [string, DocLine[], number, number, string | undefined, boolean][]).forEach(([hd, L, s0, ss, desc, taxable]) => { if (!L || !L.length) return;
+    body += `<tr><td style="border:1px solid #000;border-bottom:0;padding:5px 8px 3px"><b><u>${hd}</u></b>${desc ? `<div style="margin:4px 0 6px;text-align:left">${esc(desc)}</div>` : ''}</td><td style="border:1px solid #000;border-bottom:0"></td><td style="border:1px solid #000;border-bottom:0"></td></tr>`;
+    L.forEach(([ds, a], i) => { body += `<tr><td style="${BL}${i === L.length - 1 ? ';padding-bottom:6px' : ''}">${esc(ds)}</td><td style="${BL};text-align:right">${num(a)}</td><td style="${BL};text-align:right">${taxable ? sv(a * rate) : '-'}</td></tr>`; });
+    body += row3('<b>SUB TOTAL:</b>', '<b>' + num(s0) + '</b>', '<b>' + (taxable ? sv(ss) : '-') + '</b>', 'text-align:right'); });
+  body += row3('TOTAL (EXCLUDING SST):', num(t.net), '', 'text-align:right');
+  body += row3(rate ? `SST @ ${pct}% (on professional fees &amp; reimbursements):` : 'SST: Not applicable', '', rate ? num(t.sst) : '-', 'text-align:right');
+  if (t.less) body += row3('LESS: DEPOSIT RECEIVED:', '(' + num(t.less) + ')', '', 'text-align:right');
+  body += `<tr><td style="${B};text-align:right;font-weight:bold;background:#EFEFEF">TOTAL AMOUNT TO BE PAID:</td><td colspan="2" style="${B};text-align:right;font-weight:bold;background:#EFEFEF">${num(t.total)}</td></tr></table>`;
+  if (d.type === 'Quotation') body += `<p style="${F};margin:10px 0 6px;font-style:italic;text-align:justify">${NOTE}</p>`;
+  if (d.type === 'Proforma') body += `<p style="${F};margin:10px 0 6px;font-style:italic">This proforma invoice is a request for payment in advance. A final invoice will be issued upon completion of the work.</p>`;
+  if (d.type === 'Quotation' && (d.terms || []).length) body += `<p style="${F};margin:6px 0 2px">By agreeing to this quotation, it is hereby acknowledged and agreed by you that:-</p><ol style="${F};margin:0 0 8px;padding-left:22px">${(d.terms || []).map((x) => `<li style="margin:1px 0">${esc(x)}</li>`).join('')}</ol>`;
+  const bk = BANK[d.account] || BANK.Office;
+  body += `<p style="${F};margin:8px 0 2px">Payment to be made in transfer as the following:-</p><table style="${F};margin-left:18px;border-collapse:collapse"><tr><td style="padding:1px 8px 1px 0">Name</td><td>: ${esc(bk[0])}</td></tr><tr><td style="padding:1px 8px 1px 0">Bank</td><td>: ${esc(bk[1])}</td></tr><tr><td style="padding:1px 8px 1px 0">Bank Account No.</td><td>: ${bk[2]}</td></tr></table>`;
+  if (d.inst && d.inst.on) { const sch = schedule(t.total, d.inst.months, d.inst.upfront), n = sch.length; const terms = String(d.inst.terms != null ? d.inst.terms : ARR_TERMS).split('\n').filter((x) => x.trim());
+    body += `<div style="page-break-before:auto;margin-top:16px;${F}"><p style="margin:0 0 6px;font-weight:bold;text-decoration:underline">FEE ARRANGEMENT</p><p style="margin:0 0 8px;text-align:justify">You agree to pay the total professional fees in the sum of <b>RM${num(t.total)}</b> (inclusive of disbursements and reimbursements) as per quotation, by way of monthly instalments over ${WORDS[n] || n} (${n}) months, subject to the following terms:</p>
+<p style="margin:0 0 4px;font-weight:bold">1. Payment Schedule</p><table style="border-collapse:collapse;margin:0 0 8px 18px;${F}">${sch.map(([k, v]) => `<tr><td style="border:1px solid #000;padding:3px 10px;min-width:180px">${k}</td><td style="border:1px solid #000;padding:3px 10px;text-align:right;min-width:100px">RM${num(v)}</td></tr>`).join('')}<tr><td style="border:1px solid #000;padding:3px 10px;font-weight:bold">Total</td><td style="border:1px solid #000;padding:3px 10px;text-align:right;font-weight:bold">RM${num(t.total)}</td></tr></table>
+${terms.map((x, i) => { const m2 = x.match(/^([^:]{3,40}):\s*(.*)$/); return `<p style="margin:0 0 5px;text-align:justify"><b>${i + 2}. ${m2 ? esc(m2[1]) : 'Terms'}</b><br>${esc(m2 ? m2[2] : x)}</p>`; }).join('')}</div>`; }
+  else if (d.arrangement) body += `<p style="${F};margin:14px 0 2px;font-weight:bold;text-decoration:underline">FEE ARRANGEMENT</p><p style="${F};margin:0;white-space:pre-wrap">${esc(d.arrangement)}</p>`;
+  return body + `<p style="${F};margin:24px 0 0;font-size:8.5pt">This is a computer-generated document. No signature is required.</p>`;
+};
+const wrap = (title: string, body: string) => `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>@page{size:A4;margin:14mm 16mm}body{margin:0}</style></head><body>${body}</body></html>`;
+const dl = (blob: Blob, name: string) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500); };
+/** Word (.doc) download of the same HTML. */
+export const word = (title: string, body: string) => dl(new Blob(['﻿', `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>${esc(title)}</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]--><style>@page{size:21cm 29.7cm;margin:1.4cm 1.6cm}</style></head><body>${body}</body></html>`], { type: 'application/msword' }), title + '.doc');
+/** PDF via the browser print dialog of the same HTML (server-side PDF recommended in production). */
+export const pdf = (title: string, body: string) => { const f = document.createElement('iframe'); f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'; document.body.appendChild(f); const w = f.contentWindow; if (!w) return; w.document.open(); w.document.write(wrap(title, body)); w.document.close(); setTimeout(() => { try { w.focus(); w.print(); } catch (e) { /* print blocked */ } setTimeout(() => f.remove(), 60000); }, 500); };
+export const csv = (title: string, rows: unknown[][]) => dl(new Blob(['﻿' + rows.map((r) => r.map((c) => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n')], { type: 'text/csv' }), title + '.csv');
+const parseCsv = (text: string): string[][] => { const rows: string[][] = []; let row: string[] = [], cell = '', q = false; for (let i = 0; i < text.length; i++) { const c = text[i]; if (q) { if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; } else if (c === '"') q = false; else cell += c; } else if (c === '"') q = true; else if (c === ',') { row.push(cell); cell = ''; } else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; } else cell += c; } if (cell || row.length) { row.push(cell); rows.push(row); } return rows.filter((r) => r.some((x) => String(x).trim())); };
+const XLSX_URL = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm';
+/** Reads a CSV natively, or an Excel file via SheetJS loaded on demand from jsdelivr. */
+export const readSheet = async (file: File): Promise<string[][]> => { if (/\.csv$/i.test(file.name)) return parseCsv((await file.text()).replace(/^﻿/, '')); const X: any = await import(/* @vite-ignore */ XLSX_URL); const wb = X.read(await file.arrayBuffer()); return X.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' }); };
+export const IMPORT_COLS = ['Date (dd.mm.yyyy)', 'Type (Receipt / Payment / Invoice)', 'Account (Office / Client)', 'Client', 'Our Ref', 'Document No.', 'Description', 'Amount (RM)', 'Method', 'Proof reference'];
+export const importTemplate = () => csv('SHCO import template', [IMPORT_COLS, ['15.01.2025', 'Invoice', 'Office', 'FB Fastaqim Buildings', 'SHC/LIT/FB/SH/005/2025', 'INV-25-0012', 'Professional fees – defence', '10000', '', ''], ['20.01.2025', 'Receipt', 'Office', 'FB Fastaqim Buildings', 'SHC/LIT/FB/SH/005/2025', 'OR-25-0031', 'Payment for INV-25-0012', '2000', 'Online transfer', 'IBG screenshot 20.01'], ['22.01.2025', 'Payment', 'Client', 'FB Fastaqim Buildings', 'SHC/LIT/FB/SH/005/2025', 'PV-25-0008', 'Court filing fees', '16', 'Online transfer', 'e-Filing receipt']]);
+export const tableHtml = (title: string, period: string, cols: string[], rows: unknown[][]) => topHead(esc(title.toUpperCase()), [['Period', period]]) + `<div style="display:none"></div><div style="${F};text-align:center;margin:0 0 12px">${esc(period)}</div><table style="width:100%;border-collapse:collapse;${F}"><tr>${cols.map((c) => `<td style="${B};font-weight:bold;background:#EFEFEF">${esc(c)}</td>`).join('')}</tr>${rows.map((r) => `<tr>${r.map((c) => `<td style="${B}">${esc(c)}</td>`).join('')}</tr>`).join('')}</table>`;

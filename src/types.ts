@@ -535,6 +535,21 @@ export interface Quotation {
   documents?: ClaimDocument[];
   documentSentDate?: string;
   documentSentBy?: string;
+  /** Accounts & Finance document fields (finance-docs format). All optional/additive. */
+  caseId?: string;
+  /** Matter title shown on the document (e.g. "SPA Taman Bangi"). */
+  matter?: string;
+  subject?: string;
+  yourRef?: string;
+  tin?: string;
+  /** Scope-of-work paragraph printed under PROFESSIONAL FEES. */
+  scope?: string;
+  terms?: string[];
+  feeArrangement?: FinanceFeeArrangement | null;
+  /** Which bank account the client pays into (Office vs Client account). */
+  payInto?: 'Office' | 'Client account';
+  /** Per-document SST rate actually used (0.06 / 0.08) when sstApplied. */
+  sstRate?: number;
 }
 
 export interface QuoteTemplate {
@@ -641,6 +656,11 @@ export interface Expense {
   clientTrustBalanceSnapshot?: number;
   /** Staff Portal claim form this item was submitted on (e.g. 'CF-26-0413'). */
   formNo?: string;
+  /** Accounts & Finance additions (optional/additive). Office expense: which account paid it. */
+  paidFrom?: string;
+  signatories?: FinanceSignatory[];
+  paidAt?: string;
+  paidProof?: FinanceProof;
 }
 
 export interface Invoice {
@@ -666,6 +686,20 @@ export interface Invoice {
   eInvoiceQrUrl?: string;
   eInvoiceSubmittedAt?: string;
   lineItems?: QuotationLineItem[];
+  /** Accounts & Finance document fields (finance-docs format). All optional/additive. */
+  matter?: string;
+  subject?: string;
+  yourRef?: string;
+  tin?: string;
+  scope?: string;
+  payInto?: 'Office' | 'Client account';
+  sstRate?: number;
+  feeArrangement?: FinanceFeeArrangement | null;
+  /** Keyed in from previous books via Books & Reports → Import past transactions. */
+  historical?: boolean;
+  /** Amount written off (approved by the Managing Partner) — reduces the debtor balance. */
+  writtenOff?: number;
+  writeOffRequest?: WriteOffRequest;
 }
 
 export interface Payment {
@@ -691,6 +725,15 @@ export interface Receipt {
   bankAccountId?: string;
   bankAccountName?: string;
   receivedBy: string;
+  /** Accounts & Finance additions (optional/additive). */
+  paymentMethod?: string;
+  /** Document this receipt is for (invoice / proforma number, or free text e.g. "deposit"). */
+  forNo?: string;
+  invoiceId?: string;
+  quotationId?: string;
+  caseId?: string;
+  proofs?: FinanceProof[];
+  historical?: boolean;
 }
 
 export interface PaymentVoucher {
@@ -725,6 +768,15 @@ export interface PaymentVoucher {
   vendorBank?: string;
   /** Case / bill / assessment no. (online-portal payment requests). */
   portalRef?: string;
+  /** Accounts & Finance additions (optional/additive). */
+  caseId?: string;
+  invoiceId?: string;
+  signatories?: FinanceSignatory[];
+  rejectedBy?: string;
+  paidAt?: string;
+  paidProof?: FinanceProof;
+  historical?: boolean;
+  proofs?: FinanceProof[];
 }
 
 export interface TravelClaim {
@@ -761,6 +813,10 @@ export interface TravelClaim {
   postedToGl?: boolean;
   /** Staff Portal claim form this item was submitted on (e.g. 'CF-26-0413'). */
   formNo?: string;
+  /** Accounts & Finance additions (optional/additive). */
+  signatories?: FinanceSignatory[];
+  paidAt?: string;
+  paidProof?: FinanceProof;
 }
 
 export interface Retainer {
@@ -776,6 +832,8 @@ export interface Retainer {
    * "Items to check" list on My Dashboard → Client account shows an honest empty state
    * until an intake flow starts flagging these. */
   unidentified?: boolean;
+  /** Receipt / voucher number this ledger line came from (OR / PV). */
+  voucherNo?: string;
 }
 
 export interface OfficeBucket {
@@ -1085,6 +1143,7 @@ export interface SequenceCounters {
   clientSeq: number;
   leadSeq: number;
   expenseSeq: number;
+  journalSeq?: number;
 }
 
 export interface PracticeAreaConfig {
@@ -1187,6 +1246,7 @@ export interface FirmGoal {
   note?: string;
 }
 
+
 export interface Payslip {
   id: string;
   userId: string;
@@ -1209,3 +1269,58 @@ export interface Payslip {
   paidAt?: string;
 }
 
+/* ---------------- Accounts & Finance module additions ---------------- */
+
+/** One approver's sign-off on a finance item (claims, vouchers, client-account payments,
+ * journals). Approval rule: < RM5k any partner; >= RM5k or anything from the client account
+ * = Managing Partner + 1 more signatory. */
+export interface FinanceSignatory {
+  name: string;
+  at: string;
+  isManagingPartner: boolean;
+}
+
+/** Proof-of-payment file reference. Only metadata is synced — the firm has no object storage
+ * connected yet, so the file itself is only viewable in the session it was attached in. */
+export interface FinanceProof {
+  name: string;
+  size?: number;
+  type?: string;
+  uploadedAt: string;
+}
+
+export interface FinanceFeeArrangement {
+  on: boolean;
+  months: number;
+  upfront: number;
+  terms: string;
+}
+
+export interface WriteOffRequest {
+  amount: number;
+  reason: string;
+  requestedBy: string;
+  requestedAt: string;
+  status: 'Pending' | 'Approved' | 'Rejected';
+  decidedBy?: string;
+  decidedAt?: string;
+}
+
+/** Books & Reports → Manual journal (corrections only). Goes to Approvals; posts to the GL
+ * (docType 'JV') once approved. Nothing is ever hard-deleted — rejected ones stay on file. */
+export interface ManualJournal {
+  id: string;
+  date: string; // ISO yyyy-mm-dd
+  account: 'Office' | 'Client account' | 'Disbursement' | 'Petty cash';
+  direction: 'Money in' | 'Money out';
+  details: string;
+  amount: number;
+  reason: string;
+  preparedBy: string;
+  createdAt: string;
+  status: 'Pending Approval' | 'Approved' | 'Rejected';
+  signatories?: FinanceSignatory[];
+  decidedBy?: string;
+  decidedAt?: string;
+  proofs?: FinanceProof[];
+}
