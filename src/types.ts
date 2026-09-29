@@ -967,6 +967,72 @@ export interface StaffProfile {
   socsoNo?: string;
   bankName?: string;
   bankAccountNo?: string;
+
+  /* ---- Employee record (Staff Portal -> My profile). HR-maintained, all optional. ---- */
+  gender?: 'Male' | 'Female';
+  nationality?: string;
+  race?: string;
+  religion?: string;
+  /** Marital status and number of children feed PCB tax reliefs. */
+  maritalStatus?: 'Single' | 'Married' | 'Divorced' | 'Widowed';
+  children?: number;
+  /** Staff photo in Firebase Storage (confidential/hr/{userId}/...). */
+  photo?: HrDocument;
+  homeAddress?: string;
+  personalEmail?: string;
+  /** Structured emergency contact. The older free-text `emergencyContact` is kept in sync as a summary. */
+  emergency?: { name?: string; relationship?: string; phone?: string };
+  employment?: {
+    probationEndDate?: string;
+    confirmationDate?: string;
+    /** User id of the person this staff member reports to. */
+    reportingTo?: string;
+    /** HR status only — login access is controlled separately in Users & Permissions. */
+    status?: 'Active' | 'Resigned' | 'Terminated';
+    lastWorkingDay?: string;
+  };
+  pay?: {
+    /** RM per month. Default for new payslips in Finance -> Payroll. */
+    basicSalary?: number;
+    /** Fixed monthly allowances (RM). Default for new payslips in Finance -> Payroll. */
+    allowances?: { name: string; amount: number }[];
+    /** LHDN income tax no. */
+    taxNo?: string;
+    taxResidency?: 'Resident' | 'Non-resident';
+    /** PCB category 1 / 2 / 3. */
+    pcbCategory?: '1' | '2' | '3';
+    /** Zakat deducted via employer, RM per month. */
+    zakatMonthly?: number;
+    bankAccountHolder?: string;
+  };
+  professional?: {
+    /** Advocate & Solicitor roll no. */
+    rollNo?: string;
+    practisingCertNo?: string;
+    practisingCertExpiry?: string;
+    syarieCertNo?: string;
+    syarieCertExpiry?: string;
+    /** CPD points by calendar year, e.g. { '2026': 12 }. */
+    cpdPoints?: Record<string, number>;
+  };
+  education?: { qualification: string; institution: string; year: string }[];
+  workHistory?: { employer: string; position: string; from: string; to: string }[];
+  /** Ticked when the person has no previous employment (e.g. a fresh graduate or pupil). */
+  noPriorEmployment?: boolean;
+  /** Scanned HR documents in Firebase Storage. Only the reference is stored here. */
+  hrDocuments?: HrDocument[];
+  hrUpdatedAt?: string;
+  hrUpdatedBy?: string;
+}
+
+/** A file in Firebase Storage attached to a staff member's HR record. */
+export interface HrDocument {
+  name: string;
+  path: string;
+  /** Document type label, e.g. 'IC copy', 'Offer letter'. */
+  type: string;
+  uploadedAt: string;
+  uploadedBy: string;
 }
 
 export interface StaffGoal {

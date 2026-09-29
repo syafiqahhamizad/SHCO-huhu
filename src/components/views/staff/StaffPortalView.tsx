@@ -102,7 +102,7 @@ export const StaffPortalView: React.FC = () => {
       {tab === 'leave' && <StaffLeaveTab myLeaves={myLeaves} used={used} me={me} />}
       {tab === 'attendance' && <StaffAttendanceTab />}
       {tab === 'goals' && <StaffGoalsTab />}
-      {tab === 'profile' && <StaffProfileTab />}
+      {tab === 'profile' && <StaffProfileTab lh={lh} />}
     </div>
   );
 };

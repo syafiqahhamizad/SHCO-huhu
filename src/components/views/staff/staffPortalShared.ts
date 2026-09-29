@@ -84,7 +84,7 @@ export interface FirmLetterhead {
   phone: string;
 }
 
-const letterheadHtml = (lh: string, firm: FirmLetterhead, title: string, lines: [string, string][]) =>
+export const letterheadHtml = (lh: string, firm: FirmLetterhead, title: string, lines: [string, string][]) =>
   '<table style="width:100%;border-collapse:collapse"><tr><td style="vertical-align:top;padding:0;font-family:Georgia,\'Times New Roman\',serif;color:#16223A">' +
   '<img src="' + esc(lh) + '" alt="Syafiqah Hamizad &amp; Co" width="240" style="width:240px;height:auto;display:block">' +
   '<div style="font-size:8.5pt;font-style:italic;color:#3D6B9C;line-height:1.4;margin-top:4px">Advocates &amp; Solicitors | Syarie Counsel<br>Peguambela &amp; Peguamcara | Peguam Syarie</div>' +

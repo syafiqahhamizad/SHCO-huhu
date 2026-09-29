@@ -74,7 +74,24 @@ export async function uploadClaimAttachment(userId: string, recordId: string, fi
   }
 }
 
-export const getClaimAttachmentUrl = (path: string) => getDownloadURL(ref(firebaseStorage, path));
+/**
+ * Uploads one HR document (or staff photo) to `confidential/hr/{userId}/{timestamp}-{safeFileName}`.
+ * Same rules as claim receipts: images or PDF, max 10 MB. Returns the stored path.
+ */
+export async function uploadHrFile(userId: string, file: File): Promise<{ name: string; path: string }> {
+  const problem = validateClaimFile(file);
+  if (problem) throw new Error(problem);
+  const contentType = file.type || (isPdf(file) ? 'application/pdf' : 'application/octet-stream');
+  const path = 'confidential/hr/' + safeSegment(userId) + '/' + Date.now() + '-' + safeFileName(file.name);
+  try {
+    const result = await uploadBytes(ref(firebaseStorage, path), file, { contentType, customMetadata: { originalName: file.name } });
+    return { name: file.name, path: result.metadata.fullPath };
+  } catch (err) {
+    throw new Error(file.name + ': ' + describeStorageError(err));
+  }
+}
+
+export const getClaimAttachmentUrl =(path: string) => getDownloadURL(ref(firebaseStorage, path));
 
 /**
  * Opens a stored file in a new tab. The tab is opened synchronously (inside the click)
