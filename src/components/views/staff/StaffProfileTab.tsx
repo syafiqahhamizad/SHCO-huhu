@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../../../context/AppContext';
+import { StaffSelfView } from './StaffSelfView';
 import type { HrDocument, StaffProfile, User } from '../../../types';
 import { card, cardTitle, FirmLetterhead, labelWrap, printHtml, serif } from './staffPortalShared';
 import { getPracticeSettings } from '../../../services/templateService';
@@ -77,7 +78,11 @@ export const StaffProfileTab: React.FC<{ lh: string }> = ({ lh }) => {
       {!target || target.role === 'Client' ? (
         <div style={{ ...card, padding: '12px 14px', fontSize: 11.5, color: '#5B6478' }}>No staff profile to show.</div>
       ) : (
-        <RecordForm key={target.id} user={target} admin={admin} self={target.id === currentUser.id} lh={lh} />
+        admin ? (
+          <RecordForm key={target.id} user={target} admin={admin} self={target.id === currentUser.id} lh={lh} />
+        ) : (
+          <StaffSelfView user={target} />
+        )
       )}
     </div>
   );
