@@ -1,6 +1,7 @@
 import type React from 'react';
 import type { Case, Client, Expense, PaymentVoucher, Payslip, TravelClaim, User } from '../../../types';
 import { isMine, partnerCode } from '../../../lib/identity';
+import { getPracticeSettings } from '../../../services/templateService';
 
 /* ------------------------------------------------------------------ formatting */
 
@@ -243,12 +244,15 @@ export const LEAVE_COLORS: Record<string, [string, string]> = {
   'Study / exam': ['#6B3D8C', '#F1EBF6'], Hajj: ['#2F7A7A', '#E4F1F1'], Umrah: ['#3E8C84', '#E6F2F0'], Replacement: ['#5B6BA8', '#ECEEF7'], Unpaid: ['#94A3B8', '#F0F2F5'],
 };
 
+/** The firm's editable list (Firm & Practice Settings → Public holidays), else the built-in one. */
+export const getPublicHolidays = (): Record<string, string> =>
+  getPracticeSettings().publicHolidays ?? DEFAULT_PUBLIC_HOLIDAYS;
+
 /**
- * Selangor / national public holidays (weekends are already excluded separately).
- * Fixed-date holidays are exact; lunar-calendar ones are marked "(est.)" and must be
- * checked against the official gazette each year. Update this list every December.
+ * Built-in Selangor / national list, used until the firm edits its own in settings.
+ * Lunar-calendar dates are marked "(est.)" — check against the official gazette.
  */
-export const PUBLIC_HOLIDAYS: Record<string, string> = {
+export const DEFAULT_PUBLIC_HOLIDAYS: Record<string, string> = {
   '2026-01-01': "New Year's Day",
   '2026-02-02': 'Thaipusam (replacement)',
   '2026-02-17': 'Chinese New Year',

@@ -72,6 +72,8 @@ export interface PracticeSettings {
   /** Decimal rate, e.g. 0.08 for 8%, 0.06 for 6%. Only meaningful when sstRegistered (or a
    * document's own SST tick) is on. */
   sstRate: number;
+  /** ISO date -> holiday name. Leave counting skips these. Absent = built-in list. */
+  publicHolidays?: Record<string, string>;
   bankName: string;
   bankAccountNo: string;
   bankAccounts?: FirmBankAccount[];

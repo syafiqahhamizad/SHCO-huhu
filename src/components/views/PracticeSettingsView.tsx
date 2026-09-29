@@ -41,10 +41,14 @@ import {
   DollarSign,
   AlertCircle,
   ExternalLink,
+  CalendarDays,
 } from 'lucide-react';
+import { DEFAULT_PUBLIC_HOLIDAYS } from './staff/staffPortalShared';
 
 export const PracticeSettingsView: React.FC = () => {
   const { showToast, cases } = useApp();
+  const [newHolidayDate, setNewHolidayDate] = useState('');
+  const [newHolidayName, setNewHolidayName] = useState('');
 
   // Practice Settings State
   const [settings, setSettings] = useState<PracticeSettings>(() => getPracticeSettings());
@@ -992,6 +996,99 @@ export const PracticeSettingsView: React.FC = () => {
               </p>
             </div>
           </div>
+
+          {/* Public holidays — used by Staff Portal leave day counting */}
+          {(() => {
+            const holidays = settings.publicHolidays ?? DEFAULT_PUBLIC_HOLIDAYS;
+            const saveHolidays = (next: Record<string, string> | undefined) => {
+              const updatedSettings = { ...settings, publicHolidays: next };
+              setSettings(updatedSettings);
+              savePracticeSettings(updatedSettings);
+            };
+            const addHoliday = () => {
+              if (!newHolidayDate || !newHolidayName.trim()) {
+                showToast('Pick a date and enter the holiday name.');
+                return;
+              }
+              saveHolidays({ ...holidays, [newHolidayDate]: newHolidayName.trim() });
+              setNewHolidayDate('');
+              setNewHolidayName('');
+              showToast('Public holiday added.');
+            };
+            const removeHoliday = (date: string) => {
+              const next = { ...holidays };
+              delete next[date];
+              saveHolidays(next);
+            };
+            return (
+              <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2 gap-2">
+                  <div>
+                    <h3 className="font-serif font-bold text-sm text-[#16223A] flex items-center gap-2">
+                      <CalendarDays className="w-4 h-4 text-[#A9814A]" />
+                      <span>Public Holidays</span>
+                    </h3>
+                    <p className="text-[10px] text-slate-500">
+                      Leave requests don't count these days. Update each year from the official gazette — dates marked "(est.)" are estimates.
+                    </p>
+                  </div>
+                  {settings.publicHolidays && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm('Replace your list with the built-in 2026–2027 list?')) saveHolidays(undefined);
+                      }}
+                      className="px-2.5 py-1 border border-slate-300 rounded text-[11px] font-bold text-slate-600 hover:bg-slate-50 shrink-0 cursor-pointer"
+                    >
+                      Reset to built-in list
+                    </button>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="date"
+                    value={newHolidayDate}
+                    onChange={(e) => setNewHolidayDate(e.target.value)}
+                    className="p-2 bg-white border border-slate-300 rounded text-xs font-bold text-[#16223A]"
+                  />
+                  <input
+                    value={newHolidayName}
+                    onChange={(e) => setNewHolidayName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && addHoliday()}
+                    placeholder="e.g. Hari Raya Aidilfitri"
+                    className="flex-1 p-2 bg-white border border-slate-300 rounded text-xs text-[#16223A]"
+                  />
+                  <button
+                    type="button"
+                    onClick={addHoliday}
+                    className="px-3 py-2 bg-[#16223A] hover:bg-[#1F2E4D] text-amber-300 font-bold text-xs rounded-lg flex items-center gap-1 shrink-0 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add</span>
+                  </button>
+                </div>
+                <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-lg">
+                  {Object.keys(holidays).sort().map((date) => (
+                    <div key={date} className="flex items-center gap-3 px-3 py-1.5 text-xs">
+                      <span className="w-24 shrink-0 font-mono font-bold text-[#16223A]">{date}</span>
+                      <span className="flex-1 text-slate-700">{holidays[date]}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeHoliday(date)}
+                        title="Remove"
+                        className="text-slate-400 hover:text-rose-600 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  {Object.keys(holidays).length === 0 && (
+                    <p className="px-3 py-4 text-center text-[11px] text-slate-400">No public holidays listed.</p>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Section 6: Default Billing Items */}
           <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-3">

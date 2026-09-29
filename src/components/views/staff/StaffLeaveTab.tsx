@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useApp } from '../../../context/AppContext';
 import type { LeaveApplication } from '../../../types';
 import { isMine } from '../../../lib/identity';
-import { card, cardTitle, ddmmyyyy, isoOf, labelWrap, LEAVE_COLORS, LEAVE_TYPES, PUBLIC_HOLIDAYS } from './staffPortalShared';
+import { card, cardTitle, ddmmyyyy, isoOf, labelWrap, LEAVE_COLORS, LEAVE_TYPES, getPublicHolidays } from './staffPortalShared';
 
 const LBL: React.CSSProperties = { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#5B6478' };
 const INP: React.CSSProperties = { border: '1px solid #DDE3EB', borderRadius: 6, padding: '6px 8px', fontSize: 11.5, color: '#16223A', background: '#fff', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', cursor: 'pointer', outline: 'none' };
@@ -49,6 +49,7 @@ export const StaffLeaveTab: React.FC<Props> = ({ myLeaves, used, me }) => {
   const e = toD(lv.to || lv.from) || s;
   let days = 0;
   const hols: string[] = [];
+  const PUBLIC_HOLIDAYS = getPublicHolidays();
   const clash: string[] = [];
   if (s && e && e >= s) {
     for (const d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
