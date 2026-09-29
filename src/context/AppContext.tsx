@@ -996,6 +996,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return false;
     }
 
+    if (users.some((user) => user.email.toLowerCase() === newUser.email.toLowerCase())) {
+      showToast(`${newUser.email} is already in the roster.`);
+      return false;
+    }
+
     setUsers((prev) => {
       const staffUsers = prev.filter((user) => user.role !== 'Client');
       const usedStaffIds = new Set(staffUsers.map((user) => user.staffProfile?.staffId).filter(Boolean));

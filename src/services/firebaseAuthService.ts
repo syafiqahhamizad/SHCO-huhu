@@ -136,7 +136,7 @@ export async function provisionFirebaseUser(input: {
     },
     body: JSON.stringify(input),
   });
-  const result = await response.json() as { id?: string; email?: string; temporaryPassword?: string; error?: string };
+  const result = await readAdminApiJson(response) as { id?: string; email?: string; temporaryPassword?: string; error?: string };
   if (!response.ok || !result.id || !result.email || !result.temporaryPassword) {
     throw new Error(result.error || 'Unable to create the Firebase user account.');
   }
@@ -173,9 +173,21 @@ export async function syncFirebaseUserClaims(input: {
     body: JSON.stringify(input),
   });
   if (!response.ok) {
-    const result = await response.json().catch(() => ({})) as { error?: string };
+    const result = await readAdminApiJson(response) as { error?: string };
     throw new Error(result.error || 'Unable to update the Firebase user account.');
   }
+}
+
+// When Google Cloud blocks the admin Cloud Function (e.g. it isn't allowed public
+// invocation), the reply is an HTML error page, not JSON — say so plainly.
+async function readAdminApiJson(response: Response): Promise<Record<string, unknown>> {
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    throw new Error(
+      `The account server is not reachable (HTTP ${response.status}). In Google Cloud Console → Cloud Run, the "provisionuser" and "syncuserclaims" services must allow unauthenticated invocations.`
+    );
+  }
+  return response.json();
 }
 
 export async function signInExternalWithPassword(email: string, password: string): Promise<User> {
