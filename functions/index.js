@@ -17,7 +17,7 @@ const corsHeaders = (req, res) => {
 };
 
 exports.provisionUser = onRequest(
-  { region: 'asia-southeast1', timeoutSeconds: 30, invoker: 'public' },
+  { region: 'asia-southeast1', timeoutSeconds: 30 },
   async (req, res) => {
     corsHeaders(req, res);
     if (req.method === 'OPTIONS') {
@@ -98,7 +98,7 @@ exports.provisionUser = onRequest(
 );
 
 exports.syncUserClaims = onRequest(
-  { region: 'asia-southeast1', timeoutSeconds: 30, invoker: 'public' },
+  { region: 'asia-southeast1', timeoutSeconds: 30 },
   async (req, res) => {
     corsHeaders(req, res);
     if (req.method === 'OPTIONS') {
