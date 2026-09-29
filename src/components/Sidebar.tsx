@@ -99,7 +99,7 @@ export const Sidebar: React.FC = () => {
     {
       group: 'Practice',
       items: [
-        { id: 'leads', label: 'Leads / Intake', icon: <UserCheck className="w-3.5 h-3.5" /> },
+        { id: 'leadsReferrals', label: 'Leads & Referrals', icon: <UserCheck className="w-3.5 h-3.5" /> },
         { id: 'clients', label: 'Clients', icon: <Users className="w-3.5 h-3.5" /> },
         { id: 'cases', label: 'Cases', icon: <Scale className="w-3.5 h-3.5" /> },
         { id: 'hearings', label: 'Hearings', icon: <Clock className="w-3.5 h-3.5" /> },
