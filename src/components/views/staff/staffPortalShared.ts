@@ -71,8 +71,12 @@ export const earnLines = (p: Payslip) =>
 
 export const dedLines = (p: Payslip) =>
   [
-    { k: 'EPF (11%)', v: p.epfEmployee || 0 },
-    { k: 'SOCSO + EIS', v: p.socsoEis || 0 },
+    { k: 'EPF (employee)', v: p.epfEmployee || 0 },
+    // PERKESO asks payslips to show Act 4 (SOCSO) and Act 800 (EIS) separately; auto-calculated
+    // payslips carry the split, older hand-keyed ones only the combined figure.
+    ...(p.statutory?.auto && p.statutory.socsoEmployee != null && p.statutory.eisEmployee != null
+      ? [{ k: 'PERKESO: SOCSO (Act 4)', v: p.statutory.socsoEmployee }, { k: 'PERKESO: EIS (Act 800)', v: p.statutory.eisEmployee }]
+      : [{ k: 'SOCSO + EIS', v: p.socsoEis || 0 }]),
     { k: 'PCB (income tax)', v: p.pcb || 0 },
     { k: 'Zakat (via employer, reduces PCB)', v: p.zakat || 0 },
     ...(p.otherDeductions || []).map((d) => ({ k: d.name, v: d.amount || 0 })),
@@ -153,9 +157,11 @@ export const buildPayslipHtml = (p: Payslip, who: StaffIdentity, lh: string, fir
     '<tr><td colspan="3" style="' + B + ';font-weight:bold;text-align:right;background:#EFEFEF;font-size:11pt">NET PAY</td><td style="' + B + ';font-weight:bold;text-align:right;background:#EFEFEF;font-size:11pt">' + num2(netOf(p)) + '</td></tr></table>' +
     '<table style="width:60%;border-collapse:collapse;margin-top:14px"><tr><td colspan="2" style="padding:2px 0;font-weight:bold">Employer contributions (not deducted from you)</td></tr>' +
     '<tr><td style="padding:2px 0">EPF (employer)</td><td style="text-align:right">' + num2(p.epfEmployer || 0) + '</td></tr>' +
-    // The payroll record keeps one combined SOCSO + EIS figure (employee share); the employer's
-    // SOCSO + EIS share isn't stored, so it is shown blank rather than estimated.
-    '<tr><td style="padding:2px 0">SOCSO + EIS (employer)</td><td style="text-align:right">—</td></tr></table>' +
+    // Employer SOCSO + EIS is stored on payslips saved since auto-calculation; older ones don't
+    // have it, so they still show a dash rather than an estimate.
+    (p.statutory?.auto && p.statutory.socsoEmployer != null && p.statutory.eisEmployer != null
+      ? '<tr><td style="padding:2px 0">SOCSO, Act 4 (employer)</td><td style="text-align:right">' + num2(p.statutory.socsoEmployer) + '</td></tr><tr><td style="padding:2px 0">EIS, Act 800 (employer)</td><td style="text-align:right">' + num2(p.statutory.eisEmployer) + '</td></tr>'
+      : '<tr><td style="padding:2px 0">SOCSO + EIS (employer)</td><td style="text-align:right">' + (p.socsoEisEmployer != null ? num2(p.socsoEisEmployer) : '—') + '</td></tr>') + '</table>' +
     '<p style="margin:28px 0 0;font-size:8.5pt">This is a computer-generated payslip. No signature is required. Private &amp; confidential.</p></div>'
   );
 };
@@ -192,6 +198,7 @@ export const buildEaHtml = (year: number, slips: Payslip[], who: StaffIdentity, 
     row('Zakat (via employer)', sum((p) => p.zakat || 0)) +
     (other ? row('Other deductions', other) : '') +
     row('EPF (employer contribution)', sum((p) => p.epfEmployer || 0)) +
+    (slips.some((p) => p.socsoEisEmployer != null) ? row('SOCSO + EIS (employer contribution)', sum((p) => p.socsoEisEmployer || 0)) : '') +
     '</table>' +
     '<p style="margin:0;font-size:8.5pt">Built from ' + slips.length + ' payslip' + (slips.length === 1 ? '' : 's') + ' issued for ' + year + ' (' + esc(months.join(', ')) + ').</p>' +
     '<p style="margin:28px 0 0;font-size:8.5pt">This is a computer-generated statement. No signature is required. Private &amp; confidential.</p></div>'

@@ -13,6 +13,7 @@ import { getPracticeSettings, savePracticeSettings, type SinkingFund } from '../
 import { computeTotals } from '../../../lib/billingEngine';
 import { identityTokens, isMine } from '../../../lib/identity';
 import * as SD from '../../../lib/financeDocs';
+import { statutoryForPayslip, STATUTORY_VERSION } from '../../../lib/statutory';
 import { finRoleKey, finTabsFor, FIN_TABS, type FinTab } from '../../../lib/financeAccess';
 import {
   GLA, MONTHS, MON, SC, addrOf, cashAccountGL, daysSince, dShort, expenseGL, fd, filesToProofs, findCase, initials,
@@ -371,7 +372,15 @@ export function useFinanceController(initialTab: FinTab) {
     const gross = Number(p.basic || 0) + allow + Number(p.referralFee || 0) + Number(p.profitShare || 0) + Number(p.bonus || 0);
     const other = (p.otherDeductions || []).reduce((s, a) => s + Number(a.amount || 0), 0);
     const ded = Number(p.epfEmployee || 0) + Number(p.socsoEis || 0) + Number(p.pcb || 0) + Number(p.zakat || 0) + other;
-    return { allow, gross, ded, other, net: gross - ded, er: Number(p.epfEmployer || 0) };
+    const erEpf = Number(p.epfEmployer || 0), erSocso = Number(p.socsoEisEmployer || 0);
+    // er = everything the firm pays on top of gross pay (employer EPF + employer SOCSO/EIS).
+    return { allow, gross, ded, other, net: gross - ded, er: erEpf + erSocso, erEpf, erSocso };
+  };
+  /** EPF / SOCSO / EIS for a payslip being keyed in (form values are strings). src/lib/statutory.ts. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const slipStatutory = (userId: string, vals: Record<string, any>) => {
+    const sp = staffUser(userId)?.staffProfile;
+    return statutoryForPayslip({ basic: num0(vals.basic), allowances: num0(vals.allow), referralFee: num0(vals.ref), profitShare: num0(vals.ps), bonus: num0(vals.bonus) }, { birthday: sp?.birthday, nric: sp?.nric, nationality: sp?.nationality }, period);
   };
   const periodSlips = payslips.filter((p) => p.period === period && staff.some((u) => u.id === p.userId));
   const PAY_STEPS: Payslip['status'][] = ['Draft', 'Checked', 'Approved', 'Paid'];
@@ -637,7 +646,15 @@ export function useFinanceController(initialTab: FinTab) {
       const u = staffUser(vals.userId); if (!u) return;
       const existing = slipOf(u.id);
       if (existing && existing.status !== 'Draft') { toastMsg('Only Draft payslips can be changed.'); return; }
-      const p: Payslip = { id: existing?.id || `PS-${period}-${u.id}`, userId: u.id, period, status: 'Draft', basic: num0(vals.basic), allowances: num0(vals.allow) ? [{ name: 'Allowances', amount: num0(vals.allow) }] : [], referralFee: num0(vals.ref), referralNote: vals.refNote || undefined, profitShare: num0(vals.ps), profitShareNote: vals.psNote || undefined, bonus: num0(vals.bonus), bonusNote: vals.bonusNote || undefined, epfEmployee: num0(vals.epf), epfEmployer: num0(vals.epfEr), socsoEis: num0(vals.socso), pcb: num0(vals.pcb), zakat: num0(vals.zakat), otherDeductions: num0(vals.otherDed) ? [{ name: vals.otherDedName || 'Other deduction', amount: num0(vals.otherDed) }] : [] };
+      // EPF and SOCSO + EIS are recalculated here from the official tables (never trusted from the
+      // form) unless Accounts ticked "Override", which needs a reason. PCB and zakat stay manual.
+      const st = slipStatutory(u.id, vals);
+      const override = !!vals.stOverride || !st.ok;
+      if (vals.stOverride && !String(vals.stReason || '').trim()) { toastMsg('Give a reason for overriding the calculated EPF / SOCSO / EIS.'); return; }
+      const statutory: NonNullable<Payslip['statutory']> = override
+        ? { auto: false, version: STATUTORY_VERSION, ...(String(vals.stReason || '').trim() ? { overrideReason: String(vals.stReason).trim() } : {}) }
+        : { auto: true, version: STATUTORY_VERSION, socsoEmployee: st.socso.employee, eisEmployee: st.eis.employee, socsoEmployer: st.socso.employer, eisEmployer: st.eis.employer };
+      const p: Payslip = { id: existing?.id || `PS-${period}-${u.id}`, userId: u.id, period, status: 'Draft', basic: num0(vals.basic), allowances: num0(vals.allow) ? [{ name: 'Allowances', amount: num0(vals.allow) }] : [], referralFee: num0(vals.ref), referralNote: vals.refNote || undefined, profitShare: num0(vals.ps), profitShareNote: vals.psNote || undefined, bonus: num0(vals.bonus), bonusNote: vals.bonusNote || undefined, epfEmployee: override ? num0(vals.epf) : st.epfEmployee, epfEmployer: override ? num0(vals.epfEr) : st.epfEmployer, socsoEis: override ? num0(vals.socso) : st.socsoEisEmployee, socsoEisEmployer: override ? num0(vals.socsoEr) : st.socsoEisEmployer, statutory, pcb: num0(vals.pcb), zakat: num0(vals.zakat), otherDeductions: num0(vals.otherDed) ? [{ name: vals.otherDedName || 'Other deduction', amount: num0(vals.otherDed) }] : [] };
       if (existing) app.updatePayslip(existing.id, p); else app.addPayslip(p);
       setForm(null); toastMsg('Payslip saved for ' + u.name);
     }
@@ -713,7 +730,7 @@ export function useFinanceController(initialTab: FinTab) {
     unbilled, wipTotal, billMatter, billed: billed as Record<string, { inv: string; u: any }>,
     activeBanks, bankKind, banksOf, bankBal, lastRecon, officeCash,
     apItems, pendingAp, approve, decided: decided as Record<string, { d: 'ok' | 'no'; item: ApItem }>, referral, referralFor, refDecision, toPay, markPaid, paidNow: paidNow as Record<string, { item: PayItem; file: string }>,
-    staff, slipOf, slipCalc, periodSlips, payStep, payNext, refFeeFor, slipUser, setSlipUser,
+    staff, slipOf, slipCalc, slipStatutory, periodSlips, payStep, payNext, refFeeFor, slipUser, setSlipUser,
     cashBook, openingBalance, cbAcc, setCbAcc, attachTo,
     docT, setDocT, invF, setInvF, apF, setApF, ledgerKey, setLedgerKey, fundEdit, setFundEdit, fundsDraft, setFundsDraft,
     view, setView, ed, setEd, saveEd, openNew, editDoc, form, setForm, openForm, saveForm,

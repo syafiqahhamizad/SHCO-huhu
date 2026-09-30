@@ -46,7 +46,7 @@ export const OfficeAccountTab = ({ F }: { F: FinanceCtrl }) => {
   const officeExp = expenses.filter((e) => !e.billable && e.approvalStatus !== 'Rejected' && e.approvalStatus !== 'Pending Approval' && (!e.claimant || e.paidAt) && inPeriod(e.claimant ? e.paidAt : e.date, F.period));
   const cats = new Map<string, number>();
   const add = (k: string, v: number) => { if (v > 0) cats.set(k, (cats.get(k) || 0) + v); };
-  add('Salaries & EPF/SOCSO', payslips.filter((p) => p.status === 'Paid' && inPeriod(p.paidAt, F.period)).reduce((s, p) => s + (F.slipCalc(p)?.gross || 0) + Number(p.epfEmployer || 0), 0));
+  add('Salaries & EPF/SOCSO', payslips.filter((p) => p.status === 'Paid' && inPeriod(p.paidAt, F.period)).reduce((s, p) => s + (F.slipCalc(p)?.gross || 0) + Number(p.epfEmployer || 0) + Number(p.socsoEisEmployer || 0), 0));
   officeExp.forEach((e) => add(e.claimant ? 'Staff claims' : e.category || 'Other', Number(e.amount || 0)));
   paymentVouchers.filter((v) => v.accountSet !== 'CLIENT' && v.paidAt && inPeriod(v.paidAt, F.period)).forEach((v) => add(v.voucherCategory === 'Disbursement' || v.voucherCategory === 'Client Disb' ? 'Client disbursements' : 'Payment vouchers', Number(v.amount || 0)));
   add('Staff claims', travelClaims.filter((t) => t.paidAt && inPeriod(t.paidAt, F.period)).reduce((s, t) => s + Number(t.total || 0), 0));

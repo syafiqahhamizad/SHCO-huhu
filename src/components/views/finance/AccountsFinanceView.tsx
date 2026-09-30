@@ -11,6 +11,7 @@ import { ApprovalsTab } from './ApprovalsTab';
 import { PayrollTab } from './PayrollTab';
 import { BooksReportsTab } from './BooksReportsTab';
 import { DocViewModal, DocEditModal, FormModal, ImportModal } from './FinanceModals';
+import { PayslipFormModal } from './PayslipFormModal';
 
 /**
  * Accounts & Finance — design pack `Accounts and Finance.dc.html` (COPY, DO NOT REDESIGN).
@@ -73,7 +74,7 @@ export const AccountsFinanceView = ({ initialTab = 'overview' }: { initialTab?: 
       {F.imp && <ImportModal F={F} />}
       {F.view && <DocViewModal F={F} />}
       {F.ed && <DocEditModal F={F} />}
-      {F.form && <FormModal F={F} />}
+      {F.form && (F.form.kind === 'payslip' ? <PayslipFormModal F={F} /> : <FormModal F={F} />)}
       {!!F.toast && <div style={css('position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:80;border-radius:8px;padding:10px 16px;background:#16223A;color:#fff;font-size:12px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.25)')}>{F.toast}</div>}
     </div>
   );

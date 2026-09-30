@@ -69,7 +69,7 @@ export const FinanceHomeTab = ({ F }: { F: FinanceCtrl }) => {
   const feesIn = payments.filter((p) => inPeriod(p.date, period) && invById.get(p.invoiceId)?.status !== 'Voided').reduce((s, p) => s + Number(p.amount || 0), 0)
     + receipts.filter((r) => r.accountSet !== 'CLIENT' && !r.invoiceId && inPeriod(r.date, period)).reduce((s, r) => s + Number(r.amount || 0), 0);
   const officeExp = expenses.filter((e) => !e.billable && e.approvalStatus !== 'Rejected' && e.approvalStatus !== 'Pending Approval' && (!e.claimant || e.paidAt) && inPeriod(e.claimant ? e.paidAt : e.date, period));
-  const salaries = payslips.filter((p) => p.status === 'Paid' && inPeriod(p.paidAt, period)).reduce((s, p) => s + (F.slipCalc(p)?.gross || 0) + Number(p.epfEmployer || 0), 0) + officeExp.filter((e) => /salar|epf|socso|payroll/i.test(e.category)).reduce((s, e) => s + Number(e.amount || 0), 0);
+  const salaries = payslips.filter((p) => p.status === 'Paid' && inPeriod(p.paidAt, period)).reduce((s, p) => s + (F.slipCalc(p)?.gross || 0) + Number(p.epfEmployer || 0) + Number(p.socsoEisEmployer || 0), 0) + officeExp.filter((e) => /salar|epf|socso|payroll/i.test(e.category)).reduce((s, e) => s + Number(e.amount || 0), 0);
   const rent = officeExp.filter((e) => /rent|utilit|electric|water/i.test(e.category)).reduce((s, e) => s + Number(e.amount || 0), 0);
   const other = officeExp.filter((e) => !/salar|epf|socso|payroll|rent|utilit|electric|water/i.test(e.category)).reduce((s, e) => s + Number(e.amount || 0), 0)
     + paymentVouchers.filter((v) => v.accountSet !== 'CLIENT' && v.paidAt && inPeriod(v.paidAt, period)).reduce((s, v) => s + Number(v.amount || 0), 0)

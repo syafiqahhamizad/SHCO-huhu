@@ -168,7 +168,7 @@ export const FormModal = ({ F }: { F: FinanceCtrl }) => {
     expense: ['Record office expense', [['payee', 'Paid to'], ['what', 'For'], ['cat', 'Category', ['Utilities', 'Rent', 'IT', 'Marketing', 'Stationery', 'Courier', 'Other']], ['amount', 'Amount (RM)'], ['from', 'Paid from', ['Hong Leong', 'CIMB', 'Petty cash']]]],
     fund: ['Add sinking fund', [['name', 'Fund name'], ['target', 'Target (RM)'], ['saved', 'Saved so far (RM)'], ['due', 'Due', 'e.g. Dec 2026'], ['monthly', 'Set aside / month (RM)']]],
     writeoff: ['Request write-off for ' + (f.vals.title || '') + ' (Managing Partner approves)', [['amount', 'Amount to write off (RM)'], ['reason', 'Reason', 'e.g. client wound up, 14 months unpaid']]],
-    payslip: [`Payslip · ${f.vals.name || ''} · ${F.monthName} ${F.now.getFullYear()}`, [['basic', 'Basic salary (RM)'], ['allow', 'Allowances (RM)'], ['ref', 'Referral fees (RM)'], ['refNote', 'Referral fee note'], ['ps', 'Profit sharing (RM)'], ['psNote', 'Profit sharing note'], ['bonus', 'Bonus (RM)'], ['bonusNote', 'Bonus note'], ['epf', 'EPF, employee share (RM)'], ['epfEr', 'EPF, employer share (RM)'], ['socso', 'SOCSO + EIS, employee (RM)'], ['pcb', 'PCB / income tax (RM)'], ['zakat', 'Zakat via employer (RM)'], ['otherDedName', 'Other deduction (name)'], ['otherDed', 'Other deduction (RM)']], 'Enter EPF, SOCSO, EIS and PCB from the official KWSP, PERKESO and LHDN tables. Nothing here is calculated for you.'],
+    // payslip: its own editor with auto EPF / SOCSO / EIS (PayslipFormModal.tsx).
   };
   const def = DEF[f.kind]; if (!def) return null;
   const listFor = (k: string) => (k === 'client' ? 'fin-clients' : k === 'forNo' && f.kind === 'transfer' ? 'fin-invoices' : k === 'forNo' ? 'fin-invoices' : undefined);

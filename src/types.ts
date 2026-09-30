@@ -1349,6 +1349,22 @@ export interface Payslip {
   epfEmployee: number;
   epfEmployer: number;
   socsoEis: number;
+  /** Employer's SOCSO + EIS share (firm cost, remitted to PERKESO). Absent on older payslips. */
+  socsoEisEmployer?: number;
+  /** How EPF / SOCSO / EIS were worked out (src/lib/statutory.ts). Absent on older, hand-keyed payslips. */
+  statutory?: {
+    /** true = figures came from the built-in KWSP / PERKESO tables; false = keyed in by Accounts. */
+    auto: boolean;
+    /** STATUTORY_VERSION of the tables used. */
+    version: string;
+    /** Why Accounts overrode the calculated figures (e.g. staff elected a higher EPF rate). */
+    overrideReason?: string;
+    /** Breakdown for the payslip (PERKESO asks for Act 4 and Act 800 to be shown separately). */
+    socsoEmployee?: number;
+    eisEmployee?: number;
+    socsoEmployer?: number;
+    eisEmployer?: number;
+  };
   pcb: number;
   zakat: number;
   otherDeductions: { name: string; amount: number }[];

@@ -37,7 +37,7 @@ export const BooksReportsTab = ({ F }: { F: FinanceCtrl }) => {
       const per = F.period; const invById = new Map<string, Invoice>(invoices.map((i: Invoice) => [i.id, i] as [string, Invoice]));
       const fees = payments.filter((p) => inPeriod(p.date, per) && invById.get(p.invoiceId)?.status !== 'Voided').reduce((s, p) => s + Number(p.amount || 0), 0);
       const otherIn = receipts.filter((r) => r.accountSet !== 'CLIENT' && !r.invoiceId && inPeriod(r.date, per)).reduce((s, r) => s + Number(r.amount || 0), 0);
-      const sal = payslips.filter((p) => p.status === 'Paid' && inPeriod(p.paidAt, per)).reduce((s, p) => s + (F.slipCalc(p)?.gross || 0) + Number(p.epfEmployer || 0), 0);
+      const sal = payslips.filter((p) => p.status === 'Paid' && inPeriod(p.paidAt, per)).reduce((s, p) => s + (F.slipCalc(p)?.gross || 0) + Number(p.epfEmployer || 0) + Number(p.socsoEisEmployer || 0), 0);
       const cats = new Map<string, number>();
       expenses.filter((e) => !e.billable && !e.claimant && e.approvalStatus !== 'Rejected' && inPeriod(e.date, per)).forEach((e) => cats.set(e.category || 'Other', (cats.get(e.category || 'Other') || 0) + Number(e.amount || 0)));
       const claims = travelClaims.filter((t) => t.paidAt && inPeriod(t.paidAt, per)).reduce((s, t) => s + Number(t.total || 0), 0) + expenses.filter((e) => e.claimant && e.paidAt && !e.billable && inPeriod(e.paidAt, per)).reduce((s, e) => s + Number(e.amount || 0), 0);
@@ -71,7 +71,7 @@ export const BooksReportsTab = ({ F }: { F: FinanceCtrl }) => {
       const rows = invoices.filter((i) => i.status !== 'Voided' && F.invIssued(i) && Number(i.tax || 0) > 0 && prev2.some((mm) => inPeriod(i.date, `${mm.getFullYear()}-${String(mm.getMonth() + 1).padStart(2, '0')}`))).map((i) => { const t = i.lineItems?.length ? computeTotals(i.lineItems, true, SD.defaultSstRate() || 0.08) : null; return [i.id, fd(i.date), i.partyName || F.clientName(i.clientId) || '—', rm2(t ? t.fees + t.reimbursements : Number(i.total || 0) - Number(i.tax || 0)), rm2(Number(i.tax || 0))]; });
       return { period: sstPeriod, cols: ['Invoice', 'Date', 'Client', 'Taxable (fees + reimbursements)', 'SST charged'], rows: rows.length ? rows : [[F.settings.sstRegistered ? 'No SST charged in this period' : 'Firm not SST-registered (Firm & Practice Settings)', '', '', '', '']] };
     }
-    if (name === 'EPF, SOCSO, EIS & PCB') return { period: `${F.monShort} ${year}`, cols: ['Staff', 'EPF (employee)', 'EPF (employer)', 'SOCSO + EIS', 'PCB', 'Zakat'], rows: F.periodSlips.map((p) => [F.staffUser(p.userId)?.name || p.userId, rm2(p.epfEmployee), rm2(p.epfEmployer), rm2(p.socsoEis), rm2(p.pcb), rm2(p.zakat)]) };
+    if (name === 'EPF, SOCSO, EIS & PCB') return { period: `${F.monShort} ${year}`, cols: ['Staff', 'EPF (employee)', 'EPF (employer)', 'SOCSO + EIS (employee)', 'SOCSO + EIS (employer)', 'PCB', 'Zakat'], rows: F.periodSlips.map((p) => [F.staffUser(p.userId)?.name || p.userId, rm2(p.epfEmployee), rm2(p.epfEmployer), rm2(p.socsoEis), p.socsoEisEmployer != null ? rm2(p.socsoEisEmployer) : '—', rm2(p.pcb), rm2(p.zakat)]) };
     if (name === 'EA forms (year end)') {
       const g = new Map<string, number[]>();
       payslips.filter((p) => p.period.startsWith(String(year)) && p.status === 'Paid').forEach((p) => { const c = F.slipCalc(p)!; const x = g.get(p.userId) || [0, 0, 0, 0, 0]; x[0] += c.gross; x[1] += Number(p.epfEmployee || 0); x[2] += Number(p.socsoEis || 0); x[3] += Number(p.pcb || 0); x[4] += Number(p.zakat || 0); g.set(p.userId, x); });
