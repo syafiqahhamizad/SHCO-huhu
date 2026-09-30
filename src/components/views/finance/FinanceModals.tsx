@@ -1,6 +1,7 @@
 import React from 'react';
 import type { FinanceCtrl, EditorState } from './useFinanceController';
-import { css, filesToProofs, proofUrl, rm2 } from './financeModel';
+import { css, filesToProofs, proofMissingMsg, proofUrl, rm2 } from './financeModel';
+import { storageLabel } from '../../../services/fileStorageService';
 import * as SD from '../../../lib/financeDocs';
 import type { FinanceProof, Invoice, Quotation } from '../../../types';
 import { getPracticeSettings, DEFAULT_EXPENSE_CATEGORIES } from '../../../services/templateService';
@@ -70,7 +71,7 @@ export const DocViewModal = ({ F }: { F: FinanceCtrl }) => {
   if (ref.kind === 'invoice' && d.status === 'Overdue' && (rec as Invoice).writeOffRequest?.status !== 'Pending' && (F.canPrepare || F.canApprove)) acts.push('Request write-off');
   const proofs = (d.proofs || []);
   const hasProofSlot = d.type === 'Receipt' || proofs.length > 0;
-  const openProof = (q: { name: string; url: string }) => { if (q.url) window.open(q.url, '_blank'); else F.toastMsg(q.name + ' (file not stored: object storage is not connected, only the file name is kept)'); };
+  const openProof = (q: { name: string; url: string }) => { if (q.url) window.open(q.url, '_blank', 'noopener'); else F.toastMsg(proofMissingMsg(q.name)); };
   const statusLabel = ref.kind === 'invoice' && (rec as Invoice).writeOffRequest?.status === 'Pending' ? d.status + ' · write-off requested' : d.status;
   return (
     <div style={css('position:fixed;inset:0;z-index:60;background:rgba(22,34,58,.6);overflow:auto;display:flex;justify-content:center;padding:24px 0 40px')}>
@@ -189,7 +190,7 @@ export const FormModal = ({ F }: { F: FinanceCtrl }) => {
           {def[1].map(([k, label, x]) => { const isOpts = Array.isArray(x), isFile = x === 'file'; const fl: FinanceProof[] = f.vals[k] || []; return (
             <div key={k} style={css('display:flex;flex-direction:column;gap:4px')}><span style={css(LBL)}>{label}</span>
               {!isOpts && !isFile && <input list={listFor(k)} value={f.vals[k] || ''} onChange={(ev) => set(k, ev.target.value)} placeholder={typeof x === 'string' ? x : ''} style={css(INPUT)} />}
-              {isFile && <div style={css('display:flex;align-items:center;gap:8px')}><label style={css('border:1px solid #DDE3EB;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit;white-space:nowrap')}>Choose files<input type="file" multiple accept="image/*,.pdf" onChange={(ev) => set(k, [...fl, ...filesToProofs('form', ev.target.files)])} style={css('display:none')} /></label><span style={css(`font-size:10.5px;color:${fl.length ? '#2F6F4E' : '#B23A2E'}`)}>{fl.length ? fl.map((q) => q.name).join(', ') : 'Nothing attached yet'}</span></div>}
+              {isFile && <div style={css('display:flex;align-items:center;gap:8px')}><label style={css('border:1px solid #DDE3EB;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit;white-space:nowrap')}>Choose files<input type="file" multiple accept="image/*,.pdf" onChange={(ev) => set(k, [...fl, ...filesToProofs('form', ev.target.files)])} style={css('display:none')} /></label><span style={css(`font-size:10.5px;color:${fl.length ? '#2F6F4E' : '#B23A2E'}`)}>{fl.length ? fl.map((q) => q.name).join(', ') : 'Nothing attached yet'}</span><span style={css('margin-left:auto;font-size:10px;color:#5B6478;white-space:nowrap')}>{storageLabel() === 'Saved to Firebase Storage' ? 'File kept in this session only (set up Google Drive in Firm Settings)' : storageLabel()}</span></div>}
               {isOpts && <div style={css('display:flex;flex-wrap:wrap;gap:4px')}>{seg(x as string[], f.vals[k] || (x as string[])[0], (v) => set(k, v))}</div>}
             </div>
           ); })}

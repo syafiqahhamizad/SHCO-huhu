@@ -1,12 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useApp } from '../../../context/AppContext';
 import type { HrDocument, User } from '../../../types';
 import { card, cardTitle, serif } from './staffPortalShared';
 import { draftOf, dt, expiryInfo, isLawyer } from './staffRecord';
-import { getClaimAttachmentUrl, openClaimAttachment } from '../../../services/firebaseStorageService';
+import { openStoredFile, storedFileKey, useStoredImageUrl } from '../../../services/fileStorageService';
 
 /** Document types staff can see on their own record; the rest (e.g. warning letters) stay HR-only. */
-const STAFF_VISIBLE_DOCS = new Set([
+export const STAFF_VISIBLE_DOCS = new Set([
   'IC copy', 'Passport copy', 'Offer letter', 'Employment contract', 'Certificate / transcript',
   'Practising certificate', 'Syarie certificate', 'Confirmation letter', 'Increment / promotion letter',
 ]);
@@ -45,12 +45,8 @@ export const StaffSelfView: React.FC<{ user: User }> = ({ user }) => {
   const { users } = useApp();
   const d = draftOf(user);
   const p = user.staffProfile;
-  const [photo, setPhoto] = useState<string | null>(null);
-  useEffect(() => {
-    let live = true;
-    if (p?.photo?.path) getClaimAttachmentUrl(p.photo.path).then((u) => live && setPhoto(u)).catch(() => undefined);
-    return () => { live = false; };
-  }, [p?.photo?.path]);
+  const { url: photo, needsDrive, connect } = useStoredImageUrl(p?.photo);
+  const [openErr, setOpenErr] = React.useState('');
 
   const manager = users.find((u) => u.id === d.reportingTo)?.name || '';
   const emergency = [d.emName, d.emRelationship, d.emPhone].filter(Boolean).join(' · ');
@@ -62,7 +58,7 @@ export const StaffSelfView: React.FC<{ user: User }> = ({ user }) => {
         {photo ? (
           <img src={photo} alt="" style={{ width: 52, height: 52, borderRadius: 9999, objectFit: 'cover' }} />
         ) : (
-          <span style={{ width: 52, height: 52, borderRadius: 9999, background: '#16223A', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: serif, fontSize: 21, fontWeight: 700 }}>{user.name.slice(0, 1)}</span>
+          <span onClick={needsDrive ? connect : undefined} title={needsDrive ? 'Show photo (connects to the firm’s Google Drive)' : undefined} style={{ width: 52, height: 52, borderRadius: 9999, background: '#16223A', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: serif, fontSize: 21, fontWeight: 700, cursor: needsDrive ? 'pointer' : undefined }}>{user.name.slice(0, 1)}</span>
         )}
         <span style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           <strong style={{ fontFamily: serif, fontSize: 18, color: '#16223A' }}>{user.name}</strong>
@@ -122,12 +118,13 @@ export const StaffSelfView: React.FC<{ user: User }> = ({ user }) => {
         <div style={card}>
           <div style={{ padding: '10px 14px', borderBottom: '1px solid #EEF1F5' }}><strong style={cardTitle}>My documents</strong></div>
           {docs.map((x, i) => (
-            <div key={x.path} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderTop: i ? '1px solid #F0F2F5' : 'none', fontSize: 11.5 }}>
+            <div key={storedFileKey(x)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderTop: i ? '1px solid #F0F2F5' : 'none', fontSize: 11.5 }}>
               <span style={{ fontWeight: 700, color: '#16223A', width: 190 }}>{x.type}</span>
               <span style={{ flex: 1, color: '#5B6478', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.name}</span>
-              <button type="button" onClick={() => void openClaimAttachment(x)} style={{ border: '1px solid #DDE3EB', borderRadius: 6, padding: '4px 10px', fontSize: 10.5, fontWeight: 700, background: '#fff', color: '#16223A', cursor: 'pointer', fontFamily: 'inherit' }}>Open</button>
+              <button type="button" onClick={() => { setOpenErr(''); void openStoredFile(x).then((e) => e && setOpenErr(e)); }} style={{ border: '1px solid #DDE3EB', borderRadius: 6, padding: '4px 10px', fontSize: 10.5, fontWeight: 700, background: '#fff', color: '#16223A', cursor: 'pointer', fontFamily: 'inherit' }}>Open</button>
             </div>
           ))}
+          {openErr && <div style={{ padding: '8px 14px', borderTop: '1px solid #F0F2F5', fontSize: 11, fontWeight: 600, color: '#B23A2E' }}>{openErr}</div>}
         </div>
       )}
 

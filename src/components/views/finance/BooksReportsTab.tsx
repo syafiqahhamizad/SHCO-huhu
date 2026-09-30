@@ -1,6 +1,7 @@
 import React from 'react';
 import type { CashAcc, FinanceCtrl } from './useFinanceController';
-import { css, fd, findCase, glCode, inPeriod, MON, monthEnd, parseDate, proofUrl, rm, rm2 } from './financeModel';
+import { css, fd, findCase, glCode, inPeriod, MON, monthEnd, parseDate, proofLink, proofMissingMsg, rm, rm2 } from './financeModel';
+import type { FinanceProof } from '../../../types';
 import * as SD from '../../../lib/financeDocs';
 import { computeTotals } from '../../../lib/billingEngine';
 import type { Invoice } from '../../../types';
@@ -20,7 +21,7 @@ export const BooksReportsTab = ({ F }: { F: FinanceCtrl }) => {
   const cbRows = R.map((r) => { bal += r.inn - r.out; tin += r.inn; tout += r.out; return { ...r, bal }; });
   const missing = R.filter((r) => !(r.proofs || []).length).length;
   const cbAccs: [CashAcc, string][] = [['Office', `Office A/C · HLB ${SD.BANK.Office[2]}`], ['Client account', `Client A/C · HLB ${SD.BANK['Client account'][2]}`], ['Disbursement', 'Disbursement A/C'], ['Petty cash', 'Petty cash']];
-  const openProofs = (owner: string, proofs: { name: string }[]) => proofs.forEach((q) => { const u = proofUrl(owner, q.name); if (u) window.open(u, '_blank'); else F.toastMsg(q.name + ' (file not stored: object storage is not connected, only the file name is kept)'); });
+  const openProofs = (owner: string, proofs: FinanceProof[]) => proofs.forEach((q) => { const u = proofLink(owner, q); if (u) window.open(u, '_blank', 'noopener'); else F.toastMsg(proofMissingMsg(q.name)); });
   const cbExport = () => { SD.csv('Cash book ' + cbAcc, [['Date', 'Details', 'Doc no.', 'Source', 'In', 'Out', 'Balance', 'Proof'], ['—', 'Opening balance', '', 'Historical', '', '', m(OPEN), ''], ...cbRows.map((r) => [fd(r.t), r.who + ' · ' + r.what, r.no, r.src, r.inn ? m(r.inn) : '', r.out ? m(r.out) : '', m(r.bal), r.proofs.map((p) => p.name).join('; ')])]); F.toastMsg('Cash book exported'); };
 
   /* ------------------------------ reports (real data) ------------------------------ */

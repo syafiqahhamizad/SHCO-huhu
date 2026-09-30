@@ -194,6 +194,22 @@ export interface PracticeSettings {
   /** Lists & sources: Office Account expense categories and My Claims claim types. */
   expenseCategories?: string[];
   claimTypes?: string[];
+  /** Google Drive storage (Firm & Letterhead tab). When a root folder and an OAuth client ID
+   * are set, new uploads (claim receipts, HR documents, staff photos, finance proofs, backups)
+   * go to this Shared Drive folder instead of Firebase Storage. */
+  driveRootFolderId?: string;
+  /** Folder name as read back by "Test connection" (display only). */
+  driveRootFolderName?: string;
+  /** Optional separate folder (ideally its own Shared Drive, partners/admin only) for HR
+   * documents and staff photos. Blank = `HR/` inside the root folder. */
+  driveHrFolderId?: string;
+  driveHrFolderName?: string;
+  /** OAuth 2.0 Web client ID used for Google Drive access (overridden by VITE_GOOGLE_OAUTH_CLIENT_ID). */
+  googleOAuthClientId?: string;
+  /** Result of the last "Test connection". */
+  driveLastTest?: { at: string; by: string; ok: boolean; message: string };
+  /** "Export all firm data" (Firm & Letterhead tab). */
+  lastBackup?: { at: string; by: string; fileName: string; driveFileId?: string; webViewLink?: string };
 }
 
 export interface FirmBranch {

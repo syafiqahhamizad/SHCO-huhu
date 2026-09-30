@@ -635,9 +635,15 @@ export interface ClaimDocument {
  * getDownloadURL so it works on every device. */
 export interface ClaimAttachment {
   name: string;
-  path: string;
+  /** Firebase Storage fullPath (files uploaded before Google Drive was set up). */
+  path?: string;
   size?: number;
   contentType?: string;
+  /** Google Drive file (uploads once Drive storage is set up in Firm Settings). */
+  driveFileId?: string;
+  webViewLink?: string;
+  uploadedAt?: string;
+  uploadedBy?: string;
 }
 
 export interface Expense {
@@ -1035,7 +1041,12 @@ export interface StaffProfile {
 /** A file in Firebase Storage attached to a staff member's HR record. */
 export interface HrDocument {
   name: string;
-  path: string;
+  /** Firebase Storage fullPath (older uploads). Drive uploads use driveFileId instead. */
+  path?: string;
+  driveFileId?: string;
+  webViewLink?: string;
+  size?: number;
+  contentType?: string;
   /** Document type label, e.g. 'IC copy', 'Offer letter'. */
   type: string;
   uploadedAt: string;
@@ -1396,6 +1407,11 @@ export interface FinanceProof {
   size?: number;
   type?: string;
   uploadedAt: string;
+  /** Set once the file has been saved to Google Drive (Finance proofs/<YYYY>/). Without it,
+   * only the file name is kept and the file is viewable in the session that attached it. */
+  driveFileId?: string;
+  webViewLink?: string;
+  uploadedBy?: string;
 }
 
 export interface FinanceFeeArrangement {

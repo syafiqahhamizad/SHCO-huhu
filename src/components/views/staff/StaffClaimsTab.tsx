@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { useApp } from '../../../context/AppContext';
 import type { ClaimAttachment, ClaimDocument, Expense, PaymentVoucher, TravelClaim } from '../../../types';
 import { claimsStorageService } from '../../../services/claimsStorageService';
-import { openClaimAttachment, uploadClaimAttachment, validateClaimFile } from '../../../services/firebaseStorageService';
+import { openStoredFile, prepareStorage, storeClaimReceipt, storedFileKey, useStorageLabel, validateClaimFile } from '../../../services/fileStorageService';
 import {
   card, cardTitle, ClaimKind, ClaimRow, ddmm, ddmmyyyy, FileDirectory, KIND_COLORS, labelWrap, OFFICE_LABEL, rm, STATUS_COLORS, todayIso,
 } from './staffPortalShared';
@@ -20,7 +20,7 @@ type Mode = 'Claim' | 'PV';
 type From = 'Disb' | 'Office' | 'Client';
 type Method = 'Bank transfer' | 'Online portal' | 'Cheque';
 
-/** A receipt picked in the form — the File itself is uploaded to Firebase Storage on submit. */
+/** A receipt picked in the form — the File itself is uploaded on submit (Google Drive when set up, else Firebase Storage). */
 interface FormDoc {
   id: string;
   name: string;
@@ -115,8 +115,9 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
   const [busy, setBusy] = useState(false);
   const [upErr, setUpErr] = useState('');
   const [recOpen, setRecOpen] = useState<string | null>(null);
+  const storageLabel = useStorageLabel();
   const openStored = async (a: ClaimAttachment) => {
-    const err = await openClaimAttachment(a);
+    const err = await openStoredFile(a);
     if (err) showToast(err);
   };
 
@@ -244,7 +245,7 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
     showToast('Item ' + (f.items.length + 1) + ' added');
   };
 
-  /** Receipts: the file itself goes to Firebase Storage (see `attachments`); the synced record
+  /** Receipts: the file itself goes to Google Drive / Firebase Storage (see `attachments`); the synced record
    * keeps name-only `documents` too so older screens that count / list them still work. */
   const docMeta = (docs: FormDoc[]): ClaimDocument[] =>
     docs.map((d) => ({ id: d.id, name: d.name, url: '', type: d.type, category: d.category, size: d.size, uploadedAt: new Date().toISOString() }));
@@ -275,15 +276,16 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
     other.forEach((i, x) => idOf.set(i, seq(ex0, x)));
     if (D) items.forEach((i, x) => idOf.set(i, seq(pv0, x)));
 
-    // Upload receipts to Firebase Storage. If any upload fails, nothing is submitted.
+    // Upload receipts (Google Drive when set up, else Firebase Storage). If any upload fails, nothing is submitted.
     setBusy(true);
     setUpErr('');
     const stored = new Map<Item, ClaimAttachment[]>();
     try {
+      if (items.some((i) => i.docs.length)) await prepareStorage();
       await Promise.all(
         items.map(async (i) => {
           const id = idOf.get(i) as string;
-          stored.set(i, await Promise.all(i.docs.map((d) => uploadClaimAttachment(currentUser.id, id, d.file))));
+          stored.set(i, await Promise.all(i.docs.map((d) => storeClaimReceipt({ userId: currentUser.id, recordId: id, formNo: no, file: d.file, uploadedBy: currentUser.name }))));
         })
       );
     } catch (err) {
@@ -426,7 +428,7 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
                   {recOpen === c.key && (
                     <span style={{ position: 'absolute', top: '100%', left: 0, zIndex: 5, marginTop: 4, width: 240, display: 'flex', flexDirection: 'column', background: '#fff', border: '1px solid #DDE3EB', borderRadius: 8, boxShadow: '0 8px 20px rgba(22,34,58,.18)', overflow: 'hidden' }}>
                       {c.attachments.map((a) => (
-                        <button key={a.path} type="button" onClick={() => { setRecOpen(null); void openStored(a); }} style={{ border: 0, borderBottom: '1px solid #F0F2F5', background: '#fff', padding: '7px 10px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#3D6B9C', cursor: 'pointer', fontFamily: 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</button>
+                        <button key={storedFileKey(a)} type="button" onClick={() => { setRecOpen(null); void openStored(a); }} style={{ border: 0, borderBottom: '1px solid #F0F2F5', background: '#fff', padding: '7px 10px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#3D6B9C', cursor: 'pointer', fontFamily: 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</button>
                       ))}
                       {c.localDocNames.map((n, i) => (
                         <span key={i} style={{ padding: '7px 10px', borderBottom: '1px solid #F0F2F5', fontSize: 11, color: '#16223A' }}>
@@ -664,6 +666,7 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
                     <span style={{ display: 'flex', flexDirection: 'column' }}>
                       <span style={{ fontSize: 11.5, fontWeight: 700, color: '#16223A' }}>Receipts: drop here</span>
                       <span style={{ fontSize: 10.5, color: '#5B6478' }}>{recHint} · photo or PDF, up to 10 MB each</span>
+                      <span style={{ fontSize: 10, color: '#5B6478' }}>{storageLabel}</span>
                     </span>
                     <label style={{ border: '1px solid #C9D3E0', borderRadius: 4, padding: '5px 10px', fontSize: 11, fontWeight: 700, background: '#fff', color: '#16223A', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                       or choose files<input type="file" multiple accept="image/*,.pdf" onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} style={{ display: 'none' }} />

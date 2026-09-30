@@ -1,6 +1,7 @@
 import React from 'react';
 import { DEFAULT_BRANCHES, DEFAULT_PURPOSE_EMAILS, type FirmBranch, type PracticeSettings } from '../../../services/templateService';
 import { css, S, Txt, type SettingsCtx } from './settingsShared';
+import { DriveStorageCard } from './DriveStorageCard';
 
 const TAG1 = 'Advocates & Solicitors | Syarie Counsel';
 const TAG2 = 'Peguambela & Peguamcara | Peguam Syarie';
@@ -81,6 +82,7 @@ export const FirmTab = ({ C }: { C: SettingsCtx }) => {
           <div key={e.purpose} style={css('display:grid;grid-template-columns:180px 260px minmax(0,1fr);gap:10px;align-items:center;padding:6px 14px;border-bottom:1px solid #F0F2F5')}><span style={css('font-size:11.5px;font-weight:700;color:#16223A')}>{e.purpose}</span><Txt value={e.email} placeholder={PH[e.purpose] || 'name@shcolaw.com'} onCommit={(v) => { C.save({ purposeEmails: emails.map((x, j) => (j === i ? { ...x, email: v.trim() } : x)) }, 'Purpose Email Changed', e.purpose + ': ' + (e.email || '—') + ' → ' + (v.trim() || '—')); C.msg(e.purpose + ' email saved'); }} style="border:1px solid #DDE3EB;border-radius:6px;padding:5px 7px;font-size:11px;color:#16223A" /><span style={css('font-size:10.5px;color:#5B6478')}>{e.usedFor}</span></div>
         ))}
       </div>
+      <DriveStorageCard C={C} />
     </div>
   );
 };

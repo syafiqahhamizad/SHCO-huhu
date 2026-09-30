@@ -17,7 +17,7 @@ import { statutoryForPayslip, STATUTORY_VERSION } from '../../../lib/statutory';
 import { finRoleKey, finTabsFor, FIN_TABS, type FinTab } from '../../../lib/financeAccess';
 import {
   GLA, MONTHS, MON, SC, addrOf, cashAccountGL, daysSince, dShort, expenseGL, fd, filesToProofs, findCase, initials,
-  invoiceToDoc, inPeriod, isoOf, itemAmount, linesToItems, monthEnd, num0, parseDate, periodKey, picColor, proofUrl,
+  invoiceToDoc, inPeriod, isoOf, itemAmount, linesToItems, monthEnd, num0, parseDate, periodKey, picColor, proofLink, proofSig, proofUploadResults, proofUrl, setProofUploader, subscribeProofUploads,
   quotationToDoc, receiptAccount, receiptToDoc, recordSstRate, recordTotals, rememberProofUrls, rm, rm2, todayIso, type Lookups,
 } from './financeModel';
 
@@ -76,6 +76,33 @@ export function useFinanceController(initialTab: FinTab) {
   const toastMsg = useCallback((m: string) => { setToast(m); window.clearTimeout(toastTimer.current); toastTimer.current = window.setTimeout(() => setToast(''), 2800); }, []);
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
   useEffect(() => { SD.loadLogos(); }, []);
+
+  /* ------------------------------ proofs → Google Drive ------------------------------ */
+  // filesToProofs() starts a background Drive upload for each attached proof (when Drive storage
+  // is set up). Once one finishes, write its Drive id / link onto every record holding that proof.
+  setProofUploader(me);
+  const [proofTick, setProofTick] = useState(0);
+  const reportedProofErrors = useRef(new Set<string>());
+  useEffect(() => subscribeProofUploads(() => setProofTick((t) => t + 1)), []);
+  useEffect(() => {
+    const results = proofUploadResults();
+    if (!results.size) return;
+    results.forEach((r, sig) => {
+      if ('error' in r && !reportedProofErrors.current.has(sig)) { reportedProofErrors.current.add(sig); toastMsg(r.name + ' was attached but not saved to Google Drive: ' + r.error); }
+    });
+    const fix = (p?: FinanceProof): FinanceProof | null => {
+      if (!p || p.driveFileId) return null;
+      const r = results.get(proofSig(p));
+      return r && 'driveFileId' in r ? { ...p, driveFileId: r.driveFileId, webViewLink: r.webViewLink, uploadedBy: r.uploadedBy } : null;
+    };
+    const fixList = (list?: FinanceProof[]) => { if (!list?.length) return null; let changed = false; const out = list.map((p) => { const f = fix(p); if (f) changed = true; return f || p; }); return changed ? out : null; };
+    receipts.forEach((x) => { const l = fixList(x.proofs); if (l) app.updateReceipt(x.id, { proofs: l }); });
+    expenses.forEach((x) => { const f = fix(x.paidProof); if (f) app.updateExpense(x.id, { paidProof: f }); });
+    travelClaims.forEach((x) => { const f = fix(x.paidProof); if (f) app.updateTravelClaim(x.id, { paidProof: f }); });
+    paymentVouchers.forEach((x) => { const f = fix(x.paidProof), l = fixList(x.proofs); if (f || l) app.updatePaymentVoucher(x.id, { ...(f ? { paidProof: f } : {}), ...(l ? { proofs: l } : {}) }); });
+    manualJournals.forEach((x) => { const l = fixList(x.proofs); if (l) app.updateManualJournal(x.id, { proofs: l }); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proofTick, receipts, expenses, travelClaims, paymentVouchers, manualJournals]);
 
   const [docT, setDocT] = useState<'Quotation' | 'Proforma' | 'Invoice' | 'Receipt'>('Invoice');
   const [invF, setInvF] = useState('All');
@@ -177,7 +204,7 @@ export function useFinanceController(initialTab: FinTab) {
   };
 
   /* ------------------------------ documents (FinanceDoc for docHtml) ------------------------------ */
-  const docProofs = (owner: string, proofs?: FinanceProof[]) => (proofs || []).map((p) => ({ name: p.name, url: proofUrl(owner, p.name) }));
+  const docProofs = (owner: string, proofs?: FinanceProof[]) => (proofs || []).map((p) => ({ name: p.name, url: proofLink(owner, p) }));
   const buildDoc = (ref: DocRef): SD.FinanceDoc | null => {
     if (ref.kind === 'invoice') { const inv = invoices.find((i) => i.id === ref.id); return inv ? invoiceToDoc(inv, lk, invStatus(inv)) : null; }
     if (ref.kind === 'quotation') { const q = quotations.find((i) => i.id === ref.id); return q ? quotationToDoc(q, lk, qStatus(q)) : null; }

@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../../../context/AppContext';
-import { StaffSelfView } from './StaffSelfView';
+import { STAFF_VISIBLE_DOCS, StaffSelfView } from './StaffSelfView';
 import type { HrDocument, StaffProfile, User } from '../../../types';
 import { card, cardTitle, FirmLetterhead, labelWrap, printHtml, serif } from './staffPortalShared';
 import { getPracticeSettings } from '../../../services/templateService';
-import { getClaimAttachmentUrl, openClaimAttachment, uploadHrFile, validateClaimFile } from '../../../services/firebaseStorageService';
+import { openStoredFile, prepareStorage, sameStoredFile, storedFileKey, storeHrFile, useStorageLabel, useStoredImageUrl, validateClaimFile } from '../../../services/fileStorageService';
 import {
   applyDraft, buildEmployeeRecordHtml, DOC_TYPES, Draft, draftOf, dt, EMPLOYMENT_TYPES, expiryInfo, GENDERS, isLawyer, MARITAL,
   PCB_CATEGORIES, RESIDENCY, SECTION_TITLES, sectionStatus, stampDay, STATUSES, trimDraft, validateDraft,
@@ -90,15 +90,13 @@ export const StaffProfileTab: React.FC<{ lh: string }> = ({ lh }) => {
 
 /* ------------------------------------------------------------------ photo */
 
-const usePhotoUrl = (path?: string) => {
-  const [url, setUrl] = useState<string | null>(null);
-  useEffect(() => {
-    let live = true;
-    setUrl(null);
-    if (path) getClaimAttachmentUrl(path).then((u) => live && setUrl(u)).catch(() => live && setUrl(null));
-    return () => { live = false; };
-  }, [path]);
-  return url;
+/** Staff photo: Firebase Storage download URL, or Drive bytes via the viewer's Drive token. */
+export const StaffAvatar: React.FC<{ photo?: HrDocument; name: string; size: number; fontSize: number; border?: boolean }> = ({ photo, name, size, fontSize, border }) => {
+  const { url, needsDrive, connect } = useStoredImageUrl(photo);
+  if (url) return <img src={url} alt={name} style={{ width: size, height: size, borderRadius: 9999, objectFit: 'cover', display: 'block', border: border ? '1px solid #DDE3EB' : undefined }} />;
+  const initial = <span style={{ width: size, height: size, borderRadius: 9999, background: '#16223A', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: serif, fontSize, fontWeight: 700 }}>{name.slice(0, 1)}</span>;
+  if (!needsDrive) return initial;
+  return <button type="button" onClick={connect} title="Show photo (connects to the firm’s Google Drive)" style={{ border: 0, padding: 0, background: 'none', cursor: 'pointer', borderRadius: 9999 }}>{initial}</button>;
 };
 
 /* ------------------------------------------------------------------ section card */
@@ -148,7 +146,8 @@ const RecordForm: React.FC<{ user: User; admin: boolean; self: boolean; lh: stri
   // Uploads finish asynchronously — always merge onto the newest stored profile, not the one from render time.
   const latest = useRef(user);
   latest.current = user;
-  const photoUrl = usePhotoUrl(profile?.photo?.path);
+  const storageLabel = useStorageLabel();
+  const staffRef = () => ({ email: user.email, staffId: latest.current.staffProfile?.staffId || staffId, name: user.name });
 
   const status = sectionStatus(user, f, docs, staffId);
   const applicable = status.filter(([, a]) => a);
@@ -185,10 +184,12 @@ const RecordForm: React.FC<{ user: User; admin: boolean; self: boolean; lh: stri
     if (problem) { showToast(problem); return; }
     setBusy('doc');
     try {
-      const up = await uploadHrFile(user.email, file);
-      const doc: HrDocument = { ...up, type: docType, uploadedAt: new Date().toISOString(), uploadedBy: currentUser.name };
+      await prepareStorage();
+      const { shareWarning, ...up } = await storeHrFile(staffRef(), file, currentUser.name, { shareWithStaff: STAFF_VISIBLE_DOCS.has(docType) });
+      const doc: HrDocument = { ...up, type: docType };
       const cur = baseProfile(latest.current);
       updateUserStaffProfile(user.id, { ...cur, hrDocuments: [...(cur.hrDocuments || []), doc], ...stamp() });
+      if (shareWarning) showToast(shareWarning);
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Upload failed.');
     } finally {
@@ -199,8 +200,8 @@ const RecordForm: React.FC<{ user: User; admin: boolean; self: boolean; lh: stri
   const removeDoc = (d: HrDocument) => {
     if (!window.confirm('Remove “' + d.name + '” from ' + user.name + '’s record?')) return;
     const cur = baseProfile(latest.current);
-    // Only the reference is dropped; the stored file itself is kept in Firebase Storage.
-    updateUserStaffProfile(user.id, { ...cur, hrDocuments: (cur.hrDocuments || []).filter((x) => x.path !== d.path), ...stamp() });
+    // Only the reference is dropped; the stored file itself is kept (Google Drive / Firebase Storage).
+    updateUserStaffProfile(user.id, { ...cur, hrDocuments: (cur.hrDocuments || []).filter((x) => !sameStoredFile(x, d)), ...stamp() });
   };
 
   const uploadPhoto = async (file: File) => {
@@ -209,9 +210,11 @@ const RecordForm: React.FC<{ user: User; admin: boolean; self: boolean; lh: stri
     if (problem) { showToast(problem); return; }
     setBusy('photo');
     try {
-      const up = await uploadHrFile(user.email, file);
+      await prepareStorage();
+      const { shareWarning, ...up } = await storeHrFile(staffRef(), file, currentUser.name, { shareWithStaff: true });
       const cur = baseProfile(latest.current);
-      updateUserStaffProfile(user.id, { ...cur, photo: { ...up, type: 'Photo', uploadedAt: new Date().toISOString(), uploadedBy: currentUser.name }, ...stamp() });
+      updateUserStaffProfile(user.id, { ...cur, photo: { ...up, type: 'Photo' }, ...stamp() });
+      if (shareWarning) showToast(shareWarning);
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Upload failed.');
     } finally {
@@ -220,7 +223,7 @@ const RecordForm: React.FC<{ user: User; admin: boolean; self: boolean; lh: stri
   };
 
   const openDoc = async (d: HrDocument) => {
-    const err = await openClaimAttachment(d);
+    const err = await openStoredFile(d);
     if (err) showToast(err);
   };
 
@@ -324,11 +327,7 @@ const RecordForm: React.FC<{ user: User; admin: boolean; self: boolean; lh: stri
       <div style={card}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '12px 14px' }}>
           <span style={{ position: 'relative', flex: 'none' }}>
-            {photoUrl ? (
-              <img src={photoUrl} alt={user.name} style={{ width: 48, height: 48, borderRadius: 9999, objectFit: 'cover', display: 'block', border: '1px solid #DDE3EB' }} />
-            ) : (
-              <span style={{ width: 48, height: 48, borderRadius: 9999, background: '#16223A', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: serif, fontSize: 19, fontWeight: 700 }}>{user.name.slice(0, 1)}</span>
-            )}
+            <StaffAvatar photo={profile?.photo} name={user.name} size={48} fontSize={19} border />
           </span>
           <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
             <strong style={{ fontFamily: serif, fontSize: 17, color: '#16223A' }}>{user.name}</strong>
@@ -496,13 +495,14 @@ const RecordForm: React.FC<{ user: User; admin: boolean; self: boolean; lh: stri
             </select>
             <input ref={docInput} type="file" accept="image/*,application/pdf,.pdf" style={{ display: 'none' }} onChange={(e) => { const x = e.target.files?.[0]; e.target.value = ''; if (x) uploadDoc(x); }} />
             <button type="button" disabled={busy === 'doc'} onClick={() => docInput.current?.click()} style={BTN_DARK}>{busy === 'doc' ? 'Uploading…' : '+ Upload document'}</button>
+            <span style={NOTE}>{storageLabel}</span>
           </div>
         )}
         {!docs.length && <span style={NOTE}>No documents on file yet.</span>}
         {docs.length > 0 && (
           <div style={{ border: '1px solid #EEF1F5', borderRadius: 8, overflow: 'hidden' }}>
             {docs.map((d) => (
-              <div key={d.path} style={{ display: 'grid', gridTemplateColumns: '170px minmax(0,1fr) 170px auto', gap: 10, alignItems: 'center', padding: '7px 10px', borderBottom: '1px solid #F0F2F5', fontSize: 11.5, color: '#16223A' }}>
+              <div key={storedFileKey(d)} style={{ display: 'grid', gridTemplateColumns: '170px minmax(0,1fr) 170px auto', gap: 10, alignItems: 'center', padding: '7px 10px', borderBottom: '1px solid #F0F2F5', fontSize: 11.5, color: '#16223A' }}>
                 <span style={{ fontWeight: 700 }}>{d.type}</span>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={d.name}>{d.name}</span>
                 <span style={{ fontSize: 10.5, color: '#5B6478' }}>{stampDay(d.uploadedAt)}{d.uploadedBy ? ' · ' + d.uploadedBy : ''}</span>
