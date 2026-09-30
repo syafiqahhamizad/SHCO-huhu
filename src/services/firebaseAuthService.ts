@@ -1,6 +1,11 @@
 import {
+  createUserWithEmailAndPassword,
   getAuth,
   GoogleAuthProvider,
+  inMemoryPersistence,
+  initializeAuth,
+  sendEmailVerification,
+  type Auth,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
@@ -117,77 +122,137 @@ export async function signInClientWithPassword(email: string, password: string):
   return result.user;
 }
 
+export interface ProvisionedAccount {
+  id: string;
+  email: string;
+  /** Empty when no password was set (Google Workspace staff, or an account that already existed). */
+  temporaryPassword: string;
+  /** 'google': @shcolaw.com staff sign in with Google — nothing is created in advance. */
+  method: 'google' | 'password';
+  /** A Firebase sign-in for this email already existed; only the access list was updated. */
+  alreadyExisted: boolean;
+  /** A verification email was sent; the person must click it before their first sign-in. */
+  verificationEmailSent: boolean;
+}
+
+const PROVISIONING_APP_NAME = 'provisioning';
+
+const generateTemporaryPassword = (): string => {
+  const sets = ['ABCDEFGHJKLMNPQRSTUVWXYZ', 'abcdefghijkmnopqrstuvwxyz', '23456789', '!@#$%*?-'];
+  const all = sets.join('');
+  const rand = (n: number) => {
+    const buf = new Uint32Array(1);
+    crypto.getRandomValues(buf);
+    return buf[0] % n;
+  };
+  const chars = sets.map((set) => set[rand(set.length)]);
+  while (chars.length < 14) chars.push(all[rand(all.length)]);
+  for (let i = chars.length - 1; i > 0; i -= 1) {
+    const j = rand(i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join('');
+};
+
+const localUserId = () => 'U-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1e6).toString(36);
+
+export const isGoogleWorkspaceEmail = (email: string) => email.trim().toLowerCase().endsWith('@shcolaw.com');
+
+/**
+ * Creates a sign-in for a new person WITHOUT Cloud Functions.
+ *
+ * - @shcolaw.com staff sign in with Google Workspace; their Firebase account is created by
+ *   their own first Google sign-in, so nothing is created here — adding them to the roster
+ *   (and so to the access list) is all that's needed.
+ * - Everyone else (clients, external Reviewer/Assistant/Accountant) gets an email/password
+ *   account created from this browser through a SECONDARY Firebase app instance, so the
+ *   Super Admin's own session is untouched. A verification email is sent: the rules only
+ *   let password accounts in once their email is verified.
+ *
+ * What they may open is decided by the owner-published access list (practiceSystem/access).
+ */
 export async function provisionFirebaseUser(input: {
   name: string;
   email: string;
   role: string;
   isAdmin: boolean;
   isSuperAdmin: boolean;
-}): Promise<{ id: string; email: string; temporaryPassword: string }> {
+}): Promise<ProvisionedAccount> {
   const currentUser = firebaseAuth.currentUser;
   if (!currentUser) throw new Error('Please sign in as Super Admin before creating a user.');
+  const email = input.email.trim().toLowerCase();
+  if (!email || !email.includes('@')) throw new Error('Enter a valid email address.');
 
-  const idToken = await currentUser.getIdToken();
-  const response = await fetch('/api/admin/users', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${idToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(input),
-  });
-  const result = await readAdminApiJson(response) as { id?: string; email?: string; temporaryPassword?: string; error?: string };
-  if (!response.ok || !result.id || !result.email || !result.temporaryPassword) {
-    throw new Error(result.error || 'Unable to create the Firebase user account.');
+  if (isGoogleWorkspaceEmail(email)) {
+    return { id: localUserId(), email, temporaryPassword: '', method: 'google', alreadyExisted: false, verificationEmailSent: false };
   }
-  return {
-    id: result.id,
-    email: result.email,
-    temporaryPassword: result.temporaryPassword,
-  };
+
+  const secondaryApp = getApps().find((a) => a.name === PROVISIONING_APP_NAME) || initializeApp(firebaseConfig, PROVISIONING_APP_NAME);
+  initializeFirebaseAppCheck(secondaryApp);
+  let secondaryAuth: Auth;
+  try {
+    secondaryAuth = initializeAuth(secondaryApp, { persistence: inMemoryPersistence });
+  } catch {
+    secondaryAuth = getAuth(secondaryApp);
+  }
+
+  const temporaryPassword = generateTemporaryPassword();
+  try {
+    const credential = await createUserWithEmailAndPassword(secondaryAuth, email, temporaryPassword);
+    let verificationEmailSent = false;
+    try {
+      await sendEmailVerification(credential.user);
+      verificationEmailSent = true;
+    } catch (error) {
+      console.warn('Account created but the verification email could not be sent.', error);
+    }
+    return { id: credential.user.uid, email, temporaryPassword, method: 'password', alreadyExisted: false, verificationEmailSent };
+  } catch (error) {
+    const code = String((error as { code?: string })?.code || '');
+    if (code === 'auth/email-already-in-use') {
+      // The sign-in already exists (e.g. created earlier) — just add/update the list entry.
+      return { id: localUserId(), email, temporaryPassword: '', method: 'password', alreadyExisted: true, verificationEmailSent: false };
+    }
+    if (code === 'auth/operation-not-allowed') {
+      throw new Error('Email/password sign-in is not enabled for this Firebase project. Turn on Authentication → Sign-in method → Email/Password in the Firebase console, then try again.');
+    }
+    if (code === 'auth/weak-password' || code === 'auth/password-does-not-meet-requirements') {
+      throw new Error('Firebase rejected the generated password under the project password policy. Please try again.');
+    }
+    throw new Error(getFirebaseAuthErrorMessage(error));
+  } finally {
+    await signOut(secondaryAuth).catch(() => undefined);
+  }
+}
+
+/** Plain-English pop-up text for a newly created sign-in. */
+export function describeProvisionedAccount(p: ProvisionedAccount, opts: { signInWhere?: string } = {}): string {
+  const where = opts.signInWhere || 'portal.shcolaw.com';
+  if (p.method === 'google') {
+    return `${p.email} has been added.\n\nNo password is needed: they sign in at ${where} with “Sign in with Google” using their @shcolaw.com Google Workspace account. Their access starts as soon as the access list shows “published”.`;
+  }
+  if (p.alreadyExisted) {
+    return `${p.email} already has a sign-in, so no new password was created.\n\nTheir access has been added to the access list. If they have forgotten the password, use “Forgot password” on the sign-in page.`;
+  }
+  return `Sign-in created.\n\nEmail: ${p.email}\nTemporary password: ${p.temporaryPassword}\n\n${p.verificationEmailSent
+    ? 'A verification email has been sent to them. They MUST click the link in that email before their first sign-in — until then the portal will refuse them.'
+    : 'The verification email could NOT be sent. They will be asked to verify when they first try to sign in.'}\n\nGive the temporary password to them privately (e.g. WhatsApp) and ask them to change it after signing in at ${where}.`;
 }
 
 /**
- * Re-applies a Firebase account's custom claims (role/admin/superAdmin) so an
- * already-provisioned user's real access matches what the app's Users & Permissions
- * screen shows for them. Needed because setCustomUserClaims only takes effect at the
- * moment it's called — changing a user's role/admin toggle in the app's local state
- * does nothing to their actual Firebase permissions without this.
+ * Makes sure a password account has a verified email (required by the access rules).
+ * Returns true when verified. When not, re-sends the verification email (best effort).
  */
-export async function syncFirebaseUserClaims(input: {
-  email: string;
-  role: string;
-  isAdmin: boolean;
-  isSuperAdmin: boolean;
-}): Promise<void> {
-  const currentUser = firebaseAuth.currentUser;
-  if (!currentUser) throw new Error('Please sign in as Super Admin before updating user access.');
-
-  const idToken = await currentUser.getIdToken();
-  const response = await fetch('/api/admin/sync-claims', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${idToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(input),
-  });
-  if (!response.ok) {
-    const result = await readAdminApiJson(response) as { error?: string };
-    throw new Error(result.error || 'Unable to update the Firebase user account.');
+export async function ensureEmailVerified(user: User): Promise<boolean> {
+  if (user.emailVerified) return true;
+  await user.reload().catch(() => undefined);
+  const fresh = firebaseAuth.currentUser;
+  if (fresh?.emailVerified) {
+    await fresh.getIdToken(true).catch(() => undefined);
+    return true;
   }
-}
-
-// When Google Cloud blocks the admin Cloud Function (e.g. it isn't allowed public
-// invocation), the reply is an HTML error page, not JSON — say so plainly.
-async function readAdminApiJson(response: Response): Promise<Record<string, unknown>> {
-  const contentType = response.headers.get('content-type') || '';
-  if (!contentType.includes('application/json')) {
-    throw new Error(
-      `The account server is not reachable (HTTP ${response.status}). In Google Cloud Console → Cloud Run, the "provisionuser" and "syncuserclaims" services must allow unauthenticated invocations.`
-    );
-  }
-  return response.json();
+  await sendEmailVerification(user).catch(() => undefined);
+  return false;
 }
 
 export async function signInExternalWithPassword(email: string, password: string): Promise<User> {

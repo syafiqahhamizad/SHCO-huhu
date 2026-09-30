@@ -20,6 +20,8 @@ const firebaseConfig = {
 
 const app = getApps().length > 0 ? getApps()[0] : initializeApp(firebaseConfig);
 const db = getFirestore(app);
+/** Shared Firestore handle (same app/instance as the cloud-state sync). */
+export const firestoreDb = db;
 initializeFirebaseAppCheck(app);
 
 if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {

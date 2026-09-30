@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Role } from '../../types';
 import { getPracticeSettings, savePracticeSettings, DEFAULT_PRACTICE_SETTINGS, PracticeSettings } from '../../services/templateService';
-import { provisionFirebaseUser } from '../../services/firebaseAuthService';
+import { describeProvisionedAccount, provisionFirebaseUser } from '../../services/firebaseAuthService';
 import {
   Share2,
   Shield,
@@ -46,7 +46,6 @@ export const UsersManagementView: React.FC = () => {
     users = [],
     currentUser,
     updateUserRoleAndAdmin,
-    repairUserAccess,
     addUser,
     deleteUser,
     rolesMatrix,
@@ -64,7 +63,6 @@ export const UsersManagementView: React.FC = () => {
   const [selectedRoleForMatrix, setSelectedRoleForMatrix] = useState<Role>('Lawyer');
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [repairingUserId, setRepairingUserId] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [newFullName, setNewFullName] = useState('');
   const [newCode, setNewCode] = useState('');
@@ -184,7 +182,7 @@ export const UsersManagementView: React.FC = () => {
         setNewRole('Lawyer');
         setNewIsAdmin(false);
         setNewIsSuperAdmin(false);
-        window.alert(`Firebase account created.\n\nEmail: ${provisioned.email}\nTemporary password: ${provisioned.temporaryPassword}\n\nGive this password securely to the new user and ask them to change it after signing in.`);
+        window.alert(describeProvisionedAccount(provisioned));
       }
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Unable to create the Firebase user account.');
@@ -389,18 +387,6 @@ export const UsersManagementView: React.FC = () => {
                       <td className="p-3 text-right">
                         {isSuperAdmin ? (
                           <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={async () => {
-                                setRepairingUserId(u.id);
-                                await repairUserAccess(u.id);
-                                setRepairingUserId(null);
-                              }}
-                              disabled={repairingUserId === u.id}
-                              title="Re-apply this user's role/admin access to their real Firebase account — use this if their real permissions ever fall out of sync with what's shown here (e.g. accounts created before a permissions fix)."
-                              className="px-2.5 py-1 bg-[#E7EEF6] hover:bg-[#d7e5f3] text-[#2F5680] font-bold rounded text-[11px] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {repairingUserId === u.id ? 'Repairing…' : 'Repair Access'}
-                            </button>
                             <button
                               onClick={() => updateUserRoleAndAdmin(u.id, u.role, !u.isAdmin, u.isSuperAdmin)}
                               className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold rounded text-[11px] cursor-pointer"

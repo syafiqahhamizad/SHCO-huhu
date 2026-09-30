@@ -185,7 +185,7 @@ const RecordForm: React.FC<{ user: User; admin: boolean; self: boolean; lh: stri
     if (problem) { showToast(problem); return; }
     setBusy('doc');
     try {
-      const up = await uploadHrFile(user.id, file);
+      const up = await uploadHrFile(user.email, file);
       const doc: HrDocument = { ...up, type: docType, uploadedAt: new Date().toISOString(), uploadedBy: currentUser.name };
       const cur = baseProfile(latest.current);
       updateUserStaffProfile(user.id, { ...cur, hrDocuments: [...(cur.hrDocuments || []), doc], ...stamp() });
@@ -209,7 +209,7 @@ const RecordForm: React.FC<{ user: User; admin: boolean; self: boolean; lh: stri
     if (problem) { showToast(problem); return; }
     setBusy('photo');
     try {
-      const up = await uploadHrFile(user.id, file);
+      const up = await uploadHrFile(user.email, file);
       const cur = baseProfile(latest.current);
       updateUserStaffProfile(user.id, { ...cur, photo: { ...up, type: 'Photo', uploadedAt: new Date().toISOString(), uploadedBy: currentUser.name }, ...stamp() });
     } catch (e) {

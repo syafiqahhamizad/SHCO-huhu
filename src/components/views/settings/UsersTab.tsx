@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../../context/AppContext';
 import type { Role, StaffProfile, User } from '../../../types';
 import { partnerCode } from '../../../lib/identity';
-import { provisionFirebaseUser } from '../../../services/firebaseAuthService';
+import { describeProvisionedAccount, isGoogleWorkspaceEmail, provisionFirebaseUser } from '../../../services/firebaseAuthService';
 import { DEFAULT_BRANCHES } from '../../../services/templateService';
 import { css, S, Txt, type SettingsCtx } from './settingsShared';
 import { designRole, isManagingPartner, isSuper, personChanges, SUPER_EMAIL } from './permissionModel';
@@ -33,9 +33,8 @@ const roleFromDesign = (v: string): { role: Role; mp: boolean } =>
 
 export const UsersTab = ({ C }: { C: SettingsCtx }) => {
   const app = useApp();
-  const { users = [], currentUser, customRoles = [], rolesMatrix = {}, updateUserRoleAndAdmin, repairUserAccess, updateUserIdentity, updateUserAccount, deleteUser } = app;
+  const { users = [], currentUser, customRoles = [], rolesMatrix = {}, updateUserRoleAndAdmin, updateUserIdentity, updateUserAccount, deleteUser } = app;
   const [adding, setAdding] = useState(false);
-  const [repairing, setRepairing] = useState<string | null>(null);
   const ROLES = ['Managing Partner', 'Partner', 'Lawyer', 'Assistant', 'Accountant', 'Reviewer (auditor)', 'Client', ...customRoles];
   const branches = (C.settings.branches && C.settings.branches.length ? C.settings.branches : DEFAULT_BRANCHES).map((b) => b.name);
   const hqName = ((C.settings.branches || DEFAULT_BRANCHES).find((b) => b.hq) || { name: branches[0] }).name;
@@ -78,6 +77,7 @@ export const UsersTab = ({ C }: { C: SettingsCtx }) => {
   return (
     <div style={css(S.card)}>
       <div style={css('display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>People &amp; roles</strong><span style={css(S.sub)}>{active + ' active people'} · role decides what each person can open; their files decide what data they see</span><button type="button" onClick={() => (canAdmin ? setAdding(true) : C.msg('Only an admin can add people'))} style={css('margin-left:auto;border:0;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:#16223A;color:#fff;cursor:pointer;font-family:inherit')}>+ Add person</button></div>
+      <AccessListStatusLine />
       <div style={css(GRID + 'padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>Name · email</span><span>Role</span><span>Branch</span><span>Admin</span><span>Access</span><span>2-step login</span><span>Last login</span><span></span></div>
       {users.length === 0 && <div style={css('padding:14px;font-size:11px;color:#5B6478')}>No users in the roster yet. Add the first person with “+ Add person”.</div>}
       {users.map((u, i) => {
@@ -109,7 +109,6 @@ export const UsersTab = ({ C }: { C: SettingsCtx }) => {
             <button type="button" onClick={() => { if (updateUserAccount(u.id, { twoStepLogin: !fa })) { C.log('2-step Login Changed', u.name + ': ' + (fa ? 'Off' : 'On')); C.msg(u.name + ' · 2-step login ' + (fa ? 'off' : 'on')); } }} title="Recorded here; the sign-in itself is enforced by the Google Workspace / Firebase account" style={css(`justify-self:start;border:0;border-radius:10px;padding:2px 9px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;background:${fa ? '#E6EFE9' : '#FBEDE9'};color:${fa ? '#2F6F4E' : '#B23A2E'}`)}>{fa ? 'On' : 'Off'}</button>
             <span style={css('font-size:10.5px;color:#5B6478')}>{lastLoginLabel(u.lastLoginAt)}</span>
             <span style={css('justify-self:end;display:flex;gap:4px')}>
-              <button type="button" disabled={repairing === u.id} title="Re-apply this user's role/admin access to their real Firebase account — use this if their real permissions ever fall out of sync with what's shown here." onClick={async () => { setRepairing(u.id); const ok = await repairUserAccess(u.id); setRepairing(null); if (ok) { C.log('User Access Repaired', u.name + ' (' + u.email + ')'); C.msg(u.name + ' · access repaired'); } }} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:4px 8px;font-size:10px;font-weight:700;background:#fff;color:#2F5680;cursor:pointer;font-family:inherit;white-space:nowrap')}>{repairing === u.id ? 'Repairing…' : 'Repair Access'}</button>
               {!on && u.email !== SUPER_EMAIL && <button type="button" onClick={() => { if (window.confirm(`Remove user ${u.name} from this system?`) && deleteUser(u.id)) C.msg(u.name + ' removed'); }} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:4px 8px;font-size:10px;font-weight:700;background:#fff;color:#B23A2E;cursor:pointer;font-family:inherit')}>Remove</button>}
               <button type="button" onClick={() => toggleActive(u)} style={css(`border:1px solid #DDE3EB;border-radius:6px;padding:4px 8px;font-size:10px;font-weight:700;background:#fff;color:${on ? '#B23A2E' : '#2F6F4E'};cursor:pointer;font-family:inherit;white-space:nowrap`)}>{on ? 'Switch off' : 'Reactivate'}</button>
             </span>
@@ -118,6 +117,48 @@ export const UsersTab = ({ C }: { C: SettingsCtx }) => {
       })}
       <div style={css('display:flex;flex-direction:column;gap:3px;padding:9px 14px;background:#F6F8FA;font-size:10.5px;line-height:1.5;color:#5B6478')}><span>Switching someone off blocks their login immediately; their history stays. New staff added here appear automatically in Staff Portal, Payroll and the referrer list.</span><span><strong style={css('color:#16223A')}>Reviewer (auditor)</strong>: outside auditor login, read-only. Sees Cases and the Client Account (SAR 1990) only; cannot add, edit or approve.</span><span><strong style={css('color:#16223A')}>Client</strong>: invited from the client’s profile (Clients → Client Portal). Sees only their own files, documents and bills in the Client Portal.</span><span><strong style={css('color:#16223A')}>Admin</strong>: can manage Users &amp; Roles, Settings and Activity Logs on top of their role. The Managing Partner is Super admin and cannot be switched off.</span><span><strong style={css('color:#16223A')}>Check access</strong>: opens that person’s own access. Access is set by role first, then changed per person where needed.</span></div>
       {adding && <AddPersonModal C={C} roles={ROLES} branches={branches} hq={hqName} onClose={() => setAdding(false)} />}
+    </div>
+  );
+};
+
+const fmtTime = (iso?: string) => (iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '');
+
+/** "Access list: published ✓ / updating… / failed (reason)" — practiceSystem/access. */
+const AccessListStatusLine = () => {
+  const { accessListStatus: st, publishAccessListNow } = useApp();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  if (!st || st.state === 'idle') return null;
+  const pending = st.pending || [];
+  const skipped = st.skipped || [];
+  const tone = st.state === 'failed' ? { bg: '#FBEDE9', fg: '#B23A2E' }
+    : st.state === 'review' ? { bg: '#FDF4E3', fg: '#8A6534' }
+      : st.state === 'published' ? { bg: '#E6EFE9', fg: '#2F6F4E' }
+        : { bg: '#F6F8FA', fg: '#5B6478' };
+  const text = st.state === 'preview' ? `preview mode — not published (${st.count ?? 0} people would be listed)`
+    : st.state === 'not-owner' ? 'published and kept in sync by the Managing Partner’s own session'
+      : st.state === 'updating' ? 'updating…'
+        : st.state === 'published' ? `published ✓ · ${st.count ?? 0} people${st.at ? ' · ' + fmtTime(st.at) : ''}`
+          : st.state === 'review' ? (pending.length ? `${pending.length} change${pending.length > 1 ? 's' : ''} giving more access need${pending.length > 1 ? '' : 's'} your OK` : 'not published yet')
+            : `failed (${st.message || 'unknown reason'})`;
+  const publish = async () => { setBusy(true); await publishAccessListNow(); setBusy(false); setOpen(false); };
+  const BTN = 'border:1px solid #DDE3EB;border-radius:6px;padding:3px 9px;font-size:10px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit;white-space:nowrap';
+  return (
+    <div style={css(`display:flex;flex-direction:column;gap:6px;padding:7px 14px;border-bottom:1px solid #EEF1F5;background:${tone.bg};font-size:10.5px;color:${tone.fg}`)}>
+      <div style={css('display:flex;align-items:center;gap:8px;flex-wrap:wrap')}>
+        <strong>Access list:</strong><span>{text}</span>
+        {skipped.length > 0 && <span style={css('color:#8A6534')}>· {skipped.length} with a custom role not listed ({skipped.map((u) => u.name).join(', ')})</span>}
+        <span style={css('margin-left:auto;display:flex;gap:6px')}>
+          {st.state === 'review' && pending.length > 0 && <button type="button" onClick={() => setOpen(!open)} style={css(BTN)}>{open ? 'Hide' : 'Review'}</button>}
+          {(st.state === 'review' || st.state === 'failed') && <button type="button" disabled={busy} onClick={publish} style={css(BTN + ';background:#16223A;color:#fff;border-color:#16223A')}>{busy ? 'Publishing…' : st.state === 'failed' ? 'Retry' : pending.length ? 'Publish ' + pending.length : 'Publish'}</button>}
+        </span>
+      </div>
+      {open && pending.length > 0 && (
+        <div style={css('display:flex;flex-direction:column;gap:2px;color:#16223A')}>
+          <span style={css('color:#5B6478')}>These came from another session (not changed by you here). Publishing lets them in with this access:</span>
+          {pending.map((c) => <span key={c.key}><strong>{c.email}</strong>: {c.label}</span>)}
+        </div>
+      )}
     </div>
   );
 };
@@ -177,7 +218,7 @@ const AddPersonModal = ({ C, roles, branches, hq, onClose }: { C: SettingsCtx; r
       if (addUser(newUser)) {
         C.log('User Added', `${newUser.name} (${newUser.email}) · ${roleV}${c ? ' · ' + c : ''}`);
         onClose();
-        window.alert(`Firebase account created.\n\nEmail: ${provisioned.email}\nTemporary password: ${provisioned.temporaryPassword}\n\nGive this password securely to the new user and ask them to change it after signing in.`);
+        window.alert(describeProvisionedAccount(provisioned));
       }
     } catch (error) {
       fail(error instanceof Error ? error.message : 'Unable to create the Firebase user account.');
@@ -191,7 +232,7 @@ const AddPersonModal = ({ C, roles, branches, hq, onClose }: { C: SettingsCtx; r
       <form onSubmit={submit} style={css('width:480px;max-width:100%;align-self:flex-start;border-radius:12px;background:#fff;overflow:hidden')}>
         <div style={css('display:flex;align-items:center;gap:8px;padding:12px 18px;background:#16223A')}><strong style={css('font-size:14px;color:#fff')}>Add person</strong><button type="button" onClick={onClose} style={css('margin-left:auto;border:1px solid rgba(255,255,255,.35);border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:transparent;color:#fff;cursor:pointer;font-family:inherit')}>Close</button></div>
         <div style={css('padding:16px 18px;display:flex;flex-direction:column;gap:12px;font-size:12px;color:#16223A')}>
-          <div style={css('padding:8px 12px;border-radius:8px;background:#E7EEF6;font-size:11px;line-height:1.5;color:#2F5680')}>Adding staff also creates their Firebase login and a staff record with the next unique Staff ID (SHCO-ST-000N). Employment and payslip details are completed later in Staff Portal → My profile.</div>
+          <div style={css('padding:8px 12px;border-radius:8px;background:#E7EEF6;font-size:11px;line-height:1.5;color:#2F5680')}>{isGoogleWorkspaceEmail(email) || !email.includes('@') ? '@shcolaw.com staff sign in with Google — no password is created; ' : 'An outside email gets a password sign-in and a verification email they must click before first sign-in; '}adding someone also puts them on the access list and creates a staff record with the next unique Staff ID (SHCO-ST-000N). Employment and payslip details are completed later in Staff Portal → My profile.</div>
           <label style={css('display:flex;flex-direction:column;gap:4px')}><span style={css(LBL)}>Display name *</span><input value={name} onChange={(e) => { setName(e.target.value); if (!codeTouched) setCode(suggestCode(e.target.value)); }} placeholder="e.g. Hafizuddin" style={css(INP)} /><span style={css(HINT)}>How their name appears around the system.</span></label>
           {!isClient && (
             <div style={css('display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:10px')}>

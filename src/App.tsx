@@ -55,6 +55,9 @@ const MainContent: React.FC = () => {
     setIsNewCaseModalOpen,
     isRegisterClientModalOpen,
     setIsRegisterClientModalOpen,
+    cloudAccessNotice,
+    retryCloudSync,
+    logoutUser,
   } = useApp();
 
   if (!isAuthenticated) {
@@ -63,6 +66,25 @@ const MainContent: React.FC = () => {
         <SignInPortal />
         <Toast />
       </>
+    );
+  }
+
+  // Signed in, but the firm's cloud data refused this person at startup (usually: the access
+  // list hasn't been published for them yet). Block the app rather than let them work unsynced.
+  if (cloudAccessNotice) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: '#F6F8FA' }}>
+        <div style={{ maxWidth: 480, width: '100%', background: '#fff', border: '1px solid #DDE3EB', borderRadius: 12, padding: 24, color: '#16223A', fontSize: 13, lineHeight: 1.6 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Waiting for access</div>
+          <p style={{ margin: '0 0 8px' }}>Signed in as <strong>{currentUser.email}</strong>.</p>
+          <p style={{ margin: '0 0 16px', color: '#5B6478' }}>{cloudAccessNotice}</p>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button type="button" onClick={() => logoutUser()} style={{ border: '1px solid #DDE3EB', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 700, background: '#fff', color: '#16223A', cursor: 'pointer' }}>Sign out</button>
+            <button type="button" onClick={() => retryCloudSync()} style={{ border: 0, borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 700, background: '#16223A', color: '#fff', cursor: 'pointer' }}>Try again</button>
+          </div>
+        </div>
+        <Toast />
+      </div>
     );
   }
 

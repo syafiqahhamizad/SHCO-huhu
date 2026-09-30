@@ -57,7 +57,7 @@ export const ClientsView: React.FC = () => {
   const createPortalLogin = async (clientId: string) => {
     const result = await sendClientPortalInvite(clientId);
     if (!result.success) return;
-    window.alert(
+    window.alert(result.message ||
       `Client Portal login created.\n\nEmail: ${result.email}\nTemporary password: ${result.tempPass}\n\nNo email has been sent. Give these details to the client privately (e.g. WhatsApp). They sign in at portal.shcolaw.com → Client Access.`
     );
   };

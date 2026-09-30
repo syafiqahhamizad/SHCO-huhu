@@ -1,68 +1,111 @@
 rules_version = '2';
 
+// Access model (no Cloud Functions / custom claims needed):
+//
+//  1. The owner — the Managing Partner, hardcoded below — with a verified email.
+//  2. Anyone on the owner-managed access list `practiceSystem/access`:
+//       { users: { <emailKey>: { email, role, admin, active } }, updatedAt, updatedBy }
+//     emailKey = lowercase email with '.' replaced by ','. The entry must be active and the
+//     sign-in's email verified (Google Workspace sign-ins always are; password accounts must
+//     click the verification email).
+//  3. TRANSITIONAL: the old custom-claims checks, only for people who have NO entry on the
+//     list (so switching someone off on the list always wins over an old claim).
+//
+// Only the owner can write the access list. Everything else is denied.
+
 service cloud.firestore {
   match /databases/{database}/documents {
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isApprovedIdentity() {
-      return isSignedIn() && request.auth.token.email != null &&
-        (
-          request.auth.token.email == 'syafiqahhamizad@shcolaw.com'
-        );
+    function hasEmail() {
+      return isSignedIn() && request.auth.token.get('email', null) is string;
     }
 
-    // Partner/Lawyer are always the firm's own Google Workspace SSO accounts, so those
-    // two require a verified @shcolaw.com email. Assistant/Accountant/Reviewer cover both
-    // internal staff AND the "External Access" login (freelance bookkeepers, co-counsel,
-    // referral partners) — those sign in with a password on their own external email, so
-    // they're let in on role alone.
-    function isFirmUser() {
-      return isSignedIn() && request.auth.token.email != null && (
-        request.auth.token.email == 'syafiqahhamizad@shcolaw.com' ||
+    function emailVerified() {
+      return hasEmail() && request.auth.token.get('email_verified', false) == true;
+    }
+
+    function isOwner() {
+      return emailVerified() && request.auth.token.email.lower() == 'syafiqahhamizad@shcolaw.com';
+    }
+
+    // Same key the app computes (accessListService.emailToAccessKey). replace() takes a
+    // regular expression and replaces every match: '\\.' is the regex \. (a literal dot).
+    function accessKey() {
+      return request.auth.token.email.lower().replace('\\.', ',');
+    }
+
+    function accessPath() {
+      return /databases/$(database)/documents/practiceSystem/access;
+    }
+
+    function accessUsers() {
+      return exists(accessPath()) ? get(accessPath()).data.get('users', {}) : {};
+    }
+
+    function isListed() {
+      return hasEmail() && accessKey() in accessUsers();
+    }
+
+    function listedActiveWithRole(roles) {
+      let users = accessUsers();
+      let key = accessKey();
+      return emailVerified() &&
+        key in users &&
+        users[key].get('active', false) == true &&
+        users[key].get('role', '') in roles;
+    }
+
+    // ---- Transitional legacy custom-claims checks (unchanged logic), only for people who
+    // ---- are not on the access list at all.
+    function legacyFirmUser() {
+      return hasEmail() && !isListed() && (
         (
-          request.auth.token.email_verified == true &&
+          request.auth.token.get('email_verified', false) == true &&
           request.auth.token.email.matches('.*@shcolaw\\.com$') &&
-          (request.auth.token.role == 'partner' || request.auth.token.role == 'lawyer')
+          (request.auth.token.get('role', '') == 'partner' || request.auth.token.get('role', '') == 'lawyer')
         ) ||
-        request.auth.token.role == 'assistant' ||
-        request.auth.token.role == 'accountant' ||
-        request.auth.token.role == 'reviewer'
+        request.auth.token.get('role', '') == 'assistant' ||
+        request.auth.token.get('role', '') == 'accountant' ||
+        request.auth.token.get('role', '') == 'reviewer'
       );
     }
 
-    // Client Portal logins use email/password (not @shcolaw.com Google Workspace SSO),
-    // so they never carry email_verified or a Google-verified domain — only the role
-    // claim distinguishes them. Read-only: the Client Portal doesn't write anything.
+    function legacyClientUser() {
+      return isSignedIn() && !(hasEmail() && isListed()) && request.auth.token.get('role', '') == 'client';
+    }
+
+    function isFirmUser() {
+      return isOwner() ||
+        listedActiveWithRole(['partner', 'lawyer', 'assistant', 'accountant', 'reviewer']) ||
+        legacyFirmUser();
+    }
+
     function isClientUser() {
-      return isSignedIn() && request.auth.token.role == 'client';
-    }
-
-    function isAdmin() {
-      return isFirmUser() && (
-        request.auth.token.email == 'syafiqahhamizad@shcolaw.com' ||
-        request.auth.token.approvedIdentity == true
-      ) && (
-        request.auth.token.admin == true ||
-        request.auth.token.superAdmin == true ||
-        request.auth.token.email == 'syafiqahhamizad@shcolaw.com'
-      );
-    }
-
-    function isSuperAdmin() {
-      return isFirmUser() && request.auth.token.approvedIdentity == true &&
-        request.auth.token.email == 'syafiqahhamizad@shcolaw.com' &&
-        request.auth.token.superAdmin == true;
+      return listedActiveWithRole(['client']) || legacyClientUser();
     }
 
     match /practiceSystem/sharedState {
-      // Every recognized firm role can save their own work — per-module/per-action
-      // restrictions (Reviewer is read-only, Assistant can't edit cases, etc.) are
-      // enforced client-side via canViewModule/hasModulePermission, same as before;
-      // this only fixes staff other than the Super Admin being unable to save at all.
+      // Per-module/per-action restrictions (Reviewer read-only, etc.) are enforced
+      // client-side via canViewModule/hasModulePermission; the Client Portal only reads.
       allow read: if isFirmUser() || isClientUser();
       allow write: if isFirmUser();
+    }
+
+    match /practiceSystem/access {
+      // The owner reads it to keep it in sync; a listed, active, verified person may read it
+      // to learn their own role at sign-in. Nobody else — not even other signed-in accounts.
+      allow get: if isOwner() || (
+        emailVerified() &&
+        accessKey() in resource.data.get('users', {}) &&
+        resource.data.users[accessKey()].get('active', false) == true
+      );
+      // Only the owner may create/replace it. Deleting it is not allowed from the app.
+      allow create, update: if isOwner() &&
+        request.resource.data.keys().hasOnly(['users', 'updatedAt', 'updatedBy']) &&
+        request.resource.data.users is map;
     }
 
     match /{document=**} {

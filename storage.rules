@@ -1,53 +1,114 @@
 rules_version = '2';
 
+// Same access model as firestore.rules: the hardcoded owner, the owner-managed access list
+// in Firestore (practiceSystem/access, read here with the cross-service firestore.get()),
+// and — only for people NOT on the list — the old custom-claims checks as a transitional
+// fallback. Cross-service reads need the Storage ↔ Firestore rules link, which the Firebase
+// CLI/console sets up (grants the Storage service agent read access) on first deploy.
+
 service firebase.storage {
   match /b/{bucket}/o {
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    function isApprovedIdentity() {
-      return isAuthenticated() && request.auth.token.email != null &&
-        (
-          request.auth.token.email == 'syafiqahhamizad@shcolaw.com'
+    function hasEmail() {
+      return isAuthenticated() && request.auth.token.get('email', null) is string;
+    }
+
+    function emailVerified() {
+      return hasEmail() && request.auth.token.get('email_verified', false) == true;
+    }
+
+    function isOwner() {
+      return emailVerified() && request.auth.token.email.lower() == 'syafiqahhamizad@shcolaw.com';
+    }
+
+    // lowercase email with every '.' replaced by ',' (regex \. — see firestore.rules).
+    function accessKey() {
+      return request.auth.token.email.lower().replace('\\.', ',');
+    }
+
+    function accessUsers() {
+      return firestore.exists(/databases/(default)/documents/practiceSystem/access)
+        ? firestore.get(/databases/(default)/documents/practiceSystem/access).data.get('users', {})
+        : {};
+    }
+
+    function isListed() {
+      return hasEmail() && accessKey() in accessUsers();
+    }
+
+    function listedActiveWithRole(roles) {
+      let users = accessUsers();
+      let key = accessKey();
+      return emailVerified() &&
+        key in users &&
+        users[key].get('active', false) == true &&
+        users[key].get('role', '') in roles;
+    }
+
+    function listedActiveAdmin() {
+      let users = accessUsers();
+      let key = accessKey();
+      return listedActiveWithRole(['partner', 'lawyer', 'assistant', 'accountant']) &&
+        users[key].get('admin', false) == true;
+    }
+
+    // ---- Transitional legacy custom-claims checks, only for people not on the list.
+    function legacyFirmStaff() {
+      return emailVerified() && !isListed() &&
+        request.auth.token.email.matches('.*@shcolaw\\.com$') && (
+          request.auth.token.get('role', '') == 'partner' ||
+          request.auth.token.get('role', '') == 'lawyer' ||
+          request.auth.token.get('role', '') == 'assistant' ||
+          request.auth.token.get('role', '') == 'reviewer' ||
+          request.auth.token.get('role', '') == 'accountant'
         );
     }
 
-    function isFirmStaff() {
-      return isAuthenticated() && request.auth.token.email != null &&
-        request.auth.token.email_verified == true &&
-        request.auth.token.email.matches('.*@shcolaw\\.com$') &&
-        (request.auth.token.email == 'syafiqahhamizad@shcolaw.com' || (
-          request.auth.token.role == 'partner' ||
-          request.auth.token.role == 'lawyer' ||
-          request.auth.token.role == 'assistant' ||
-          request.auth.token.role == 'reviewer' ||
-          request.auth.token.role == 'accountant'
-        ));
+    function legacyCompanyAdmin() {
+      return legacyFirmStaff() &&
+        request.auth.token.get('approvedIdentity', false) == true &&
+        (request.auth.token.get('admin', false) == true || request.auth.token.get('superAdmin', false) == true);
     }
 
+    function legacyClient() {
+      return hasEmail() && !isListed() && request.auth.token.get('role', '') == 'client';
+    }
+
+    // Any firm (non-client) user.
+    function isFirmStaff() {
+      return isOwner() ||
+        listedActiveWithRole(['partner', 'lawyer', 'assistant', 'accountant', 'reviewer']) ||
+        legacyFirmStaff();
+    }
+
+    // Owner, or a listed admin.
     function isCompanyAdmin() {
-      return isFirmStaff() && (
-        request.auth.token.email == 'syafiqahhamizad@shcolaw.com' ||
-        request.auth.token.approvedIdentity == true
-      ) && (
-        request.auth.token.admin == true ||
-        request.auth.token.superAdmin == true ||
-        request.auth.token.email == 'syafiqahhamizad@shcolaw.com'
-      );
+      return isOwner() || listedActiveAdmin() || legacyCompanyAdmin();
     }
 
     function isClient() {
-      return isAuthenticated() && request.auth.token.role == 'client' && request.auth.token.email != null;
+      return listedActiveWithRole(['client']) || legacyClient();
     }
 
-    match /confidential/{allPaths=**} {
+    // Claim / payment-request receipts: every firm user (claims are approved across devices).
+    match /confidential/claims/{allPaths=**} {
       allow read, write: if isFirmStaff();
     }
 
+    // HR documents and staff photos: confidential/hr/{emailKey}/... (older files use
+    // confidential/hr/{userId}/...). Owner and admins read/write all; the staff member
+    // may read (not write) their own emailKey folder.
+    match /confidential/hr/{person}/{allPaths=**} {
+      allow read: if isCompanyAdmin() || (isFirmStaff() && person == accessKey());
+      allow write: if isCompanyAdmin();
+    }
+
     match /clients/{clientId}/{allPaths=**} {
-      allow read: if isFirmStaff() || (isClient() && request.auth.token.email == resource.metadata.ownerEmail);
-      allow write: if isCompanyAdmin() || (isClient() && request.auth.uid == clientId && request.auth.token.email == request.resource.metadata.ownerEmail);
+      allow read: if isFirmStaff() || (isClient() && request.auth.token.email.lower() == resource.metadata.get('ownerEmail', '').lower());
+      allow write: if isCompanyAdmin() || (isClient() && request.auth.uid == clientId && request.auth.token.email.lower() == request.resource.metadata.get('ownerEmail', '').lower());
     }
 
     match /{allPaths=**} {

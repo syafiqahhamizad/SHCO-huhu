@@ -1,6 +1,7 @@
 import { getDownloadURL, getStorage, ref, uploadBytes } from 'firebase/storage';
 import { firebaseApp } from './firebaseAuthService';
 import type { ClaimAttachment } from '../types';
+import { emailToAccessKey } from './accessListService';
 
 /**
  * Firebase Storage for claim / payment-request receipts.
@@ -38,7 +39,7 @@ export const describeStorageError = (err: unknown): string => {
   const code = String((err as { code?: string })?.code || '');
   switch (code) {
     case 'storage/unauthorized':
-      return 'Permission denied by Firebase Storage. Your account is not allowed to store claim receipts; ask the admin to check your role.';
+      return 'Permission denied by Firebase Storage. Your account is not allowed to open or store this file; ask the Managing Partner to check your role in Users & Roles (the access list must show “published”).';
     case 'storage/unauthenticated':
       return 'You are not signed in to Firebase. Sign out and sign in again with your @shcolaw.com Google account, then retry.';
     case 'storage/object-not-found':
@@ -75,14 +76,19 @@ export async function uploadClaimAttachment(userId: string, recordId: string, fi
 }
 
 /**
- * Uploads one HR document (or staff photo) to `confidential/hr/{userId}/{timestamp}-{safeFileName}`.
+ * Uploads one HR document (or staff photo) to
+ * `confidential/hr/{emailKey}/{timestamp}-{safeFileName}`, where emailKey is the staff
+ * member's access-list key (lowercase email, '.' → ','). storage.rules match that folder to
+ * the signed-in person, so they can read their own files; the owner and admins read/write
+ * everyone's. (Older files under `confidential/hr/{userId}/` stay readable by admins.)
  * Same rules as claim receipts: images or PDF, max 10 MB. Returns the stored path.
  */
-export async function uploadHrFile(userId: string, file: File): Promise<{ name: string; path: string }> {
+export async function uploadHrFile(staffEmail: string, file: File): Promise<{ name: string; path: string }> {
   const problem = validateClaimFile(file);
   if (problem) throw new Error(problem);
+  if (!staffEmail || !staffEmail.includes('@')) throw new Error('This staff member has no email on file, so their HR files cannot be stored yet.');
   const contentType = file.type || (isPdf(file) ? 'application/pdf' : 'application/octet-stream');
-  const path = 'confidential/hr/' + safeSegment(userId) + '/' + Date.now() + '-' + safeFileName(file.name);
+  const path = 'confidential/hr/' + emailToAccessKey(staffEmail) + '/' + Date.now() + '-' + safeFileName(file.name);
   try {
     const result = await uploadBytes(ref(firebaseStorage, path), file, { contentType, customMetadata: { originalName: file.name } });
     return { name: file.name, path: result.metadata.fullPath };

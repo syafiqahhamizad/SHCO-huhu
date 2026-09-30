@@ -1,6 +1,20 @@
 import { readCloudState, subscribeToCloudState, writeCloudState, type CloudState } from '../services/firestoreSyncService';
 import { applyCloudPracticeSettings, getPracticeSettings, savePracticeSettings, type PracticeSettings } from '../services/templateService';
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import {
+  ACCESS_OWNER_EMAIL,
+  accessRoleToAppRole,
+  applyAccessChanges,
+  buildAccessList,
+  diffAccessLists,
+  emailToAccessKey,
+  publishAccessList,
+  readAccessList,
+  readOwnAccessEntry,
+  type AccessChange,
+  type AccessEntry,
+  type AccessUsers,
+} from '../services/accessListService';
 import { normalizeClientName } from '../lib/stringUtils';
 import { partnerCode } from '../lib/identity';
 import { generateNextMatterSequenceNumber, syncClientMatterLinks } from '../services/matterService';
@@ -67,7 +81,6 @@ import {
   FirmStartCentreCard,
 } from '../types';
 import {
-  getCurrentFirebaseAccessClaims,
   getCurrentFirebaseClaims,
   getFirebaseAuthErrorMessage,
   getGoogleWorkspaceAccessClaims,
@@ -75,8 +88,10 @@ import {
   signInExternalWithPassword,
   signInStaffWithGoogle,
   signOutFromFirebase,
-  syncFirebaseUserClaims,
   provisionFirebaseUser,
+  ensureEmailVerified,
+  describeProvisionedAccount,
+  firebaseAuth,
 } from '../services/firebaseAuthService';
 import {
   INITIAL_LEADS,
@@ -116,6 +131,18 @@ import {
   INITIAL_FIRM_ANNOUNCEMENTS,
   INITIAL_FIRM_START_CENTRE_PAGES,
 } from '../data/initialData';
+
+export interface AccessListStatus {
+  state: 'idle' | 'preview' | 'not-owner' | 'updating' | 'published' | 'review' | 'failed';
+  message?: string;
+  /** Changes that give someone more access and were not made in this owner session. */
+  pending?: AccessChange[];
+  /** Roster people left out because their role is a custom role the rules don't know. */
+  skipped?: { name: string; email: string; role: string }[];
+  /** Entries in the published list. */
+  count?: number;
+  at?: string;
+}
 
 interface AppContextType {
   currentUser: User;
@@ -166,7 +193,14 @@ interface AppContextType {
     newIsAdmin: boolean,
     newIsSuperAdmin?: boolean
   ) => boolean;
-  repairUserAccess: (targetUserId: string) => Promise<boolean>;
+  /** Owner-managed access list (practiceSystem/access) publish status, for Users & Roles. */
+  accessListStatus: AccessListStatus;
+  /** Owner only: publish the access list now, including changes made from other sessions. */
+  publishAccessListNow: () => Promise<void>;
+  /** Set when the cloud data refused this person at startup (e.g. access list not published yet). */
+  cloudAccessNotice: string | null;
+  /** Re-try the cloud-data startup after a cloudAccessNotice. */
+  retryCloudSync: () => void;
   addUser: (newUser: User) => boolean;
   deleteUser: (userId: string) => boolean;
   updateUserStaffProfile: (userId: string, profile: User['staffProfile']) => void;
@@ -324,7 +358,7 @@ interface AppContextType {
   deleteClient: (id: string) => void;
   sendClientPortalInvite: (
     clientId: string
-  ) => Promise<{ success: boolean; inviteDate?: string; email?: string; tempPass?: string; error?: string }>;
+  ) => Promise<{ success: boolean; inviteDate?: string; email?: string; tempPass?: string; error?: string; message?: string }>;
   addCase: (caseObj: Case) => void;
   updateCase: (id: string, updates: Partial<Case>) => void;
   deleteCase: (id: string) => void;
@@ -668,6 +702,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     readStored(STORAGE_KEY + '_programmes', operationalFallback(INITIAL_PROGRAMMES))
   );
 
+  // The roster on this device may be stale or a first-visit seed; once the person is signed
+  // in and on the published access list they may read the shared roster, so look there too.
+  const findRosterUser = async (email: string): Promise<User | undefined> => {
+    const local = users.find((u) => u.email.toLowerCase() === email);
+    if (local) return local;
+    try {
+      const cloud = await readCloudState();
+      const cloudUsers = Array.isArray(cloud?.users) ? (cloud!.users as User[]) : [];
+      return cloudUsers.find((u) => (u.email || '').toLowerCase() === email);
+    } catch {
+      return undefined;
+    }
+  };
+
+  const notOnAccessListMessage = (email: string) =>
+    `${email} is not on the firm's published access list yet (or has been switched off). Ask the Managing Partner to add you in Firm & Practice Settings → Users & Roles.`;
+
+  const userFromAccessEntry = (entry: AccessEntry, base: User | undefined, fallback: { id: string; name: string }): User => {
+    const isOwner = entry.email === ACCESS_OWNER_EMAIL;
+    return {
+      ...(base || { id: fallback.id, name: fallback.name, email: entry.email, status: 'Active' as const }),
+      id: base?.id || fallback.id,
+      name: base?.name || fallback.name,
+      email: entry.email,
+      role: isOwner ? 'Partner' : accessRoleToAppRole(entry.role),
+      isAdmin: isOwner || entry.admin,
+      isSuperAdmin: isOwner || (entry.admin && Boolean(base?.isSuperAdmin)),
+      status: 'Active',
+    } as User;
+  };
+
   // SSO Login for Firm Staff - STRICTLY @shcolaw.com
   const loginWithGoogleSSO = async (): Promise<{ success: boolean; error?: string }> => {
     try {
@@ -680,20 +745,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // after that first sign-in.
       const access = await getGoogleWorkspaceAccessClaims(firebaseUser);
       const email = access.email || firebaseUser.email?.toLowerCase() || '';
-      const existingUser = users.find((u) => u.email.toLowerCase() === email);
+      // The owner-published access list (practiceSystem/access) is the source of truth for
+      // role/admin. Legacy custom claims and the local roster are only fallbacks.
+      const listed = await readOwnAccessEntry(email).catch(() => ({ entry: null, readable: false }));
+      const listedEntry = listed.entry && listed.entry.active ? listed.entry : null;
+      const existingUser = listed.readable ? await findRosterUser(email) : users.find((u) => u.email.toLowerCase() === email);
 
-      if (existingUser?.role === 'Client') {
+      if (listedEntry?.role === 'client' || (!listedEntry && existingUser?.role === 'Client')) {
         throw new Error('This email is registered as a Client account. Staff SSO is not available for it.');
       }
-      if (existingUser && existingUser.status === 'Inactive') {
+      if (!listedEntry && existingUser && existingUser.status === 'Inactive') {
         throw new Error('This staff account has been deactivated. Ask a Partner to reactivate it.');
       }
 
       let signedInUser: User;
       let provisionedAtLowestPrivilege = false;
 
-      if (access.hasProvisionedRole) {
-        // Normal path: Firebase custom claims already carry a real, Super-Admin-assigned role.
+      if (listedEntry) {
+        // Normal path: the Managing Partner has published this person's role/admin.
+        signedInUser = userFromAccessEntry(listedEntry, existingUser, {
+          id: firebaseUser.uid,
+          name: firebaseUser.displayName || email.split('@')[0].replace('.', ' '),
+        });
+      } else if (access.hasProvisionedRole) {
+        // Transitional path: Firebase custom claims already carry a real, Super-Admin-assigned role.
         const claimRole = normalizeRoleClaim(String(access.role || ''));
         signedInUser = {
           ...(existingUser || {
@@ -711,11 +786,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           status: 'Active',
         };
       } else if (existingUser) {
-        // Verified @shcolaw.com sign-in, but this Firebase account's custom claims haven't
-        // been (re-)synced yet — e.g. their first-ever SSO sign-in. They already have a
-        // Partner-approved role in the firm's own roster, so honour that instead of hard
-        // -blocking a legitimate staff member. A Super Admin can still use "Repair Access"
-        // in Users & Permissions to push matching custom claims to Firebase.
+        // Verified @shcolaw.com sign-in that isn't on the published access list yet. They
+        // already have a role in the firm's own roster, so honour that in the app; the cloud
+        // data will stay closed to them (with a clear message) until the Managing Partner
+        // publishes the access list from Users & Roles.
         signedInUser = { ...existingUser, email, status: 'Active' };
       } else {
         // Genuinely new @shcolaw.com Google Workspace account with no roster entry at all.
@@ -756,15 +830,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // Password sign-ins (clients and external Reviewer/Assistant/Accountant) must have a
+  // verified email — the access-list rules refuse unverified password accounts. Accounts
+  // from the old Cloud Function that still carry a role claim are let through on that
+  // claim (transitional), with a nudge to verify.
+  const readPasswordAccountAccess = async (firebaseUser: import('firebase/auth').User, email: string) => {
+    if (await ensureEmailVerified(firebaseUser)) return readOwnAccessEntry(email);
+    const claims = await getCurrentFirebaseClaims();
+    if (claims.role) {
+      showToast(`Please click the verification link we've emailed to ${email} — it will soon be required to sign in.`);
+      return { entry: null, readable: false };
+    }
+    await signOutFromFirebase().catch(() => undefined);
+    throw new Error(`Please verify your email first. We've sent a verification link to ${email} — click it, then sign in again. (Check your spam folder if it isn't in your inbox.)`);
+  };
+
   // Client Password Login - Login to Client Portal
   const loginClientPassword = async (emailInput: string, passwordInput: string): Promise<{ success: boolean; error?: string }> => {
-    const email = emailInput.trim().toLowerCase();
-    const matchedUser = users.find((u) => u.role === 'Client' && u.email.toLowerCase() === email);
-    const matchedClient = clients.find(
-      (c) => c.email.toLowerCase() === email || c.id.toLowerCase() === email
-    );
+    const term = emailInput.trim().toLowerCase();
+    // A Client ID is accepted as a convenience when this device already knows the client.
+    const email = term.includes('@')
+      ? term
+      : (clients.find((c) => c.id.toLowerCase() === term)?.email || '').trim().toLowerCase();
 
-    if (!matchedClient && !matchedUser) {
+    if (!email) {
       const errorMsg = 'Use a registered client email address or Client ID for portal access.';
       showToast(errorMsg);
       return { success: false, error: errorMsg };
@@ -772,13 +861,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     try {
       const firebaseUser = await signInClientWithPassword(email, passwordInput);
-      const access = await getCurrentFirebaseAccessClaims(firebaseUser);
-      const claimRole = normalizeRoleClaim(String(access.role || 'Client'));
+      const listed = await readPasswordAccountAccess(firebaseUser, email);
+      let isClientAccess = false;
+      if (listed.entry) {
+        isClientAccess = listed.entry.active && listed.entry.role === 'client';
+      } else {
+        // Transitional fallback: logins created by the old Cloud Function carry a role claim.
+        const access = await getGoogleWorkspaceAccessClaims(firebaseUser);
+        isClientAccess = access.role === 'Client';
+        if (!access.hasProvisionedRole) {
+          await signOutFromFirebase().catch(() => undefined);
+          throw new Error(notOnAccessListMessage(email));
+        }
+      }
 
-      if (claimRole !== 'Client') {
+      if (!isClientAccess) {
+        await signOutFromFirebase().catch(() => undefined);
         throw new Error('This account is not configured for client portal access.');
       }
 
+      const matchedUser = users.find((u) => u.role === 'Client' && u.email.toLowerCase() === email)
+        || (listed.readable ? await findRosterUser(email) : undefined);
+      const matchedClient = clients.find((c) => (c.email || '').toLowerCase() === email);
       const clientName = matchedUser?.name || matchedClient?.name || 'Valued Client';
       const clientEmail = matchedUser?.email || matchedClient?.email || email;
       const nowStr = new Date().toISOString().slice(0, 16).replace('T', ' ');
@@ -786,7 +890,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (matchedClient) {
         setClients((prev) =>
           prev.map((c) => {
-            if (c.id === matchedClient.id || c.email.toLowerCase() === email) {
+            if (c.id === matchedClient.id || (c.email || '').toLowerCase() === email) {
               return {
                 ...c,
                 lastLoginAt: nowStr,
@@ -798,7 +902,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         );
       }
 
-      const clientSessionUser: User = matchedUser || {
+      const clientSessionUser: User = matchedUser && matchedUser.role === 'Client' ? matchedUser : {
         id: matchedClient?.id || `U-client-${Date.now()}`,
         name: clientName,
         email: clientEmail,
@@ -822,37 +926,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const EXTERNAL_ROLES: Role[] = ['Reviewer', 'Assistant', 'Accountant'];
+
   const loginExternalUser = async (emailInput: string, passwordInput: string): Promise<{ success: boolean; error?: string }> => {
     const email = emailInput.trim().toLowerCase();
-    const approvedUser = users.find(
-      (user) => user.email.toLowerCase() === email && (user.role === 'Reviewer' || user.role === 'Assistant' || user.role === 'Accountant') && user.status === 'Active'
-    );
-
-    if (!approvedUser) {
-      const errorMsg = 'This external account is not approved. Ask a firm administrator to create an active Reviewer, Assistant or Accountant account first.';
-      showToast(errorMsg);
-      return { success: false, error: errorMsg };
-    }
 
     try {
-      await signInExternalWithPassword(email, passwordInput);
-      const claims = await getCurrentFirebaseClaims();
-      const approvedEmail = (approvedUser.email || '').toLowerCase();
-      const adminEmails = normalizeClaimEmailList(claims.adminEmails);
-      const superAdminEmails = normalizeClaimEmailList(claims.superAdminEmails);
-      const claimRole = normalizeRoleClaim(String(claims.role || ''));
-      if (claimRole !== approvedUser.role) {
-        throw new Error('This account role is not configured for the approved SHCO user profile.');
-      }
-      const effectiveUser = {
-        ...approvedUser,
-        lastLoginAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
-        role: claimRole,
-        isAdmin: Boolean(claims.admin) && (adminEmails.includes(approvedEmail) || superAdminEmails.includes(approvedEmail)),
-        isSuperAdmin: Boolean(claims.superAdmin) && superAdminEmails.includes(approvedEmail),
-      };
+      const firebaseUser = await signInExternalWithPassword(email, passwordInput);
+      const listed = await readPasswordAccountAccess(firebaseUser, email);
+      const rosterUser = listed.readable ? await findRosterUser(email) : users.find((u) => u.email.toLowerCase() === email);
+      let effectiveUser: User;
 
-      setUsers((prev) => prev.map((u) => (u.id === approvedUser.id ? { ...u, lastLoginAt: effectiveUser.lastLoginAt } : u)));
+      if (listed.entry) {
+        const role = accessRoleToAppRole(listed.entry.role);
+        if (!listed.entry.active || !EXTERNAL_ROLES.includes(role)) {
+          await signOutFromFirebase().catch(() => undefined);
+          throw new Error('This external account is not approved. Ask a firm administrator to give it an active Reviewer, Assistant or Accountant role.');
+        }
+        effectiveUser = userFromAccessEntry(listed.entry, rosterUser, { id: firebaseUser.uid, name: email.split('@')[0] });
+      } else {
+        // Transitional fallback: logins created by the old Cloud Function carry claims.
+        const claims = await getCurrentFirebaseClaims();
+        const claimRole = normalizeRoleClaim(String(claims.role || ''));
+        const approvedUser = rosterUser && EXTERNAL_ROLES.includes(rosterUser.role) && rosterUser.status === 'Active' ? rosterUser : undefined;
+        if (!claims.role || !approvedUser || claimRole !== approvedUser.role) {
+          await signOutFromFirebase().catch(() => undefined);
+          throw new Error(notOnAccessListMessage(email));
+        }
+        const adminEmails = normalizeClaimEmailList(claims.adminEmails);
+        const superAdminEmails = normalizeClaimEmailList(claims.superAdminEmails);
+        effectiveUser = {
+          ...approvedUser,
+          role: claimRole,
+          isAdmin: Boolean(claims.admin) && (adminEmails.includes(email) || superAdminEmails.includes(email)),
+          isSuperAdmin: Boolean(claims.superAdmin) && superAdminEmails.includes(email),
+        };
+      }
+
+      effectiveUser = { ...effectiveUser, lastLoginAt: new Date().toISOString().slice(0, 16).replace('T', ' ') };
+      setUsers((prev) => prev.map((u) => (u.id === effectiveUser.id ? { ...u, lastLoginAt: effectiveUser.lastLoginAt } : u)));
       setCurrentUser(effectiveUser);
       setCurrentRole(effectiveUser.role);
       setIsAdmin(Boolean(effectiveUser.isAdmin));
@@ -871,6 +983,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await signOutFromFirebase().catch(() => undefined);
     sessionStorage.removeItem(SESSION_STORAGE_KEY);
     localStorage.removeItem(STORAGE_KEY + '_session');
+    setCloudAccessNotice(null);
     setIsAuthenticated(false);
     setCurrentUser(INITIAL_USERS[0]);
     setCurrentRole('Partner');
@@ -969,55 +1082,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
 
-    // The local record above only changes what the app's UI shows — it does nothing to
-    // the user's real Firebase permissions on its own. Re-sync their actual custom claims
-    // so their real access matches what this screen now says, same as when they were
-    // first provisioned.
-    if (targetUser?.email) {
-      void syncFirebaseUserClaims({
-        email: targetUser.email,
-        role: String(newRole).toLowerCase(),
-        isAdmin: newIsAdmin,
-        isSuperAdmin: Boolean(resolvedIsSuperAdmin),
-      }).catch((error) => {
-        showToast(error instanceof Error ? `Local record updated, but real access sync failed: ${error.message}` : 'Local record updated, but real access sync failed.');
-      });
-    }
+    // Publish the change to the access list right away (owner session only).
+    if (targetUser?.email) approveAccessChange(targetUser.email);
 
     showToast('User role & access updated successfully by Super Admin.');
     return true;
-  };
-
-  // Re-pushes a user's CURRENT role/admin/superAdmin to Firebase without changing
-  // anything locally — for accounts provisioned before the claims fix, whose real
-  // Firebase permissions are still stuck on the old (broken) values.
-  const repairUserAccess = async (targetUserId: string): Promise<boolean> => {
-    const isSuperAdminUser =
-      currentUser.email === 'syafiqahhamizad@shcolaw.com' || Boolean(currentUser.isSuperAdmin);
-    if (!isSuperAdminUser) {
-      showToast('Access Denied: Only Super Admin can repair a user\'s access.');
-      return false;
-    }
-
-    const targetUser = users.find((u) => u.id === targetUserId);
-    if (!targetUser?.email) {
-      showToast('That user has no email on file to repair.');
-      return false;
-    }
-
-    try {
-      await syncFirebaseUserClaims({
-        email: targetUser.email,
-        role: String(targetUser.role).toLowerCase(),
-        isAdmin: Boolean(targetUser.isAdmin),
-        isSuperAdmin: Boolean(targetUser.isSuperAdmin),
-      });
-      showToast(`${targetUser.name}'s real access has been repaired.`);
-      return true;
-    } catch (error) {
-      showToast(error instanceof Error ? `Repair failed: ${error.message}` : 'Repair failed.');
-      return false;
-    }
   };
 
   const addUser = (newUser: User): boolean => {
@@ -1066,6 +1135,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           };
       return [...prev, { ...newUser, staffProfile }];
     });
+    approveAccessChange(newUser.email);
     showToast(`User ${newUser.name} added to practice system with a unique staff ID.`);
     return true;
   };
@@ -1084,6 +1154,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const target = users.find((user) => user.id === userId);
     if (!target) return false;
     setUsers((prev) => prev.filter((user) => user.id !== userId));
+    if (target.email) approveAccessChange(target.email);
     logAuditEvent('DELETE', 'USERS', target.id, target.name, 'User account removed by Super Admin.');
     addActivityLog('User Removed', `${target.name} (${target.email})`);
     showToast(`User ${target.name} removed.`);
@@ -1665,6 +1736,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [cloudSyncReady, setCloudSyncReady] = useState(false);
+  const [cloudAccessNotice, setCloudAccessNotice] = useState<string | null>(null);
+  const [cloudSyncAttempt, setCloudSyncAttempt] = useState(0);
+  const retryCloudSync = () => setCloudSyncAttempt((n) => n + 1);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY + '_sequenceCounters', JSON.stringify(sequenceCounters));
@@ -2291,6 +2365,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...patch } : u)));
     if (userId === currentUser.id) setCurrentUser((prev) => ({ ...prev, ...patch }));
+    if (patch.status !== undefined && target.email) approveAccessChange(target.email);
     logAuditEvent('UPDATE', 'USERS', userId, target.name, `Account updated: ${Object.entries(patch).map(([k, v]) => `${k} = ${v}`).join(', ')}.`);
     return true;
   };
@@ -2584,6 +2659,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           });
         }
 
+        setCloudAccessNotice(null);
         setCloudSyncReady(true);
         unsubscribe = subscribeToCloudState((state) => {
           if (!cancelled) applyCloudState(state);
@@ -2594,10 +2670,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setIsAuthenticated(false);
         });
       } catch (error) {
+        if (cancelled) return;
+        const code = String((error as { code?: string })?.code || '');
+        if (code === 'permission-denied') {
+          // At startup this almost always means the person isn't on the published access
+          // list yet (or their password account's email isn't verified). Don't bounce them
+          // back to the sign-in page with no explanation: keep the session but block the app
+          // (cloudSyncReady stays false, so nothing is saved) and say what to do.
+          console.warn('Cloud state refused at startup (permission-denied); showing the access notice.', error);
+          setCloudSyncReady(false);
+          setCloudAccessNotice(
+            "Your access hasn't been published yet — ask the Managing Partner to open Firm & Practice Settings → Users & Roles. " +
+            'If you sign in with an email and password, also make sure you have clicked the link in the verification email.'
+          );
+          return;
+        }
         console.error('Cloud state unavailable; signing out to prevent local-only data entry.', error);
         sessionStorage.removeItem(SESSION_STORAGE_KEY);
         setCloudSyncReady(false);
         setIsAuthenticated(false);
+        showToast(`Couldn't reach the firm's cloud data, so you've been signed out to avoid unsaved work. Please try again.${code ? ` (${code})` : ''}`);
       }
     };
 
@@ -2606,7 +2698,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       cancelled = true;
       unsubscribe?.();
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, cloudSyncAttempt]);
 
   useEffect(() => {
     if (!cloudSyncReady) return;
@@ -2625,6 +2717,112 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setIsAuthenticated(false);
     });
   }, [cloudSyncReady, leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims, receipts, deadlines, invoices, payments, retainers, users, attendanceRecords, leaveApplications, meetings, programmes, notifications, lawFirmRegistry, sequenceCounters, deletedRecords, rolesMatrix, customRoles, timeEntries, expenses, generalLedger, logs, announcements, auditLogs, firmStartCentrePages, bankAccounts, trustAuditLogs, inventoryItems, bankReconciliationEntries, clientAccountChecks, payslips, manualJournals]);
+
+  // ---------------------------------------------------------------------------------------
+  // Owner-managed access list (practiceSystem/access)
+  //
+  // While the Managing Partner (verified owner) is signed in, the list is derived from the
+  // real Users & Roles roster and published when it differs. The roster lives in the shared
+  // document that every firm user can write, so to stop anyone granting themselves access
+  // through it, only these changes publish automatically:
+  //   - anything the owner changed in THIS session (add / role / admin / switch off / remove),
+  //   - anything that only REDUCES access (fail-closed).
+  // Other changes that GRANT access wait in Users & Roles for the owner to press Publish.
+  // ---------------------------------------------------------------------------------------
+  const [accessListStatus, setAccessListStatus] = useState<AccessListStatus>({ state: 'idle' });
+  const [accessPublishNonce, setAccessPublishNonce] = useState(0);
+  const publishedAccessRef = useRef<AccessUsers | null | undefined>(undefined);
+  const ownerApprovedAccessKeys = useRef<Set<string>>(new Set());
+  const accessReconcileRunning = useRef(false);
+  const accessReconcileAgain = useRef<null | { publishAll: boolean }>(null);
+  const usersRef = useRef(users);
+  usersRef.current = users;
+
+  const isVerifiedOwnerSession = () => {
+    if (SAFE_PREVIEW_MODE) return false;
+    const fu = firebaseAuth.currentUser;
+    return Boolean(fu && fu.emailVerified && (fu.email || '').toLowerCase() === ACCESS_OWNER_EMAIL);
+  };
+
+  function approveAccessChange(email: string) {
+    if (!email || !isVerifiedOwnerSession()) return;
+    ownerApprovedAccessKeys.current.add(emailToAccessKey(email));
+    setAccessPublishNonce((n) => n + 1);
+  }
+
+  const reconcileAccessList = async (opts: { publishAll?: boolean } = {}): Promise<void> => {
+    if (!isVerifiedOwnerSession()) return;
+    if (accessReconcileRunning.current) {
+      accessReconcileAgain.current = { publishAll: Boolean(opts.publishAll || accessReconcileAgain.current?.publishAll) };
+      return;
+    }
+    accessReconcileRunning.current = true;
+    // Snapshot: approvals that arrive while this run is in flight are kept for the re-run.
+    const approved = new Set(ownerApprovedAccessKeys.current);
+    try {
+      // Always start from what is actually published (another tab/device may have changed it).
+      const published = await readAccessList();
+      publishedAccessRef.current = published;
+      const { users: desired, skipped } = buildAccessList(usersRef.current);
+      const changes = diffAccessLists(published, desired);
+      const toApply = opts.publishAll ? changes : changes.filter((c) => !c.grants || approved.has(c.key));
+      const pending = changes.filter((c) => !toApply.includes(c));
+      const skippedInfo = skipped.map((u) => ({ name: u.name, email: u.email, role: String(u.role) }));
+      if (toApply.length > 0) {
+        setAccessListStatus({ state: 'updating', pending, skipped: skippedInfo });
+        const next = applyAccessChanges(published, toApply);
+        await publishAccessList(next, ACCESS_OWNER_EMAIL);
+        publishedAccessRef.current = next;
+      }
+      approved.forEach((key) => ownerApprovedAccessKeys.current.delete(key));
+      const count = Object.keys(publishedAccessRef.current || {}).length;
+      setAccessListStatus({
+        state: pending.length ? 'review' : publishedAccessRef.current ? 'published' : 'review',
+        pending,
+        skipped: skippedInfo,
+        count,
+        at: new Date().toISOString(),
+      });
+    } catch (error) {
+      const code = String((error as { code?: string })?.code || '');
+      publishedAccessRef.current = undefined; // re-read next time
+      setAccessListStatus({
+        state: 'failed',
+        message: code === 'permission-denied'
+          ? 'Firestore refused the write — the deployed firestore.rules may be out of date, or this sign-in is not the verified Managing Partner account.'
+          : error instanceof Error ? error.message : 'Unknown error',
+      });
+    } finally {
+      accessReconcileRunning.current = false;
+      const again = accessReconcileAgain.current;
+      accessReconcileAgain.current = null;
+      if (again) void reconcileAccessList(again);
+    }
+  };
+
+  const publishAccessListNow = () => reconcileAccessList({ publishAll: true });
+
+  useEffect(() => {
+    if (SAFE_PREVIEW_MODE) {
+      const { users: desired } = buildAccessList(users);
+      setAccessListStatus({ state: 'preview', count: Object.keys(desired).length });
+      return;
+    }
+    if (!isAuthenticated) {
+      publishedAccessRef.current = undefined;
+      setAccessListStatus({ state: 'idle' });
+      return;
+    }
+    if (!cloudSyncReady) return;
+    if (!isVerifiedOwnerSession()) {
+      setAccessListStatus({ state: 'not-owner' });
+      return;
+    }
+    const immediate = ownerApprovedAccessKeys.current.size > 0;
+    const timer = window.setTimeout(() => { void reconcileAccessList(); }, immediate ? 50 : 1500);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, cloudSyncReady, users, accessPublishNonce]);
 
   const addActivityLog = (action: string, details: string) => {
     const newLog: ActivityLog = {
@@ -2768,12 +2966,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`Client "${clientToDelete.name}" moved to Recycle Bin.`);
   };
 
-  // Creates the client's real Firebase login (role: client) through the same Super-Admin-only
-  // account server as Users & Permissions → Add New User. No email is sent — the caller
-  // shows the temporary password so the firm can pass it on privately.
+  // Creates the client's real Firebase login (email/password, created from this browser via a
+  // secondary Firebase app — see provisionFirebaseUser) and adds them to the roster, which
+  // puts them on the access list as role 'client'. Firebase sends a verification email; the
+  // caller shows the temporary password so the firm can pass it on privately.
   const sendClientPortalInvite = async (
     clientId: string
-  ): Promise<{ success: boolean; inviteDate?: string; email?: string; tempPass?: string; error?: string }> => {
+  ): Promise<{ success: boolean; inviteDate?: string; email?: string; tempPass?: string; error?: string; message?: string }> => {
     const fail = (error: string) => {
       showToast(error);
       return { success: false, error };
@@ -2802,12 +3001,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ...prev,
         { id: provisioned.id, name: clientObj.name, email, role: 'Client', isAdmin: false, isSuperAdmin: false, status: 'Active' },
       ]);
+      approveAccessChange(email);
       setClients((prev) =>
         prev.map((c) => (c.id === clientId ? { ...c, lastPortalInviteSent: inviteDate, portalAccessEnabled: true } : c))
       );
       addActivityLog('Client Portal Login Created', `${clientObj.name} (${email})`);
       logAuditEvent('CREATE', 'CLIENTS', clientObj.id, clientObj.name, `Client Portal login created for ${email}.`);
-      return { success: true, inviteDate, email, tempPass: provisioned.temporaryPassword };
+      return { success: true, inviteDate, email, tempPass: provisioned.temporaryPassword, message: describeProvisionedAccount(provisioned, { signInWhere: 'portal.shcolaw.com → Client Access' }) };
     } catch (error) {
       return fail(error instanceof Error ? error.message : 'Unable to create the client portal login.');
     }
@@ -3316,7 +3516,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         logoutUser,
         redeemInvitation,
         updateUserRoleAndAdmin,
-        repairUserAccess,
+        accessListStatus,
+        publishAccessListNow,
+        cloudAccessNotice,
+        retryCloudSync,
         addUser,
         deleteUser,
         updateUserStaffProfile,

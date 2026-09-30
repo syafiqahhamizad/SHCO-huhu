@@ -45,31 +45,11 @@
     ],
     "rewrites": [
       {
-        "source": "/api/admin/users",
-        "function": {
-          "functionId": "provisionUser",
-          "region": "asia-southeast1"
-        }
-      },
-      {
-        "source": "/api/admin/sync-claims",
-        "function": {
-          "functionId": "syncUserClaims",
-          "region": "asia-southeast1"
-        }
-      },
-      {
         "source": "**",
         "destination": "/index.html"
       }
     ]
   },
-  "functions": [
-    {
-      "source": "functions-user",
-      "codebase": "user"
-    }
-  ],
   "firestore": {
     "rules": "firestore.rules"
   },

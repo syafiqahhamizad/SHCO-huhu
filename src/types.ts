@@ -983,7 +983,7 @@ export interface StaffProfile {
   /** Marital status and number of children feed PCB tax reliefs. */
   maritalStatus?: 'Single' | 'Married' | 'Divorced' | 'Widowed';
   children?: number;
-  /** Staff photo in Firebase Storage (confidential/hr/{userId}/...). */
+  /** Staff photo in Firebase Storage (confidential/hr/{emailKey}/..., older files confidential/hr/{userId}/...). */
   photo?: HrDocument;
   homeAddress?: string;
   personalEmail?: string;
