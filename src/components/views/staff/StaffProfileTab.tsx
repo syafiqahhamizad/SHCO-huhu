@@ -388,7 +388,7 @@ const RecordForm: React.FC<{ user: User; admin: boolean; self: boolean; lh: stri
         <div style={G3}>
           {text('phone', 'Mobile', { ph: 'e.g. 012-345 6789' })}
           {text('personalEmail', 'Personal email', { type: 'email', ph: 'name@gmail.com' })}
-          {ro('Work email', user.email || '—', 'Sign-in email · changed in Users & Permissions')}
+          {ro('Work email', user.email || '—', 'Sign-in email · changed in Firm & Practice Settings → Users & Roles')}
         </div>
         <label style={labelWrap}>
           <span style={LBL}>Home address</span>
@@ -410,7 +410,7 @@ const RecordForm: React.FC<{ user: User; admin: boolean; self: boolean; lh: stri
       </Section></div>
 
       {/* ---- 4 Employment ---- */}
-      <div id="hr-sec-4"><Section {...sec(4)} foot="Setting the status to Resigned or Terminated keeps the person and all their records. Their sign-in access is controlled separately in Users & Permissions.">
+      <div id="hr-sec-4"><Section {...sec(4)} foot="Setting the status to Resigned or Terminated keeps the person and all their records. Their sign-in access is controlled separately in Firm & Practice Settings → Users & Roles.">
         <div style={G3}>
           {ro('Staff ID', staffId ? staffId : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
@@ -419,7 +419,7 @@ const RecordForm: React.FC<{ user: User; admin: boolean; self: boolean; lh: stri
             </span>
           ), 'Assigned automatically')}
           {text('code', 'User code', { ph: 'e.g. MH', after: canEdit ? <span style={NOTE}>2–4 letters, unique in the firm</span> : undefined })}
-          {ro('Role', String(user.role || '—') + (user.isSuperAdmin ? ' · Super Admin' : user.isAdmin ? ' · Admin' : ''), 'Set in Users & Permissions')}
+          {ro('Role', String(user.role || '—') + (user.isSuperAdmin ? ' · Super Admin' : user.isAdmin ? ' · Admin' : ''), 'Set in Firm & Practice Settings → Users & Roles')}
           {text('designation', 'Designation', { ph: 'e.g. Associate' })}
           {text('department', 'Department', { ph: 'e.g. Litigation' })}
           {pick('employmentType', 'Employment type', same(EMPLOYMENT_TYPES))}

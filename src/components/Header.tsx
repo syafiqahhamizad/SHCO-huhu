@@ -169,20 +169,22 @@ export const Header: React.FC = () => {
       case 'officeReports':
         return { title: 'Office Account Reports', sub: 'Firm overhead & cash bucket reserves analysis' };
       case 'users':
-        return { title: 'Users Management', sub: 'Firm members and admin privileges' };
+      case 'roles':
+      case 'practiceSettings':
+      case 'practice-settings':
+      case 'firmSettings':
+      case 'firm-settings':
+      case 'settings':
+        return { title: 'Firm & Practice Settings', sub: 'Managing Partner only · every change is saved to the Activity Log' };
       case 'staffPortal':
       case 'staff-portal':
       case 'reimbursements':
         return { title: 'Staff Portal', sub: [currentUser?.name, currentUser?.staffProfile?.designation || currentUser?.role, 'only your own records are shown here'].filter(Boolean).join(' · ') };
-      case 'settings':
-        return { title: 'System Settings', sub: 'Practice references & system preferences' };
       case 'logs':
         return { title: 'Activity Logs', sub: 'Audit trail of user actions' };
       case 'clientPortal':
       case 'client-portal':
         return { title: 'Client Access Portal (Read-Only)', sub: 'Privileged real-time matter progress tracking and shared document access' };
-      case 'roles':
-        return { title: 'Roles & Permissions', sub: 'Module permission matrix (View, Add, Edit)' };
       default:
         return { title: 'SHCO Practice System', sub: 'Malaysian Legal Practice Management System' };
     }

@@ -82,10 +82,14 @@ export interface DocTotals {
 /** Firm default SST rate: 0 until Firm & Practice Settings says the firm is SST-registered. */
 export const defaultSstRate = (): number => {
   const s = getPracticeSettings();
-  return s.sstRegistered ? Number(s.sstRate) || 0 : 0;
+  if (!s.sstRegistered) return 0;
+  // Firm & Practice Settings → SST start date (dd.mm.yyyy): nothing charged before it.
+  const m = String(s.sstStartDate || '').match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+  if (m && new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1])).getTime() > Date.now()) return 0;
+  return Number(s.sstRate) || 0;
 };
 
-export const FIRM = { reg: 'Firm Reg. No.: [to be set]', name: 'SYAFIQAH HAMIZAD & CO', addr: '8-23-03 (2nd Floor), Jalan Medan Pusat Bandar 7A, Bangi Sentral, 43650 Bandar Baru Bangi, Selangor', email: 'billing@shcolaw.com', tel: '+603-8684 1998 / +6011-7382 8754' };
+export const FIRM = { reg: 'Firm Reg. No.: [to be set]', name: 'SYAFIQAH HAMIZAD & CO', addr: '8-23-03 (2nd Floor), Jalan Medan Pusat Bandar 7A, Bangi Sentral, 43650 Bandar Baru Bangi, Selangor', email: 'billing@shcolaw.com', tel: '+603-8684 1998 / +6011-7382 8754', tag1: 'Advocates & Solicitors | Syarie Counsel', tag2: 'Peguambela & Peguamcara | Peguam Syarie', header: '' };
 export const BANK: Record<DocAccount, [string, string, string]> = { Office: ['Syafiqah Hamizad & Co', 'Hong Leong Bank Berhad', '36301134253'], 'Client account': ['Syafiqah Hamizad & Co – Client A/C', 'Hong Leong Bank Berhad', '36301136440'], Disbursement: ['Syafiqah Hamizad & Co – Disbursement A/C', 'Hong Leong Bank Berhad', '[to be set]'] };
 const LOGO: Record<'mono' | 'word' | 'name' | 'header', string> = { mono: '/assets/sh-monogram.png', word: '/assets/sh-wordmark.png', name: '/assets/sh-name.png', header: '' };
 const toData = (k: keyof typeof LOGO) => fetch(LOGO[k]).then((r) => r.blob()).then((b) => new Promise<void>((res) => { const fr = new FileReader(); fr.onload = () => { LOGO[k] = String(fr.result); res(); }; fr.readAsDataURL(b); })).catch(() => {});
@@ -168,7 +172,7 @@ const esc = (s: unknown) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => 
 const F = 'font-family:Arial,Helvetica,sans-serif;color:#000;font-size:9.5pt;line-height:1.35';
 const B = 'border:1px solid #000;padding:5px 8px;vertical-align:top';
 const HDR = 'font-family:Georgia,\'Times New Roman\',serif;color:#16223A';
-const firmBlock = () => '<div style="' + HDR + '"><img src="' + LOGO.name + '" alt="' + FIRM.name + '" width="240" style="width:240px;height:auto;display:block"><div style="font-size:8.5pt;font-style:italic;color:#3D6B9C;line-height:1.4;margin-top:4px">Advocates &amp; Solicitors | Syarie Counsel<br>Peguambela &amp; Peguamcara | Peguam Syarie</div><div style="font-size:7.5pt;line-height:1.5;color:#5B6478;margin-top:5px">' + (FIRM.reg ? esc(FIRM.reg) + '<br>' : '') + esc(FIRM.addr) + '<br>' + FIRM.email + ' · ' + FIRM.tel + '</div></div>';
+const firmBlock = () => FIRM.header ? '<div style="' + HDR + '"><img src="' + FIRM.header + '" alt="' + esc(FIRM.name) + '" style="width:100%;max-width:470px;height:auto;display:block"></div>' : '<div style="' + HDR + '"><img src="' + LOGO.name + '" alt="' + FIRM.name + '" width="240" style="width:240px;height:auto;display:block"><div style="font-size:8.5pt;font-style:italic;color:#3D6B9C;line-height:1.4;margin-top:4px">' + esc(FIRM.tag1) + '<br>' + esc(FIRM.tag2) + '</div><div style="font-size:7.5pt;line-height:1.5;color:#5B6478;margin-top:5px">' + (FIRM.reg ? esc(FIRM.reg) + '<br>' : '') + esc(FIRM.addr) + '<br>' + FIRM.email + ' · ' + FIRM.tel + '</div></div>';
 const boxTable = (rows: [string, unknown][]) => rows.map(([k, v]) => '<div><span style="color:#5B6478">' + k + '</span> ' + esc(v) + '</div>').join('');
 const topHead = (title: string, rows: [string, unknown][]) => '<table style="width:100%;border-collapse:collapse"><tr><td style="vertical-align:top;padding:0">' + firmBlock() + '</td><td style="vertical-align:top;padding:0 0 0 12px;width:200px;text-align:right;' + HDR + ';font-size:8.5pt;line-height:1.6">' + (title ? '<div style="font-size:15pt;font-weight:bold;letter-spacing:.5px;line-height:1.15;margin-bottom:4px">' + title + '</div>' : '') + boxTable(rows) + '</td></tr></table><div style="border-top:2px solid #16223A;margin:12px 0 14px"></div>';
 /** Letterhead only (option 3c) — for letters / statements that build their own body. */
@@ -228,4 +232,52 @@ const XLSX_URL = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm';
 export const readSheet = async (file: File): Promise<string[][]> => { if (/\.csv$/i.test(file.name)) return parseCsv((await file.text()).replace(/^﻿/, '')); const X: any = await import(/* @vite-ignore */ XLSX_URL); const wb = X.read(await file.arrayBuffer()); return X.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' }); };
 export const IMPORT_COLS = ['Date (dd.mm.yyyy)', 'Type (Receipt / Payment / Invoice)', 'Account (Office / Client)', 'Client', 'Our Ref', 'Document No.', 'Description', 'Amount (RM)', 'Method', 'Proof reference'];
 export const importTemplate = () => csv('SHCO import template', [IMPORT_COLS, ['15.01.2025', 'Invoice', 'Office', 'FB Fastaqim Buildings', 'SHC/LIT/FB/SH/005/2025', 'INV-25-0012', 'Professional fees – defence', '10000', '', ''], ['20.01.2025', 'Receipt', 'Office', 'FB Fastaqim Buildings', 'SHC/LIT/FB/SH/005/2025', 'OR-25-0031', 'Payment for INV-25-0012', '2000', 'Online transfer', 'IBG screenshot 20.01'], ['22.01.2025', 'Payment', 'Client', 'FB Fastaqim Buildings', 'SHC/LIT/FB/SH/005/2025', 'PV-25-0008', 'Court filing fees', '16', 'Online transfer', 'e-Filing receipt']]);
+/* ---------- Firm & Practice Settings → documents ----------
+ * Firm details, bank accounts, the HQ letterhead image and edited fee templates live in Firm &
+ * Practice Settings. They are applied onto FIRM / BANK / AREAS in place (built-in values stay the
+ * fallback), on load and whenever settings change, so every screen/Word/PDF copy picks them up. */
+/** Built-in template code → practice-area tag used in Firm & Practice Settings. */
+export const AREA_TAG: Record<string, string> = { LIT: 'L', PRO: 'EST', FAM: 'SY' };
+export const areaTag = (code: string) => AREA_TAG[code] || code;
+const BUILTIN_FIRM = { ...FIRM };
+const BUILTIN_BANK: Record<DocAccount, [string, string, string]> = { Office: [...BANK.Office], 'Client account': [...BANK['Client account']], Disbursement: [...BANK.Disbursement] };
+const BUILTIN_AREAS: Record<string, AreaTemplate> = Object.fromEntries(Object.entries(AREAS).map(([k, a]) => [k, { ...a, prof: clone(a.prof), disb: clone(a.disb), reimb: clone(a.reimb) }]));
+/** Built-in fee templates keyed by practice-area tag (L, CONV, EST, CORP, EMP, SY), in the
+ * settings shape (lines as {d, a} objects). */
+export const builtInFeeTemplates = (): Record<string, { desc: string; prof: { d: string; a: number }[]; disb: { d: string; a: number }[]; reimb: { d: string; a: number }[] }> => {
+  const o = (l: DocLine[]) => l.map(([d, a]) => ({ d, a }));
+  return Object.fromEntries(Object.values(BUILTIN_AREAS).map((a) => [areaTag(a.code), { desc: a.desc, prof: o(a.prof), disb: o(a.disb), reimb: o(a.reimb) }]));
+};
+
+export const applyPracticeSettingsToDocs = () => {
+  const s = getPracticeSettings();
+  const reg = String(s.firmRegNo || '').trim();
+  const hq = (s.branches || []).find((b) => b.hq) || (s.branches || [])[0];
+  Object.assign(FIRM, BUILTIN_FIRM, {
+    reg: reg ? 'Firm Reg. No.: ' + reg : BUILTIN_FIRM.reg,
+    addr: s.address || BUILTIN_FIRM.addr,
+    email: s.email || BUILTIN_FIRM.email,
+    tel: s.phone || BUILTIN_FIRM.tel,
+    tag1: s.taglineLine1 ?? BUILTIN_FIRM.tag1,
+    tag2: s.taglineLine2 ?? BUILTIN_FIRM.tag2,
+    header: hq?.letterheadImage || '',
+  });
+  const accs = (s.bankAccounts || []).filter((b) => b.isActive !== false);
+  const pick = (a: { accountName: string; bankName: string; accountNo: string } | undefined, fb: [string, string, string]): [string, string, string] => (a && a.accountNo ? [a.accountName, a.bankName, a.accountNo] : [fb[0], fb[1], fb[2]]);
+  BANK.Office = pick(accs.find((b) => b.isDefaultOffice) || accs.find((b) => b.accountType === 'Office Operating'), BUILTIN_BANK.Office);
+  BANK['Client account'] = pick(accs.find((b) => b.isDefaultClient) || accs.find((b) => b.accountType === 'Client Trust'), BUILTIN_BANK['Client account']);
+  BANK.Disbursement = pick(accs.find((b) => b.accountType === 'Disbursement'), BUILTIN_BANK.Disbursement);
+  const T = s.feeTemplates || {};
+  const cl = (l?: { d: string; a: number }[]) => (l || []).filter((x) => String(x?.d || '').trim()).map((x) => [x.d, Number(x.a) || 0] as DocLine);
+  Object.keys(AREAS).forEach((k) => { if (!BUILTIN_AREAS[k]) delete AREAS[k]; });
+  Object.entries(BUILTIN_AREAS).forEach(([k, a]) => { const o = T[areaTag(a.code)]; AREAS[k] = o ? { code: a.code, desc: o.desc, prof: cl(o.prof), disb: cl(o.disb), reimb: cl(o.reimb) } : { ...a, prof: clone(a.prof), disb: clone(a.disb), reimb: clone(a.reimb) }; });
+  // Templates saved for practice areas with no built-in template (e.g. Criminal) become extra areas.
+  const builtTags = new Set(Object.values(BUILTIN_AREAS).map((a) => areaTag(a.code)));
+  (s.practiceAreas || []).forEach((pa) => { const o = T[pa.code]; if (o && !builtTags.has(pa.code) && !AREAS[pa.name]) AREAS[pa.name] = { code: pa.code, desc: o.desc, prof: cl(o.prof), disb: cl(o.disb), reimb: cl(o.reimb) }; });
+};
+if (typeof window !== 'undefined') {
+  applyPracticeSettingsToDocs();
+  window.addEventListener('shco-practice-settings-updated', applyPracticeSettingsToDocs);
+}
+
 export const tableHtml = (title: string, period: string, cols: string[], rows: unknown[][]) => topHead(esc(title.toUpperCase()), [['Period', period]]) + `<div style="display:none"></div><div style="${F};text-align:center;margin:0 0 12px">${esc(period)}</div><table style="width:100%;border-collapse:collapse;${F}"><tr>${cols.map((c) => `<td style="${B};font-weight:bold;background:#EFEFEF">${esc(c)}</td>`).join('')}</tr>${rows.map((r) => `<tr>${r.map((c) => `<td style="${B}">${esc(c)}</td>`).join('')}</tr>`).join('')}</table>`;

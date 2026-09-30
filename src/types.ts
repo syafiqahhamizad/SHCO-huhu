@@ -925,6 +925,13 @@ export interface User {
   staffProfile?: StaffProfile;
   /** Short unique staff code (e.g. SH, AH, NF) used in file refs and across the system. */
   code?: string;
+  /** Office this person works from (a name from PracticeSettings.branches, e.g. 'Bangi'). */
+  branch?: string;
+  /** Last successful sign-in, 'YYYY-MM-DD HH:MM' (recorded from now on; absent = not recorded). */
+  lastLoginAt?: string;
+  /** Firm & Practice Settings → "2-step login" flag. Recorded here only; the sign-in itself is
+   * enforced by the Google Workspace / Firebase account, not by this app. */
+  twoStepLogin?: boolean;
 }
 
 export interface StaffProfile {

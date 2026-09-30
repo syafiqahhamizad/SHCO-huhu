@@ -29,7 +29,6 @@ const SimplifiedAccountingView = React.lazy(() => import('./components/views/Sim
 const AccountsFinanceView = React.lazy(() => import('./components/views/finance/AccountsFinanceView').then((module) => ({ default: module.AccountsFinanceView })));
 const SystemViews = import('./components/views/SystemViews');
 const WorkspaceView = React.lazy(() => SystemViews.then((module) => ({ default: module.WorkspaceView })));
-const UsersAndPermissionsView = React.lazy(() => SystemViews.then((module) => ({ default: module.UsersAndPermissionsView })));
 const PracticeSettingsView = React.lazy(() => import('./components/views/PracticeSettingsView').then((module) => ({ default: module.PracticeSettingsView })));
 const TrustAuditLogsView = React.lazy(() => import('./components/views/TrustAuditLogsView').then((module) => ({ default: module.TrustAuditLogsView })));
 const InventoryView = React.lazy(() => import('./components/views/InventoryView').then((module) => ({ default: module.InventoryView })));
@@ -41,6 +40,8 @@ const FirmStartCentreView = React.lazy(() => import('./components/views/FirmStar
 const MyDashboardView = React.lazy(() => import('./components/views/MyDashboardView').then((module) => ({ default: module.MyDashboardView })));
 const NewCaseModal = React.lazy(() => import('./components/NewCaseModal').then((module) => ({ default: module.NewCaseModal })));
 const NewClientModal = React.lazy(() => import('./components/NewClientModal').then((module) => ({ default: module.NewClientModal })));
+
+const SETTINGS_VIEWS = ['users', 'roles', 'practiceSettings', 'practice-settings', 'firmSettings', 'firm-settings', 'settings'];
 
 const MainContent: React.FC = () => {
   const {
@@ -70,6 +71,11 @@ const MainContent: React.FC = () => {
     // Billing, Client Account, Approvals; Reviewer: Client Account + Books) — see lib/financeAccess.
     if (isFinanceView(currentView)) {
       return <AccountsFinanceView initialTab={FINANCE_VIEW_TO_TAB[currentView]} />;
+    }
+    // Firm & Practice Settings (incl. Users & Roles, which replaced Users & Permissions) gates
+    // itself and tells everyone else it is Managing Partner only.
+    if (SETTINGS_VIEWS.includes(currentView)) {
+      return <PracticeSettingsView />;
     }
     if (!canViewModule(currentView)) {
       return (
@@ -169,7 +175,6 @@ const MainContent: React.FC = () => {
         return <ActivityLogsView />;
       case 'users':
       case 'roles':
-        return <UsersAndPermissionsView />;
       case 'practiceSettings':
       case 'practice-settings':
       case 'firmSettings':

@@ -15,6 +15,8 @@ export interface FirmBankAccount {
   isDefaultClient?: boolean;
   notes?: string;
   isActive?: boolean;
+  /** Type as typed in Firm & Practice Settings (e.g. "Petty cash"); accountType is derived. */
+  typeLabel?: string;
 }
 
 export interface DefaultBillingItem {
@@ -165,7 +167,121 @@ export interface PracticeSettings {
   clientStatementRuns?: Record<string, { at: string; by: string; count: number }>;
   /** Accounts & Finance → Approvals monthly referral-fee batch decisions, keyed by 'YYYY-MM'. */
   referralFeeApprovals?: Record<string, { status: 'Approved' | 'Rejected'; by: string; at: string; total: number }>;
+
+  /* ---- Firm & Practice Settings (design pack firm-settings.dc.html). All optional/additive. ---- */
+  /** Firm registration number printed on finance documents and payslips ("Firm Reg. No."). */
+  firmRegNo?: string;
+  /** Letterhead tagline lines printed under the firm name on finance documents / payslips. */
+  taglineLine1?: string;
+  taglineLine2?: string;
+  /** Firm offices. Users pick one (User.branch = branch name); documents use the HQ letterhead. */
+  branches?: FirmBranch[];
+  /** "Emails by purpose" (Firm & Letterhead tab). */
+  purposeEmails?: PurposeEmail[];
+  /** Opening balances per bank account id (Banks, Numbering & SST tab). */
+  bankOpeningBalances?: Record<string, number>;
+  /** Document numbering formats, keyed by DOC_NUMBERING key. Stored only: record ids are still
+   * issued by AppContext.getNextSequenceId in its existing format. */
+  docNumbering?: Record<string, string>;
+  /** SST start date (dd.mm.yyyy). Before this date the firm default SST rate stays 0. */
+  sstStartDate?: string;
+  /** Approval limits (Permissions & limits tab), as typed. `mpPlusOneAbove` drives the finance
+   * Approvals two-signatory threshold. */
+  approvalLimits?: ApprovalLimits;
+  /** Per-practice-area default quotation (Fee templates tab), keyed by practice-area tag (L, CONV,
+   * EST, …). Overrides the built-in templates in lib/financeDocs AREAS. */
+  feeTemplates?: Record<string, FeeTemplate>;
+  /** Lists & sources: Office Account expense categories and My Claims claim types. */
+  expenseCategories?: string[];
+  claimTypes?: string[];
 }
+
+export interface FirmBranch {
+  id: string;
+  name: string;
+  hq?: boolean;
+  address: string;
+  /** Uploaded letterhead header image (small data URL) and its original file name. */
+  letterheadImage?: string;
+  letterheadFileName?: string;
+}
+
+export interface PurposeEmail {
+  purpose: string;
+  email: string;
+  usedFor: string;
+}
+
+export interface ApprovalLimits {
+  anyPartnerUpTo?: string;
+  mpPlusOneAbove?: string;
+  clientAccount?: string;
+  writeOffs?: string;
+  staffClaimsFlag?: string;
+}
+
+/** One template line. Stored as an object — Firestore rejects nested arrays. */
+export interface FeeLine {
+  d: string;
+  a: number;
+}
+
+export interface FeeTemplate {
+  desc: string;
+  prof: FeeLine[];
+  disb: FeeLine[];
+  reimb: FeeLine[];
+}
+
+export const DEFAULT_BRANCHES: FirmBranch[] = [
+  { id: 'br-bangi', name: 'Bangi', hq: true, address: '8-23-03 (2nd Floor), Jalan Medan Pusat Bandar 7A, Bangi Sentral, 43650 Bandar Baru Bangi' },
+  { id: 'br-shah-alam', name: 'Shah Alam', address: 'Unit 2-1, Level 2, The Podium, Tower 3, UOA Business Park, 40150 Shah Alam' },
+  { id: 'br-terengganu', name: 'Terengganu', address: 'Lot 7076, Taman Safiah Murni, Bukit Payong, 21400 Marang' },
+];
+
+export const DEFAULT_PURPOSE_EMAILS: PurposeEmail[] = [
+  { purpose: 'General enquiries', email: '', usedFor: 'Website, Google profile, general letters' },
+  { purpose: 'Billing & receipts', email: '', usedFor: 'Printed on finance documents; sends invoices, receipts and payment reminders' },
+  { purpose: 'Payroll & HR', email: '', usedFor: 'Sends payslips and EA forms to staff' },
+  { purpose: 'Client portal', email: '', usedFor: 'Portal invites and file updates to clients (no replies)' },
+  { purpose: 'New leads', email: '', usedFor: 'Website form and new-lead alerts to the person in charge' },
+];
+
+/** [key, label, default format] — Banks, Numbering & SST → Document numbering. */
+export const DOC_NUMBERING: [string, string, string][] = [
+  ['quotation', 'Quotation', 'QT-{YY}-{0000}'],
+  ['proforma', 'Proforma invoice', 'PF-{YY}-{0000}'],
+  ['invoice', 'Invoice', 'INV-{YY}-{0000}'],
+  ['receiptOffice', 'Receipt (office)', 'OR-O-{YY}-{0000}'],
+  ['receiptClient', 'Receipt (client a/c)', 'OR-C-{YY}-{0000}'],
+  ['pvOffice', 'Payment voucher (office)', 'PV-O-{YY}-{0000}'],
+  ['pvClient', 'Payment voucher (client a/c)', 'PV-C-{YY}-{0000}'],
+  ['pvDisb', 'Payment voucher (disbursement)', 'PV-D-{YY}-{0000}'],
+  ['journal', 'Journal', 'JV-{YY}-{0000}'],
+];
+
+export const DEFAULT_APPROVAL_LIMITS: Required<ApprovalLimits> = {
+  anyPartnerUpTo: 'RM 5,000',
+  mpPlusOneAbove: 'RM 5,000',
+  clientAccount: 'Managing Partner + 1, any amount',
+  writeOffs: 'Managing Partner only',
+  staffClaimsFlag: 'RM 1,000',
+};
+
+/** Office expense categories used by Accounts & Finance → Record office expense. */
+export const DEFAULT_EXPENSE_CATEGORIES = ['Utilities', 'Rent', 'IT', 'Marketing', 'Stationery', 'Courier', 'Other'];
+/** Claim types offered in My Claims (Staff Portal). */
+export const DEFAULT_CLAIM_TYPES = ['Travelling', 'Disbursement', 'Office'];
+
+/** First number found in a typed amount ("RM 5,000" -> 5000); fallback when none. */
+export const parseAmount = (v: unknown, fallback: number): number => {
+  const m = String(v ?? '').replace(/,/g, '').match(/\d+(\.\d+)?/);
+  return m ? Number(m[0]) : fallback;
+};
+
+/** Finance Approvals: amount at/above which Managing Partner + 1 more signatory is needed. */
+export const twoSignatoryThreshold = (settings: PracticeSettings = getPracticeSettings()): number =>
+  parseAmount(settings.approvalLimits?.mpPlusOneAbove ?? DEFAULT_APPROVAL_LIMITS.mpPlusOneAbove, 5000);
 
 export interface LeadSourceDef {
   key: string;
