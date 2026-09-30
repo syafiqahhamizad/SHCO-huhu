@@ -38,6 +38,7 @@ import {
   StaffGoal,
   ActivityLog,
   RolePermissionsMatrix,
+  ModulePermissions,
   LawFirmRegistryEntry,
   NotificationItem,
   BankAccount,
@@ -186,6 +187,14 @@ interface AppContextType {
   customRoles: string[];
   addCustomRole: (roleName: string) => boolean;
   updateUserNavOverride: (userId: string, moduleKey: string, action: 'v' | 'a' | 'e', value: number) => void;
+  /** Firm & Practice Settings: set all three bits of one role/module cell at once (no toast). */
+  setRoleModulePermissions: (role: Role, moduleKey: string, perms: ModulePermissions) => void;
+  /** Firm & Practice Settings: set (or with null, clear) one person's own permission for a key. */
+  setUserNavOverride: (userId: string, moduleKey: string, perms: ModulePermissions | null) => void;
+  /** Firm & Practice Settings: drop all of one person's own changes ("Reset to role"). */
+  resetUserNavOverrides: (userId: string) => void;
+  /** Firm & Practice Settings → Users & Roles: active/switched off, branch, 2-step flag. */
+  updateUserAccount: (userId: string, patch: { status?: User['status']; branch?: string; twoStepLogin?: boolean }) => boolean;
 
   // Data State
   leads: Lead[];
@@ -725,14 +734,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
       }
 
+      // Firm & Practice Settings → Users & Roles "Last login" column.
+      signedInUser = { ...signedInUser, lastLoginAt: new Date().toISOString().slice(0, 16).replace('T', ' ') };
       if (!existingUser) setUsers((prev) => [...prev, signedInUser]);
+      else setUsers((prev) => prev.map((u) => (u.id === existingUser.id ? { ...u, lastLoginAt: signedInUser.lastLoginAt } : u)));
       setCurrentUser(signedInUser);
       setCurrentRole(signedInUser.role);
       setIsAdmin(Boolean(signedInUser.isAdmin));
       setIsAuthenticated(true);
       setCurrentView('firmStartCentre');
       if (provisionedAtLowestPrivilege) {
-        showToast(`Welcome, ${signedInUser.name}. Your @shcolaw.com account was verified but has no role assigned yet, so you've been given limited (Reviewer) access. Ask a Partner to set your correct role in Users & Permissions.`);
+        showToast(`Welcome, ${signedInUser.name}. Your @shcolaw.com account was verified but has no role assigned yet, so you've been given limited (Reviewer) access. Ask the Managing Partner to set your correct role in Firm & Practice Settings → Users & Roles.`);
       } else {
         showToast(`Welcome back, ${signedInUser.name}.`);
       }
@@ -834,11 +846,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       const effectiveUser = {
         ...approvedUser,
+        lastLoginAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
         role: claimRole,
         isAdmin: Boolean(claims.admin) && (adminEmails.includes(approvedEmail) || superAdminEmails.includes(approvedEmail)),
         isSuperAdmin: Boolean(claims.superAdmin) && superAdminEmails.includes(approvedEmail),
       };
 
+      setUsers((prev) => prev.map((u) => (u.id === approvedUser.id ? { ...u, lastLoginAt: effectiveUser.lastLoginAt } : u)));
       setCurrentUser(effectiveUser);
       setCurrentRole(effectiveUser.role);
       setIsAdmin(Boolean(effectiveUser.isAdmin));
@@ -1399,7 +1413,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
   const requireStartCentreEditAccess = () => {
     if (!canEditStartCentre()) {
-      showToast('You do not have edit access to the Firm Start Centre. Ask an Admin or Super Admin to grant it under Users & Permissions.');
+      showToast('You do not have edit access to the Firm Start Centre. Ask an Admin or Super Admin to grant it under Firm & Practice Settings → Permissions & limits.');
       return false;
     }
     return true;
@@ -2237,6 +2251,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`Updated user explicit navigation override.`);
   };
 
+  const setRoleModulePermissions = (role: Role, moduleKey: string, perms: ModulePermissions) => {
+    setRolesMatrix((prev) => ({ ...prev, [role]: { ...(prev[role] || {}), [moduleKey]: { v: perms.v, a: perms.a, e: perms.e } } }));
+  };
+
+  const setUserNavOverride = (userId: string, moduleKey: string, perms: ModulePermissions | null) => {
+    const apply = (u: User): User => {
+      const next = { ...(u.navOverrides || {}) };
+      if (perms) next[moduleKey] = { v: perms.v, a: perms.a, e: perms.e };
+      else delete next[moduleKey];
+      return { ...u, navOverrides: next };
+    };
+    setUsers((prev) => prev.map((u) => (u.id === userId ? apply(u) : u)));
+    if (userId === currentUser.id) setCurrentUser((prev) => apply(prev));
+  };
+
+  const resetUserNavOverrides = (userId: string) => {
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, navOverrides: {} } : u)));
+    if (userId === currentUser.id) setCurrentUser((prev) => ({ ...prev, navOverrides: {} }));
+  };
+
+  const updateUserAccount = (userId: string, patch: { status?: User['status']; branch?: string; twoStepLogin?: boolean }): boolean => {
+    const isSuperAdminUser = currentUser.email === 'syafiqahhamizad@shcolaw.com' || Boolean(currentUser.isSuperAdmin);
+    if (!(isSuperAdminUser || currentUser.isAdmin)) {
+      showToast('Only an admin can change user accounts.');
+      return false;
+    }
+    const target = users.find((u) => u.id === userId);
+    if (!target) return false;
+    if (patch.status === 'Inactive') {
+      if (!isSuperAdminUser) {
+        showToast('Only the Super Admin can switch a user off.');
+        return false;
+      }
+      if (target.email === 'syafiqahhamizad@shcolaw.com' || target.id === currentUser.id) {
+        showToast('The Managing Partner is always Super admin and cannot be switched off.');
+        return false;
+      }
+    }
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...patch } : u)));
+    if (userId === currentUser.id) setCurrentUser((prev) => ({ ...prev, ...patch }));
+    logAuditEvent('UPDATE', 'USERS', userId, target.name, `Account updated: ${Object.entries(patch).map(([k, v]) => `${k} = ${v}`).join(', ')}.`);
+    return true;
+  };
+
   // 'settings' / 'users' / 'logs' need Admin or Super Admin specifically — being a
   // Partner alone is no longer enough (a regular Partner shouldn't be able to create
   // accounts, change roles, or read the firm-wide activity log). 'retainers' (client
@@ -2282,6 +2340,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 1. Check explicit user navigation overrides first if set for current user
     if (currentUser?.navOverrides && currentUser.navOverrides[viewId]) {
       return currentUser.navOverrides[viewId].v === 1;
+    }
+    // Per-person overrides saved from Firm & Practice Settings use module keys (e.g. 'leads').
+    if (currentUser?.navOverrides && currentUser.navOverrides[moduleKey]) {
+      return currentUser.navOverrides[moduleKey].v === 1;
     }
 
     // 2. Check exact viewId in roleMatrix
@@ -3275,6 +3337,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         customRoles,
         addCustomRole,
         updateUserNavOverride,
+        setRoleModulePermissions,
+        setUserNavOverride,
+        resetUserNavOverrides,
+        updateUserAccount,
         leads,
         clients,
         cases,

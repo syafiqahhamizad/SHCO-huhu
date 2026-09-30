@@ -1,0 +1,105 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { css } from '../finance/financeModel';
+import { getPracticeSettings, savePracticeSettings, type PracticeSettings } from '../../../services/templateService';
+
+export { css };
+
+/** Shared inline styles copied verbatim from firm-settings.dc.html. */
+export const S = {
+  card: 'overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff',
+  h: 'font-family:ui-serif, Georgia, serif;font-size:14.5px;color:#16223A',
+  sub: 'font-size:10.5px;color:#5B6478',
+  foot: 'padding:9px 14px;background:#F6F8FA;font-size:10.5px;line-height:1.5;color:#5B6478',
+  input: 'border:1px solid #DDE3EB;border-radius:6px;padding:5px 7px;font-size:11px;color:#16223A',
+  remove: 'border:1px solid #DDE3EB;border-radius:6px;padding:4px 6px;font-size:10px;font-weight:700;background:#fff;color:#B23A2E;cursor:pointer;font-family:inherit',
+  addLink: 'border:0;background:none;font-size:11px;font-weight:700;color:#8A6D3B;cursor:pointer;font-family:inherit',
+  tag: 'padding:2px 7px;border-radius:5px;background:#16223A;color:#E9C46A;font-family:ui-monospace, monospace;font-size:10.5px;font-weight:700',
+  darkBtn: 'border:0;border-radius:6px;padding:6px 10px;font-size:11px;font-weight:700;background:#16223A;color:#fff;cursor:pointer;font-family:inherit',
+  lightBtn: 'border:1px solid #DDE3EB;border-radius:6px;padding:5px 10px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit',
+  fieldLabel: 'font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478',
+};
+
+/** Live Firm & Practice Settings (re-reads on every save / cloud update). */
+export const usePracticeSettings = (): [PracticeSettings, (patch: Partial<PracticeSettings>) => void] => {
+  const [settings, setSettings] = useState<PracticeSettings>(() => getPracticeSettings());
+  useEffect(() => {
+    const on = () => setSettings(getPracticeSettings());
+    window.addEventListener('shco-practice-settings-updated', on);
+    return () => window.removeEventListener('shco-practice-settings-updated', on);
+  }, []);
+  const save = (patch: Partial<PracticeSettings>) => {
+    const next = { ...getPracticeSettings(), ...patch };
+    savePracticeSettings(next);
+    setSettings(next);
+  };
+  return [settings, save];
+};
+
+/** Everything each tab needs from the shell. */
+export interface SettingsCtx {
+  settings: PracticeSettings;
+  /** Save a settings patch and write one Activity Log line. */
+  save: (patch: Partial<PracticeSettings>, action: string, details: string) => void;
+  msg: (m: string) => void;
+  log: (action: string, details: string) => void;
+  isSuperAdmin: boolean;
+  go: (tab: string, extra?: { who?: string }) => void;
+  who: string;
+  setWho: (id: string) => void;
+}
+
+type TxtProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'style'> & {
+  value: string;
+  onCommit: (v: string) => void;
+  style: string;
+  /** Transform while typing (e.g. upper-case). */
+  map?: (v: string) => string;
+};
+
+/** Text input that keeps a local draft and saves once on blur / Enter (one log line per change). */
+export const Txt = ({ value, onCommit, style, map, ...rest }: TxtProps) => {
+  const [draft, setDraft] = useState(value);
+  const focused = useRef(false);
+  useEffect(() => { if (!focused.current) setDraft(value); }, [value]);
+  const commit = () => { focused.current = false; if (draft !== value) onCommit(draft); };
+  return (
+    <input
+      {...rest}
+      value={draft}
+      onFocus={() => { focused.current = true; }}
+      onChange={(e) => setDraft(map ? map(e.target.value) : e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { setDraft(value); focused.current = false; } }}
+      style={css(withBg(style))}
+    />
+  );
+};
+
+/** The app's global CSS greys every input; the design's inputs are white unless they say otherwise. */
+const withBg = (style: string) => (/background/.test(style) ? style : style + ';background:#fff');
+
+/** Textarea twin of Txt. */
+export const Area = ({ value, onCommit, style, rows }: { value: string; onCommit: (v: string) => void; style: string; rows?: number }) => {
+  const [draft, setDraft] = useState(value);
+  const focused = useRef(false);
+  useEffect(() => { if (!focused.current) setDraft(value); }, [value]);
+  return (
+    <textarea
+      value={draft}
+      rows={rows}
+      onFocus={() => { focused.current = true; }}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => { focused.current = false; if (draft !== value) onCommit(draft); }}
+      style={css(withBg(style))}
+    />
+  );
+};
+
+/** Card header: serif title + optional grey note (block or inline). */
+export const CardHead = ({ title, note, inline, children }: { title: React.ReactNode; note?: React.ReactNode; inline?: boolean; children?: React.ReactNode }) => (
+  <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}>
+    <strong style={css(S.h)}>{title}</strong>
+    {note != null && <span style={css(inline ? 'margin-left:8px;font-size:10.5px;color:#5B6478' : 'display:block;font-size:10.5px;color:#5B6478')}>{note}</span>}
+    {children}
+  </div>
+);

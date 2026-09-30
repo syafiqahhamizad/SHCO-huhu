@@ -84,15 +84,21 @@ export interface FirmLetterhead {
   phone: string;
 }
 
-export const letterheadHtml = (lh: string, firm: FirmLetterhead, title: string, lines: [string, string][]) =>
-  '<table style="width:100%;border-collapse:collapse"><tr><td style="vertical-align:top;padding:0;font-family:Georgia,\'Times New Roman\',serif;color:#16223A">' +
+export const letterheadHtml = (lh: string, firm: FirmLetterhead, title: string, lines: [string, string][]) => {
+  // Firm Reg. No. and taglines come from Firm & Practice Settings → Firm & Letterhead.
+  const ps = getPracticeSettings();
+  const reg = String(ps.firmRegNo || '').trim() || '[to be set]';
+  const tag1 = ps.taglineLine1 ?? 'Advocates & Solicitors | Syarie Counsel';
+  const tag2 = ps.taglineLine2 ?? 'Peguambela & Peguamcara | Peguam Syarie';
+  return '<table style="width:100%;border-collapse:collapse"><tr><td style="vertical-align:top;padding:0;font-family:Georgia,\'Times New Roman\',serif;color:#16223A">' +
   '<img src="' + esc(lh) + '" alt="Syafiqah Hamizad &amp; Co" width="240" style="width:240px;height:auto;display:block">' +
-  '<div style="font-size:8.5pt;font-style:italic;color:#3D6B9C;line-height:1.4;margin-top:4px">Advocates &amp; Solicitors | Syarie Counsel<br>Peguambela &amp; Peguamcara | Peguam Syarie</div>' +
-  '<div style="font-size:7.5pt;line-height:1.5;color:#5B6478;margin-top:5px">Firm Reg. No.: [to be set]<br>' + esc(firm.address) + '<br>' + esc(firm.email) + ' · ' + esc(firm.phone) + '</div></td>' +
+  '<div style="font-size:8.5pt;font-style:italic;color:#3D6B9C;line-height:1.4;margin-top:4px">' + esc(tag1) + '<br>' + esc(tag2) + '</div>' +
+  '<div style="font-size:7.5pt;line-height:1.5;color:#5B6478;margin-top:5px">Firm Reg. No.: ' + esc(reg) + '<br>' + esc(firm.address) + '<br>' + esc(firm.email) + ' · ' + esc(firm.phone) + '</div></td>' +
   '<td style="vertical-align:top;padding:0 0 0 12px;width:200px;text-align:right;font-family:Georgia,\'Times New Roman\',serif;color:#16223A;font-size:8.5pt;line-height:1.6">' +
   '<div style="font-size:15pt;font-weight:bold;letter-spacing:.5px;line-height:1.15;margin-bottom:4px">' + esc(title) + '</div>' +
   lines.map(([k, v]) => '<div><span style="color:#5B6478">' + esc(k) + '</span> ' + esc(v) + '</div>').join('') +
   '</td></tr></table><div style="border-top:2px solid #16223A;margin:12px 0 14px"></div>';
+};
 
 const F = 'font-family:Arial,Helvetica,sans-serif;color:#000;font-size:9.5pt;line-height:1.4';
 const B = 'border:1px solid #000;padding:5px 8px';
