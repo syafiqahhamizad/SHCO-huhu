@@ -15,10 +15,11 @@ export const PERM_ROWS: [string, string, string?, string?][] = [
   ['retainers', 'Client Account (SAR 1990)'], ['clientPortal', 'Client Portal'],
   ['settings', 'Firm & Practice Settings'], ['users', 'Users & Roles', 'settings'], ['settings.permissions', 'Permissions & limits', 'settings', '000000'], ['settings.firm', 'Firm & Letterhead', 'settings'], ['settings.banks', 'Banks, Numbering & SST', 'settings'], ['settings.areas', 'Practice areas & codes', 'settings'], ['settings.templates', 'Fee templates', 'settings'], ['settings.lists', 'Lists & sources', 'settings'],
   ['logs', 'Activity Logs'], ['firmStartCentreEdit', 'Firm Start Centre (edit)'],
+  ['hrRecords', 'HR records (employee profiles)'],
 ];
 
 /** Keys an admin always has in full on top of their role (design ADMK). */
-export const ADMIN_KEYS = ['settings', 'users', 'logs', 'settings.firm', 'settings.banks', 'settings.templates', 'settings.lists', 'settings.permissions'];
+export const ADMIN_KEYS = ['settings', 'users', 'logs', 'hrRecords', 'settings.firm', 'settings.banks', 'settings.templates', 'settings.lists', 'settings.permissions'];
 
 /** The design's fixed role order; index 1.. maps to the app's own roles. */
 export const FIXED_ROLE_COLS: [string, string][] = [['Managing Partner', ''], ['Partner', 'Partner'], ['Lawyer', 'Lawyer'], ['Assistant', 'Assistant'], ['Accountant', 'Accountant'], ['Reviewer', 'Reviewer'], ['Client', 'Client']];

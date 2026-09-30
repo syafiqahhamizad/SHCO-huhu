@@ -33,6 +33,7 @@ const PracticeSettingsView = React.lazy(() => import('./components/views/Practic
 const TrustAuditLogsView = React.lazy(() => import('./components/views/TrustAuditLogsView').then((module) => ({ default: module.TrustAuditLogsView })));
 const InventoryView = React.lazy(() => import('./components/views/InventoryView').then((module) => ({ default: module.InventoryView })));
 const StaffPortalView = React.lazy(() => import('./components/views/staff/StaffPortalView').then((module) => ({ default: module.StaffPortalView })));
+const MyClaimsView = React.lazy(() => import('./components/views/staff/MyClaimsView').then((module) => ({ default: module.MyClaimsView })));
 const MyAccountView = React.lazy(() => import('./components/views/MyAccountView').then((module) => ({ default: module.MyAccountView })));
 const AboutAppView = React.lazy(() => import('./components/views/AboutAppView').then((module) => ({ default: module.AboutAppView })));
 const ActivityLogsView = React.lazy(() => import('./components/views/ActivityLogsView').then((module) => ({ default: module.ActivityLogsView })));
@@ -146,8 +147,9 @@ const MainContent: React.FC = () => {
         return <ClientPortalView />;
       case 'staffPortal':
       case 'staff-portal':
-      case 'reimbursements':
         return <StaffPortalView />;
+      case 'reimbursements':
+        return <MyClaimsView />;
       case 'leads':
       case 'leadsReferrals':
       case 'leads-referrals':

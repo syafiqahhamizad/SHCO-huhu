@@ -7,14 +7,14 @@ import {
   buildEaHtml, buildFileDirectory, buildMyClaimRows, buildPayslipHtml, card, cardTitle, dedLines, dedOf, dMonY, earnLines, FirmLetterhead,
   grossOf, MONTHS_SHORT, netOf, periodLabel, printHtml, rm, serif, staffIdentity,
 } from './staffPortalShared';
-import { StaffClaimsTab } from './StaffClaimsTab';
 import { StaffLeaveTab } from './StaffLeaveTab';
 import { StaffGoalsTab } from './StaffGoalsTab';
 import { StaffAttendanceTab } from './StaffAttendanceTab';
 import { StaffProfileTab } from './StaffProfileTab';
+import { personBits } from '../settings/permissionModel';
 
-type Tab = 'pay' | 'claims' | 'leave' | 'attendance' | 'goals' | 'profile';
-const TABS: [Tab, string][] = [['profile', 'My profile'], ['pay', 'Payslips'], ['claims', 'My Claims'], ['leave', 'Leave'], ['attendance', 'Attendance'], ['goals', 'Goals & wellbeing']];
+type Tab = 'pay' | 'leave' | 'attendance' | 'goals' | 'profile';
+const TABS: [Tab, string][] = [['profile', 'Employee records'], ['pay', 'Payslips'], ['leave', 'Leave'], ['attendance', 'Attendance'], ['goals', 'Goals & wellbeing']];
 const PAY_GRID = 'minmax(0,1fr) 100px 90px 90px 90px 100px';
 const LH_PATH = import.meta.env.BASE_URL + 'assets/sh-name.png';
 
@@ -40,12 +40,11 @@ const useLetterhead = () => {
 };
 
 export const StaffPortalView: React.FC = () => {
-  const { currentUser, users, payslips, travelClaims, expenses, paymentVouchers, cases, clients, leaveApplications, showToast, currentView } = useApp();
-  const [tab, setTab] = useState<Tab>(currentView === 'reimbursements' ? 'claims' : 'profile');
-  // Sidebar "My Claims" opens this page on the claims tab.
-  useEffect(() => {
-    if (currentView === 'reimbursements') setTab('claims');
-  }, [currentView]);
+  const { currentUser, users, payslips, travelClaims, expenses, paymentVouchers, cases, clients, leaveApplications, showToast, isAdmin, rolesMatrix, setCurrentView } = useApp();
+  // Employee records are HR-only: admins, or people granted "HR records" in Permissions & limits.
+  const canHr = Boolean(isAdmin) || personBits(rolesMatrix || {}, currentUser, 'hrRecords')[0] === '1';
+  const tabs = TABS.filter(([k]) => k !== 'profile' || canHr);
+  const [tab, setTab] = useState<Tab>(canHr ? 'profile' : 'pay');
   const lh = useLetterhead();
 
   const me = useMemo(() => identityTokens(currentUser), [currentUser]);
@@ -78,7 +77,7 @@ export const StaffPortalView: React.FC = () => {
       '#2F6F4E',
       'pay',
     ],
-    ['Claims waiting', rm(waiting.reduce((s, x) => s + x.amt, 0)), waiting.length + ' item(s) with partner', '#8A6534', 'claims'],
+    ['Claims waiting', rm(waiting.reduce((s, x) => s + x.amt, 0)), waiting.length + ' item(s) with partner', '#8A6534', 'claims' as Tab],
     ['Annual leave left', Math.max(0, 16 - used('Annual')) + ' days', 'of 16 this year', '#3D6B9C', 'leave'],
     ['Goals on track', goals.filter((g) => g.status === 'On track' || g.status === 'Done').length + ' of ' + goals.length, 'personal & career', '#6B3D8C', 'goals'],
   ];
@@ -88,7 +87,7 @@ export const StaffPortalView: React.FC = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, color: '#1E293B', fontSize: 12, lineHeight: 'normal' }}>
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 12 }}>
         {tiles.map(([label, value, note, c, t]) => (
-          <button key={label} type="button" onClick={() => setTab(t)} style={{ textAlign: 'left', borderRadius: 12, border: '1px solid #DDE3EB', background: '#fff', padding: '13px 15px', display: 'flex', flexDirection: 'column', gap: 4, cursor: 'pointer', fontFamily: 'inherit', borderTop: '3px solid ' + c }}>
+          <button key={label} type="button" onClick={() => ((t as string) === 'claims' ? setCurrentView('reimbursements') : setTab(t))} style={{ textAlign: 'left', borderRadius: 12, border: '1px solid #DDE3EB', background: '#fff', padding: '13px 15px', display: 'flex', flexDirection: 'column', gap: 4, cursor: 'pointer', fontFamily: 'inherit', borderTop: '3px solid ' + c }}>
             <span style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: '#5B6478' }}>{label}</span>
             <span style={{ fontFamily: serif, fontSize: 21, fontWeight: 700, color: '#16223A' }}>{value}</span>
             <span style={{ fontSize: 10.5, color: '#5B6478' }}>{note}</span>
@@ -96,17 +95,16 @@ export const StaffPortalView: React.FC = () => {
         ))}
       </section>
       <section style={{ display: 'flex', gap: 4, borderBottom: '1px solid #DDE3EB' }}>
-        {TABS.map(([k, label]) => (
+        {tabs.map(([k, label]) => (
           <button key={k} type="button" onClick={() => setTab(k)} style={{ border: 0, background: 'none', padding: '9px 14px', marginBottom: -1, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', color: tab === k ? '#16223A' : '#5B6478', borderBottom: '2px solid ' + (tab === k ? '#16223A' : 'transparent') }}>{label}</button>
         ))}
       </section>
 
       {tab === 'pay' && <PayslipsTab slips={mySlips} lh={lh} showToast={showToast} />}
-      {tab === 'claims' && <StaffClaimsTab rows={claimRows} dir={dir} />}
       {tab === 'leave' && <StaffLeaveTab myLeaves={myLeaves} used={used} me={me} />}
       {tab === 'attendance' && <StaffAttendanceTab />}
       {tab === 'goals' && <StaffGoalsTab />}
-      {tab === 'profile' && <StaffProfileTab lh={lh} />}
+      {tab === 'profile' && canHr && <StaffProfileTab lh={lh} />}
     </div>
   );
 };

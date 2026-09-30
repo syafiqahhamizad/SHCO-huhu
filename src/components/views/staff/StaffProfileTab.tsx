@@ -49,7 +49,8 @@ const baseProfile = (u: User): StaffProfile =>
 
 export const StaffProfileTab: React.FC<{ lh: string }> = ({ lh }) => {
   const { currentUser, users, isAdmin } = useApp();
-  const admin = Boolean(isAdmin || currentUser.isSuperAdmin);
+  // Only admins and people granted "HR records" reach this tab (Staff Portal gates it).
+  const admin = true;
   const [selId, setSelId] = useState(currentUser.id);
 
   const staff = useMemo(() => users.filter((u) => u.role !== 'Client').sort((a, b) => a.name.localeCompare(b.name)), [users]);

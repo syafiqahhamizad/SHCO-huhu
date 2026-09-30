@@ -176,9 +176,10 @@ export const Header: React.FC = () => {
       case 'firm-settings':
       case 'settings':
         return { title: 'Firm & Practice Settings', sub: 'Managing Partner only · every change is saved to the Activity Log' };
+      case 'reimbursements':
+        return { title: 'My Claims', sub: 'Your claims and payment requests · approvals happen in Finance → Approvals' };
       case 'staffPortal':
       case 'staff-portal':
-      case 'reimbursements':
         return { title: 'Staff Portal', sub: [currentUser?.name, currentUser?.staffProfile?.designation || currentUser?.role, 'only your own records are shown here'].filter(Boolean).join(' · ') };
       case 'logs':
         return { title: 'Activity Logs', sub: 'Audit trail of user actions' };
