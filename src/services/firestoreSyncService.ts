@@ -46,5 +46,7 @@ export function subscribeToCloudState(onChange: (state: CloudState) => void, onE
 
 export async function writeCloudState(state: CloudState): Promise<void> {
   const sanitizedState = JSON.parse(JSON.stringify(state)) as CloudState;
-  await setDoc(stateRef, sanitizedState, { merge: true });
+  // Replace each top-level field whole (a plain `merge: true` deep-merges nested maps, so keys
+  // deleted inside e.g. practiceSettings.publicHolidays came back). Fields not sent are untouched.
+  await setDoc(stateRef, sanitizedState, { mergeFields: Object.keys(sanitizedState) });
 }
