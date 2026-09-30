@@ -66,7 +66,7 @@ export const PayslipFormModal = ({ F }: { F: FinanceCtrl }) => {
             <div style={css('padding:8px 12px;display:flex;flex-direction:column;gap:4px')}>
               {!st.ok && <p style={css('margin:0;font-size:10.5px;line-height:1.5;color:#B23A2E;font-weight:600')}>{st.reason}</p>}
               {st.ok && <span style={css('font-size:10.5px;color:#5B6478')}>Age {st.age} · EPF on {rm2(st.wagesEpf)} (Third Schedule Part {st.epf.part}) · SOCSO {st.socso.category === 2 ? 'second category' : 'first category'} and EIS on {rm2(Math.min(st.wagesSocso, 6000))}{st.wagesSocso > 6000 ? ' (RM6,000 ceiling)' : ''}{st.eis.exempt ? ' · EIS not payable (' + st.eis.exempt + ')' : ''}</span>}
-              <div style={css('display:grid;grid-template-columns:minmax(0,1fr) 90px 90px;gap:8px;padding-top:4px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#5B6478')}><span></span><span style={css('text-align:right')}>Employee</span><span style={css('text-align:right')}>Employer</span></div>
+              {!manual && <div style={css('display:grid;grid-template-columns:minmax(0,1fr) 90px 90px;gap:8px;padding-top:4px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#5B6478')}><span></span><span style={css('text-align:right')}>Employee</span><span style={css('text-align:right')}>Employer</span></div>}
               {!manual && <>
                 {row('EPF (KWSP)', st.epf.employee, st.epf.employer)}
                 {row('SOCSO (PERKESO, Act 4)', st.socso.employee, st.socso.employer, st.socso.skbbk ? `employee share includes LINDUNG 24 Jam ${rm2(st.socso.skbbk)}` : undefined)}
