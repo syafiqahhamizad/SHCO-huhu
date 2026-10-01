@@ -30,6 +30,8 @@ export const Header: React.FC = () => {
     markNotificationAsRead,
     markAllNotificationsAsRead,
     deletedRecords = [],
+    isNewCaseModalOpen,
+    setIsNewCaseModalOpen,
   } = useApp();
   const selectedCase = currentView === 'cases' && currentCaseId ? cases.find((c: any) => c.id === currentCaseId) : undefined;
 
@@ -107,6 +109,7 @@ export const Header: React.FC = () => {
       case 'clients':
         return { title: 'Clients', sub: 'Client profiles, KYC documents and instructions' };
       case 'cases':
+        if (isNewCaseModalOpen) return { title: 'Open a new file', sub: 'Client, parties, court and team for the new matter', crumb: 'Cases', onCrumb: () => { setIsNewCaseModalOpen(false); setCurrentCaseId(null); } };
         return selectedCase
           ? { title: 'Working file', sub: 'Everything on this matter in one place', crumb: 'Cases', onCrumb: () => setCurrentCaseId(null) }
           : { title: 'Cases', sub: 'Every open and closed matter, by file reference' };
@@ -120,6 +123,8 @@ export const Header: React.FC = () => {
         return { title: 'Case Status', sub: 'Where every matter stands and what happens next' };
       case 'deadlines':
         return { title: 'Deadlines', sub: 'Limitation periods and court filing dates' };
+      case 'serviceLog':
+        return { title: 'Service Log', sub: 'Every document served and received, across all files' };
       case 'courts':
         return { title: 'Courts & Judges', sub: 'Directory of Malaysian courts and presiding officers' };
       case 'referral':
