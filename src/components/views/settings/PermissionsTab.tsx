@@ -7,7 +7,7 @@ import { PERM_ROWS, FIXED_ROLE_COLS, parentOf, roleOwnBits, personBits, personRo
 const BIT: [string, string, string, string][] = [['V', 'view', '#E6EFE9', '#2F6F4E'], ['A', 'add', '#E7EEF6', '#2F5680'], ['E', 'edit / approve', '#F7E9EE', '#8C2F4C']];
 const pill = (on: boolean, bg: string, fg: string, cap: boolean) => `border:1px solid ${on ? fg + '55' : '#E6EAF0'};background:${on ? bg : '#fff'};color:${on ? fg : cap ? '#B8C1CE' : '#E1E6EC'}`;
 const BOX = 'width:22px;height:20px;border-radius:5px;padding:0;font-size:9.5px;font-weight:800;cursor:pointer;font-family:inherit;';
-const LIMITS: [keyof ApprovalLimits, string][] = [['anyPartnerUpTo', 'Any partner can approve up to'], ['mpPlusOneAbove', 'Managing Partner + 1 signatory above'], ['clientAccount', 'Client account payments'], ['writeOffs', 'Write-offs'], ['staffClaimsFlag', 'Staff claims per month (auto-flag above)']];
+const LIMITS: [keyof ApprovalLimits, string][] = [['anyPartnerUpTo', 'Any partner can approve below'], ['mpPlusOneAbove', 'Managing Partner + 1 signatory at and above (per claim / PV form total)'], ['clientAccount', 'Client account payments'], ['writeOffs', 'Write-offs'], ['staffClaimsFlag', 'Staff claims per month (auto-flag above)']];
 const RULES = ['Data is filtered on the server by role + assigned files', 'Every view, change and approval is written to Activity Logs', '2-step login required for Managing Partner, Partners, Accounts', 'Issued documents cannot be edited: cancel and reissue', 'Nothing is hard-deleted; admin delete is recoverable'];
 
 export const PermissionsTab = ({ C, view, setView }: { C: SettingsCtx; view: 'role' | 'person'; setView: (v: 'role' | 'person') => void }) => {

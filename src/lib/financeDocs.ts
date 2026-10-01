@@ -11,6 +11,7 @@
 //     disbursements (same rule as billingEngine.computeTotals);
 //   - logo assets are served from /assets/ (public/assets/sh-*.png).
 import { getPracticeSettings } from '../services/templateService';
+import { splitSst } from './billingEngine';
 
 export type DocType = 'Quotation' | 'Proforma' | 'Invoice' | 'Receipt';
 export type DocAccount = 'Office' | 'Client account' | 'Disbursement';
@@ -158,12 +159,15 @@ export const totals = (d: Pick<FinanceDoc, 'type' | 'lines' | 'sstRate' | 'depos
   const rate = d.sstRate != null ? d.sstRate : defaultSstRate();
   const lines = d.lines || { prof: [], disb: [], reimb: [] };
   const prof = sum(lines.prof), disb = sum(lines.disb), reimb = sum(lines.reimb);
-  const sProf = Math.round(prof * rate * 100) / 100, sReimb = Math.round(reimb * rate * 100) / 100, sst = sProf + sReimb;
-  const net = prof + disb + reimb, gross = net + sst, less = d.deposit || 0;
-  return { rate, prof, disb, reimb, sProf, sReimb, sst, net, gross, less, total: gross - less };
+  // One SST rule (billingEngine.splitSst): rounded once on fees + reimbursements; the printed
+  // fee / reimbursement SST lines add up to that stored total.
+  const { sst, sstFees: sProf, sstReimbursements: sReimb } = splitSst(prof, reimb, rate);
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const net = r2(prof + disb + reimb), gross = r2(net + sst), less = Math.min(gross, Math.max(0, d.deposit || 0));
+  return { rate, prof, disb, reimb, sProf, sReimb, sst, net, gross, less, total: r2(gross - less) };
 };
 const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty', 'twenty-one', 'twenty-two', 'twenty-three', 'twenty-four'];
-export const schedule = (total: number, months: number, upfront: number): [string, number][] => { months = Math.max(1, Math.min(24, Math.round(months || 1))); upfront = Math.min(total, Math.max(0, upfront || 0)); if (months === 1) return [['Month 1 (Full Payment)', total]]; const first = upfront || Math.round(total / months * 100) / 100; const each = Math.floor((total - first) / (months - 1)); const out: [string, number][] = [['Month 1 (Upfront Payment)', first]]; for (let i = 2; i < months; i++) out.push(['Month ' + i, each]); out.push(['Month ' + months, Math.round((total - first - each * (months - 2)) * 100) / 100]); return out; };
+export const schedule = (total: number, months: number, upfront: number): [string, number][] => { total = Math.max(0, Math.round((Number(total) || 0) * 100) / 100); months = Math.max(1, Math.min(24, Math.round(months || 1))); upfront = Math.min(total, Math.max(0, upfront || 0)); if (total === 0) return [['Month 1 (Full Payment)', 0]]; if (months === 1) return [['Month 1 (Full Payment)', total]]; const first = upfront || Math.round(total / months * 100) / 100; const each = Math.max(0, Math.floor((total - first) / (months - 1))); const out: [string, number][] = [['Month 1 (Upfront Payment)', first]]; for (let i = 2; i < months; i++) out.push(['Month ' + i, each]); out.push(['Month ' + months, Math.round((total - first - each * (months - 2)) * 100) / 100]); return out; };
 export const ARR_TERMS = 'Early Settlement: In the event the matter is settled before the completion of the instalment period, all payments made shall be non-refundable, and the outstanding balance for the remaining unpaid months shall be charged at ten per cent (10%) of the settlement sum.\nDisbursements & Reimbursements: Charged in accordance with the agreed quotation. Any additional disbursements and/or reimbursements incurred shall be notified to and borne by the Client, and any unused portion of disbursements paid shall be refunded to the Client accordingly.\nWork shall not proceed if instalment payments are not settled, unless otherwise agreed in writing.';
 export const num = (n: number | string | undefined) => Number(n || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const money = (n: number | string | undefined) => 'RM ' + num(n);

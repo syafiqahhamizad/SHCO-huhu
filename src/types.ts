@@ -718,6 +718,15 @@ export interface Invoice {
   /** Amount written off (approved by the Managing Partner) — reduces the debtor balance. */
   writtenOff?: number;
   writeOffRequest?: WriteOffRequest;
+  /** Office-account proforma money (fees received in advance) applied to this invoice — printed
+   * as "LESS: DEPOSIT RECEIVED" and deducted from the balance. Posted Dr 2110 / Cr 1100 on issue. */
+  depositApplied?: number;
+  /** Receipts (proforma payments) making up depositApplied. */
+  depositReceiptIds?: string[];
+  /** Unbilled work this invoice was built from; marked billed only when the invoice is issued. */
+  sourceItems?: { time?: string[]; expenses?: string[]; travel?: string[] };
+  /** Date the invoice was issued (status left Draft). */
+  issuedAt?: string;
 }
 
 export interface Payment {
@@ -758,7 +767,7 @@ export interface PaymentVoucher {
   id: string;
   date: string;
   accountSet: 'OFFICE' | 'CLIENT';
-  voucherCategory: 'Office Account' | 'Client Account' | 'Disbursement' | 'Travelling' | 'Office Operating' | 'Client Disb' | 'Legal Fees Transfer';
+  voucherCategory: 'Office Account' | 'Client Account' | 'Disbursement' | 'Travelling' | 'Office Operating' | 'Client Disb' | 'Legal Fees Transfer' | 'Statutory (EPF/SOCSO/EIS/PCB)' | 'SST to Customs' | 'Partner drawings';
   payee?: string;
   paymentMethod?: string;
   description: string;
@@ -1448,4 +1457,7 @@ export interface ManualJournal {
   decidedBy?: string;
   decidedAt?: string;
   proofs?: FinanceProof[];
+  /** Client-account journals: the client ledger (client + matter) the adjustment belongs to. */
+  clientId?: string;
+  caseId?: string;
 }

@@ -2,6 +2,7 @@ import React from 'react';
 import type { FinanceCtrl } from './useFinanceController';
 import { css, fd, findCase, inPeriod, num0, parseDate, rm, rm2 } from './financeModel';
 import * as SD from '../../../lib/financeDocs';
+import { monthlyCommitments, monthsCovered } from '../../../lib/financeCalc';
 import type { SinkingFund } from '../../../services/templateService';
 
 export const OfficeAccountTab = ({ F }: { F: FinanceCtrl }) => {
@@ -10,8 +11,18 @@ export const OfficeAccountTab = ({ F }: { F: FinanceCtrl }) => {
 
   /* ---- bank balances ---- */
   const mask = (no: string) => { const d = String(no || '').replace(/\s+/g, ''); return d.length > 8 ? d.slice(0, 4) + ' **** ' + d.slice(-4) : d || 'account no. to be set'; };
-  const banks = F.activeBanks.length
-    ? F.activeBanks.map((b) => { const r = F.lastRecon(b.id); const k = F.bankKind(b); return { key: b.id, kind: k === 'Petty cash' ? 'Petty cash' : k === 'Client account' ? 'Client account' : k, name: `${b.bankName}${b.accountName ? ' · ' + b.accountName : ''}`, bal: rm(Number(b.currentBalance || 0)), acc: mask(b.accountNo), rec: r ? 'Reconciled ' + F.dShort(r) : 'Not reconciled', rc: r ? '#2F6F4E' : '#8A6534' }; })
+  // Book balance per account type = Firm Settings opening balance + every cash-book movement
+  // (the stored bank-account "current balance" is never updated, so it is not used).
+  const KINDS = ['Office', 'Client account', 'Disbursement', 'Petty cash'] as const;
+  const kindCards = KINDS.filter((k) => F.banksOf(k).length || F.firmBanksOf(k).length).map((k) => {
+    const legacy = F.banksOf(k); const firm = F.firmBanksOf(k); const bal = F.bankBal(k);
+    const recs = legacy.map((b) => F.lastRecon(b.id)).filter(Boolean).sort(); const r = recs[recs.length - 1] || '';
+    const names = (firm.length ? firm.map((b) => `${b.bankName}${b.accountName ? ' · ' + b.accountName : ''}`) : legacy.map((b) => `${b.bankName}${b.accountName ? ' · ' + b.accountName : ''}`)).join(' + ');
+    const nos = (firm.length ? firm.map((b) => b.accountNo) : legacy.map((b) => b.accountNo)).map(mask).join(' · ');
+    return { key: k, kind: k, name: names || k, bal: bal == null ? '—' : rm(bal), acc: nos, rec: r ? 'Reconciled ' + F.dShort(r) : 'Not reconciled', rc: r ? '#2F6F4E' : '#8A6534' };
+  });
+  const banks = kindCards.length
+    ? kindCards
     : ([['Office', 'Hong Leong Current', SD.BANK.Office[2]], ['Client account', "Hong Leong Clients' A/C", SD.BANK['Client account'][2]], ['Office', 'CIMB Current', ''], ['Disbursement', 'Disbursement A/C', ''], ['Petty cash', 'Front desk', '']] as [string, string, string][]).map(([kind, name, no]) => ({ key: kind + name, kind, name, bal: '—', acc: mask(no), rec: 'No balance recorded', rc: '#8A6534' }));
 
   /* ---- disbursement account ---- */
@@ -28,12 +39,14 @@ export const OfficeAccountTab = ({ F }: { F: FinanceCtrl }) => {
   const persisted = F.settings.sinkingFunds || [];
   const funds: SinkingFund[] = F.fundEdit ? (F.fundsDraft || persisted) : persisted;
   const setAside = persisted.reduce((s, f) => s + Number(f.balance || 0), 0);
-  const fixedMonthly = (F.settings.commitments || []).filter((c) => c.frequency === 'Monthly').reduce((s, c) => s + Number(c.amount || 0), 0);
+  // Monthly equivalent of ALL commitments: monthly + annual ÷ 12.
+  const fixedMonthly = monthlyCommitments(F.settings.commitments || []);
+  const covered = monthsCovered(F.officeCash == null ? null : F.officeCash - persisted.reduce((s, f) => s + Number(f.balance || 0), 0), F.settings.commitments || []);
   const free = F.officeCash == null ? null : F.officeCash - setAside;
   const reserve: [string, string, string, string][] = [
     ['Office cash', F.officeCash == null ? '—' : rm(F.officeCash), F.banksOf('Office').map((b) => b.bankName).join(' + ') || 'no office bank balance recorded', '#16223A'],
     ['Already set aside', rm(setAside), 'in sinking funds', '#8A6534'],
-    ['Free cash after funds', free == null ? '—' : rm(free), free == null ? 'needs the office bank balance' : fixedMonthly > 0 ? '= ' + (free / fixedMonthly).toFixed(1) + ' months of fixed costs · target 3' : 'add monthly commitments on My Dashboard → Finance to see months covered', free != null && fixedMonthly > 0 && free < fixedMonthly * 3 ? '#B23A2E' : '#2F6F4E'],
+    ['Free cash after funds', free == null ? '—' : rm(free), free == null ? 'needs the office bank balance' : covered != null ? '= ' + covered.toFixed(1) + ' months of fixed costs (monthly + annual ÷ 12) · target 3' : '— months covered: add commitments on My Dashboard → Finance', free != null && fixedMonthly > 0 && free < fixedMonthly * 3 ? '#B23A2E' : '#2F6F4E'],
   ];
   const toggleFunds = () => {
     if (!F.canPrepare) { F.toastMsg('Sinking funds are kept by Accounts and the Managing Partner.'); return; }
@@ -43,13 +56,15 @@ export const OfficeAccountTab = ({ F }: { F: FinanceCtrl }) => {
   const setF = (i: number, k: keyof SinkingFund, v: string) => F.setFundsDraft((funds.map((f, j) => (j === i ? { ...f, [k]: ['target', 'balance', 'monthly'].includes(k) ? num0(v) : v } : f))));
 
   /* ---- where the money went (this month) ---- */
-  const officeExp = expenses.filter((e) => !e.billable && e.approvalStatus !== 'Rejected' && e.approvalStatus !== 'Pending Approval' && (!e.claimant || e.paidAt) && inPeriod(e.claimant ? e.paidAt : e.date, F.period));
+  // Same costs as the Profit & loss (F.pnl); disbursements paid for clients are listed apart (not a cost).
+  const P = F.pnl((d) => inPeriod(d, F.period));
   const cats = new Map<string, number>();
   const add = (k: string, v: number) => { if (v > 0) cats.set(k, (cats.get(k) || 0) + v); };
-  add('Salaries & EPF/SOCSO', payslips.filter((p) => p.status === 'Paid' && inPeriod(p.paidAt, F.period)).reduce((s, p) => s + (F.slipCalc(p)?.gross || 0) + Number(p.epfEmployer || 0) + Number(p.socsoEisEmployer || 0), 0));
-  officeExp.forEach((e) => add(e.claimant ? 'Staff claims' : e.category || 'Other', Number(e.amount || 0)));
-  paymentVouchers.filter((v) => v.accountSet !== 'CLIENT' && v.paidAt && inPeriod(v.paidAt, F.period)).forEach((v) => add(v.voucherCategory === 'Disbursement' || v.voucherCategory === 'Client Disb' ? 'Client disbursements' : 'Payment vouchers', Number(v.amount || 0)));
-  add('Staff claims', travelClaims.filter((t) => t.paidAt && inPeriod(t.paidAt, F.period)).reduce((s, t) => s + Number(t.total || 0), 0));
+  add('Salaries & EPF/SOCSO', P.payroll);
+  P.cats.forEach((v, k) => add(k, v));
+  add('Staff claims', P.claims);
+  add('Payment vouchers', P.pvs);
+  const disbPaidMonth = paymentVouchers.filter((v) => v.accountSet !== 'CLIENT' && (v.voucherCategory === 'Disbursement' || v.voucherCategory === 'Client Disb') && v.paidAt && inPeriod(v.paidAt, F.period)).reduce((s, v) => s + Number(v.amount || 0), 0);
   const EC = [...cats.entries()].sort((a, b) => b[1] - a[1]);
   const ecMax = Math.max(1, ...EC.map((x) => x[1]));
 
@@ -120,6 +135,7 @@ export const OfficeAccountTab = ({ F }: { F: FinanceCtrl }) => {
             <div key={label} style={css('display:grid;grid-template-columns:150px minmax(0,1fr) 80px;gap:10px;align-items:center;padding:7px 14px')}><span style={css('font-size:11.5px;color:#16223A')}>{label}</span><div style={css('height:8px;border-radius:3px;background:#EEF1F5')}><div style={css(`height:8px;border-radius:3px;background:#3D6B9C;width:${Math.round(a / ecMax * 100)}%`)}></div></div><strong style={css('text-align:right;font-size:11.5px;color:#16223A')}>{rm(a)}</strong></div>
           ))}
           <div style={css('display:flex;padding:9px 14px;background:#F6F8FA;border-top:1px solid #EEF1F5;font-size:11.5px;color:#16223A')}><span>Total</span><strong style={css('margin-left:auto')}>{rm(EC.reduce((s, x) => s + x[1], 0))}</strong></div>
+          {disbPaidMonth > 0 && <div style={css('padding:7px 14px;font-size:10.5px;color:#5B6478')}>Plus {rm(disbPaidMonth)} disbursements paid for client files (recovered on invoices, not a cost).</div>}
         </div>
         <div style={css('overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
           <div style={css('display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css('font-family:ui-serif, Georgia, serif;font-size:14.5px;color:#16223A')}>Office expenses</strong><span style={css('font-size:10.5px;color:#5B6478')}>latest first</span><button type="button" onClick={() => F.openForm('expense', {})} style={css('margin-left:auto;border:0;border-radius:6px;padding:5px 10px;font-size:10.5px;font-weight:700;background:#16223A;color:#fff;cursor:pointer;font-family:inherit')}>+ Record expense</button></div>

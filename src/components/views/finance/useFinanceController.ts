@@ -10,7 +10,8 @@ import type {
   PaymentVoucher, Quotation, Receipt, Retainer, TravelClaim, User,
 } from '../../../types';
 import { getPracticeSettings, savePracticeSettings, twoSignatoryThreshold, type SinkingFund } from '../../../services/templateService';
-import { computeTotals } from '../../../lib/billingEngine';
+import { isApprovedForBilling } from '../../../lib/billingEngine';
+import { claimFormTotal, invoiceComposition, isNonExpensePv, isReimbursementCategory, isStatutoryCategory, needsTwoSignatories, PV_DRAWINGS, PV_SST, PV_STATUTORY, round2, splitReceipt } from '../../../lib/financeCalc';
 import { identityTokens, isMine } from '../../../lib/identity';
 import * as SD from '../../../lib/financeDocs';
 import { statutoryForPayslip, STATUTORY_VERSION } from '../../../lib/statutory';
@@ -18,7 +19,7 @@ import { finRoleKey, finTabsFor, FIN_TABS, type FinTab } from '../../../lib/fina
 import {
   GLA, MONTHS, MON, SC, addrOf, cashAccountGL, daysSince, dShort, expenseGL, fd, filesToProofs, findCase, initials,
   invoiceToDoc, inPeriod, isoOf, itemAmount, linesToItems, monthEnd, num0, parseDate, periodKey, picColor, proofLink, proofSig, proofUploadResults, proofUrl, setProofUploader, subscribeProofUploads,
-  quotationToDoc, receiptAccount, receiptToDoc, recordSstRate, recordTotals, rememberProofUrls, rm, rm2, todayIso, type Lookups,
+  pvDebitGL, quotationToDoc, receiptAccount, receiptToDoc, recordSstRate, recordTotals, rememberProofUrls, rm, rm2, todayIso, type Lookups,
 } from './financeModel';
 
 export type DocKind = 'quotation' | 'invoice' | 'receipt';
@@ -156,20 +157,36 @@ export function useFinanceController(initialTab: FinTab) {
   /* ------------------------------ invoices & payments ------------------------------ */
   const paidByInvoice = useMemo(() => { const m = new Map<string, number>(); payments.forEach((p) => m.set(p.invoiceId, (m.get(p.invoiceId) || 0) + Number(p.amount || 0))); return m; }, [payments]);
   const invPaid = (inv: Invoice) => paidByInvoice.get(inv.id) || 0;
-  /** Remaining balance — voided invoices never count; part-paid count only what is left. */
-  const invBal = (inv: Invoice) => (inv.status === 'Voided' ? 0 : Math.max(0, Number(inv.total || 0) - invPaid(inv) - Number(inv.writtenOff || 0)));
+  /** Proforma money (fees received in advance) applied to the invoice. */
+  const invDeposit = (inv: Invoice) => (inv.status === 'Voided' ? 0 : Number(inv.depositApplied || 0));
+  const invSettled = (inv: Invoice) => invPaid(inv) + invDeposit(inv) + Number(inv.writtenOff || 0);
+  /** Remaining balance — voided invoices never count; part-paid count only what is left; the
+   * proforma deposit applied is deducted. */
+  const invBal = (inv: Invoice) => (inv.status === 'Voided' ? 0 : Math.max(0, round2(Number(inv.total || 0) - invSettled(inv))));
+  /** Money received above the invoice total: a credit owed to the client (not hidden by clamping). */
+  const invCredit = (inv: Invoice) => (inv.status === 'Voided' ? 0 : Math.max(0, round2(invSettled(inv) - Number(inv.total || 0))));
   const invIssued = (inv: Invoice) => !['Draft', 'Pending Review', 'Voided'].includes(inv.status);
   const invStatus = (inv: Invoice): string => {
     if (inv.status === 'Voided') return 'Voided';
     if (inv.status === 'Draft' || inv.status === 'Pending Review') return 'Draft';
     const bal = invBal(inv);
-    if (bal <= 0.005) return (inv.writtenOff || 0) > 0 && invPaid(inv) < Number(inv.total || 0) - 0.005 ? 'Written off' : 'Paid';
+    if (bal <= 0.005) return (inv.writtenOff || 0) > 0 && invPaid(inv) + invDeposit(inv) < Number(inv.total || 0) - 0.005 ? 'Written off' : 'Paid';
     const due = parseDate(inv.dueDate);
     if (due && due < Date.now() - 86400000) return 'Overdue';
     if (invPaid(inv) > 0) return 'Part-paid';
     return inv.historical ? 'Historical' : 'Sent';
   };
   const invCase = (inv: Invoice) => findCase(lk, inv.caseId, inv.fileRef);
+  /** Money received against invoices, split into fee income / SST / disbursements recovered:
+   * every payment, plus the proforma deposit applied (dated on the invoice issue date). */
+  interface MoneyIn { inv: Invoice; date: string; amount: number; income: number; sst: number; disb: number; kind: 'payment' | 'deposit' }
+  const moneyReceived = (invs: Invoice[]): MoneyIn[] => {
+    const ids = new Map<string, Invoice>(invs.filter((i) => i.status !== 'Voided').map((i) => [i.id, i] as [string, Invoice]));
+    const out: MoneyIn[] = [];
+    payments.forEach((pm) => { const inv = ids.get(pm.invoiceId); if (!inv) return; const sp = splitReceipt(Number(pm.amount || 0), invoiceComposition(inv)); out.push({ inv, date: pm.date, amount: Number(pm.amount || 0), ...sp, kind: 'payment' }); });
+    ids.forEach((inv) => { const d = Number(inv.depositApplied || 0); if (d > 0 && invIssued(inv)) { const sp = splitReceipt(d, invoiceComposition(inv)); out.push({ inv, date: inv.issuedAt || inv.date, amount: d, ...sp, kind: 'deposit' }); } });
+    return out;
+  };
   const scopedInvoices = useMemo(() => invoices.filter((i) => ownCase(invCase(i))), [invoices, rk, lk, currentPartnerCode]);
   /** Debtor ageing — AccountingCentreView's rule (days from due date, else issue date). */
   const ageDays = (inv: Invoice) => { const due = inv.dueDate || inv.date; return due ? Math.max(0, daysSince(due)) : 0; };
@@ -180,6 +197,23 @@ export function useFinanceController(initialTab: FinTab) {
   /* ------------------------------ quotations / proformas / receipts ------------------------------ */
   const qCase = (q: Quotation) => findCase(lk, q.caseId, q.fileRef);
   const receiptsFor = (docId: string) => receipts.filter((r) => r.quotationId === docId || r.forNo === docId);
+  /** The quotation a proforma was made from (itself for a quotation / stand-alone proforma). */
+  const rootQuoteId = (q: Quotation) => (q.documentType === 'Proforma' && q.sourceQuotationId ? q.sourceQuotationId : q.id);
+  const proformasOf = (rootId: string) => quotations.filter((p) => p.documentType === 'Proforma' && (p.id === rootId || p.sourceQuotationId === rootId));
+  const invoiceForQuote = (rootId: string) => { const pf = new Set(proformasOf(rootId).map((p) => p.id)); return invoices.find((i) => i.status !== 'Voided' && !!i.quotationId && (i.quotationId === rootId || pf.has(i.quotationId))); };
+  /** Office-account proforma receipts for this quotation not yet applied to another live invoice
+   * (client-account money stays client money: it reaches an invoice only by a transfer). */
+  const depositReceipts = (rootId: string, exceptInvoiceId?: string) => {
+    const pfIds = new Set([rootId, ...proformasOf(rootId).map((p) => p.id)]);
+    const used = new Set(invoices.filter((i) => i.status !== 'Voided' && i.id !== exceptInvoiceId).flatMap((i) => i.depositReceiptIds || []));
+    return receipts.filter((r) => r.accountSet !== 'CLIENT' && !r.invoiceId && !!(r.quotationId ? pfIds.has(r.quotationId) : r.forNo && pfIds.has(r.forNo)) && !used.has(r.id));
+  };
+  /** Deposit to apply on an invoice for quotation `rootId`: never more than the invoice total. */
+  const depositFor = (rootId: string | undefined, total: number, exceptInvoiceId?: string) => {
+    if (!rootId) return { amount: 0, ids: [] as string[] };
+    const recs = depositReceipts(rootId, exceptInvoiceId);
+    return { amount: Math.min(round2(recs.reduce((s2, r) => s2 + Number(r.amount || 0), 0)), round2(total)), ids: recs.map((r) => r.id) };
+  };
   const proformaPaid = (q: Quotation) => receiptsFor(q.id).reduce((s, r) => s + Number(r.amount || 0), 0);
   const qStatus = (q: Quotation): string => {
     if (q.documentType === 'Proforma') {
@@ -187,7 +221,7 @@ export function useFinanceController(initialTab: FinTab) {
       if (q.status === 'Declined') return 'Declined';
       return proformaPaid(q) >= Number(q.total || 0) - 0.005 && q.total > 0 ? 'Paid' : 'Unpaid';
     }
-    if (invoices.some((i) => i.quotationId === q.id && i.status !== 'Voided')) return 'Invoiced';
+    if (invoiceForQuote(q.id)) return 'Invoiced';
     if (quotations.some((p) => p.documentType === 'Proforma' && p.sourceQuotationId === q.id)) return 'Proforma made';
     if (q.status === 'Sent' && daysSince(q.documentSentDate || q.date) > (q.validityDays || Number(settings.quotationValidityDays) || 30)) return 'Expired';
     return q.status;
@@ -197,10 +231,20 @@ export function useFinanceController(initialTab: FinTab) {
 
   const actionsFor = (kind: DocKind, rec: Quotation | Invoice | Receipt): string[] => {
     if (kind === 'receipt') return ['View'];
-    if (kind === 'invoice') { const S = invStatus(rec as Invoice); return S === 'Draft' ? ['Issue'] : S === 'Paid' ? ['View receipt'] : S === 'Voided' || S === 'Written off' ? ['View'] : S === 'Overdue' ? ['Remind', 'Record paid'] : ['Record paid', 'Remind']; }
+    if (kind === 'invoice') {
+      const inv = rec as Invoice, S = invStatus(inv);
+      // Void: issued invoices with no money received (refund / reallocate money first).
+      const canVoid = S !== 'Draft' && S !== 'Voided' && invPaid(inv) < 0.005 && !(inv.writtenOff || 0);
+      const base = S === 'Draft' ? ['Issue'] : S === 'Paid' ? ['View receipt'] : S === 'Voided' || S === 'Written off' ? ['View'] : S === 'Overdue' ? ['Remind', 'Record paid'] : ['Record paid', 'Remind'];
+      return canVoid ? [...base, 'Void'] : base;
+    }
     const q = rec as Quotation, S = qStatus(q);
-    if (q.documentType === 'Proforma') return S === 'Draft' ? ['Send'] : S === 'Paid' ? ['View receipt'] : S === 'Declined' ? ['View'] : ['Record payment', 'Remind'];
-    return ['Draft', 'Pending Approval', 'Ready'].includes(S) ? ['Send'] : S === 'Sent' ? ['Mark accepted', 'Resend'] : S === 'Accepted' ? ['Make proforma', 'Convert to invoice'] : S === 'Expired' ? ['Resend'] : ['View'];
+    if (q.documentType === 'Proforma') {
+      const invoiced = !!invoiceForQuote(rootQuoteId(q));
+      const base = S === 'Draft' ? ['Send'] : S === 'Paid' ? ['View receipt'] : S === 'Declined' ? ['View'] : ['Record payment', 'Remind'];
+      return S !== 'Draft' && S !== 'Declined' && !invoiced ? [...base, 'Convert to invoice'] : base;
+    }
+    return ['Draft', 'Pending Approval', 'Ready'].includes(S) ? ['Send'] : S === 'Sent' ? ['Mark accepted', 'Resend'] : S === 'Accepted' ? ['Make proforma', 'Convert to invoice'] : S === 'Proforma made' ? ['Convert to invoice', 'View'] : S === 'Expired' ? ['Resend'] : ['View'];
   };
 
   /* ------------------------------ documents (FinanceDoc for docHtml) ------------------------------ */
@@ -217,9 +261,46 @@ export function useFinanceController(initialTab: FinTab) {
     let base = generalLedger.length ? Math.max(...generalLedger.map((g) => Number(g.glNo) || 0)) : 1000;
     entries.filter((e) => Number(e.amount) > 0).forEach((e) => { base += 1; app.addGeneralLedgerEntry({ ...e, amount: Math.round(Number(e.amount) * 100) / 100, reconciled: 'N', glNo: base }); });
   };
+  /** What is currently posted for an invoice: its INV entries with reversals (same pair swapped)
+   * netted off. */
+  const netInvGL = (docNo: string) => {
+    const m = new Map<string, { debit: string; credit: string; amount: number; clientId: string; fileRef: string }>();
+    generalLedger.filter((g) => g.docType === 'INV' && g.docNo === docNo).slice().sort((a, b) => a.glNo - b.glNo).forEach((g) => {
+      const rev = m.get(g.credit + '|' + g.debit);
+      if (rev && rev.amount > 0.004) { rev.amount = round2(rev.amount - Number(g.amount || 0)); return; }
+      const k = g.debit + '|' + g.credit;
+      const x = m.get(k) || { debit: g.debit, credit: g.credit, amount: 0, clientId: g.clientId, fileRef: g.fileRef };
+      x.amount = round2(x.amount + Number(g.amount || 0)); m.set(k, x);
+    });
+    return [...m.values()].filter((x) => x.amount > 0.004);
+  };
+  /** Reversing entries (debit / credit swapped) for everything currently posted on an invoice. */
+  const reversalOf = (docNo: string, date: string, why: string): Omit<GeneralLedgerEntry, 'glNo' | 'reconciled'>[] =>
+    netInvGL(docNo).map((x) => ({ date, docType: 'INV', docNo, accountSet: 'OFFICE', debit: x.credit, credit: x.debit, amount: x.amount, clientId: x.clientId, fileRef: x.fileRef, description: `Reversal (${why}) of ${docNo}` }));
+  /** Issue postings: fees + reimbursements → fee income; disbursements clear 1200 (recovered from
+   * the client, never income); SST → SST payable; proforma deposit applied → Dr 2110 / Cr AR. */
+  const issueGL = (inv: Invoice, date: string): Omit<GeneralLedgerEntry, 'glNo' | 'reconciled'>[] => {
+    const c = invoiceComposition(inv);
+    const base = { date, docType: 'INV' as const, docNo: inv.id, accountSet: 'OFFICE' as const, clientId: inv.clientId, fileRef: inv.fileRef || '' };
+    const out: Omit<GeneralLedgerEntry, 'glNo' | 'reconciled'>[] = [
+      { ...base, debit: GLA.ar, credit: GLA.fees, amount: round2(Number(inv.total || 0) - c.sst - c.disb), description: `Invoice ${inv.id} · professional fees & reimbursements` },
+      { ...base, debit: GLA.ar, credit: GLA.unbilledDisb, amount: c.disb, description: `Invoice ${inv.id} · disbursements billed (recovered from client)` },
+      { ...base, debit: GLA.ar, credit: GLA.sst, amount: c.sst, description: `Invoice ${inv.id} · SST` },
+    ];
+    const dep = Number(inv.depositApplied || 0);
+    if (dep > 0) {
+      // Proforma receipts booked before this fix were credited to fee income (4000): applying
+      // those reverses that income instead, so the fee is counted once (on this invoice).
+      const legacy = receipts.filter((r) => (inv.depositReceiptIds || []).includes(r.id) && r.credit === GLA.fees).reduce((s2, r) => s2 + Number(r.amount || 0), 0);
+      const legacyAmt = round2(Math.min(dep, legacy));
+      out.push({ ...base, debit: GLA.fees, credit: GLA.ar, amount: legacyAmt, description: `Invoice ${inv.id} · proforma deposit applied (old receipt booked to fee income)` });
+      out.push({ ...base, debit: GLA.feesAdvance, credit: GLA.ar, amount: round2(dep - legacyAmt), description: `Invoice ${inv.id} · proforma deposit applied` });
+    }
+    return out;
+  };
   /** Several ids of one kind inside a single action (getNextSequenceId only advances on re-render). */
-  const seqIds = (type: Parameters<typeof app.getNextSequenceId>[0], n: number): string[] => {
-    const first = app.getNextSequenceId(type);
+  const seqIds = (type: Parameters<typeof app.getNextSequenceId>[0], n: number, date?: string): string[] => {
+    const first = app.getNextSequenceId(type, date);
     const m = first.match(/^(.*?)(\d+)$/);
     if (!m || n <= 1) return [first];
     const out = [first];
@@ -248,23 +329,41 @@ export function useFinanceController(initialTab: FinTab) {
   const ledgerTotalAt = (end: Date) => retainers.filter((r) => { const t = parseDate(r.date); return t && t <= end.getTime(); }).reduce((s, r) => s + (r.type === 'Deposit' ? Number(r.amount || 0) : -Number(r.amount || 0)), 0);
 
   /* ------------------------------ work not billed (WIP) ------------------------------ */
-  interface Unbilled { caseId: string; kase?: Case; client: string; ref: string; title: string; pic: string; time: number; disb: number; oldest: number; te: typeof timeEntries; ex: Expense[] }
+  interface Unbilled { caseId: string; kase?: Case; client: string; ref: string; title: string; pic: string; time: number; disb: number; oldest: number; te: typeof timeEntries; ex: Expense[]; tc: TravelClaim[] }
+  /** Work already on a draft invoice (it is marked billed only when that invoice is issued). */
+  const onDraft = useMemo(() => {
+    const ids = new Set<string>();
+    invoices.filter((i) => i.status === 'Draft' || i.status === 'Pending Review').forEach((i) => { const si = i.sourceItems || {}; [...(si.time || []), ...(si.expenses || []), ...(si.travel || [])].forEach((x) => ids.add(x)); });
+    return ids;
+  }, [invoices]);
+  const travelBillable = (t: TravelClaim) => Math.max(0, Number(t.billableClientTotal || 0));
   const unbilled: Unbilled[] = useMemo(() => {
     const m = new Map<string, Unbilled>();
-    const get = (caseId: string) => { const k = findCase(lk, caseId); const key = k?.id || caseId || '—'; let u = m.get(key); if (!u) { u = { caseId: key, kase: k, client: k ? (clientName(k.clientId.split(',')[0].trim()) || k.clientName || '—') : '—', ref: k?.ref || caseId || '—', title: k?.title || '', pic: k ? ((k.partners || [])[0] || initials(k.lawyerInCharge)) : '—', time: 0, disb: 0, oldest: 0, te: [], ex: [] }; m.set(key, u); } return u; };
-    timeEntries.filter((t) => t.billable && !t.billed && !t.writtenOff).forEach((t) => { const u = get(t.caseId); u.time += Number(t.hours || 0) * Number(t.rate || 0); u.te.push(t); u.oldest = Math.max(u.oldest, daysSince(t.date)); });
-    expenses.filter((e) => e.billable && !e.billed && !e.writtenOff).forEach((e) => { const u = get(e.caseId || e.fileRef || ''); u.disb += Number(e.amount || 0); u.ex.push(e); u.oldest = Math.max(u.oldest, daysSince(e.date)); });
+    const get = (caseId: string) => { const k = findCase(lk, caseId, caseId); const key = k?.id || caseId || '—'; let u = m.get(key); if (!u) { u = { caseId: key, kase: k, client: k ? (clientName(k.clientId.split(',')[0].trim()) || k.clientName || '—') : '—', ref: k?.ref || caseId || '—', title: k?.title || '', pic: k ? ((k.partners || [])[0] || initials(k.lawyerInCharge)) : '—', time: 0, disb: 0, oldest: 0, te: [], ex: [], tc: [] }; m.set(key, u); } return u; };
+    // Same rule as billingEngine: billable, not billed / written off, approved (not rejected / pending).
+    timeEntries.filter((t) => t.billable && !t.billed && !t.writtenOff && isApprovedForBilling(t.approvalStatus) && !onDraft.has(t.id)).forEach((t) => { const u = get(t.caseId); u.time += Number(t.hours || 0) * Number(t.rate || 0); u.te.push(t); u.oldest = Math.max(u.oldest, daysSince(t.date)); });
+    expenses.filter((e) => e.billable && !e.billed && !e.writtenOff && isApprovedForBilling(e.approvalStatus) && !onDraft.has(e.id)).forEach((e) => { const u = get(e.caseId || e.fileRef || ''); u.disb += Number(e.amount || 0); u.ex.push(e); u.oldest = Math.max(u.oldest, daysSince(e.date)); });
+    // Billable travel (mileage at the client rate + toll + parking) from approved staff claims.
+    travelClaims.filter((t) => travelBillable(t) > 0 && t.billed !== 'Y' && !!t.fileRef && t.fileRef !== 'FIRM_OPERATIONS' && isApprovedForBilling(t.approvalStatus) && !onDraft.has(t.id)).forEach((t) => { const u = get(t.fileRef); u.disb += travelBillable(t); u.tc.push(t); u.oldest = Math.max(u.oldest, daysSince(t.date)); });
     return [...m.values()].filter((u) => u.time + u.disb > 0 && (rk !== 'P' || ownCase(u.kase))).sort((a, b) => b.oldest - a.oldest);
-  }, [timeEntries, expenses, lk, rk]);
+  }, [timeEntries, expenses, travelClaims, onDraft, lk, rk]);
   const wipTotal = unbilled.reduce((s, u) => s + u.time + u.disb, 0);
 
   /* ------------------------------ bank accounts ------------------------------ */
   const activeBanks = bankAccounts.filter((b) => b.status !== 'Archived');
   const bankKind = (b: (typeof bankAccounts)[number]): CashAcc => ((b.functions || []).includes('Petty Cash') ? 'Petty cash' : (b.functions || []).includes('Disbursement') ? 'Disbursement' : b.type === 'Trust' || (b.functions || []).includes('Trust Account') ? 'Client account' : 'Office');
   const banksOf = (k: CashAcc) => activeBanks.filter((b) => bankKind(b) === k);
-  const bankBal = (k: CashAcc): number | null => { const l = banksOf(k); return l.length ? l.reduce((s, b) => s + Number(b.currentBalance || 0), 0) : null; };
+  /** Firm & Practice Settings → Banks: the bank accounts whose opening balances are kept there. */
+  const firmBankKind = (b: { accountType: string; typeLabel?: string }): CashAcc | null => (/petty/i.test(b.typeLabel || '') ? 'Petty cash' : b.accountType === 'Client Trust' ? 'Client account' : b.accountType === 'Disbursement' ? 'Disbursement' : b.accountType === 'Office Operating' ? 'Office' : null);
+  const firmBanksOf = (k: CashAcc) => (settings.bankAccounts || []).filter((b) => b.isActive !== false && firmBankKind(b) === k);
+  /** Cash-book entries on or before this date are already inside the opening balance. */
+  const openingAsAt = settings.bankOpeningBalancesAsAt ? parseDate(settings.bankOpeningBalancesAsAt) : 0;
+  /** Book balance = opening balance (Firm Settings) + every cash-book movement to date. */
+  const bankBal = (k: CashAcc): number | null => {
+    if (!banksOf(k).length && !firmBanksOf(k).length) return null;
+    return round2(openingBalance(k) + cashBook(k).filter((r) => r.t <= Date.now()).reduce((s2, r) => s2 + r.inn - r.out, 0));
+  };
   const lastRecon = (bankId: string) => { const r = bankReconciliationEntries.filter((e) => e.bankAccountId === bankId && e.status === 'Reconciled' && e.reconciledDate).map((e) => e.reconciledDate as string).sort(); return r.length ? r[r.length - 1] : ''; };
-  const officeCash = bankBal('Office');
 
   /* ------------------------------ approvals ------------------------------ */
   const sigLine = (s?: FinanceSignatory[]) => ((s || []).length ? ' · signed by ' + (s || []).map((x) => x.name).join(', ') : '');
@@ -273,21 +372,41 @@ export function useFinanceController(initialTab: FinTab) {
     const rows = referralPartners.filter((p) => p.active !== false && p.commissionType !== 'None').map((p) => {
       const cs = cases.filter((c) => c.referredBy && (norm(c.referredBy) === norm(p.name) || norm(c.referredBy) === norm(p.id)));
       const csIds = new Set(cs.flatMap((c) => [c.id, c.ref]));
-      const invs = invoices.filter((i) => i.status !== 'Voided' && (csIds.has(i.caseId) || csIds.has(i.fileRef || '')));
-      const invById = new Map<string, Invoice>(invs.map((i) => [i.id, i] as [string, Invoice]));
-      const pays = payments.filter((pm) => invById.has(pm.invoiceId) && inRange(pm.date));
-      const base = pays.reduce((s, pm) => { const inv = invById.get(pm.invoiceId)!; const t = inv.lineItems?.length ? computeTotals(inv.lineItems, false).fees : Number(inv.total || 0) - Number(inv.tax || 0); const ratio = Number(inv.total || 0) > 0 ? Math.min(1, t / Number(inv.total)) : 1; return s + Number(pm.amount || 0) * ratio; }, 0);
-      const fee = p.commissionType === 'Percentage' ? base * Number(p.commissionValue || 0) / 100 : base > 0 ? Number(p.commissionValue || 0) : 0;
-      const files = [...new Set(pays.map((pm) => { const inv = invById.get(pm.invoiceId)!; return inv.partyName || clientName(inv.clientId) || inv.fileRef || inv.id; }))].join(', ');
+      const invs = invoices.filter((i) => i.status !== 'Voided' && invIssued(i) && (csIds.has(i.caseId) || csIds.has(i.fileRef || '')));
+      // Money received for the referred matters: invoice payments + proforma deposits applied
+      // (dated when applied, i.e. the invoice issue date).
+      const money = moneyReceived(invs);
+      const inRangeMoney = money.filter((x) => inRange(x.date));
+      // % is of fee income only (excl. SST and disbursements).
+      const base = inRangeMoney.reduce((s, x) => s + x.income, 0);
+      // A flat fee is paid ONCE per matter: in the period of the first money received for it.
+      const firstByMatter = new Map<string, number>();
+      money.forEach((x) => { const k = x.inv.caseId || x.inv.fileRef || x.inv.id; const t = parseDate(x.date); if (t && (!firstByMatter.has(k) || t < firstByMatter.get(k)!)) firstByMatter.set(k, t); });
+      const flatMatters = [...firstByMatter.values()].filter((t) => inRange(isoOf(t))).length;
+      const fee = p.commissionType === 'Percentage' ? base * Number(p.commissionValue || 0) / 100 : flatMatters * Number(p.commissionValue || 0);
+      const files = [...new Set(inRangeMoney.map((x) => x.inv.partyName || clientName(x.inv.clientId) || x.inv.fileRef || x.inv.id))].join(', ');
       const type = p.type === 'Partner' ? 'Partner' : p.type === 'Internal Staff' ? 'Staff' : 'Outside';
       const via = type === 'Partner' ? 'Partner drawings' : type === 'Staff' ? 'Payslip' : 'Voucher';
       return { id: p.id, name: p.name, type, files, base, flat: p.commissionType === 'Flat', rate: Number(p.commissionValue || 0), fee, via };
-    }).filter((r) => r.base > 0);
+    }).filter((r) => r.base > 0 || r.fee > 0);
     return { rows, total: rows.reduce((s, r) => s + r.fee, 0) };
   };
   const referral = useMemo(() => referralFor((d) => inPeriod(d, period)), [referralPartners, cases, invoices, payments, period]);
   const refDecision = (settings.referralFeeApprovals || {})[period];
 
+  /** The approval limit applies to the whole claim / PV FORM: total of every live item on it. */
+  const formTotalOf = (item: Pick<ApItem, 'kind' | 'id' | 'amount'>): { total: number; formNo?: string } => {
+    if (item.kind === 'travel' || item.kind === 'expense') {
+      const formNo = item.kind === 'travel' ? travelClaims.find((t) => t.id === item.id)?.formNo : expenses.find((e) => e.id === item.id)?.formNo;
+      const all = [...travelClaims.map((t) => ({ id: t.id, formNo: t.formNo, amount: Number(t.total || 0), rejected: t.approvalStatus === 'Rejected' })), ...expenses.map((e) => ({ id: e.id, formNo: e.formNo, amount: Number(e.amount || 0), rejected: e.approvalStatus === 'Rejected' }))];
+      return { total: claimFormTotal(all, formNo, item.amount), formNo };
+    }
+    if (item.kind === 'pv') {
+      const formNo = paymentVouchers.find((v) => v.id === item.id)?.formNo;
+      return { total: claimFormTotal(paymentVouchers.map((v) => ({ id: v.id, formNo: v.formNo, amount: Number(v.amount || 0), rejected: v.approvalStatus === 'Rejected' })), formNo, item.amount), formNo };
+    }
+    return { total: item.amount };
+  };
   const apItems: ApItem[] = useMemo(() => {
     const out: ApItem[] = [];
     travelClaims.filter((t) => t.approvalStatus === 'Pending Approval' || t.approvalStatus === 'Pending PIC Approval').forEach((t) => out.push({ key: 'travel:' + t.id, kind: 'travel', id: t.id, type: 'Staff claim', title: `${t.type === 'Mileage' ? 'Mileage' : t.type}: ${t.purpose || t.to || ''}`.trim(), sub: `${t.claimant} · ${fd(t.date)}${t.fileRef ? ' · ' + t.fileRef : ''}${t.billableClientTotal ? ' · billable' : ''}${sigLine(t.signatories)}`, amount: Number(t.total || 0), by: t.claimant, clientAccount: false, signatories: t.signatories || [] }));
@@ -295,6 +414,7 @@ export function useFinanceController(initialTab: FinTab) {
     paymentVouchers.filter((v) => v.approvalStatus === 'Pending Approval' && !v.historical).forEach((v) => out.push({ key: 'pv:' + v.id, kind: 'pv', id: v.id, type: pvIsClient(v) ? 'Client account' : 'Payment voucher', title: v.voucherCategory === 'Legal Fees Transfer' ? `Transfer to office for ${v.invoiceId || v.description}` : `${v.payee ? 'Pay ' + v.payee + ': ' : ''}${v.description}`, sub: `${v.id} · ${pvIsClient(v) ? (clientName(v.clientId) || v.clientId) + ' ledger · needs 2 signatories' : v.voucherCategory}${sigLine(v.signatories)}`, amount: Number(v.amount || 0), by: v.preparedBy || '—', clientAccount: pvIsClient(v), signatories: v.signatories || [] }));
     manualJournals.filter((j) => j.status === 'Pending Approval').forEach((j) => out.push({ key: 'journal:' + j.id, kind: 'journal', id: j.id, type: 'Payment voucher', title: `Manual journal ${j.id}: ${j.details}`, sub: `${j.account} · ${j.direction} · ${j.reason || 'adjustment'}${sigLine(j.signatories)}`, amount: Number(j.amount || 0), by: j.preparedBy, clientAccount: j.account === 'Client account', signatories: j.signatories || [] }));
     invoices.filter((i) => i.writeOffRequest?.status === 'Pending').forEach((i) => out.push({ key: 'writeoff:' + i.id, kind: 'writeoff', id: i.id, type: 'Write-off', title: `${i.partyName || clientName(i.clientId) || i.id} unpaid balance`, sub: `${i.id} · ${ageDays(i)} days old · ${i.writeOffRequest!.reason || ''}`, amount: Number(i.writeOffRequest!.amount || 0), by: i.writeOffRequest!.requestedBy, clientAccount: false, signatories: [] }));
+    out.forEach((it) => { const f = formTotalOf(it); if (f.formNo && Math.abs(f.total - it.amount) > 0.004) it.sub += ` · form ${f.formNo} total ${rm2(f.total)}`; });
     if (referral.total > 0 && !refDecision) out.push({ key: 'referral:' + period, kind: 'referral', id: period, type: 'Referral fees', title: `${monthName} referral fees (${referral.rows.length} referrer${referral.rows.length === 1 ? '' : 's'})`, sub: 'see breakdown below', amount: referral.total, by: 'System', clientAccount: false, signatories: [] });
     return out;
   }, [travelClaims, expenses, paymentVouchers, manualJournals, invoices, referral, refDecision, lk]);
@@ -318,12 +438,22 @@ export function useFinanceController(initialTab: FinTab) {
     if (item.signatories.some((s) => norm(s.name) === norm(me))) { toastMsg('You have already signed this. It needs another signatory.'); return; }
     const sigs = [...item.signatories, { name: me, at, isManagingPartner: isMP }];
     // Threshold from Firm & Practice Settings → Permissions & limits (default RM 5,000).
-    const needTwo = item.clientAccount || item.amount >= twoSignatoryThreshold();
+    // Per claim / PV FORM (sum of its items), Managing Partner + 1 at the threshold and above.
+    const needTwo = needsTwoSignatories(formTotalOf(item).total, twoSignatoryThreshold(), item.clientAccount);
     const complete = item.kind === 'writeoff' || item.kind === 'referral' ? isMP : needTwo ? sigs.length >= 2 && sigs.some((s) => s.isManagingPartner) : true;
     // Client-account payments: the ledger can never go below zero.
     if (item.kind === 'pv' && item.clientAccount) {
       const v = paymentVouchers.find((x) => x.id === item.id);
-      if (v && clientLedgerBalance(v.clientId, v.caseId) < Number(v.amount || 0) - 0.005) { toastMsg('Not enough in this client ledger: the client account can never go below zero.'); return; }
+      if (v && clientLedgerBalance(v.clientId, v.caseId || '') < Number(v.amount || 0) - 0.005) { toastMsg('Not enough in this matter’s client ledger: the client account can never go below zero.'); return; }
+      const tInv = v?.voucherCategory === 'Legal Fees Transfer' && v.invoiceId ? invoices.find((i) => i.id === v.invoiceId) : undefined;
+      if (tInv && Number(v!.amount || 0) > invBal(tInv) + 0.01) { toastMsg(`${tInv.id} balance is now ${rm2(invBal(tInv))}: the transfer would overpay it. Reject and prepare a new transfer.`); return; }
+    }
+    if (item.kind === 'journal') {
+      const j = manualJournals.find((x) => x.id === item.id);
+      if (j && j.account === 'Client account') {
+        if (!j.clientId) { toastMsg('Client-account journals must name the client ledger (client + matter). Reject this one and prepare it again.'); return; }
+        if (j.direction === 'Money out' && clientLedgerBalance(j.clientId, j.caseId || '') < Number(j.amount || 0) - 0.005) { toastMsg('Not enough in this client ledger: the client account can never go below zero.'); return; }
+      }
     }
     if (!complete) {
       if (item.kind === 'travel') app.updateTravelClaim(item.id, { signatories: sigs });
@@ -339,7 +469,13 @@ export function useFinanceController(initialTab: FinTab) {
     else if (item.kind === 'journal') {
       const j = manualJournals.find((x) => x.id === item.id);
       app.updateManualJournal(item.id, { status: 'Approved', decidedBy: me, decidedAt: at, signatories: sigs });
-      if (j) postGL([{ date: j.date, docType: 'JV', docNo: j.id, accountSet: j.account === 'Client account' ? 'CLIENT' : 'OFFICE', debit: j.direction === 'Money in' ? cashAccountGL(j.account) : GLA.suspense, credit: j.direction === 'Money in' ? GLA.suspense : cashAccountGL(j.account), amount: j.amount, clientId: '', fileRef: '', description: `Manual journal: ${j.details} · ${j.reason}` }]);
+      if (j && j.account === 'Client account') {
+        // Client money always moves with its client ledger: 1020 (bank) and 2010 (owed to
+        // clients) move together, so ledgers = cash book = bank stays possible.
+        const kase = findCase(lk, j.caseId);
+        app.addRetainer({ id: 'RET-' + j.id, clientId: j.clientId || '', caseId: j.caseId || '', type: j.direction === 'Money in' ? 'Deposit' : 'Apply', amount: Number(j.amount || 0), date: j.date, remarks: `Manual journal: ${j.details}${j.reason ? ' · ' + j.reason : ''}`, voucherNo: j.id });
+        postGL([{ date: j.date, docType: 'JV', docNo: j.id, accountSet: 'CLIENT', debit: j.direction === 'Money in' ? GLA.clientBank : GLA.clientFunds, credit: j.direction === 'Money in' ? GLA.clientFunds : GLA.clientBank, amount: j.amount, clientId: j.clientId || '', fileRef: kase?.ref || '', description: `Manual journal: ${j.details} · ${j.reason}` }]);
+      } else if (j) postGL([{ date: j.date, docType: 'JV', docNo: j.id, accountSet: 'OFFICE', debit: j.direction === 'Money in' ? cashAccountGL(j.account) : GLA.suspense, credit: j.direction === 'Money in' ? GLA.suspense : cashAccountGL(j.account), amount: j.amount, clientId: '', fileRef: '', description: `Manual journal: ${j.details} · ${j.reason}` }]);
     } else if (item.kind === 'writeoff') {
       const inv = invoices.find((i) => i.id === item.id);
       if (inv?.writeOffRequest) {
@@ -362,18 +498,25 @@ export function useFinanceController(initialTab: FinTab) {
     return out;
   }, [travelClaims, expenses, paymentVouchers]);
 
+  /** A billable expense is a disbursement (recoverable, 1200) unless its category is one of our own
+   * re-charged costs (photocopy, courier, mileage…: a reimbursement, i.e. an expense billed as income). */
+  const expenseIsDisb = (e?: Expense) => !!e?.billable && !isReimbursementCategory(e.category, e.description);
+  const expenseDebitGL = (e?: Expense) => (expenseIsDisb(e) ? GLA.unbilledDisb : expenseGL(e?.category || ''));
   const markPaid = (item: PayItem, file?: File | null) => {
     if (!file) return;
     if (!canPrepare) { toastMsg('Payments are made and recorded by Accounts.'); return; }
     const at = new Date().toISOString(), date = todayIso();
     const [proof] = filesToProofs(item.kind + ':' + item.id, [file]);
     if (item.kind === 'travel') { const t = travelClaims.find((x) => x.id === item.id); app.updateTravelClaim(item.id, { paidAt: at, paidProof: proof }); postGL([{ date, docType: 'PV', docNo: item.id, accountSet: 'OFFICE', debit: GLA.other, credit: GLA.office, amount: item.amount, clientId: '', fileRef: t?.fileRef || '', description: `Staff claim paid: ${t?.claimant || ''} ${item.id}` }]); }
-    else if (item.kind === 'expense') { const e = expenses.find((x) => x.id === item.id); app.updateExpense(item.id, { paidAt: at, paidProof: proof }); postGL([{ date, docType: 'PV', docNo: item.id, accountSet: 'OFFICE', debit: e?.billable ? '1200 - Unbilled Disbursements' : expenseGL(e?.category || ''), credit: GLA.office, amount: item.amount, clientId: '', fileRef: e?.fileRef || '', description: `Staff claim paid: ${e?.claimant || ''} ${item.id}` }]); }
+    else if (item.kind === 'expense') { const e = expenses.find((x) => x.id === item.id); app.updateExpense(item.id, { paidAt: at, paidProof: proof }); postGL([{ date, docType: 'PV', docNo: item.id, accountSet: 'OFFICE', debit: expenseDebitGL(e), credit: GLA.office, amount: item.amount, clientId: '', fileRef: e?.fileRef || '', description: `Staff claim paid: ${e?.claimant || ''} ${item.id}` }]); }
     else {
       const v = paymentVouchers.find((x) => x.id === item.id);
       if (!v) return;
       if (pvIsClient(v)) {
-        if (clientLedgerBalance(v.clientId, v.caseId) < Number(v.amount || 0) - 0.005) { toastMsg('Not enough in this client ledger: the client account can never go below zero.'); return; }
+        if (clientLedgerBalance(v.clientId, v.caseId || '') < Number(v.amount || 0) - 0.005) { toastMsg('Not enough in this matter’s client ledger: the client account can never go below zero.'); return; }
+        // Re-check at payment time: the invoice may have been paid since the transfer was prepared.
+        const tInv = v.voucherCategory === 'Legal Fees Transfer' && v.invoiceId ? invoices.find((i) => i.id === v.invoiceId) : undefined;
+        if (tInv && Number(v.amount || 0) > invBal(tInv) + 0.01) { toastMsg(`${tInv.id} balance is now ${rm2(invBal(tInv))}: this transfer would overpay it. Not paid.`); return; }
         app.addRetainer({ id: 'RET-' + v.id, clientId: v.clientId, caseId: v.caseId || '', type: 'Apply', amount: Number(v.amount || 0), date, remarks: v.voucherCategory === 'Legal Fees Transfer' ? `Transfer to office for ${v.invoiceId || ''}` : `${v.payee ? 'Paid ' + v.payee + ' · ' : ''}${v.description}`, voucherNo: v.id });
         if (v.voucherCategory === 'Legal Fees Transfer' && v.invoiceId) {
           const inv = invoices.find((i) => i.id === v.invoiceId);
@@ -384,7 +527,7 @@ export function useFinanceController(initialTab: FinTab) {
             { date, docType: 'OR', docNo: v.id, accountSet: 'OFFICE', debit: GLA.office, credit: GLA.ar, amount: v.amount, clientId: v.clientId, fileRef: v.fileRef || '', description: `Fees received from client account for ${v.invoiceId}` },
           ]);
         } else postGL([{ date, docType: 'PV', docNo: v.id, accountSet: 'CLIENT', debit: GLA.clientFunds, credit: GLA.clientBank, amount: v.amount, clientId: v.clientId, fileRef: v.fileRef || '', description: `Paid for client: ${v.payee || ''} ${v.description}` }]);
-      } else postGL([{ date, docType: 'PV', docNo: v.id, accountSet: 'OFFICE', debit: v.voucherCategory === 'Disbursement' || v.voucherCategory === 'Client Disb' ? '1200 - Unbilled Disbursements' : GLA.other, credit: v.voucherCategory === 'Disbursement' || v.voucherCategory === 'Client Disb' ? GLA.disb : GLA.office, amount: v.amount, clientId: v.clientId || '', fileRef: v.fileRef || '', description: `${v.payee || ''} ${v.description}`.trim() }]);
+      } else postGL([{ date, docType: 'PV', docNo: v.id, accountSet: 'OFFICE', debit: pvDebitGL(v.voucherCategory), credit: v.voucherCategory === 'Disbursement' || v.voucherCategory === 'Client Disb' ? GLA.disb : GLA.office, amount: v.amount, clientId: v.clientId || '', fileRef: v.fileRef || '', description: `${v.payee || ''} ${v.description}`.trim() }]);
       app.updatePaymentVoucher(item.id, { paidAt: at, paidProof: proof, approvalStatus: 'Posted to GL', postedToGl: true });
     }
     setPaidNow((p) => ({ ...p, [item.key]: { item, file: file.name } }));
@@ -469,10 +612,46 @@ export function useFinanceController(initialTab: FinTab) {
       byPeriod.forEach((list, per) => { const net = list.reduce((s, p) => s + (slipCalc(p)?.net || 0), 0); const t = parseDate(list[0].paidAt) || parseDate(per + '-28'); R.push({ key: 'pay:' + per, t, who: 'Payroll', what: `Net salaries ${per} · ${list.length} staff`, no: 'PAYROLL-' + per, inn: 0, out: net, src: 'Auto', proofs: [], owner: 'payroll:' + per }); });
     }
     if (acc === 'Client account') retainers.filter((r) => !r.voucherNo && !receipts.some((x) => x.id === r.id)).forEach((r) => R.push({ key: 'l:' + r.id, t: parseDate(r.date), who: clientName(r.clientId) || r.clientId || '—', what: `Client ledger · ${r.type}${r.remarks ? ' · ' + r.remarks : ''}`, no: r.id, inn: r.type === 'Deposit' ? Number(r.amount || 0) : 0, out: r.type === 'Deposit' ? 0 : Number(r.amount || 0), src: 'Auto', proofs: [], owner: 'retainer:' + r.id }));
-    manualJournals.filter((j) => j.account === acc && j.status !== 'Rejected').forEach((j) => R.push({ key: 'j:' + j.id, t: parseDate(j.date), who: 'Manual journal', what: `${j.details}${j.reason ? ' · ' + j.reason : ''}${j.status === 'Pending Approval' ? ' · waiting for approval' : ''}`, no: j.id, inn: j.direction === 'Money in' ? j.amount : 0, out: j.direction === 'Money out' ? j.amount : 0, src: 'Manual', proofs: j.proofs || [], owner: 'journal:' + j.id, attach: attachTo('journal', j.id) }));
-    return R.sort((a, b) => a.t - b.t);
+    // Journals only move the balance once approved (a pending one is listed with its amount in the text).
+    manualJournals.filter((j) => j.account === acc && j.status !== 'Rejected').forEach((j) => { const ok = j.status === 'Approved'; R.push({ key: 'j:' + j.id, t: parseDate(j.date), who: 'Manual journal', what: `${j.details}${j.reason ? ' · ' + j.reason : ''}${ok ? '' : ` · ${j.direction.toLowerCase()} ${rm2(Number(j.amount || 0))} waiting for approval`}`, no: j.id, inn: ok && j.direction === 'Money in' ? j.amount : 0, out: ok && j.direction === 'Money out' ? j.amount : 0, src: 'Manual', proofs: j.proofs || [], owner: 'journal:' + j.id, attach: attachTo('journal', j.id) }); });
+    // Entries on or before the opening-balance date are already inside the opening balance.
+    return R.filter((r) => !openingAsAt || r.t > openingAsAt).sort((a, b) => a.t - b.t);
   };
-  const openingBalance = (acc: CashAcc) => banksOf(acc).reduce((s, b) => s + Number(b.openingBalance || 0), 0);
+  /** Opening balance from Firm & Practice Settings → Banks (per bank account, by account type);
+   * falls back to the legacy bank-account record value when Firm Settings has none. */
+  const openingBalance = (acc: CashAcc) => {
+    const ob = settings.bankOpeningBalances || {};
+    const firm = firmBanksOf(acc).filter((b) => ob[b.id] != null);
+    if (firm.length) return round2(firm.reduce((s2, b) => s2 + Number(ob[b.id] || 0), 0));
+    return banksOf(acc).reduce((s2, b) => s2 + Number(b.openingBalance || 0), 0);
+  };
+  const officeCash = bankBal('Office');
+
+  /* ------------------------------ 3-way reconciliation (client account) ------------------------------ */
+  /** Client bank statement closing balance for a month: keyed in on the Client Account tab
+   * (Firm Settings sync), else a legacy reconciliation row. */
+  const statementFor = (m: Date): number | null => {
+    const st = (settings.clientBankStatements || {})[periodKey(m)];
+    if (st) return Number(st.balance);
+    const row = threeWayRec.find((r) => String(r.month).toLowerCase().startsWith(MON[m.getMonth()].toLowerCase()) && String(r.month).includes(String(m.getFullYear())));
+    return row ? Number(row.bankStatement || 0) : null;
+  };
+  const setStatement = (m: Date, value: string) => {
+    if (!canPrepare) { toastMsg('Bank statement balances are keyed in by Accounts.'); return; }
+    const key = periodKey(m); const cur = { ...(settings.clientBankStatements || {}) };
+    if (!String(value).trim()) delete cur[key]; else cur[key] = { balance: round2(num0(value)), by: me, at: new Date().toISOString() };
+    saveSettings({ clientBankStatements: cur });
+    toastMsg(String(value).trim() ? `${MONTHS[m.getMonth()]} statement balance saved` : 'Statement balance cleared');
+  };
+  /** Ledgers total vs cash book vs bank statement at month end, compared to the sen. */
+  const reconFor = (m: Date) => {
+    const end = monthEnd(m);
+    const ledgers = round2(ledgerTotalAt(end));
+    const cash = round2(openingBalance('Client account') + cashBook('Client account').filter((r) => r.t && r.t <= end.getTime()).reduce((s2, r) => s2 + r.inn - r.out, 0));
+    const bank = statementFor(m);
+    const status = bank == null ? 'Not started' : ledgers === cash && cash === round2(bank) ? 'Balanced' : 'Difference';
+    return { ledgers, cash, bank, status };
+  };
 
   /* ------------------------------ document actions ------------------------------ */
   const clientByName = (name: string) => lk.clientByName.get(norm(name));
@@ -489,16 +668,42 @@ export function useFinanceController(initialTab: FinTab) {
     if (a === 'Record payment' || a === 'Record paid') { const bal = kind === 'invoice' ? invBal(rec as Invoice) : Number((rec as Quotation).total || 0) - proformaPaid(rec as Quotation); setForm({ kind: 'pay', vals: { docKind: kind, docId: rec.id, title: docNo, amount: String(Math.round(bal * 100) / 100), date: fd(Date.now()) } }); return; }
     if (a === 'View receipt') { const r = receipts.find((x) => x.invoiceId === rec.id || x.quotationId === rec.id || x.forNo === rec.id); if (r) setView({ kind: 'receipt', id: r.id }); else toastMsg('No receipt yet'); return; }
     if (a === 'Issue') {
-      const inv = rec as Invoice; const terms = Number(settings.paymentTermDays) || 30;
-      app.updateInvoice(inv.id, { status: 'Unpaid', date: todayIso(), dueDate: isoOf(Date.now() + terms * 86400000) });
-      const items = inv.lineItems || []; const t = items.length ? recordTotals(items, recordSstRate(inv)) : null;
-      const fees = t ? t.fees + t.reimbursements : Number(inv.amount || inv.total || 0) - 0; const disb = t ? t.disbursements : 0; const sst = t ? t.sst : Number(inv.tax || 0);
-      postGL([
-        { date: todayIso(), docType: 'INV', docNo: inv.id, accountSet: 'OFFICE', debit: GLA.ar, credit: GLA.fees, amount: t ? fees : Number(inv.total || 0) - sst, clientId: inv.clientId, fileRef: inv.fileRef || '', description: `Invoice ${inv.id} · professional fees & reimbursements` },
-        { date: todayIso(), docType: 'INV', docNo: inv.id, accountSet: 'OFFICE', debit: GLA.ar, credit: GLA.disbRec, amount: disb, clientId: inv.clientId, fileRef: inv.fileRef || '', description: `Invoice ${inv.id} · disbursements` },
-        { date: todayIso(), docType: 'INV', docNo: inv.id, accountSet: 'OFFICE', debit: GLA.ar, credit: GLA.sst, amount: sst, clientId: inv.clientId, fileRef: inv.fileRef || '', description: `Invoice ${inv.id} · SST` },
-      ]);
-      toastMsg(`${inv.id} issued · e-Invoice (LHDN MyInvois) not connected yet`);
+      const inv = rec as Invoice; const terms = Number(settings.paymentTermDays) || 30; const date = todayIso();
+      // SST is decided on the ISSUE date (Firm Settings rate & SST start date), not the draft's.
+      const items = inv.lineItems || [];
+      const rate = SD.defaultSstRate();
+      const t = items.length ? recordTotals(items, rate) : null;
+      const total = t ? t.grandTotal : Number(inv.total || 0), tax = t ? t.sst : Number(inv.tax || 0);
+      // Proforma money received for this quotation is applied now (refreshed: more may have come in).
+      const dep = inv.quotationId ? depositFor(inv.quotationId, total, inv.id) : { amount: Number(inv.depositApplied || 0), ids: inv.depositReceiptIds || [] };
+      const issued: Invoice = { ...inv, status: 'Unpaid', date, issuedAt: date, dueDate: isoOf(Date.now() + terms * 86400000), ...(t ? { amount: round2(t.fees + t.disbursements + t.reimbursements), tax, total, sstRate: rate || undefined } : {}), depositApplied: dep.amount || undefined, depositReceiptIds: dep.ids.length ? dep.ids : undefined };
+      app.updateInvoice(inv.id, { status: issued.status, date, issuedAt: date, dueDate: issued.dueDate, amount: issued.amount, tax: issued.tax, total: issued.total, sstRate: issued.sstRate, depositApplied: issued.depositApplied, depositReceiptIds: issued.depositReceiptIds });
+      postGL(issueGL(issued, date));
+      // Work on this invoice is billed only now (a draft leaves it in "Work not billed").
+      const si = inv.sourceItems || {};
+      (si.time || []).forEach((id) => app.updateTimeEntry(id, { billed: true, invoiceId: inv.id }));
+      (si.expenses || []).forEach((id) => app.updateExpense(id, { billed: true }));
+      (si.travel || []).forEach((id) => app.updateTravelClaim(id, { billed: 'Y', invoiceNo: inv.id }));
+      const rateNote = t && Math.abs(rate - recordSstRate(inv)) > 0.0001 ? ` · SST ${Math.round(rate * 100)}% applied as at issue date` : '';
+      toastMsg(`${inv.id} issued${dep.amount ? ' · deposit ' + rm2(dep.amount) + ' deducted' : ''}${rateNote} · e-Invoice (LHDN MyInvois) not connected yet`);
+      return;
+    }
+    if (a === 'Void') {
+      const inv = rec as Invoice;
+      if (!(canPrepare || isMP)) { toastMsg('Invoices are voided by Accounts or the Managing Partner.'); return; }
+      if (invPaid(inv) > 0.005) { toastMsg(inv.id + ' has payments: refund or reallocate them before voiding.'); return; }
+      const reason = typeof window !== 'undefined' ? window.prompt(`Void ${inv.id}? It stays on file as Voided and its postings are reversed. Reason:`) : '';
+      if (!reason || !reason.trim()) return;
+      const date = todayIso();
+      app.updateInvoice(inv.id, { status: 'Voided', voidReason: reason.trim(), voidedBy: me, voidedAt: new Date().toISOString() });
+      postGL(reversalOf(inv.id, date, 'void'));
+      // Its work goes back to "Work not billed"; any proforma deposit becomes available again.
+      const si = inv.sourceItems || {};
+      (si.time || []).forEach((id) => app.updateTimeEntry(id, { billed: false, invoiceId: undefined }));
+      (si.expenses || []).forEach((id) => app.updateExpense(id, { billed: false }));
+      (si.travel || []).forEach((id) => app.updateTravelClaim(id, { billed: 'N', invoiceNo: '' }));
+      timeEntries.filter((te) => te.invoiceId === inv.id && !(si.time || []).includes(te.id)).forEach((te) => app.updateTimeEntry(te.id, { billed: false, invoiceId: undefined }));
+      setView(null); toastMsg(inv.id + ' voided · postings reversed');
       return;
     }
     if (a === 'Make proforma') {
@@ -507,7 +712,7 @@ export function useFinanceController(initialTab: FinTab) {
       const want = [t.fees > 0, t.disbursements > 0].filter(Boolean).length;
       const ids = seqIds('quotation', Math.max(1, want));
       const base = { documentType: 'Proforma' as const, sourceQuotationId: q.id, partyType: q.partyType || 'Client' as const, partyId: q.partyId, date: todayIso(), practiceArea: q.practiceArea, fileRef: q.fileRef, leadId: q.leadId || '', clientName: q.clientName, status: 'Draft' as const, billedSoFar: 0, courtLevel: '', stage: '', feeMethod: 'Template' as const, subtype: q.subtype || '', approvalStatus: 'Pending' as const, approvedBy: '', approvedDate: '', sstApplied: false, caseId: q.caseId, matter: q.matter, subject: q.subject, yourRef: q.yourRef, tin: q.tin, scope: '', terms: [] };
-      if (t.fees > 0) { const amt = Math.round(t.fees / 2); made.push({ ...base, id: ids[made.length], total: amt, remaining: amt, payInto: 'Office', lineItems: [{ description: `Retainer: 50% of quoted professional fees (${q.id})`, category: 'Fee - Fixed', amount: amt, quantity: 1, unitPrice: amt, chargeType: 'Fixed' }] }); }
+      if (t.fees > 0) { const amt = round2(t.fees / 2); made.push({ ...base, id: ids[made.length], total: amt, remaining: amt, payInto: 'Office', lineItems: [{ description: `Retainer: 50% of quoted professional fees (${q.id})`, category: 'Fee - Fixed', amount: amt, quantity: 1, unitPrice: amt, chargeType: 'Fixed' }] }); }
       if (t.disbursements > 0) { const items = (q.lineItems || []).filter((i) => i.category === 'Disbursement'); made.push({ ...base, id: ids[made.length], total: t.disbursements, remaining: t.disbursements, payInto: 'Client account', lineItems: items }); }
       if (!made.length) { toastMsg('Nothing to ask for: the quotation has no fees or disbursements.'); return; }
       made.forEach((p) => app.addQuotation(p));
@@ -516,10 +721,16 @@ export function useFinanceController(initialTab: FinTab) {
       return;
     }
     if (a === 'Convert to invoice') {
-      const q = rec as Quotation; const rate = recordSstRate(q); const t = recordTotals(q.lineItems || [], rate); const id = app.getNextSequenceId('invoice'); const kase = qCase(q);
-      app.addInvoice({ id, clientId: q.partyId || kase?.clientId || '', caseId: kase?.id || q.caseId || q.fileRef || '', fileRef: q.fileRef, quotationId: q.id, partyType: q.partyType || 'Client', partyName: q.clientName, amount: t.fees + t.disbursements + t.reimbursements, discount: 0, tax: t.sst, total: t.grandTotal, date: todayIso(), dueDate: todayIso(), status: 'Draft', lineItems: q.lineItems, sstRate: rate || undefined, matter: q.matter, subject: q.subject, yourRef: q.yourRef, tin: q.tin, scope: q.scope, payInto: 'Office' });
+      // From a quotation, or from one of its proformas: the final invoice bills the QUOTATION's
+      // lines, and the office proforma money already received is deducted ("LESS: DEPOSIT RECEIVED").
+      const src = rec as Quotation; const rootId = rootQuoteId(src);
+      if (invoiceForQuote(rootId)) { toastMsg('This quotation already has an invoice (' + invoiceForQuote(rootId)!.id + ').'); return; }
+      const q = quotations.find((x) => x.id === rootId) || src;
+      const rate = SD.defaultSstRate(); const t = recordTotals(q.lineItems || [], rate); const date = todayIso(); const id = app.getNextSequenceId('invoice', date); const kase = qCase(q) || qCase(src);
+      const dep = depositFor(rootId, t.grandTotal);
+      app.addInvoice({ id, clientId: q.partyId || src.partyId || kase?.clientId?.split(',')[0].trim() || '', caseId: kase?.id || q.caseId || q.fileRef || '', fileRef: q.fileRef || src.fileRef, quotationId: rootId, partyType: q.partyType || 'Client', partyName: q.clientName, amount: round2(t.fees + t.disbursements + t.reimbursements), discount: 0, tax: t.sst, total: t.grandTotal, date, dueDate: date, status: 'Draft', lineItems: (q.lineItems || []).filter((i) => (i.category as string) !== 'Tax'), sstRate: rate || undefined, matter: q.matter, subject: q.subject, yourRef: q.yourRef, tin: q.tin, scope: q.scope, payInto: 'Office', ...(dep.amount ? { depositApplied: dep.amount, depositReceiptIds: dep.ids } : {}) });
       setView({ kind: 'invoice', id }); setDocT('Invoice');
-      toastMsg('Draft ' + id + ' created');
+      toastMsg('Draft ' + id + ' created' + (dep.amount ? ` · deposit ${rm2(dep.amount)} received on the proforma will be deducted` : ''));
       return;
     }
     if (a === 'Request write-off') { const inv = rec as Invoice; setForm({ kind: 'writeoff', vals: { docId: inv.id, title: inv.id, amount: String(Math.round(invBal(inv) * 100) / 100) } }); return; }
@@ -545,7 +756,20 @@ export function useFinanceController(initialTab: FinTab) {
     if (e.id && e.kind === 'invoice') {
       const inv = invoices.find((i) => i.id === e.id); if (!inv) return;
       const items = linesToItems(e.lines, inv.lineItems); const t = recordTotals(items, rate);
-      app.updateInvoice(inv.id, { partyName: e.client, clientId: client?.id || inv.clientId, caseId: kase?.id || inv.caseId, fileRef: e.ref, matter: e.matter, lineItems: items, amount: t.fees + t.disbursements + t.reimbursements, tax: t.sst, total: t.grandTotal, sstRate: rate || undefined, subject, yourRef: e.yourRef, tin: e.tin, scope: e.desc, payInto: e.account, feeArrangement: e.inst });
+      const patch: Partial<Invoice> = { partyName: e.client, clientId: client?.id || inv.clientId, caseId: kase?.id || inv.caseId, fileRef: e.ref, matter: e.matter, lineItems: items, amount: round2(t.fees + t.disbursements + t.reimbursements), tax: t.sst, total: t.grandTotal, sstRate: rate || undefined, subject, yourRef: e.yourRef, tin: e.tin, scope: e.desc, payInto: e.account, feeArrangement: e.inst };
+      if (invIssued(inv)) {
+        // Issued invoice: the change is booked like a credit note + reissue — the old postings are
+        // reversed and the new amounts posted, so AR / fee income / SST follow the document.
+        if (inv.status === 'Voided') { toastMsg('A voided invoice cannot be changed.'); return; }
+        const dep = Math.min(Number(inv.depositApplied || 0), t.grandTotal);
+        if (t.grandTotal + 0.005 < invPaid(inv) + dep + Number(inv.writtenOff || 0)) { toastMsg(`The new total (${rm2(t.grandTotal)}) is below what has already been received / written off. Refund or reallocate first.`); return; }
+        const date = todayIso();
+        const next: Invoice = { ...inv, ...patch, depositApplied: dep || undefined };
+        app.updateInvoice(inv.id, { ...patch, depositApplied: dep || undefined });
+        postGL([...reversalOf(inv.id, date, 'amended'), ...issueGL(next, date)]);
+        setEd(null); if (andView) setView({ kind: 'invoice', id: inv.id }); toastMsg('Changes saved · previous postings reversed and the amended invoice re-posted'); return;
+      }
+      app.updateInvoice(inv.id, patch);
       setEd(null); if (andView) setView({ kind: 'invoice', id: inv.id }); toastMsg('Changes saved'); return;
     }
     if (e.id && e.kind === 'quotation') {
@@ -570,12 +794,19 @@ export function useFinanceController(initialTab: FinTab) {
     if (!(canPrepare || rk === 'P')) { toastMsg('Not available for your role.'); return; }
     const k = u.kase; const id = app.getNextSequenceId('invoice');
     const area = SD.areaFromName(k?.practiceArea || k?.type, k?.ref);
-    const lines: SD.DocLines = { prof: u.te.map((t) => [`${t.description || 'Professional services'} (${fd(t.date)}, ${t.hours}h)`, Math.round(Number(t.hours || 0) * Number(t.rate || 0) * 100) / 100] as SD.DocLine), disb: u.ex.map((x) => [x.description || x.category, Number(x.amount || 0)] as SD.DocLine), reimb: [] };
+    // Disbursements (paid to third parties, no SST) vs reimbursements (our own costs re-charged:
+    // photocopy, courier, mileage / travel…, SST-able) by expense category.
+    const exLine = (x: Expense) => [x.description || x.category, Number(x.amount || 0)] as SD.DocLine;
+    const lines: SD.DocLines = {
+      prof: u.te.map((t) => [`${t.description || 'Professional services'} (${fd(t.date)}, ${t.hours}h)`, round2(Number(t.hours || 0) * Number(t.rate || 0))] as SD.DocLine),
+      disb: u.ex.filter((x) => expenseIsDisb(x)).map(exLine),
+      reimb: [...u.ex.filter((x) => !expenseIsDisb(x)).map(exLine), ...u.tc.map((t) => [`Travelling: ${t.purpose || t.to || t.type} (${fd(t.date)})`, round2(travelBillable(t))] as SD.DocLine)],
+    };
     const items = linesToItems(lines); const rate = SD.defaultSstRate(); const t = recordTotals(items, rate);
     const cid = k ? k.clientId.split(',')[0].trim() : '';
-    app.addInvoice({ id, clientId: cid, caseId: k?.id || u.caseId, fileRef: k?.ref, partyType: 'Client', partyName: u.client, amount: t.fees + t.disbursements + t.reimbursements, discount: 0, tax: t.sst, total: t.grandTotal, date: todayIso(), dueDate: todayIso(), status: 'Draft', lineItems: items, sstRate: rate || undefined, matter: k?.title, subject: String(k?.title || '').toUpperCase(), yourRef: 'Kindly Advised', tin: '-', scope: SD.AREAS[area]?.desc || '', payInto: 'Office' });
-    u.te.forEach((t) => app.updateTimeEntry(t.id, { billed: true, invoiceId: id }));
-    u.ex.forEach((x) => app.updateExpense(x.id, { billed: true }));
+    // The work is marked billed when this draft is ISSUED (until then it stays off "Work not
+    // billed" because it is on the draft, and comes back if the draft is voided).
+    app.addInvoice({ id, clientId: cid, caseId: k?.id || u.caseId, fileRef: k?.ref, partyType: 'Client', partyName: u.client, amount: round2(t.fees + t.disbursements + t.reimbursements), discount: 0, tax: t.sst, total: t.grandTotal, date: todayIso(), dueDate: todayIso(), status: 'Draft', lineItems: items, sstRate: rate || undefined, matter: k?.title, subject: String(k?.title || '').toUpperCase(), yourRef: 'Kindly Advised', tin: '-', scope: SD.AREAS[area]?.desc || '', payInto: 'Office', sourceItems: { time: u.te.map((x) => x.id), expenses: u.ex.map((x) => x.id), travel: u.tc.map((x) => x.id) } });
     setBilled((b) => ({ ...b, [u.caseId]: { inv: id, u } }));
     setView({ kind: 'invoice', id });
     toastMsg('Draft ' + id + ' created from unbilled work');
@@ -600,10 +831,10 @@ export function useFinanceController(initialTab: FinTab) {
       if (acc === 'Client account' && !c) { toastMsg('Client money must be linked to a registered client (client ledger).'); return; }
       const id = app.getNextSequenceId('receipt');
       rememberProofUrls('form', id, proofs);
-      app.addReceipt({ id, date: dateIso, accountSet: acc === 'Client account' ? 'CLIENT' : 'OFFICE', receivedFrom: vals.client || c?.name || '—', description: forNo || 'Payment received', amount: amt, debit: cashAccountGL(acc), credit: acc === 'Client account' ? GLA.clientFunds : inv ? GLA.ar : GLA.fees, clientId: c?.id || inv?.clientId || '', fileRef: kase?.ref || inv?.fileRef || '', bankRef: '', receivedBy: me, paymentMethod: vals.method || 'Online transfer', forNo, invoiceId: inv?.id, quotationId: pf?.id, caseId: kase?.id, proofs });
+      app.addReceipt({ id, date: dateIso, accountSet: acc === 'Client account' ? 'CLIENT' : 'OFFICE', receivedFrom: vals.client || c?.name || '—', description: forNo || 'Payment received', amount: amt, debit: cashAccountGL(acc), credit: acc === 'Client account' ? GLA.clientFunds : inv ? GLA.ar : pf ? GLA.feesAdvance : GLA.fees, clientId: c?.id || inv?.clientId || '', fileRef: kase?.ref || inv?.fileRef || '', bankRef: '', receivedBy: me, paymentMethod: vals.method || 'Online transfer', forNo, invoiceId: inv?.id, quotationId: pf?.id, caseId: kase?.id, proofs });
       if (acc === 'Office' && inv) app.addPayment({ id: 'PAY-' + id, invoiceId: inv.id, amount: amt, date: dateIso, method: vals.method || 'Online transfer' });
       if (acc === 'Client account' && c) app.addRetainer({ id: 'RET-' + id, clientId: c.id, caseId: kase?.id || '', type: 'Deposit', amount: amt, date: dateIso, remarks: forNo || 'Money received into client account', voucherNo: id });
-      postGL([{ date: dateIso, docType: 'OR', docNo: id, accountSet: acc === 'Client account' ? 'CLIENT' : 'OFFICE', debit: cashAccountGL(acc), credit: acc === 'Client account' ? GLA.clientFunds : inv ? GLA.ar : GLA.fees, amount: amt, clientId: c?.id || '', fileRef: kase?.ref || '', description: `Receipt ${id} · ${forNo || 'payment received'}` }]);
+      postGL([{ date: dateIso, docType: 'OR', docNo: id, accountSet: acc === 'Client account' ? 'CLIENT' : 'OFFICE', debit: cashAccountGL(acc), credit: acc === 'Client account' ? GLA.clientFunds : inv ? GLA.ar : pf ? GLA.feesAdvance : GLA.fees, amount: amt, clientId: c?.id || '', fileRef: kase?.ref || '', description: `Receipt ${id} · ${forNo || 'payment received'}` }]);
       setForm(null); setView({ kind: 'receipt', id });
       toastMsg('Receipt ' + id + ' issued' + (proofs.length ? '' : ' · no proof attached yet'));
     } else if (kind === 'pay') {
@@ -620,26 +851,45 @@ export function useFinanceController(initialTab: FinTab) {
         const q = quotations.find((i) => i.id === vals.docId); if (!q) return;
         const acc = q.payInto || 'Office'; const kase = qCase(q); const cid = q.partyId || kase?.clientId?.split(',')[0].trim() || '';
         if (acc === 'Client account' && !cid) { toastMsg('Link this proforma to a registered client before taking client money.'); return; }
-        app.addReceipt({ id, date: dateIso, accountSet: acc === 'Client account' ? 'CLIENT' : 'OFFICE', receivedFrom: q.clientName, description: `Payment for ${q.id}`, amount: amt, debit: cashAccountGL(acc), credit: acc === 'Client account' ? GLA.clientFunds : GLA.fees, clientId: cid, fileRef: q.fileRef || '', bankRef: '', receivedBy: me, paymentMethod: vals.method || 'Online transfer', forNo: q.id, quotationId: q.id, caseId: kase?.id, proofs });
+        app.addReceipt({ id, date: dateIso, accountSet: acc === 'Client account' ? 'CLIENT' : 'OFFICE', receivedFrom: q.clientName, description: `Payment for ${q.id}`, amount: amt, debit: cashAccountGL(acc), credit: acc === 'Client account' ? GLA.clientFunds : GLA.feesAdvance, clientId: cid, fileRef: q.fileRef || '', bankRef: '', receivedBy: me, paymentMethod: vals.method || 'Online transfer', forNo: q.id, quotationId: q.id, caseId: kase?.id, proofs });
         if (acc === 'Client account') app.addRetainer({ id: 'RET-' + id, clientId: cid, caseId: kase?.id || '', type: 'Deposit', amount: amt, date: dateIso, remarks: `Deposit for ${q.id}`, voucherNo: id });
-        postGL([{ date: dateIso, docType: 'OR', docNo: id, accountSet: acc === 'Client account' ? 'CLIENT' : 'OFFICE', debit: cashAccountGL(acc), credit: acc === 'Client account' ? GLA.clientFunds : GLA.fees, amount: amt, clientId: cid, fileRef: q.fileRef || '', description: `Receipt ${id} for ${q.id}` }]);
+        postGL([{ date: dateIso, docType: 'OR', docNo: id, accountSet: acc === 'Client account' ? 'CLIENT' : 'OFFICE', debit: cashAccountGL(acc), credit: acc === 'Client account' ? GLA.clientFunds : GLA.feesAdvance, amount: amt, clientId: cid, fileRef: q.fileRef || '', description: `Receipt ${id} for ${q.id}` }]);
       }
       setForm(null); setView({ kind: 'receipt', id });
       toastMsg('Receipt ' + id + ' issued' + (proofs.length ? ' with proof' : ' · no proof attached yet'));
     } else if (kind === 'journal') {
       if (!canPrepare) { toastMsg('Journals are prepared by Accounts.'); return; }
       if (amt <= 0 || !String(vals.details || '').trim()) { toastMsg('Enter the details and amount.'); return; }
-      const id = app.getNextSequenceId('journal');
-      app.addManualJournal({ id, date: dateIso, account: vals.account || 'Office', direction: vals.dir || 'Money out', details: vals.details || '', amount: amt, reason: vals.reason || '', preparedBy: me, createdAt: new Date().toISOString(), status: 'Pending Approval' });
+      const account = vals.account || 'Office'; const direction = vals.dir || 'Money out';
+      let jClient: string | undefined, jCase: string | undefined;
+      if (account === 'Client account') {
+        // Client money must always sit in a client ledger: a client-account journal names the
+        // client and matter, and its ledger entry is written when it is approved.
+        const c = clientByName(vals.client || '');
+        if (!c) { toastMsg('Client-account journals must name a registered client (the client ledger it adjusts).'); return; }
+        const kase = vals.matter ? caseForRef(String(vals.matter)) : undefined;
+        if (vals.matter && !kase) { toastMsg('Matter ' + vals.matter + ' not found: pick the file reference from the list.'); return; }
+        if (!kase && !ledgers.some((l) => l.clientId === c.id && !l.caseId)) { toastMsg('Pick the matter (file reference) this client-ledger adjustment belongs to.'); return; }
+        jClient = c.id; jCase = kase?.id || '';
+        if (direction === 'Money out' && clientLedgerBalance(c.id, jCase) < amt - 0.005) { toastMsg(`Not enough in ${c.name}'s ledger for this matter (${rm2(clientLedgerBalance(c.id, jCase))}): the client account can never go below zero.`); return; }
+      }
+      const id = app.getNextSequenceId('journal', dateIso);
+      app.addManualJournal({ id, date: dateIso, account, direction, details: vals.details || '', amount: amt, reason: vals.reason || '', preparedBy: me, createdAt: new Date().toISOString(), status: 'Pending Approval', ...(jClient ? { clientId: jClient, caseId: jCase } : {}) });
       setForm(null); toastMsg(id + ' posted · sent to Approvals');
     } else if (kind === 'payOut' || kind === 'transfer') {
       if (!canPrepare) { toastMsg('Client account payments are prepared by Accounts.'); return; }
       const c = clientByName(vals.client || '');
       if (!c) { toastMsg('Pick a registered client: client money is paid out per client ledger.'); return; }
       if (amt <= 0) { toastMsg('Enter the amount.'); return; }
-      const caseId: string | undefined = vals.caseId;
+      // Always a specific matter ledger (a client-wide total could overdraw one matter with
+      // another matter's money). '' = the client's "no matter linked" ledger, opened from it.
+      const typed = String(vals.matter || '').trim();
+      const typedCase = typed ? caseForRef(typed) : undefined;
+      if (typed && !typedCase) { toastMsg('Matter ' + typed + ' not found: pick the file reference from the list.'); return; }
+      const caseId: string | undefined = typedCase ? typedCase.id : vals.caseId;
+      if (caseId == null) { toastMsg('Pick the matter: client money is paid out of one matter’s ledger.'); return; }
       const bal = clientLedgerBalance(c.id, caseId);
-      if (amt > bal + 0.005) { toastMsg(`Not enough in ${c.name}'s ledger (${rm2(bal)}): the client account can never go below zero.`); return; }
+      if (amt > bal + 0.005) { toastMsg(`Not enough in ${c.name}'s ledger for this matter (${rm2(bal)}): the client account can never go below zero.`); return; }
       const kase = caseId ? findCase(lk, caseId) : undefined;
       let inv: Invoice | undefined;
       if (kind === 'transfer') {
@@ -655,7 +905,19 @@ export function useFinanceController(initialTab: FinTab) {
     } else if (kind === 'expense') {
       if (!canPrepare) { toastMsg('Office expenses are recorded by Accounts.'); return; }
       if (amt <= 0) { toastMsg('Enter the amount.'); return; }
+      const kindOf = String(vals.kind || 'Office expense');
+      if (kindOf === PV_STATUTORY || kindOf === PV_SST || kindOf === PV_DRAWINGS) {
+        // Remittances / drawings settle what is already owed (2300 statutory, 2200 SST) or are
+        // equity (3100): recorded as a paid voucher, never as an office expense.
+        const from = vals.from || 'Hong Leong'; const id = app.getNextSequenceId('voucher');
+        const debit = pvDebitGL(kindOf); const credit = /petty/i.test(from) ? GLA.petty : GLA.office;
+        app.addPaymentVoucher({ id, date: dateIso, accountSet: 'OFFICE', voucherCategory: kindOf as PaymentVoucher['voucherCategory'], payee: vals.payee || '', paymentMethod: 'Bank transfer', description: vals.what || kindOf, amount: amt, debit, credit, clientId: '', fileRef: '', bankAccountName: /petty/i.test(from) ? 'Petty cash' : from, preparedBy: me, approvalStatus: 'Posted to GL', approved: true, postedToGl: true, paidAt: dateIso, paidProof: proofs[0], proofs });
+        rememberProofUrls('form', 'pv:' + id, proofs);
+        postGL([{ date: dateIso, docType: 'PV', docNo: id, accountSet: 'OFFICE', debit, credit, amount: amt, clientId: '', fileRef: '', description: `${vals.payee || ''} · ${vals.what || kindOf}` }]);
+        setForm(null); toastMsg(`${id} recorded (${kindOf}) · not an office expense`); return;
+      }
       const id = app.getNextSequenceId('expense'); const from = vals.from || 'Hong Leong'; const cat = vals.cat || 'Utilities';
+      if (isStatutoryCategory(cat)) { toastMsg('EPF / SOCSO / EIS / PCB payments: choose "' + PV_STATUTORY + '" as the type (they settle payroll amounts already booked).'); return; }
       app.addExpense({ id, caseId: '', date: dateIso, category: cat, amount: amt, billable: false, description: vals.what || '', payee: vals.payee || '', accountSet: 'OFFICE', paidFrom: from, approvalStatus: 'Posted to GL', postedToGl: true, paidProof: proofs[0], documents: proofs.map((p, i) => ({ id: `DOC-${id}-${i}`, name: p.name, url: '', type: p.type, size: p.size, uploadedAt: p.uploadedAt, category: 'Receipt Photo' as const })) });
       rememberProofUrls('form', 'expense:' + id, proofs);
       postGL([{ date: dateIso, docType: 'PV', docNo: id, accountSet: 'OFFICE', debit: expenseGL(cat), credit: /petty/i.test(from) ? GLA.petty : GLA.office, amount: amt, clientId: '', fileRef: '', description: `${vals.payee || ''} · ${vals.what || cat}` }]);
@@ -686,6 +948,42 @@ export function useFinanceController(initialTab: FinTab) {
       if (existing) app.updatePayslip(existing.id, p); else app.addPayslip(p);
       setForm(null); toastMsg('Payslip saved for ' + u.name);
     }
+  };
+
+  /* ------------------------------ profit & loss (ONE definition) ------------------------------ */
+  /**
+   * Office income & costs for a period, used by Finance Home AND Books & Reports → Profit & loss.
+   * - Fee income = money received × (fees + reimbursements) ÷ invoice total: SST collected and
+   *   disbursements recovered are shown separately and are NOT income. Proforma deposits count
+   *   when applied to the invoice; until then they are fees received in advance (a liability).
+   * - Costs: approved / paid only. Payroll once (payslips: gross + employer EPF/SOCSO/EIS);
+   *   statutory remittances, SST to Customs, partner drawings and disbursements are not costs.
+   */
+  const pnl = (inRange: (d: unknown) => boolean) => {
+    const recv = moneyReceived(invoices).filter((x) => inRange(x.date));
+    const feeIncome = round2(recv.reduce((s2, x) => s2 + x.income, 0));
+    const sstCollected = round2(recv.reduce((s2, x) => s2 + x.sst, 0));
+    const disbRecovered = round2(recv.reduce((s2, x) => s2 + x.disb, 0));
+    const officeRec = receipts.filter((r) => r.accountSet !== 'CLIENT' && !r.invoiceId && inRange(r.date));
+    const isAdvance = (r: Receipt) => !!r.quotationId || r.credit === GLA.feesAdvance;
+    const advanceReceived = round2(officeRec.filter(isAdvance).reduce((s2, r) => s2 + Number(r.amount || 0), 0));
+    const otherIn = round2(officeRec.filter((r) => !isAdvance(r)).reduce((s2, r) => s2 + Number(r.amount || 0), 0));
+    const slipsPaid = payslips.filter((p) => p.status === 'Paid' && inRange(p.paidAt));
+    let payroll = slipsPaid.reduce((s2, p) => s2 + (slipCalc(p)?.gross || 0) + Number(p.epfEmployer || 0) + Number(p.socsoEisEmployer || 0), 0);
+    const approvedExp = expenses.filter((e) => isApprovedForBilling(e.approvalStatus) && (!e.claimant || !!e.paidAt) && inRange(e.claimant ? e.paidAt : e.date) && !expenseIsDisb(e) && !(e.billable && !e.claimant) && !isStatutoryCategory(e.category));
+    // Salary paid outside payslips (only when no payslips were paid that month — never twice).
+    const salaryExp = approvedExp.filter((e) => /salar|payroll|wage/i.test(e.category));
+    if (!slipsPaid.length) payroll += salaryExp.reduce((s2, e) => s2 + Number(e.amount || 0), 0);
+    const cats = new Map<string, number>();
+    approvedExp.filter((e) => !e.claimant && !/salar|payroll|wage/i.test(e.category)).forEach((e) => cats.set(e.category || 'Other', (cats.get(e.category || 'Other') || 0) + Number(e.amount || 0)));
+    const claims = round2(travelClaims.filter((t) => t.paidAt && inRange(t.paidAt)).reduce((s2, t) => s2 + Number(t.total || 0), 0) + approvedExp.filter((e) => !!e.claimant && !/salar|payroll|wage/i.test(e.category)).reduce((s2, e) => s2 + Number(e.amount || 0), 0));
+    const pvs = round2(paymentVouchers.filter((v) => v.accountSet !== 'CLIENT' && !isNonExpensePv(v.voucherCategory) && v.approvalStatus !== 'Rejected' && (v.paidAt || v.historical) && inRange(v.paidAt || v.date)).reduce((s2, v) => s2 + Number(v.amount || 0), 0));
+    payroll = round2(payroll);
+    const rent = round2([...cats.entries()].filter(([k]) => /rent|utilit|electric|water/i.test(k)).reduce((s2, [, v]) => s2 + v, 0));
+    const catTotal = round2([...cats.values()].reduce((s2, v) => s2 + v, 0));
+    const income = round2(feeIncome + otherIn);
+    const expensesTotal = round2(payroll + catTotal + claims + pvs);
+    return { feeIncome, sstCollected, disbRecovered, advanceReceived, otherIn, income, payroll, cats, rent, otherCosts: round2(catTotal - rent + claims + pvs), claims, pvs, expensesTotal, net: round2(income - expensesTotal) };
   };
 
   /* ------------------------------ import past transactions ------------------------------ */
@@ -752,7 +1050,8 @@ export function useFinanceController(initialTab: FinTab) {
     app, rk, isMP, canApprove, canPrepare, me, TABS, tab: visibleTab, go, toast, toastMsg,
     now, period, prevPeriod, prevDate, monthName, monShort, lastDay, lastDayLabel, nextMonShort, settings, saveSettings,
     lk, ownCase, clientName, staffUser,
-    invBal, invPaid, invStatus, invIssued, invCase, scopedInvoices, openInvoices, owedTotal, aging, ageDays,
+    invBal, invPaid, invDeposit, invCredit, invStatus, invIssued, invCase, scopedInvoices, openInvoices, owedTotal, aging, ageDays,
+    pnl, moneyReceived, openingAsAt, firmBanksOf, statementFor, setStatement, reconFor,
     qStatus, qCase, proformaPaid, scopedQuotations, scopedReceipts, actionsFor, act, buildDoc, recordOf, receiptProofList,
     ledgers, trustTotal, ledgerTotalAt, clientLedgerBalance, threeWayRec,
     unbilled, wipTotal, billMatter, billed: billed as Record<string, { inv: string; u: any }>,

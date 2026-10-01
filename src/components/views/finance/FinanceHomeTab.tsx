@@ -2,7 +2,6 @@ import React from 'react';
 import type { FinanceCtrl } from './useFinanceController';
 import { css, daysSince, dShort, inPeriod, initials, parseDate, rm, rm2 } from './financeModel';
 import type { FinTab } from '../../../lib/financeAccess';
-import type { Invoice } from '../../../types';
 
 /** "RM 1.42m" / "RM 212k" — the design's KPI short format. */
 export const rmShort = (n: number) => { const a = Math.abs(n), s = n < 0 ? '-' : ''; if (a >= 1e6) return s + 'RM ' + (a / 1e6).toFixed(2).replace(/\.?0+$/, '') + 'm'; if (a >= 1e4) return s + 'RM ' + Math.round(a / 1000) + 'k'; return rm(n); };
@@ -17,6 +16,7 @@ export const FinanceHomeTab = ({ F }: { F: FinanceCtrl }) => {
   F.toPay.forEach((p) => alerts.push({ id: 'pay:' + p.key, kind: 'Approved · to pay', text: `${p.no} approved. Pay ${p.payee.replace(' (claim)', '')} ${rm2(p.amount)} from the ${p.from === 'Client account' ? 'client' : p.from} account.`, meta: p.what, amt: p.amount, cta: 'Pay', tab: 'approvals' }));
   F.apItems.filter((a) => a.type === 'Staff claim').forEach((a) => alerts.push({ id: 'claim:' + a.key, kind: 'New claim', text: `${a.by} submitted ${a.id}. Waiting for a partner to approve.`, meta: a.sub, amt: a.amount, cta: 'View', tab: 'approvals' }));
   F.ledgers.filter((l) => l.balance < -0.005).forEach((l) => alerts.push({ id: 'od:' + l.key, kind: 'Reminder', text: `${l.client} client ledger is overdrawn: top up immediately (Solicitors' Account Rules 1990).`, meta: l.ref, amt: l.balance, cta: 'Open', tab: 'trust' }));
+  F.scopedInvoices.filter((i) => F.invCredit(i) > 0.005).forEach((i) => alerts.push({ id: 'credit:' + i.id, kind: 'Reminder', text: `${i.id}: ${i.partyName || F.clientName(i.clientId) || '—'} paid ${rm2(F.invCredit(i))} more than the invoice. Refund it or apply it to another invoice.`, meta: 'credit owed to the client', amt: F.invCredit(i), cta: 'Open', tab: 'billing' }));
   F.openInvoices.filter((i) => F.ageDays(i) > 90).forEach((i) => alerts.push({ id: 'old:' + i.id, kind: 'Reminder', text: `${i.id} for ${i.partyName || F.clientName(i.clientId) || '—'} is ${F.ageDays(i)} days past due: chase, or ask the Managing Partner for a write-off.`, meta: 'due ' + F.fd(i.dueDate || i.date), amt: F.invBal(i), cta: 'Open', tab: 'billing' }));
   const disbBal = F.bankBal('Disbursement');
   if (disbBal != null && disbBal < 5000) alerts.push({ id: 'topup:' + period, kind: 'Top up', text: `Disbursement account is below RM 5,000 (${rm2(disbBal)}).`, meta: 'top up from the office account', amt: 0, cta: 'Open', tab: 'office' });
@@ -32,7 +32,7 @@ export const FinanceHomeTab = ({ F }: { F: FinanceCtrl }) => {
   const payRef = slips.reduce((s, p) => s + Number(p.referralFee || 0), 0);
   const kpis: [string, string, string, string][] = [
     ['Client account', rmShort(F.trustTotal), `${F.ledgers.length} ledgers · ${prevRec ? F.prevDate.toLocaleString('en-US', { month: 'short' }) + (prevRec.status === 'MATCHED' ? ' balanced' : ' not balanced') : 'no reconciliation on file'}`, '#2F6F4E'],
-    ['Office bank', F.officeCash == null ? '—' : rmShort(F.officeCash), officeBanks.length ? officeBanks.map((b) => b.bankName).join(' + ') : 'no office bank balance recorded', '#16223A'],
+    ['Office bank', F.officeCash == null ? '—' : rmShort(F.officeCash), F.officeCash == null ? 'no office bank account set up' : 'opening balance + cash book · ' + ((officeBanks.length ? officeBanks.map((b) => b.bankName) : F.firmBanksOf('Office').map((b) => b.bankName)).join(' + ') || 'office'), '#16223A'],
     ['Owed to us', rmShort(F.owedTotal), `${F.openInvoices.length} invoices · ${rmShort(over60)} over 60 days`, '#B23A2E'],
     ['Work not billed', rmShort(F.wipTotal), `${F.unbilled.length} files · ${F.unbilled.filter((u) => u.oldest > 60).length} over 60 days`, '#8A6534'],
     ['Payroll ' + lastDayLabel, slips.length ? rm(payGross) : '—', slips.length ? 'incl. ' + rm(payRef) + ' referral fees' : 'no payslips keyed in yet', '#3D6B9C'],
@@ -65,18 +65,14 @@ export const FinanceHomeTab = ({ F }: { F: FinanceCtrl }) => {
   const closeDone = close.filter((c) => c.d).length;
 
   /* ---------------- Office money in & out ---------------- */
-  const invById = new Map<string, Invoice>(invoices.map((i: Invoice) => [i.id, i] as [string, Invoice]));
-  const feesIn = payments.filter((p) => inPeriod(p.date, period) && invById.get(p.invoiceId)?.status !== 'Voided').reduce((s, p) => s + Number(p.amount || 0), 0)
-    + receipts.filter((r) => r.accountSet !== 'CLIENT' && !r.invoiceId && inPeriod(r.date, period)).reduce((s, r) => s + Number(r.amount || 0), 0);
-  const officeExp = expenses.filter((e) => !e.billable && e.approvalStatus !== 'Rejected' && e.approvalStatus !== 'Pending Approval' && (!e.claimant || e.paidAt) && inPeriod(e.claimant ? e.paidAt : e.date, period));
-  const salaries = payslips.filter((p) => p.status === 'Paid' && inPeriod(p.paidAt, period)).reduce((s, p) => s + (F.slipCalc(p)?.gross || 0) + Number(p.epfEmployer || 0) + Number(p.socsoEisEmployer || 0), 0) + officeExp.filter((e) => /salar|epf|socso|payroll/i.test(e.category)).reduce((s, e) => s + Number(e.amount || 0), 0);
-  const rent = officeExp.filter((e) => /rent|utilit|electric|water/i.test(e.category)).reduce((s, e) => s + Number(e.amount || 0), 0);
-  const other = officeExp.filter((e) => !/salar|epf|socso|payroll|rent|utilit|electric|water/i.test(e.category)).reduce((s, e) => s + Number(e.amount || 0), 0)
-    + paymentVouchers.filter((v) => v.accountSet !== 'CLIENT' && v.paidAt && inPeriod(v.paidAt, period)).reduce((s, v) => s + Number(v.amount || 0), 0)
-    + travelClaims.filter((t) => t.paidAt && inPeriod(t.paidAt, period)).reduce((s, t) => s + Number(t.total || 0), 0);
-  const flows: [string, number, string][] = [['Fees received', feesIn, '#2F6F4E'], ['Salaries & statutory', salaries, '#B23A2E'], ['Rent & utilities', rent, '#8A6534'], ['Other expenses', other, '#8A6534']];
+  // Same definition as Books & Reports → Profit & loss (F.pnl): fee income excludes SST and
+  // disbursements; approved / paid costs only; payroll counted once; remittances, drawings and
+  // disbursements are not costs.
+  const P = F.pnl((d) => inPeriod(d, period));
+  const feesIn = P.income, salaries = P.payroll, rent = P.rent, other = P.otherCosts;
+  const flows: [string, number, string][] = [['Fee income received (excl. SST & disbursements)', feesIn, '#2F6F4E'], ['Salaries & statutory', salaries, '#B23A2E'], ['Rent & utilities', rent, '#8A6534'], ['Other expenses', other, '#8A6534']];
   const flowMax = Math.max(1, ...flows.map((f) => f[1]));
-  const net = feesIn - salaries - rent - other;
+  const net = P.net;
 
   /* ---------------- Debtor ageing ---------------- */
   const agTot = Math.max(1, F.aging.reduce((s, v) => s + v, 0));
@@ -126,6 +122,7 @@ export const FinanceHomeTab = ({ F }: { F: FinanceCtrl }) => {
               <div key={label} style={css('padding:8px 14px')}><div style={css('display:flex;font-size:11.5px;color:#16223A')}><span>{label}</span><strong style={css(`margin-left:auto;color:${color}`)}>{rm(a)}</strong></div><div style={css('margin-top:4px;height:8px;border-radius:3px;background:#EEF1F5')}><div style={css(`height:8px;border-radius:3px;background:${color};width:${Math.round(a / flowMax * 100)}%`)}></div></div></div>
             ))}
             <div style={css('display:flex;padding:9px 14px;background:#F6F8FA;border-top:1px solid #EEF1F5;font-size:11.5px;color:#16223A')}><span>Net for the month</span><strong style={css(`margin-left:auto;color:${net >= 0 ? '#2F6F4E' : '#B23A2E'}`)}>{net >= 0 ? '+ ' : '- '}{rm(Math.abs(net))}</strong></div>
+            <div style={css('padding:7px 14px;font-size:10.5px;color:#5B6478')}>Not income: SST collected {rm(P.sstCollected)} · disbursements recovered {rm(P.disbRecovered)} · proforma money received {rm(P.advanceReceived)} (income once invoiced)</div>
           </div>
           <div style={css('overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
             <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css('font-family:ui-serif, Georgia, serif;font-size:14.5px;color:#16223A')}>Who owes us, by age</strong></div>

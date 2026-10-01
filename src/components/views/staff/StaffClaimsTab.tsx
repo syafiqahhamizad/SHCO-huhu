@@ -174,8 +174,8 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
   const PM = f.pmethod;
   const km = num(f.km), pk = num(f.parking), tl = num(f.toll);
   const billable = f.caseRef !== null && !!f.file;
-  const toYou = T ? km + pk + tl : num(f.amt);
-  const bill = billable && !(D && f.from === 'Client') ? (T ? km * 1.5 + pk + tl : /^Office/.test(f.kind) ? 0 : num(f.amt)) : 0;
+  const toYou = Math.round((T ? km + pk + tl : num(f.amt)) * 100) / 100;
+  const bill = Math.round((billable && !(D && f.from === 'Client') ? (T ? km * 1.5 + pk + tl : /^Office/.test(f.kind) ? 0 : num(f.amt)) : 0) * 100) / 100;
 
   const FILES = useMemo(() => {
     const clientName = (id: string, n?: string) => n || clients.find((c) => c.id === id)?.name || '';

@@ -1,6 +1,6 @@
 import React from 'react';
 import type { FinanceCtrl } from './useFinanceController';
-import { css, daysSince, fd, findCase, MONTHS, monthEnd, parseDate, periodKey, rm, rm2 } from './financeModel';
+import { css, daysSince, fd, findCase, MONTHS, parseDate, periodKey, rm, rm2 } from './financeModel';
 import * as SD from '../../../lib/financeDocs';
 
 export const ClientAccountTrustTab = ({ F }: { F: FinanceCtrl }) => {
@@ -9,21 +9,18 @@ export const ClientAccountTrustTab = ({ F }: { F: FinanceCtrl }) => {
   const guard = (fn: () => void) => () => (viewOnly ? F.toastMsg('Client Account is view-only for your role. Accounts prepare, partners approve.') : fn());
 
   /* ---- 3-way reconciliation: previous and current month ---- */
-  const cb = F.cashBook('Client account');
-  const opening = F.openingBalance('Client account');
+  // Balanced only when client ledgers total = cash book = the bank statement balance keyed in
+  // below, to the sen (F.reconFor).
   const recon = [F.prevDate, new Date(F.now.getFullYear(), F.now.getMonth(), 1)].map((m, i) => {
-    const end = monthEnd(m); const key = periodKey(m);
-    const ledgersTotal = F.ledgerTotalAt(end);
-    const cash = opening + cb.filter((r) => r.t && r.t <= end.getTime()).reduce((s, r) => s + r.inn - r.out, 0);
+    const key = periodKey(m);
+    const { ledgers: ledgersTotal, cash, bank, status } = F.reconFor(m);
     const monthLabel = `${MONTHS[m.getMonth()]} ${m.getFullYear()}`;
-    const row = F.threeWayRec.find((r) => String(r.month).toLowerCase().startsWith(MONTHS[m.getMonth()].slice(0, 3).toLowerCase()) && String(r.month).includes(String(m.getFullYear())));
-    const bank = row ? Number(row.bankStatement || 0) : null;
     const tick = (F.settings.monthEndClose || {})[`${key}:c7`];
-    const balanced = bank != null && Math.abs(ledgersTotal - cash) < 0.01 && Math.abs(cash - bank) < 0.01;
-    const status = bank == null ? 'Not started' : balanced ? 'Balanced' : 'Difference';
+    const st = (F.settings.clientBankStatements || {})[key];
     const [sbg, sfg] = status === 'Balanced' ? ['#E6EFE9', '#2F6F4E'] : status === 'Difference' ? ['#FBEDE9', '#B23A2E'] : ['#FBF2E9', '#8A6534'];
-    const note = tick ? `signed off by ${tick.by} on ${fd(tick.at)}` : bank == null ? `no bank statement on file · bank feed not connected${i ? ' · due 15 ' + F.nextMonShort : ''}` : balanced ? 'ledgers = cash book = bank' : `difference ${rm2(Math.abs(cash - bank))} between cash book and bank`;
-    return { monthLabel, status, sbg, sfg, note, bl: i ? '1px solid #EEF1F5' : '0', lines: [['Client ledgers total', rm(ledgersTotal)], ['Cash book', rm(cash)], ['Bank statement', bank == null ? '—' : rm(bank)]] };
+    const diffs = bank == null ? '' : [Math.abs(ledgersTotal - cash) >= 0.005 ? `ledgers vs cash book ${rm2(ledgersTotal - cash)}` : '', Math.abs(cash - bank) >= 0.005 ? `cash book vs bank ${rm2(cash - bank)}` : ''].filter(Boolean).join(' · ');
+    const note = (tick ? `signed off by ${tick.by} on ${fd(tick.at)} · ` : '') + (bank == null ? `key in the bank statement closing balance${i ? ' · due 15 ' + F.nextMonShort : ''}` : status === 'Balanced' ? 'ledgers = cash book = bank' : 'difference: ' + diffs) + (st ? ` · statement keyed by ${st.by}` : '');
+    return { m, key, monthLabel, status, sbg, sfg, note, bank, bl: i ? '1px solid #EEF1F5' : '0', lines: [['Client ledgers total', rm2(ledgersTotal)], ['Cash book', rm2(cash)]] };
   });
 
   /* ---- client ledgers ---- */
@@ -67,6 +64,7 @@ export const ClientAccountTrustTab = ({ F }: { F: FinanceCtrl }) => {
               <div key={r.monthLabel} style={css(`padding:12px 14px;border-left:${r.bl};display:flex;flex-direction:column;gap:6px`)}>
                 <span style={css('display:flex;align-items:center;gap:6px')}><strong style={css('font-size:12px;color:#16223A')}>{r.monthLabel}</strong><span style={css(`margin-left:auto;font-size:10px;font-weight:700;padding:1px 8px;border-radius:10px;background:${r.sbg};color:${r.sfg}`)}>{r.status}</span></span>
                 {r.lines.map(([label, amt]) => <span key={label} style={css('display:flex;font-size:11px;color:#5B6478')}><span>{label}</span><strong style={css('margin-left:auto;color:#16223A')}>{amt}</strong></span>)}
+                <label style={css('display:flex;align-items:center;font-size:11px;color:#5B6478;gap:6px')}><span>Bank statement</span><input key={r.key + ':' + (r.bank ?? '')} defaultValue={r.bank == null ? '' : String(r.bank)} placeholder="closing balance" disabled={viewOnly} onBlur={(e) => { const v = e.target.value; if (v !== (r.bank == null ? '' : String(r.bank))) F.setStatement(r.m, v); }} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} style={css('margin-left:auto;width:110px;text-align:right;border:1px solid #DDE3EB;border-radius:6px;padding:3px 6px;font-size:11px;font-weight:700;color:#16223A;font-family:inherit;background:#fff')} /></label>
                 <span style={css('font-size:10px;color:#5B6478')}>{r.note}</span>
               </div>
             ))}
@@ -90,7 +88,7 @@ export const ClientAccountTrustTab = ({ F }: { F: FinanceCtrl }) => {
       </section>
       <div style={css('overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
         <div style={css('display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css('font-family:ui-serif, Georgia, serif;font-size:14.5px;color:#16223A')}>Ledger: {sel ? sel.client : '—'}</strong><span style={css('font-size:10.5px;color:#5B6478')}>{sel ? sel.ref : ''}</span>
-          <div style={css('margin-left:auto;display:flex;gap:6px')}><button type="button" onClick={guard(() => F.openForm('moneyIn', { client: sel?.client || '', caseId: sel?.caseId, account: 'Client account' }))} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:5px 10px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>+ Money in</button><button type="button" onClick={guard(() => F.openForm('payOut', { client: sel?.client || '', caseId: sel?.caseId }))} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:5px 10px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>+ Pay out for client</button><button type="button" onClick={guard(() => F.openForm('transfer', { client: sel?.client || '', caseId: sel?.caseId }))} style={css('border:0;border-radius:6px;padding:5px 10px;font-size:10.5px;font-weight:700;background:#16223A;color:#fff;cursor:pointer;font-family:inherit')}>Transfer to office (invoice)</button><button type="button" onClick={stmtPdf} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:5px 10px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>Client statement PDF</button></div></div>
+          <div style={css('margin-left:auto;display:flex;gap:6px')}><button type="button" onClick={guard(() => F.openForm('moneyIn', { client: sel?.client || '', caseId: sel?.caseId, account: 'Client account' }))} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:5px 10px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>+ Money in</button><button type="button" onClick={guard(() => F.openForm('payOut', { client: sel?.client || '', caseId: sel?.caseId, matter: selCase?.ref || '' }))} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:5px 10px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>+ Pay out for client</button><button type="button" onClick={guard(() => F.openForm('transfer', { client: sel?.client || '', caseId: sel?.caseId, matter: selCase?.ref || '' }))} style={css('border:0;border-radius:6px;padding:5px 10px;font-size:10.5px;font-weight:700;background:#16223A;color:#fff;cursor:pointer;font-family:inherit')}>Transfer to office (invoice)</button><button type="button" onClick={stmtPdf} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:5px 10px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>Client statement PDF</button></div></div>
         <div style={css('display:grid;grid-template-columns:90px minmax(0,1.6fr) 110px 100px 100px 110px;gap:10px;padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>Date</span><span>Details</span><span>Voucher</span><span style={css('text-align:right')}>Out</span><span style={css('text-align:right')}>In</span><span style={css('text-align:right')}>Balance</span></div>
         {!sel && <div style={css('padding:12px 14px;font-size:11.5px;color:#5B6478')}>Pick a client ledger above.</div>}
         {selRows.map((r) => (
