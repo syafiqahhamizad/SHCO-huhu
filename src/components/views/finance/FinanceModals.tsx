@@ -3,6 +3,7 @@ import type { FinanceCtrl, EditorState } from './useFinanceController';
 import { css, filesToProofs, proofMissingMsg, proofUrl, rm2 } from './financeModel';
 import { storageLabel } from '../../../services/fileStorageService';
 import * as SD from '../../../lib/financeDocs';
+import { PV_DRAWINGS, PV_SST, PV_STATUTORY } from '../../../lib/financeCalc';
 import type { FinanceProof, Invoice, Quotation } from '../../../types';
 import { getPracticeSettings, DEFAULT_EXPENSE_CATEGORIES } from '../../../services/templateService';
 
@@ -170,16 +171,16 @@ export const FormModal = ({ F }: { F: FinanceCtrl }) => {
   const DEF: Record<string, [string, FieldDef[], string?]> = {
     moneyIn: ['Record money in', [['client', 'Received from'], ['amount', 'Amount (RM)', 'e.g. 5000'], ['date', 'Date received', 'dd.mm.yyyy'], ['forNo', 'Being payment for', 'e.g. INV-2026-0314 or deposit'], ['method', 'Method', ['Online transfer', 'Cheque', 'Cash']], ['account', 'Pay into', ['Office', 'Client account']], ['proofs', 'Proof of payment (bank-in slip, screenshot, cheque copy, WhatsApp)', 'file']]],
     pay: ['Record payment for ' + (f.vals.title || ''), [['amount', 'Amount received (RM)'], ['date', 'Date received', 'dd.mm.yyyy'], ['method', 'Method', ['Online transfer', 'Cheque', 'Cash']], ['proofs', 'Proof of payment (bank-in slip, screenshot, cheque copy, WhatsApp)', 'file']]],
-    journal: ['Manual journal (goes to Approvals)', [['date', 'Date', 'dd.mm.yyyy'], ['account', 'Account', ['Office', 'Client account', 'Disbursement', 'Petty cash']], ['dir', 'Direction', ['Money out', 'Money in']], ['details', 'Details', 'e.g. bank charges Sep'], ['amount', 'Amount (RM)'], ['reason', 'Reason for adjustment']]],
-    payOut: ['Pay out from client account', [['client', 'For client'], ['payee', 'Pay to', 'e.g. LHDN'], ['amount', 'Amount (RM)'], ['purpose', 'Purpose', 'e.g. stamp duty']]],
-    transfer: ['Transfer fees to office', [['client', 'From client ledger'], ['forNo', 'For invoice', 'INV-2026-…'], ['amount', 'Amount (RM)']]],
-    expense: ['Record office expense', [['payee', 'Paid to'], ['what', 'For'], ['cat', 'Category', expenseCategories()], ['amount', 'Amount (RM)'], ['from', 'Paid from', ['Hong Leong', 'CIMB', 'Petty cash']]]],
+    journal: ['Manual journal (goes to Approvals)', [['date', 'Date', 'dd.mm.yyyy'], ['account', 'Account', ['Office', 'Client account', 'Disbursement', 'Petty cash']], ['dir', 'Direction', ['Money out', 'Money in']], ...(f.vals.account === 'Client account' ? [['client', 'Client ledger (required for the client account)'], ['matter', 'Matter (file ref.)', 'SHC/…']] as FieldDef[] : []), ['details', 'Details', 'e.g. bank charges Sep'], ['amount', 'Amount (RM)'], ['reason', 'Reason for adjustment']], f.vals.account === 'Client account' ? 'Client-account journals adjust one client ledger (client + matter), so the ledgers, cash book and bank stay equal. A ledger can never go below zero.' : undefined],
+    payOut: ['Pay out from client account', [['client', 'For client'], ['matter', 'Matter (file ref.) · paid from this matter’s ledger', 'SHC/…'], ['payee', 'Pay to', 'e.g. LHDN'], ['amount', 'Amount (RM)'], ['purpose', 'Purpose', 'e.g. stamp duty']]],
+    transfer: ['Transfer fees to office', [['client', 'From client ledger'], ['matter', 'Matter (file ref.)', 'SHC/…'], ['forNo', 'For invoice', 'INV-2026-…'], ['amount', 'Amount (RM)']]],
+    expense: ['Record office payment', [['kind', 'Type', ['Office expense', PV_STATUTORY, PV_SST, PV_DRAWINGS]], ['payee', 'Paid to'], ['what', 'For'], ...(!f.vals.kind || f.vals.kind === 'Office expense' ? [['cat', 'Category', expenseCategories()]] as FieldDef[] : []), ['amount', 'Amount (RM)'], ['from', 'Paid from', ['Hong Leong', 'CIMB', 'Petty cash']]]],
     fund: ['Add sinking fund', [['name', 'Fund name'], ['target', 'Target (RM)'], ['saved', 'Saved so far (RM)'], ['due', 'Due', 'e.g. Dec 2026'], ['monthly', 'Set aside / month (RM)']]],
     writeoff: ['Request write-off for ' + (f.vals.title || '') + ' (Managing Partner approves)', [['amount', 'Amount to write off (RM)'], ['reason', 'Reason', 'e.g. client wound up, 14 months unpaid']]],
     // payslip: its own editor with auto EPF / SOCSO / EIS (PayslipFormModal.tsx).
   };
   const def = DEF[f.kind]; if (!def) return null;
-  const listFor = (k: string) => (k === 'client' ? 'fin-clients' : k === 'forNo' && f.kind === 'transfer' ? 'fin-invoices' : k === 'forNo' ? 'fin-invoices' : undefined);
+  const listFor = (k: string) => (k === 'client' ? 'fin-clients' : k === 'matter' ? 'fin-cases' : k === 'forNo' && f.kind === 'transfer' ? 'fin-invoices' : k === 'forNo' ? 'fin-invoices' : undefined);
   return (
     <div style={css('position:fixed;inset:0;z-index:60;background:rgba(22,34,58,.6);display:flex;align-items:flex-start;justify-content:center;padding-top:80px;padding-bottom:40px;overflow:auto')}>
       <ClientList F={F} />

@@ -34,7 +34,7 @@ export const ApprovalsTab = ({ F }: { F: FinanceCtrl }) => {
             {done && <span style={css(`justify-self:end;font-size:10.5px;font-weight:700;color:${d === 'ok' ? '#2F6F4E' : d ? '#B23A2E' : '#8A6534'}`)}>{d === 'ok' ? 'Approved ✓' : d ? 'Rejected' : 'With partner to approve'}</span>}
           </div>
         ); })}
-        <div style={css('padding:9px 14px;background:#F6F8FA;font-size:10.5px;color:#5B6478')}>Under {lim}: any partner · {lim} and above, or anything from the client account: Managing Partner + 1 more signatory</div>
+        <div style={css('padding:9px 14px;background:#F6F8FA;font-size:10.5px;color:#5B6478')}>Per claim / PV form total: any partner below {lim} · Managing Partner + 1 more signatory at {lim} and above, and for anything from the client account</div>
       </div>
       <div style={css('overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
         <div style={css('display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css('font-family:ui-serif, Georgia, serif;font-size:14.5px;color:#16223A')}>Approved · to pay</strong><span style={css('font-size:10.5px;color:#5B6478')}>staff claims and payment requests (PV) approved by partners · details come straight from the staff form</span><span style={css('margin-left:auto;font-size:12px;font-weight:700;color:#16223A')}>{rm2(F.toPay.reduce((s, x) => s + x.amount, 0))} to pay</span></div>

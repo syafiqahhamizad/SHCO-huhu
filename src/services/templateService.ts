@@ -180,6 +180,12 @@ export interface PracticeSettings {
   purposeEmails?: PurposeEmail[];
   /** Opening balances per bank account id (Banks, Numbering & SST tab). */
   bankOpeningBalances?: Record<string, number>;
+  /** Date (ISO yyyy-mm-dd) the opening balances are as at. Cash-book entries on or before it are
+   * already inside the opening balance. */
+  bankOpeningBalancesAsAt?: string;
+  /** Accounts & Finance → Client Account 3-way reconciliation: client bank statement closing
+   * balance per month, keyed 'YYYY-MM'. */
+  clientBankStatements?: Record<string, { balance: number; by: string; at: string }>;
   /** Document numbering formats, keyed by DOC_NUMBERING key. Stored only: record ids are still
    * issued by AppContext.getNextSequenceId in its existing format. */
   docNumbering?: Record<string, string>;

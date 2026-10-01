@@ -3,7 +3,7 @@ import type { CashAcc, FinanceCtrl } from './useFinanceController';
 import { css, fd, findCase, glCode, inPeriod, MON, monthEnd, parseDate, proofLink, proofMissingMsg, rm, rm2 } from './financeModel';
 import type { FinanceProof } from '../../../types';
 import * as SD from '../../../lib/financeDocs';
-import { computeTotals } from '../../../lib/billingEngine';
+import { invoiceComposition } from '../../../lib/financeCalc';
 import type { Invoice } from '../../../types';
 
 export const BooksReportsTab = ({ F }: { F: FinanceCtrl }) => {
@@ -11,6 +11,8 @@ export const BooksReportsTab = ({ F }: { F: FinanceCtrl }) => {
   const { invoices, payments, receipts, expenses, payslips, paymentVouchers, travelClaims, generalLedger, chartOfAccounts, retainers, threeWayRec } = app;
   const m = SD.money;
   const year = F.now.getFullYear();
+  const [tbYear, setTbYear] = React.useState(year);
+  const glYears = [...new Set([year, ...generalLedger.map((g) => new Date(parseDate(g.date) || Date.now()).getFullYear())])].sort((a, b) => b - a);
 
   /* ------------------------------ cash book ------------------------------ */
   const SRC: Record<string, [string, string]> = { Auto: ['#E7EEF6', '#2F5680'], Historical: ['#F1EBF6', '#6B3D8C'], Manual: ['#FBF2E9', '#8A6534'] };
@@ -29,27 +31,45 @@ export const BooksReportsTab = ({ F }: { F: FinanceCtrl }) => {
   const sstPeriod = `${MON[prev2[0].getMonth()]}–${MON[prev2[1].getMonth()]} ${prev2[1].getFullYear()}`;
   const inYear = (d: unknown) => { const t = parseDate(d); return !!t && new Date(t).getFullYear() === year; };
   const neg = (n: number) => (n ? '(' + rm(Math.abs(n)) + ')' : rm(0));
-  const glBalances = () => { const b = new Map<string, number>(); generalLedger.forEach((g) => { b.set(g.debit, (b.get(g.debit) || 0) + Number(g.amount || 0)); b.set(g.credit, (b.get(g.credit) || 0) - Number(g.amount || 0)); }); return [...b.entries()].sort((a, c) => glCode(a[0]).localeCompare(glCode(c[0]))); };
+  /** Account balances (debit +, credit −) for GL entries dated in [from, to]. */
+  const glBalancesBetween = (from: number, to: number) => { const b = new Map<string, number>(); generalLedger.forEach((g) => { const t = parseDate(g.date); if (t && (t < from || t > to)) return; b.set(g.debit, (b.get(g.debit) || 0) + Number(g.amount || 0)); b.set(g.credit, (b.get(g.credit) || 0) - Number(g.amount || 0)); }); return [...b.entries()].map(([a, v]) => [a, Math.round(v * 100) / 100] as [string, number]).sort((a, c) => glCode(a[0]).localeCompare(glCode(c[0]))); };
+  const glBalancesTo = (to: number) => glBalancesBetween(-Infinity, to);
   const coaType = (acct: string) => chartOfAccounts.find((c) => c.code === glCode(acct))?.type || ({ '1': 'Asset', '2': 'Liability', '3': 'Equity', '4': 'Income', '5': 'Expense' } as Record<string, string>)[glCode(acct).slice(0, 1)] || 'Other';
   const noGL: [string, string][] = [['No postings in the general ledger yet', '—']];
 
   const report = (name: string): { period: string; cols: string[]; rows: (string | number)[][]; extra?: { title: string; cols: string[]; rows: (string | number)[][] } } => {
     if (name === 'Profit & loss') {
-      const per = F.period; const invById = new Map<string, Invoice>(invoices.map((i: Invoice) => [i.id, i] as [string, Invoice]));
-      const fees = payments.filter((p) => inPeriod(p.date, per) && invById.get(p.invoiceId)?.status !== 'Voided').reduce((s, p) => s + Number(p.amount || 0), 0);
-      const otherIn = receipts.filter((r) => r.accountSet !== 'CLIENT' && !r.invoiceId && inPeriod(r.date, per)).reduce((s, r) => s + Number(r.amount || 0), 0);
-      const sal = payslips.filter((p) => p.status === 'Paid' && inPeriod(p.paidAt, per)).reduce((s, p) => s + (F.slipCalc(p)?.gross || 0) + Number(p.epfEmployer || 0) + Number(p.socsoEisEmployer || 0), 0);
-      const cats = new Map<string, number>();
-      expenses.filter((e) => !e.billable && !e.claimant && e.approvalStatus !== 'Rejected' && inPeriod(e.date, per)).forEach((e) => cats.set(e.category || 'Other', (cats.get(e.category || 'Other') || 0) + Number(e.amount || 0)));
-      const claims = travelClaims.filter((t) => t.paidAt && inPeriod(t.paidAt, per)).reduce((s, t) => s + Number(t.total || 0), 0) + expenses.filter((e) => e.claimant && e.paidAt && !e.billable && inPeriod(e.paidAt, per)).reduce((s, e) => s + Number(e.amount || 0), 0);
-      const pvs = paymentVouchers.filter((v) => v.accountSet !== 'CLIENT' && v.voucherCategory !== 'Disbursement' && v.voucherCategory !== 'Client Disb' && v.paidAt && inPeriod(v.paidAt, per)).reduce((s, v) => s + Number(v.amount || 0), 0);
-      const expTot = sal + [...cats.values()].reduce((s, v) => s + v, 0) + claims + pvs;
-      return { period: `${F.monShort} ${year}`, cols: ['Item', 'Amount'], rows: [['Fees received (invoices)', rm(fees)], ['Other office receipts', rm(otherIn)], ['Total income', rm(fees + otherIn)], ['Salaries & statutory', neg(sal)], ...[...cats.entries()].map(([k, v]) => [k, neg(v)]), ['Staff claims paid', neg(claims)], ['Payment vouchers paid', neg(pvs)], ['Total expenses', neg(expTot)], ['Net profit', (fees + otherIn - expTot < 0 ? '(' : '') + rm(Math.abs(fees + otherIn - expTot)) + (fees + otherIn - expTot < 0 ? ')' : '')]] };
+      // Same definition as Finance Home (F.pnl): fee income excludes SST and disbursements.
+      const p = F.pnl((d) => inPeriod(d, F.period));
+      const sgn = (n: number) => (n < 0 ? '(' + rm(Math.abs(n)) + ')' : rm(n));
+      return { period: `${F.monShort} ${year}`, cols: ['Item', 'Amount'], rows: [
+        ['Fee income received (professional fees + reimbursements, excl. SST)', rm(p.feeIncome)], ['Other office receipts', rm(p.otherIn)], ['Total income', rm(p.income)],
+        ['Salaries & employer EPF/SOCSO/EIS (payslips)', neg(p.payroll)], ...[...p.cats.entries()].map(([k, v]) => [k, neg(v)]), ['Staff claims paid', neg(p.claims)], ['Payment vouchers paid (office costs)', neg(p.pvs)], ['Total expenses', neg(p.expensesTotal)], ['Net profit', sgn(p.net)],
+        ['— Not income or costs —', ''], ['SST collected (owed to Customs)', rm(p.sstCollected)], ['Disbursements recovered from clients', rm(p.disbRecovered)], ['Proforma money received this period (fees in advance: income when applied to the invoice)', rm(p.advanceReceived)],
+      ] };
     }
     if (name === 'Balance sheet') {
-      const rows = glBalances().filter(([a]) => ['Asset', 'Liability', 'Equity'].includes(coaType(a))).map(([a, v]) => [coaType(a), a, coaType(a) === 'Asset' ? rm2(v) : rm2(-v)]);
-      const pl = glBalances().filter(([a]) => ['Income', 'Expense'].includes(coaType(a))).reduce((s, [, v]) => s - v, 0);
-      return { period: fd(Date.now()), cols: ['Type', 'Account', 'Balance'], rows: generalLedger.length ? [...rows, ['Equity', 'Current year profit (from GL income − expenses)', rm2(pl)]] : noGL.map((r) => ['', ...r]) };
+      // As at today. Income & expense accounts: this financial (calendar) year → current year
+      // profit; earlier years → retained profit. Accounts outside the chart (e.g. 9990 journal
+      // adjustments) are shown as suspense on the side their balance falls, so it always balances.
+      const all = glBalancesTo(Date.now());
+      const cy = glBalancesBetween(new Date(year, 0, 1).getTime(), Date.now());
+      const isPL = (a: string) => ['Income', 'Expense'].includes(coaType(a));
+      const plTotal = (b: [string, number][]) => b.filter(([a]) => isPL(a)).reduce((s, [, v]) => s - v, 0);
+      const cyProfit = plTotal(cy), allProfit = plTotal(all);
+      const rows: (string | number)[][] = []; let assets = 0, liab = 0, equity = 0;
+      all.filter(([a]) => !isPL(a) && Math.abs(all.find((x) => x[0] === a)![1]) > 0.004).forEach(([a, v]) => {
+        const t = coaType(a);
+        if (t === 'Asset' || (t === 'Other' && v > 0)) { rows.push([t === 'Asset' ? 'Asset' : 'Asset (suspense)', a, rm2(v)]); assets += v; }
+        else if (t === 'Equity') { rows.push(['Equity', a, rm2(-v)]); equity -= v; }
+        else { rows.push([t === 'Liability' ? 'Liability' : 'Liability (suspense)', a, rm2(-v)]); liab -= v; }
+      });
+      rows.push(['Equity', 'Retained profit (previous years)', rm2(allProfit - cyProfit)]);
+      rows.push(['Equity', `Current year profit (${year}, from GL income − expenses)`, rm2(cyProfit)]);
+      equity += allProfit;
+      const ok = Math.abs(assets - (liab + equity)) < 0.01;
+      rows.push(['Total', 'Total assets', rm2(assets)], ['Total', 'Total liabilities', rm2(liab)], ['Total', 'Total equity', rm2(equity)], ['Check', 'Assets = Liabilities + Equity', ok ? 'Balanced ✓' : 'Difference ' + rm2(assets - liab - equity)]);
+      return { period: fd(Date.now()), cols: ['Type', 'Account', 'Balance'], rows: generalLedger.length ? rows : noGL.map((r) => ['', ...r]) };
     }
     if (name === 'Fees by partner & practice area') {
       const g = new Map<string, { billed: number; collected: number; unbilled: number }>();
@@ -64,12 +84,12 @@ export const BooksReportsTab = ({ F }: { F: FinanceCtrl }) => {
     if (name === 'Unbilled work (WIP)') return { period: fd(Date.now()), cols: ['Matter', 'Client', 'Time', 'Disbursements', 'Total', 'Oldest (days)'], rows: F.unbilled.map((u) => [u.ref + (u.title ? ' · ' + u.title : ''), u.client, rm(u.time), rm(u.disb), rm(u.time + u.disb), u.oldest]) };
     if (name === 'Client account reconciliation') {
       const cb = F.cashBook('Client account'); const open = F.openingBalance('Client account');
-      const rows = prev2.concat([new Date(year, F.now.getMonth(), 1)]).map((mm) => { const end = monthEnd(mm); const led = F.ledgerTotalAt(end); const cash = open + cb.filter((r) => r.t && r.t <= end.getTime()).reduce((s, r) => s + r.inn - r.out, 0); const row = threeWayRec.find((r) => String(r.month).toLowerCase().startsWith(MON[mm.getMonth()].toLowerCase()) && String(r.month).includes(String(mm.getFullYear()))); const bank = row ? Number(row.bankStatement || 0) : null; const tick = (F.settings.monthEndClose || {})[`${mm.getFullYear()}-${String(mm.getMonth() + 1).padStart(2, '0')}:c7`]; return [`${MON[mm.getMonth()]} ${mm.getFullYear()}`, rm2(led), rm2(cash), bank == null ? '— (no statement)' : rm2(bank), bank == null ? 'Not started' : Math.abs(led - cash) < 0.01 && Math.abs(cash - bank) < 0.01 ? 'Balanced' : 'Difference', tick ? `${tick.by} ${fd(tick.at)}` : '—']; });
+      const rows = prev2.concat([new Date(year, F.now.getMonth(), 1)]).map((mm) => { const r = F.reconFor(mm); const tick = (F.settings.monthEndClose || {})[`${mm.getFullYear()}-${String(mm.getMonth() + 1).padStart(2, '0')}:c7`]; return [`${MON[mm.getMonth()]} ${mm.getFullYear()}`, rm2(r.ledgers), rm2(r.cash), r.bank == null ? '— (no statement)' : rm2(r.bank), r.status, tick ? `${tick.by} ${fd(tick.at)}` : '—']; });
       return { period: `${MON[prev2[0].getMonth()]}–${F.monShort} ${year}`, cols: ['Month', 'Client ledgers', 'Cash book', 'Bank statement', 'Status', 'Signed off'], rows };
     }
     if (name === "Accountant's report pack") return { period: String(year), cols: ['Client', 'Matter', 'Balance', 'Last movement', 'Entries'], rows: F.ledgers.map((l) => [l.client, l.ref, rm2(l.balance), fd(l.last), l.entries.length]), extra: { title: 'Client account movements ' + year, cols: ['Date', 'Client', 'Type', 'Amount', 'Voucher', 'Details'], rows: retainers.filter((r) => inYear(r.date)).map((r) => [fd(r.date), F.clientName(r.clientId) || r.clientId, r.type, rm2(Number(r.amount || 0)), r.voucherNo || r.id, r.remarks || '']) } };
     if (name === 'SST return (SST-02)') {
-      const rows = invoices.filter((i) => i.status !== 'Voided' && F.invIssued(i) && Number(i.tax || 0) > 0 && prev2.some((mm) => inPeriod(i.date, `${mm.getFullYear()}-${String(mm.getMonth() + 1).padStart(2, '0')}`))).map((i) => { const t = i.lineItems?.length ? computeTotals(i.lineItems, true, SD.defaultSstRate() || 0.08) : null; return [i.id, fd(i.date), i.partyName || F.clientName(i.clientId) || '—', rm2(t ? t.fees + t.reimbursements : Number(i.total || 0) - Number(i.tax || 0)), rm2(Number(i.tax || 0))]; });
+      const rows = invoices.filter((i) => i.status !== 'Voided' && F.invIssued(i) && Number(i.tax || 0) > 0 && prev2.some((mm) => inPeriod(i.date, `${mm.getFullYear()}-${String(mm.getMonth() + 1).padStart(2, '0')}`))).map((i) => { const c = invoiceComposition(i); return [i.id, fd(i.date), i.partyName || F.clientName(i.clientId) || '—', rm2(c.fees + c.reimb), rm2(Number(i.tax || 0))]; });
       return { period: sstPeriod, cols: ['Invoice', 'Date', 'Client', 'Taxable (fees + reimbursements)', 'SST charged'], rows: rows.length ? rows : [[F.settings.sstRegistered ? 'No SST charged in this period' : 'Firm not SST-registered (Firm & Practice Settings)', '', '', '', '']] };
     }
     if (name === 'EPF, SOCSO, EIS & PCB') return { period: `${F.monShort} ${year}`, cols: ['Staff', 'EPF (employee)', 'EPF (employer)', 'SOCSO + EIS (employee)', 'SOCSO + EIS (employer)', 'PCB', 'Zakat'], rows: F.periodSlips.map((p) => [F.staffUser(p.userId)?.name || p.userId, rm2(p.epfEmployee), rm2(p.epfEmployer), rm2(p.socsoEis), p.socsoEisEmployer != null ? rm2(p.socsoEisEmployer) : '—', rm2(p.pcb), rm2(p.zakat)]) };
@@ -79,8 +99,19 @@ export const BooksReportsTab = ({ F }: { F: FinanceCtrl }) => {
       return { period: String(year), cols: ['Staff', 'Gross pay', 'EPF', 'SOCSO + EIS', 'PCB', 'Zakat'], rows: [...g.entries()].map(([u, x]) => [F.staffUser(u)?.name || u, ...x.map(rm2)]) };
     }
     if (name === 'Trial balance & general ledger') {
-      const tb = glBalances().map(([a, v]) => [a, v > 0 ? rm2(v) : '', v < 0 ? rm2(-v) : '']);
-      return { period: 'YTD ' + year, cols: ['Account', 'Debit', 'Credit'], rows: generalLedger.length ? tb : noGL.map((r) => [...r, '']), extra: { title: 'General ledger', cols: ['GL no.', 'Date', 'Doc', 'Debit', 'Credit', 'Amount', 'Details'], rows: generalLedger.slice().sort((a, b) => a.glNo - b.glNo).map((g) => [g.glNo, fd(g.date), `${g.docType} ${g.docNo}`, g.debit, g.credit, rm2(Number(g.amount || 0)), g.description]) } };
+      // Trial balance for the selected year: balance-sheet accounts as at 31 Dec, income &
+      // expense accounts for that year only, earlier years' profit as retained profit b/f.
+      const y = tbYear; const start = new Date(y, 0, 1).getTime(), end = new Date(y, 11, 31).getTime();
+      const isPL = (a: string) => ['Income', 'Expense'].includes(coaType(a));
+      const before = glBalancesBetween(-Infinity, start - 1);
+      const bf = before.filter(([a]) => isPL(a)).reduce((s, [, v]) => s + v, 0);
+      const bals: [string, number][] = [...glBalancesTo(end).filter(([a]) => !isPL(a)), ...glBalancesBetween(start, end).filter(([a]) => isPL(a))].filter(([, v]) => Math.abs(v) > 0.004);
+      if (Math.abs(bf) > 0.004) bals.push(['Retained profit brought forward (before ' + y + ')', bf]);
+      let dr = 0, cr = 0;
+      const tb = bals.map(([a, v]) => { if (v > 0) dr += v; else cr -= v; return [a, v > 0 ? rm2(v) : '', v < 0 ? rm2(-v) : '']; });
+      tb.push(['Total', rm2(dr), rm2(cr)]);
+      const glRows = generalLedger.filter((g) => { const t = parseDate(g.date); return t >= start && t <= end; }).sort((a, b) => a.glNo - b.glNo);
+      return { period: 'Year ' + y + (y === year ? ' (to date)' : ''), cols: ['Account', 'Debit', 'Credit'], rows: generalLedger.length ? tb : noGL.map((r) => [...r, '']), extra: { title: 'General ledger ' + y, cols: ['GL no.', 'Date', 'Doc', 'Debit', 'Credit', 'Amount', 'Details'], rows: glRows.map((g) => [g.glNo, fd(g.date), `${g.docType} ${g.docNo}`, g.debit, g.credit, rm2(Number(g.amount || 0)), g.description]) } };
     }
     if (name === 'Referral fees paid') { const r = F.referralFor(inYear); return { period: 'YTD ' + year, cols: ['Referrer', 'Type', 'Files', 'Fees received', 'Rate', 'Referral fee', 'Paid through'], rows: r.rows.map((x) => [x.name, x.type, x.files, rm(x.base), x.flat ? 'flat' : x.rate + '%', rm(x.fee), x.via]) }; }
     return { period: '', cols: ['Item'], rows: [] };
@@ -101,7 +132,7 @@ export const BooksReportsTab = ({ F }: { F: FinanceCtrl }) => {
     ['Tax & statutory', '#3D6B9C', 'SST return (SST-02)', 'Taxable professional fees and SST collected.', sstPeriod],
     ['Tax & statutory', '#3D6B9C', 'EPF, SOCSO, EIS & PCB', 'Monthly contribution list from payroll (keyed in from official tables).', `${F.monShort} ${year}`],
     ['Tax & statutory', '#3D6B9C', 'EA forms (year end)', 'Annual pay statement for every staff member.', String(year)],
-    ['Books', '#5B6478', 'Trial balance & general ledger', 'For the accountant at year end.', 'YTD'],
+    ['Books', '#5B6478', 'Trial balance & general ledger', 'For the accountant at year end (pick the year).', 'YEAR'],
     ['Books', '#5B6478', 'Referral fees paid', 'Every referral fee by referrer and file.', 'YTD'],
   ];
 
@@ -149,7 +180,7 @@ export const BooksReportsTab = ({ F }: { F: FinanceCtrl }) => {
             <span style={css(`font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:${gc}`)}>{group}</span>
             <strong style={css('font-size:13px;color:#16223A')}>{name}</strong>
             <span style={css('flex:1;font-size:10.5px;line-height:1.45;color:#5B6478')}>{note}</span>
-            <div style={css('display:flex;gap:6px;margin-top:4px')}><button type="button" onClick={() => run(name, 'pdf')} style={css('border:0;border-radius:6px;padding:5px 10px;font-size:10.5px;font-weight:700;background:#16223A;color:#fff;cursor:pointer;font-family:inherit')}>PDF</button><button type="button" onClick={() => run(name, 'xls')} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:5px 10px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>Excel</button><span style={css('margin-left:auto;align-self:center;font-size:10px;color:#5B6478')}>{period}</span></div>
+            <div style={css('display:flex;gap:6px;margin-top:4px')}><button type="button" onClick={() => run(name, 'pdf')} style={css('border:0;border-radius:6px;padding:5px 10px;font-size:10.5px;font-weight:700;background:#16223A;color:#fff;cursor:pointer;font-family:inherit')}>PDF</button><button type="button" onClick={() => run(name, 'xls')} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:5px 10px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>Excel</button>{period === 'YEAR' ? <select value={tbYear} onChange={(e) => setTbYear(Number(e.target.value))} style={css('margin-left:auto;align-self:center;font-size:10.5px;border:1px solid #DDE3EB;border-radius:6px;padding:3px 6px;color:#16223A;background:#fff;font-family:inherit')}>{glYears.map((y) => <option key={y} value={y}>{y}</option>)}</select> : <span style={css('margin-left:auto;align-self:center;font-size:10px;color:#5B6478')}>{period}</span>}</div>
           </div>
         ))}
       </section>

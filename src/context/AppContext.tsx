@@ -393,7 +393,9 @@ interface AppContextType {
   addDeadline: (d: Deadline) => void;
   addActivityLog: (action: string, details: string) => void;
   sequenceCounters: SequenceCounters;
-  getNextSequenceId: (type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense' | 'journal') => string;
+  /** `date` (any date string) picks the year for year-numbered documents (invoice, quotation,
+   * journal): the running number restarts at 0001 each year per prefix. Defaults to today. */
+  getNextSequenceId: (type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense' | 'journal', date?: string) => string;
   incrementSequenceCounter: (type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense') => void;
   resetSequenceCounters: () => void;
   factoryResetSystem: () => Promise<void>;
@@ -1757,9 +1759,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, 0);
   };
 
+  // Year-numbered documents (INV-YYYY-, QUOT-YYYY-, JV-YYYY-): the year comes from the
+  // document date and the running number restarts each year. The next number is derived from
+  // the highest existing id for that prefix+year across all synced records, plus a per-year
+  // counter on this device (covers several ids handed out before the records re-render).
+  const yearSeqKey = STORAGE_KEY + '_yearSequenceCounters';
+  const nextYearSequenceId = (type: 'invoice' | 'quotation' | 'journal', date?: string): string => {
+    const m = String(date || '').match(/(\d{4})-\d{1,2}-\d{1,2}/) || String(date || '').match(/\d{1,2}[./-]\d{1,2}[./-](\d{4})/);
+    const year = m ? Number(m[1]) : new Date().getFullYear();
+    const prefix = type === 'invoice' ? `INV-${year}-` : type === 'quotation' ? `QUOT-${year}-` : `JV-${year}-`;
+    const ids = type === 'invoice' ? invoices.map((i) => i.id) : type === 'quotation' ? quotations.map((q) => q.id) : manualJournals.map((j) => j.id);
+    const highestReal = highestNumericSuffix(ids, prefix);
+    let store: Record<string, number> = {};
+    try { store = JSON.parse(localStorage.getItem(yearSeqKey) || '{}') || {}; } catch { store = {}; }
+    const k = `${type}:${year}`;
+    // Before per-year counters existed, 2026 used the single all-time counter.
+    const legacy = year === 2026 && store[k] == null ? Number(sequenceCounters[(type + 'Seq') as keyof SequenceCounters] || 0) : 0;
+    const nextNum = Math.max(1, highestReal + 1, Number(store[k] || 0), legacy);
+    store[k] = nextNum + 1;
+    try { localStorage.setItem(yearSeqKey, JSON.stringify(store)); } catch { /* storage unavailable */ }
+    return `${prefix}${String(nextNum).padStart(4, '0')}`;
+  };
+
   const getNextSequenceId = (
-    type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense' | 'journal'
+    type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense' | 'journal',
+    date?: string
   ): string => {
+    if (type === 'invoice' || type === 'quotation' || type === 'journal') return nextYearSequenceId(type, date);
     const key = (type + 'Seq') as keyof SequenceCounters;
     const counterValue = sequenceCounters[key] || 0;
     // Nothing ever called incrementSequenceCounter() for any of these types (only 'case'
@@ -1774,15 +1800,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // collides with an existing real record. Take whichever is higher.
     const highestReal = (() => {
       switch (type) {
-        case 'invoice': return highestNumericSuffix(invoices.map((i) => i.id), 'INV-2026-');
-        case 'quotation': return highestNumericSuffix(quotations.map((q) => q.id), 'QUOT-2026-');
         case 'receipt': return highestNumericSuffix(receipts.map((r) => r.id), 'HQ-OR-');
         case 'voucher': return highestNumericSuffix(paymentVouchers.map((v) => v.id), 'HQ-PV-');
         case 'claim': return highestNumericSuffix(travelClaims.map((t) => t.id), 'TC-');
         case 'client': return highestNumericSuffix(clients.map((c) => c.id), 'HQ-C');
         case 'lead': return highestNumericSuffix(leads.map((l) => l.id), 'LD-');
         case 'expense': return highestNumericSuffix(expenses.map((e) => e.id), 'EX-');
-        case 'journal': return highestNumericSuffix(manualJournals.map((j) => j.id), `JV-${new Date().getFullYear()}-`);
         default: return 0;
       }
     })();
@@ -1791,10 +1814,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSequenceCounters((prev) => ({ ...prev, [key]: nextNum + 1 }));
     }
     switch (type) {
-      case 'invoice':
-        return `INV-2026-${String(nextNum).padStart(4, '0')}`;
-      case 'quotation':
-        return `QUOT-2026-${String(nextNum).padStart(4, '0')}`;
       case 'case': {
         const registeredCases = cases.filter((caseRecord) => caseRecord.id.startsWith('CASE-'));
         return generateNextMatterSequenceNumber(registeredCases, 1);
@@ -1811,8 +1830,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return `LD-${String(nextNum).padStart(3, '0')}`;
       case 'expense':
         return `EX-${String(nextNum).padStart(4, '0')}`;
-      case 'journal':
-        return `JV-${new Date().getFullYear()}-${String(nextNum).padStart(4, '0')}`;
       default:
         return String(nextNum);
     }

@@ -20,7 +20,7 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
   ];
 
   /* ---- invoices ---- */
-  const invFilters = ['All', 'Overdue', 'Part-paid', 'Sent', 'Paid', 'Draft'];
+  const invFilters = ['All', 'Overdue', 'Part-paid', 'Sent', 'Paid', 'Draft', 'Voided'];
   const invRows = invAll.filter((v) => invF === 'All' || F.invStatus(v) === invF);
 
   /* ---- other documents ---- */
@@ -65,8 +65,8 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
                 <span style={css('min-width:0')}><span style={css('display:block;font-size:11.5px;font-weight:600;color:#16223A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{d.partyName || F.clientName(d.clientId) || '—'}</span><span style={css('display:block;font-size:10px;color:#5B6478')}>{(d.fileRef || kase?.ref || '—') + ' · ' + (kase?.practiceArea || kase?.type || '—')}</span></span>
                 <span style={css('font-size:11px;color:#5B6478')}>{st === 'Draft' ? '—' : F.dShort(d.date)}</span>
                 <span style={css('text-align:right;font-size:11.5px;color:#16223A')}>{rm(Number(d.total || 0))}</span>
-                <span style={css('text-align:right;font-size:11.5px;color:#5B6478')}>{paid ? rm(paid) : '—'}</span>
-                <span style={css('text-align:right;font-size:12px;font-weight:700;color:#16223A')}>{st === 'Voided' ? '—' : rm(F.invBal(d))}</span>
+                <span style={css('text-align:right;font-size:11.5px;color:#5B6478')}>{paid + F.invDeposit(d) ? rm(paid + F.invDeposit(d)) : '—'}</span>
+                <span style={css('text-align:right;font-size:12px;font-weight:700;color:#16223A')}>{st === 'Voided' ? '—' : F.invCredit(d) > 0.005 ? <span title="Received more than the invoice total: owed back to the client" style={css('color:#B23A2E')}>credit {rm(F.invCredit(d))}</span> : rm(F.invBal(d))}</span>
                 <span style={css(`text-align:right;font-size:11px;font-weight:700;color:${days > 90 ? '#B23A2E' : days > 60 ? '#8A6534' : '#5B6478'}`)}>{['Paid', 'Draft', 'Voided', 'Written off'].includes(st) ? '—' : days + 'd'}</span>
                 <span style={css(`justify-self:start;font-size:10px;font-weight:700;padding:1px 8px;border-radius:10px;background:${c[0]};color:${c[1]}`)}>{st}</span>
                 <span style={css(`font-size:10.5px;font-weight:600;color:${einv === 'Validated' ? '#2F6F4E' : einv === 'Pending' ? '#8A6534' : '#94A3B8'}`)}>{einv}</span>

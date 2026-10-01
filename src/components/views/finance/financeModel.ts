@@ -45,19 +45,10 @@ export const rm2 = (n: number) => 'RM ' + (n || 0).toLocaleString('en-MY', { min
 export const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 export const MON = MONTHS.map((m) => m.slice(0, 3));
 
-/** Parses ISO (yyyy-mm-dd…), dd.mm.yyyy / dd/mm/yyyy and "12 Jun 2026" into a timestamp (0 if unknown). */
-export const parseDate = (s: unknown): number => {
-  const str = String(s || '').trim();
-  if (!str) return 0;
-  let q = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (q) return new Date(+q[1], +q[2] - 1, +q[3]).getTime();
-  q = str.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
-  if (q) return new Date(+(q[3].length === 2 ? '20' + q[3] : q[3]), +q[2] - 1, +q[1]).getTime();
-  q = str.match(/(\d{1,2})\s+([A-Za-z]{3})\w*\s*(\d{4})?/);
-  if (q) { const mi = MON.findIndex((m) => m.toLowerCase() === q![2].toLowerCase()); return new Date(+(q[3] || new Date().getFullYear()), Math.max(0, mi), +q[1]).getTime(); }
-  const t = new Date(str).getTime();
-  return Number.isNaN(t) ? 0 : t;
-};
+/** Date parsing / month bucketing: lib/financeCalc (full ISO timestamps → LOCAL day, so a
+ * payment at 07:30 MYT on the 1st is on the 1st, not the previous day). */
+export { parseDate, periodKey, inPeriod } from '../../../lib/financeCalc';
+import { parseDate, periodKey, isStatutoryCategory } from '../../../lib/financeCalc';
 export const isoOf = (t: number) => { if (!t) return ''; const x = new Date(t); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
 export const todayIso = () => isoOf(Date.now());
 /** dd.mm.yyyy — the firm's document date format. */
@@ -65,8 +56,6 @@ export const fd = (s: unknown) => { const t = typeof s === 'number' ? s : parseD
 /** "12 Jun" */
 export const dShort = (s: unknown) => { const t = typeof s === 'number' ? s : parseDate(s); if (!t) return '—'; const x = new Date(t); return x.getDate() + ' ' + MON[x.getMonth()]; };
 export const daysSince = (s: unknown, now = Date.now()) => { const t = parseDate(s); return t ? Math.floor((now - t) / 86400000) : 0; };
-export const periodKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-export const inPeriod = (s: unknown, key: string) => { const t = parseDate(s); return !!t && periodKey(new Date(t)) === key; };
 export const monthEnd = (d = new Date()) => new Date(d.getFullYear(), d.getMonth() + 1, 0);
 export const initials = (name?: string) => String(name || '').split(/\s+/).filter(Boolean).map((w) => w[0]).join('').slice(0, 2).toUpperCase() || '—';
 export const num0 = (v: unknown) => Number(String(v ?? '').replace(/[^0-9.-]/g, '')) || 0;
@@ -85,6 +74,8 @@ export const itemAmount = (i: QuotationLineItem) => {
 export const itemsToLines = (items?: QuotationLineItem[], fallback?: { desc: string; amount: number }): DocLines => {
   const L: DocLines = { prof: [], disb: [], reimb: [] };
   (items || []).forEach((i) => {
+    // Old invoices stored SST as a {category:'Tax'} line: SST is recomputed, so never turn it into a fee.
+    if ((i.category as string) === 'Tax') return;
     const row: DocLine = [i.description || '', itemAmount(i)];
     if (i.category === 'Disbursement') L.disb.push(row);
     else if (i.category === 'Reimbursement') L.reimb.push(row);
@@ -141,6 +132,7 @@ export const invoiceToDoc = (inv: Invoice, lk: Lookups, status: string): Finance
     ref: inv.fileRef || kase?.ref || '', matter: inv.matter || kase?.title || '', area, account: inv.payInto || 'Office', status,
     lines: itemsToLines(inv.lineItems, { desc: 'Professional fees', amount: Number(inv.amount || inv.total || 0) }), sstRate: recordSstRate(inv),
     subject: inv.subject, yourRef: inv.yourRef, tin: inv.tin, desc: inv.scope ?? '', inst: inv.feeArrangement || null,
+    deposit: Number(inv.depositApplied || 0) || undefined,
     due: inv.dueDate ? fd(inv.dueDate) : undefined, einv: inv.eInvoiceStatus && inv.eInvoiceStatus !== 'Not Submitted' ? inv.eInvoiceStatus : '—',
   };
 };
@@ -210,9 +202,11 @@ export const GLA = {
   disb: '1014 - Disbursement Bucket',
   clientBank: '1020 - Client Bank — Trust',
   ar: '1100 - Accounts Receivable',
+  unbilledDisb: '1200 - Unbilled Disbursements',
   clientFunds: '2010 - Client Funds Held',
   referral: '2020 - Referral Fees Payable',
   payable: '2100 - Accounts Payable',
+  feesAdvance: '2110 - Fees Received in Advance',
   sst: '2200 - SST Payable',
   statutory: '2300 - Statutory Payable (EPF/SOCSO/EIS/PCB)',
   drawings: "3100 - Partners' Drawings",
@@ -225,4 +219,9 @@ export const GLA = {
 } as const;
 export const glCode = (s: string) => (String(s || '').match(/^\s*(\d{3,5})/) || [])[1] || '';
 export const cashAccountGL = (acc: string) => (acc === 'Client account' ? GLA.clientBank : acc === 'Petty cash' ? GLA.petty : acc === 'Disbursement' ? GLA.disb : GLA.office);
-export const expenseGL = (cat: string) => (/salar|epf|socso|payroll/i.test(cat) ? GLA.salaries : /\bit\b|software|subscri/i.test(cat) ? GLA.software : GLA.other);
+export const expenseGL = (cat: string) => (isStatutoryCategory(cat) ? GLA.statutory : /salar|payroll|wage/i.test(cat) ? GLA.salaries : /\bit\b|software|subscri/i.test(cat) ? GLA.software : GLA.other);
+
+/** GL debit for an office payment voucher when it is paid. Disbursements are recoverable from the
+ * client (asset 1200, cleared when billed); statutory / SST remittances settle what is owed
+ * (2300 / 2200); partner drawings are equity (3100). Everything else is an office expense. */
+export const pvDebitGL = (cat?: string) => (cat === 'Disbursement' || cat === 'Client Disb' ? GLA.unbilledDisb : cat === 'Statutory (EPF/SOCSO/EIS/PCB)' ? GLA.statutory : cat === 'SST to Customs' ? GLA.sst : cat === 'Partner drawings' ? GLA.drawings : GLA.other);
