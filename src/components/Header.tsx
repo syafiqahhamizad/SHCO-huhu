@@ -3,30 +3,18 @@ import { useApp } from '../context/AppContext';
 import {
   Search,
   RefreshCw,
-  ShieldCheck,
-  Plus,
-  Building2,
-  FolderOpen,
-  User,
-  Crown,
   Bell,
   CheckCheck,
   Gavel,
   FileText,
-  X,
-  CheckCircle2,
-  Trash2,
   Archive,
-  LogOut,
 } from 'lucide-react';
 import { RecycleBinModal } from './RecycleBinModal';
-import { HelpCircle } from 'lucide-react';
+import { isFinanceView } from '../lib/financeAccess';
 
 export const Header: React.FC = () => {
   const {
     currentView,
-    currentPartnerCode,
-    isAdmin,
     globalSearch,
     setGlobalSearch,
     setCurrentView,
@@ -36,22 +24,14 @@ export const Header: React.FC = () => {
     invoices = [],
     quotations = [],
     currentUser,
-    logoutUser,
-    showToast,
+    currentCaseId,
     notifications = [],
     unreadNotificationsCount = 0,
     markNotificationAsRead,
     markAllNotificationsAsRead,
     deletedRecords = [],
-    users,
-    isUserPreview,
-    previewUserId,
-    startUserPreview,
-    exitUserPreview,
-    canEditFirmStartCentre,
-    firmStartCentreEditMode,
-    setFirmStartCentreEditMode,
   } = useApp();
+  const selectedCase = currentView === 'cases' && currentCaseId ? cases.find((c: any) => c.id === currentCaseId) : undefined;
 
   const [isRecycleBinOpen, setIsRecycleBinOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -106,12 +86,16 @@ export const Header: React.FC = () => {
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, []);
 
-  const getViewInfo = () => {
+  // Titles stay short (they must not wrap past 2 lines at a 900px main column); the sub is one line.
+  // Long names (e.g. a matter's title) belong in the page content, not the header.
+  const getViewInfo = (): { title: string; sub: string; crumb?: string; onCrumb?: () => void } => {
+    if (isFinanceView(currentView)) {
+      return { title: 'Finance & Accounts', sub: 'Restricted: Accounts, Partners and Managing Partner only' };
+    }
     switch (currentView) {
       case 'firmStartCentre':
-        return { title: 'Firm Start Centre', sub: 'Announcements, workspaces and firm resources in one place' };
+        return { title: 'Firm Start Centre', sub: 'Announcements, people, policies and portals' };
       case 'myDashboard':
-        return { title: 'My Dashboard', sub: 'Your tasks, court dates, approvals and unbilled work' };
       case 'dashboard':
         return { title: 'My Dashboard', sub: 'Your tasks, court dates, approvals and unbilled work' };
       case 'firmDashboard':
@@ -121,53 +105,37 @@ export const Header: React.FC = () => {
       case 'leads-referrals':
         return { title: 'Leads & Referrals', sub: 'Every enquiry, where it came from, and whether it became a client' };
       case 'clients':
-        return { title: 'Clients', sub: 'Client profiles, KYC due diligence documents & instructions' };
+        return { title: 'Clients', sub: 'Client profiles, KYC documents and instructions' };
       case 'cases':
-        return { title: 'Cases & Matters', sub: 'Matter reference format: SHCO/[PARTNER IN CHARGE]/[LAWYER IN CHARGE]/[MATTER TYPE]/[RUNNING NO.]/[MONTH-YEAR FILE OPEN]' };
+        return selectedCase
+          ? { title: 'Working file', sub: 'Everything on this matter in one place', crumb: 'Cases', onCrumb: () => setCurrentCaseId(null) }
+          : { title: 'Cases', sub: 'Every open and closed matter, by file reference' };
       case 'hearings':
-        return { title: 'Court Hearings', sub: 'Schedule of court appearances and management sessions' };
+        return { title: 'Hearings', sub: 'Court appearances and case management sessions' };
       case 'calendar':
-        return { title: 'Calendar', sub: 'Integrated hearings and compliance deadlines' };
+        return { title: 'Calendar', sub: 'Hearings and compliance deadlines together' };
       case 'tasks':
-        return { title: 'Tasks', sub: 'Matter tasks, assignments and turnarounds' };
+      case 'caseStatus':
+      case 'case-status':
+        return { title: 'Case Status', sub: 'Where every matter stands and what happens next' };
       case 'deadlines':
-        return { title: 'Deadlines', sub: 'Statutory limitation periods and court filing dates' };
+        return { title: 'Deadlines', sub: 'Limitation periods and court filing dates' };
       case 'courts':
-        return { title: 'Courts & Judges', sub: 'Directory of Malaysian Courts and Presiding Officers' };
+        return { title: 'Courts & Judges', sub: 'Directory of Malaysian courts and presiding officers' };
       case 'referral':
-        return { title: 'Referral Sources', sub: 'Track lead & matter originators and commission status' };
+      case 'referrals':
+        return { title: 'Referral Partners', sub: 'Who refers matters and what commission is owed' };
       case 'fileClosing':
-        return { title: 'File Closing Checklist', sub: 'Invoice, Trust & Document return verifications before matter closure' };
-      case 'accountingCentre':
-      case 'quotations':
-      case 'billing':
-      case 'officeAccounts':
-      case 'approvals':
-      case 'payroll':
-      case 'reports':
-        return { title: 'Finance & Accounts', sub: 'Restricted: Accounts, Partners and Managing Partner only' };
-      case 'time':
-        return { title: 'Time Entries', sub: 'Fee earner billable hours and activities' };
-      case 'expenses':
-        return { title: 'Expenses & Disbursements', sub: 'Out-of-pocket costs billed back to clients' };
-      case 'travelClaims':
-        return { title: 'Travel / Mileage Claims', sub: 'Mileage at RM 0.60/km for client matters vs firm business' };
-      case 'paymentVouchers':
-        return { title: 'Payment Vouchers (PV)', sub: 'Disbursements and firm expenses with partner sign-off' };
-      case 'retainers':
-        return { title: 'Finance & Accounts', sub: 'Restricted: Accounts, Partners and Managing Partner only' };
-      case 'trialBalance':
-        return { title: 'Trial Balance', sub: 'Debits vs Credits balancing ledger' };
-      case 'balanceSheet':
-        return { title: 'Balance Sheet', sub: 'Assets = Liabilities + Partner Equity' };
-      case 'cashFlow':
-        return { title: 'Cash Flow Statement', sub: 'Actual monthly office cash movements' };
-      case 'billingReports':
-        return { title: 'Billing Reports', sub: 'Partner financial performance & collections breakdown' };
-      case 'trustReports':
-        return { title: 'Trust Account Reports', sub: 'SAR 1990 compliance audit trail' };
-      case 'officeReports':
-        return { title: 'Office Account Reports', sub: 'Firm overhead & cash bucket reserves analysis' };
+      case 'file-closing':
+        return { title: 'File Closing', sub: 'Invoice, client account and document checks before closing a file' };
+      case 'bankAccounts':
+      case 'bank-accounts':
+      case 'bankReconciliation':
+      case 'bank-reconciliation':
+        return { title: 'Bank Accounts', sub: 'Bank balances and reconciliation' };
+      case 'trustAuditLogs':
+      case 'trust-audit-logs':
+        return { title: 'Client Account Audit Log', sub: 'SAR 1990 audit trail of client account entries' };
       case 'users':
       case 'roles':
       case 'practiceSettings':
@@ -181,46 +149,46 @@ export const Header: React.FC = () => {
       case 'staffPortal':
       case 'staff-portal':
         return { title: 'Staff Portal', sub: [currentUser?.name, currentUser?.staffProfile?.designation || currentUser?.role, 'only your own records are shown here'].filter(Boolean).join(' · ') };
+      case 'inventory':
+        return { title: 'Office Inventory & Library', sub: 'Office equipment, supplies and the firm library' };
       case 'logs':
         return { title: 'Activity Logs', sub: 'Audit trail of user actions' };
+      case 'about':
+        return { title: 'About App', sub: 'About this practice management system' };
+      case 'account':
+        return { title: 'My Account', sub: 'Your profile and preferences' };
       case 'clientPortal':
       case 'client-portal':
-        return { title: 'Client Access Portal (Read-Only)', sub: 'Privileged real-time matter progress tracking and shared document access' };
+        return { title: 'Client Access Portal', sub: 'Read-only matter progress and shared documents' };
       default:
-        return { title: 'SHCO Practice System', sub: 'Malaysian Legal Practice Management System' };
+        return { title: 'SHCO Practice System', sub: 'Malaysian legal practice management' };
     }
   };
 
   const info = getViewInfo();
-  const isPrivilegedHeader = Boolean(currentUser?.isAdmin || currentUser?.isSuperAdmin);
-  // Firm Start Centre has its own hero, tab nav, reload button, and contextual edit toggles —
-  // this shared header (title, search, notifications, role switcher, sign-out) is fully redundant
-  // there. Every other view keeps it unchanged.
-  if (currentView === 'firmStartCentre') return null;
 
+  // Navigation shell header (design pack `SHCO Header.dc.html`): title block + tools only.
+  // No page actions, no user chip, no sign out — those live in the page toolbar / sidebar footer.
   return (
-    <header className={`sticky top-0 z-20 mb-4 sm:mb-6 rounded-2xl border border-[#16223A] bg-[#16223A] text-[#F6F8FA] px-4 sm:px-6 py-3 flex flex-col justify-start gap-2.5 overflow-visible shadow-[0_12px_24px_-16px_rgba(22,34,58,.8)] ${isPrivilegedHeader ? 'items-stretch' : 'md:flex-row md:items-center'}`}>
-      <div className={`min-w-0 ${isPrivilegedHeader ? 'w-full order-1' : ''}`}>
-        <div className="flex items-center gap-2">
-          <h1 className="min-w-0 font-serif text-lg sm:text-xl font-bold text-[#F6F8FA] tracking-tight">{info.title}</h1>
-        </div>
-        <p className="text-xs text-[#DDE3EB] mt-0.5 line-clamp-2">{info.sub}</p>
-      </div>
-
-      <div className={`flex w-full min-w-0 flex-wrap items-center gap-1.5 sm:gap-2 ${isPrivilegedHeader ? 'order-2 border-t border-white/10 pt-2' : 'md:ml-8 md:w-auto md:shrink-0'}`}>
-        {canEditFirmStartCentre && (
+    <header className="sticky top-0 z-20 box-border rounded-2xl border border-[#16223A] bg-[#16223A] text-[#F6F8FA] px-4 sm:px-6 py-3 flex flex-row flex-wrap items-center justify-start gap-x-6 gap-y-2.5 shadow-[0_12px_24px_-16px_rgba(22,34,58,.8)] font-sans">
+      <div className="min-w-0 flex-[1_1_280px]">
+        {info.crumb && (
           <button
             type="button"
-            onClick={() => setFirmStartCentreEditMode((enabled) => !enabled)}
-            className={`order-last flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-bold cursor-pointer transition ${firmStartCentreEditMode ? 'border-[#FBF2E9] bg-[#FBF2E9] text-[#16223A]' : 'border-white/20 bg-white/10 text-[#F6F8FA] hover:bg-white/20'}`}
-            title="Toggle Firm Start Centre content editing"
+            onClick={info.onCrumb}
+            className="shco-nav-ink inline-block mb-0.5 p-0 bg-transparent border-0 text-[11px] font-semibold tracking-[.02em] text-[#8FB3DE] hover:text-white cursor-pointer"
           >
-            {firmStartCentreEditMode ? 'Done editing' : 'Edit content'}
+            ‹ {info.crumb}
           </button>
         )}
+        <h1 className="shco-nav-ink m-0 font-serif text-[20px] leading-[28px] font-bold tracking-tight text-[#F6F8FA]">{info.title}</h1>
+        <p className="shco-nav-ink mt-0.5 mb-0 text-[12px] leading-4 text-[#DDE3EB] truncate" title={info.sub}>{info.sub}</p>
+      </div>
+
+      <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 ml-auto shrink">
         {/* Global Search Bar */}
-        <div ref={searchBoxRef} className="relative group w-full min-w-0 sm:flex-1 md:w-auto md:flex-none">
-          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#3D6B9C] transition-colors" />
+        <div ref={searchBoxRef} className="relative group w-[240px] max-w-full min-w-0">
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#3D6B9C] transition-colors pointer-events-none" />
           <input
             type="text"
             placeholder="Search matters, clients, docs..."
@@ -228,8 +196,10 @@ export const Header: React.FC = () => {
             onChange={(e) => { setGlobalSearch(e.target.value); setIsSearchOpen(true); }}
             onFocus={() => setIsSearchOpen(true)}
             onKeyDown={(e) => { if (e.key === 'Escape') setIsSearchOpen(false); }}
-            className="w-full max-w-full pl-8 pr-3 py-1.5 text-xs bg-white/95 border border-white/20 text-[#16223A] placeholder:text-slate-400 rounded-md sm:w-48 md:w-60 md:focus:w-64 transition-all focus:outline-none focus:border-[#FBF2E9] focus:ring-1 focus:ring-[#FBF2E9]/30"
+            className="box-border w-full pl-8 pr-3 py-1.5 text-xs leading-4 bg-white/95 border border-white/20 text-[#16223A] placeholder:text-slate-400 rounded-md transition-all focus:outline-none focus:border-[#FBF2E9] focus:ring-1 focus:ring-[#FBF2E9]/30"
             aria-label="Global search for matters, clients, documents"
+            // Inline so the unlayered global `input {}` rule in index.css can't override the design.
+            style={{ padding: '6px 12px 6px 32px', background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 6 }}
           />
 
           {isSearchOpen && query && (
@@ -283,7 +253,7 @@ export const Header: React.FC = () => {
           onClick={() => window.location.reload()}
           title="Reload latest saved data"
           aria-label="Reload latest saved data"
-          className="shrink-0 rounded p-1.5 text-[#DDE3EB] transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-[#FBF2E9] cursor-pointer"
+          className="shco-nav-ink shrink-0 rounded p-1.5 text-[#DDE3EB] transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-[#FBF2E9] cursor-pointer"
         >
           <RefreshCw className="h-4 w-4" />
         </button>
@@ -291,13 +261,13 @@ export const Header: React.FC = () => {
         {/* Recycle Bin & Data Recovery Vault */}
         <button
           onClick={() => setIsRecycleBinOpen(true)}
-          className="p-2 rounded-lg bg-white border border-[#DDE3EB] text-slate-700 hover:text-[#16223A] hover:border-[#8A6D3B] focus:outline-none focus:ring-2 focus:ring-[#8A6D3B] transition-all relative shadow-2xs cursor-pointer flex items-center gap-1"
+          className="shco-nav-ink p-2 rounded-lg bg-white border border-[#DDE3EB] hover:border-[#8A6D3B] focus:outline-none focus:ring-2 focus:ring-[#8A6D3B] transition-all relative shadow-2xs cursor-pointer flex items-center gap-1"
           aria-label={`Data recovery vault with ${deletedRecords.length} deleted items`}
           title="Recycle Bin"
         >
           <Archive className="w-4 h-4 text-[#3D6B9C]" />
           {deletedRecords.length > 0 && (
-            <span className="bg-amber-100 text-amber-900 border border-amber-300 font-bold text-[9px] px-1.5 py-0.2 rounded-full">
+            <span className="shco-nav-ink bg-amber-100 text-amber-900 border border-amber-300 font-bold text-[9px] px-1.5 rounded-full">
               {deletedRecords.length}
             </span>
           )}
@@ -307,15 +277,15 @@ export const Header: React.FC = () => {
         <div className="relative">
           <button
             onClick={() => setIsNotifOpen((prev) => !prev)}
-            className="p-1.5 rounded-md bg-white border border-[#DDE3EB] text-slate-700 hover:text-[#16223A] hover:border-[#8A6D3B] focus:outline-none focus:ring-2 focus:ring-[#8A6D3B] transition-all relative shadow-2xs cursor-pointer"
+            className="shco-nav-ink p-1.5 rounded-md bg-white border border-[#DDE3EB] hover:border-[#8A6D3B] focus:outline-none focus:ring-2 focus:ring-[#8A6D3B] transition-all relative shadow-2xs cursor-pointer"
             aria-label={`Notifications: ${unreadNotificationsCount} unread alerts`}
             aria-expanded={isNotifOpen}
             aria-controls="notifications-dropdown"
             title="Notifications"
           >
-            <Bell className="w-4 h-4 text-[#8A6D3B] dark:text-amber-300" />
+            <Bell className="w-4 h-4 text-[#8A6D3B]" />
             {unreadNotificationsCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-rose-600 text-white font-bold text-[9px] w-4 h-4 rounded-full flex items-center justify-center animate-pulse border border-white shadow-sm">
+              <span className="shco-nav-ink absolute -top-1 -right-1 bg-rose-600 text-white font-bold text-[9px] w-4 h-4 rounded-full flex items-center justify-center animate-pulse border border-white shadow-sm">
                 {unreadNotificationsCount}
               </span>
             )}
@@ -446,52 +416,6 @@ export const Header: React.FC = () => {
               </div>
             </div>
           )}
-        </div>
-
-        {/* Current User & Role Badge / SSO Login Trigger */}
-        <div className="flex min-w-0 max-w-full items-center gap-1.5">
-          {isUserPreview ? (
-            <button type="button" onClick={exitUserPreview} className="rounded-md border border-amber-300 bg-[#16223A] px-2 py-1.5 text-[10px] font-bold text-[#FBF2E9] shadow-2xs cursor-pointer" title="Exit full-system user preview">
-              Exit preview
-            </button>
-          ) : (currentUser?.isAdmin || currentUser?.isSuperAdmin) ? (
-            <label className="flex items-center gap-1 rounded-md border border-white/20 bg-white/10 px-2 py-1.5 text-[10px] font-semibold text-[#F6F8FA]">
-              <span>View as</span>
-              <select value={previewUserId || ''} onChange={(event) => { if (event.target.value) startUserPreview(event.target.value); }} className="max-w-[120px] cursor-pointer bg-transparent text-[10px] font-bold text-white outline-none">
-                <option value="" className="text-[#16223A]">My view</option>
-                {users.map((user) => <option key={user.id} value={user.id} className="text-[#16223A]">{user.name}</option>)}
-              </select>
-            </label>
-          ) : null}
-          <div
-            className="flex min-w-0 max-w-[15rem] items-center gap-1.5 bg-white border border-[#DDE3EB] px-2 py-1.5 rounded-md text-xs shadow-2xs"
-            title="Current signed-in user"
-          >
-            <div className="w-5 h-5 rounded-full bg-[#16223A] text-white flex items-center justify-center font-bold text-[10px]">
-              {currentUser?.isSuperAdmin ? <Crown className="w-3 h-3 text-amber-400" /> : <User className="w-3 h-3 text-amber-300" />}
-            </div>
-            <div className="shco-header-chip text-left leading-tight min-w-0">
-              <div className="shco-header-chip font-bold text-[#16223A] flex min-w-0 items-center gap-1">
-                <span className="shco-header-chip whitespace-nowrap text-[#16223A]">{currentUser?.name || 'User'}</span>
-                {currentUser?.isSuperAdmin && (
-                  <span className="bg-[#16223A] text-[#FBF2E9] border border-[#3D6B9C] text-[8px] font-bold px-1 rounded shrink-0">
-                    SUPER ADMIN
-                  </span>
-                )}
-              </div>
-              <div className="shco-header-chip hidden max-w-[12rem] truncate text-[10px] text-slate-600 font-mono sm:block">{currentUser?.email}</div>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={logoutUser}
-            className="flex shrink-0 items-center gap-1 bg-[#3D6B9C] hover:bg-[#3D6B9C] text-white border border-[#3D6B9C] px-2.5 py-1.5 rounded-md text-xs font-bold cursor-pointer shadow-2xs transition-all"
-            title="Sign out"
-          >
-            <LogOut className="w-3.5 h-3.5 text-[#3D6B9C]" />
-            <span className="hidden sm:inline">Sign Out</span>
-          </button>
         </div>
 
       </div>

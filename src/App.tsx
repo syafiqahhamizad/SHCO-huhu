@@ -2,6 +2,7 @@ import React, { Suspense } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
+import { PageToolbar } from './components/PageToolbar';
 import { Toast } from './components/Toast';
 import { DASHBOARD_TAB_VIEWS, DashboardTabs } from './components/DashboardTabs';
 import { SignInPortal } from './components/SignInPortal';
@@ -215,14 +216,12 @@ const MainContent: React.FC = () => {
     <div className="flex min-h-screen bg-[#F6F8FA] dark:bg-[#0A0E1A] text-slate-800 dark:text-[#E8ECFF] font-sans antialiased">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#F6F8FA] dark:bg-[#0A0E1A]">
-        <main className="flex-1 p-4 pt-16 sm:p-6 sm:pt-6 overflow-y-auto bg-[#F6F8FA] dark:bg-[#0A0E1A]">
+        {/* Navigation shell: Header first, then the optional page toolbar, then the page. */}
+        <main className="flex-1 min-w-0 flex flex-col gap-4 p-4 pt-16 md:px-7 md:pt-6 md:pb-12 overflow-y-auto bg-[#F6F8FA] dark:bg-[#0A0E1A]">
           <Header />
-          {DASHBOARD_TAB_VIEWS.includes(currentView) && !isFinanceView(currentView) && (
-            <div className="mt-4 sm:mt-6">
-              <DashboardTabs />
-            </div>
-          )}
-          <div className="mt-4 sm:mt-6">
+          <PageToolbar />
+          {DASHBOARD_TAB_VIEWS.includes(currentView) && !isFinanceView(currentView) && <DashboardTabs />}
+          <div className="min-w-0">
             <Suspense
               fallback={(
                 <div className="rounded-xl border border-[#E1DCCF] bg-white p-8 text-center text-xs font-semibold text-slate-500">

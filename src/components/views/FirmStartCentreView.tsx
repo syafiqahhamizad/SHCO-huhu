@@ -40,7 +40,6 @@ import {
   Package,
   PartyPopper,
   Plus,
-  RefreshCw,
   Receipt,
   Scale,
   ScrollText,
@@ -317,7 +316,7 @@ export const FirmStartCentreView: React.FC = () => {
               <Scale className="h-4 w-4" /> Firm Start Centre
               <span className="rounded-full border border-white/20 px-2 py-0.5 text-[9px] tracking-wider text-slate-300">{viewer.role}</span>
             </div>
-            <h1 className="font-serif text-xl font-bold -tracking-[0.02em] text-[#F6F8FA]">{greeting}, {viewer.name.split(' ')[0]}</h1>
+            <h2 className="font-serif text-xl font-bold -tracking-[0.02em] text-[#F6F8FA]">{greeting}, {viewer.name.split(' ')[0]}</h2>
             <p className="max-w-[56ch] text-[11.5px] leading-normal text-slate-300">
               Notices, people, policies and portals. Your own matters and tasks are on{' '}
               <button type="button" onClick={() => setCurrentView('dashboard')} className="cursor-pointer font-semibold text-[#8FB3DE]">
@@ -336,9 +335,6 @@ export const FirmStartCentreView: React.FC = () => {
           <div className="flex items-center gap-2 text-right">
             <span className="font-serif text-sm font-bold">{today.toLocaleDateString('en-MY', { weekday: 'long' })}</span>
             <span className="font-mono text-[11px] text-slate-300">{today.toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-            <button type="button" onClick={() => window.location.reload()} title="Reload latest saved data" aria-label="Reload latest saved data" className="shrink-0 cursor-pointer rounded-md p-1.5 text-slate-300 transition hover:bg-white/10 hover:text-white">
-              <RefreshCw className="h-3.5 w-3.5" />
-            </button>
           </div>
         </div>
 
