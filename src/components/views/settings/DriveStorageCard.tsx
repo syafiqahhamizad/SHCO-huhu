@@ -4,6 +4,7 @@ import { getDriveConfig, isDriveConfigured, looksLikeClientId, parseDriveFolderI
 import { prepareStorage } from '../../../services/fileStorageService';
 import { exportAllFirmData, SHARED_STATE_KEYS } from '../../../services/firmBackupService';
 import { css, S, Txt, type SettingsCtx } from './settingsShared';
+import { GoogleWorkspaceCard } from './GoogleWorkspaceCard';
 
 const INPUT = 'border:1px solid #DDE3EB;border-radius:6px;padding:6px 8px;font-size:11.5px;color:#16223A;width:100%;box-sizing:border-box';
 const ROW = 'display:grid;grid-template-columns:150px minmax(0,1fr);gap:10px;align-items:center';
@@ -143,6 +144,8 @@ export const DriveStorageCard = ({ C }: { C: SettingsCtx }) => {
           </details>
         </div>
       </div>
+
+      <GoogleWorkspaceCard C={C} />
 
       <div style={css('grid-column:1 / -1;' + S.card)}>
         <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Backup</strong><span style={css('margin-left:8px;font-size:10.5px;color:#5B6478')}>one JSON file with every record, Firm Settings, the access list and an index of all attached files</span></div>

@@ -214,6 +214,13 @@ export interface PracticeSettings {
   googleOAuthClientId?: string;
   /** Result of the last "Test connection". */
   driveLastTest?: { at: string; by: string; ok: boolean; message: string };
+  /** Google Calendar ID of the firm's shared "SHCO Court Diary" calendar (Firm & Letterhead →
+   * Google Calendar, Tasks & Gmail). Hearings / court dates are written here. */
+  courtDiaryCalendarId?: string;
+  /** Calendar name (display only; filled in by the Calendar test or typed by the owner). */
+  courtDiaryCalendarName?: string;
+  /** Result of the last test per service on the "Google Calendar, Tasks & Gmail" card. */
+  googleWorkspaceLastTests?: Partial<Record<'calendar' | 'tasks' | 'gmail', { at: string; by: string; ok: boolean; message: string }>>;
   /** "Export all firm data" (Firm & Letterhead tab). */
   lastBackup?: { at: string; by: string; fileName: string; driveFileId?: string; webViewLink?: string };
 }

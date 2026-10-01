@@ -1,13 +1,16 @@
-import { firebaseAuth } from './firebaseAuthService';
 import { getPracticeSettings } from './templateService';
+import {
+  GOOGLE_SCOPES, GOOGLE_TOKEN_EVENT, clearGoogleTokens, getGoogleAccessToken, getGoogleClientId, hasValidGoogleToken, loadGoogleIdentity, looksLikeClientId,
+} from './googleWorkspaceAuth';
 
 /**
  * Google Drive storage for the firm's files (claim receipts, HR documents, staff photos,
  * finance proofs, backups), kept in a Google Workspace Shared Drive.
  *
- * - Access token: Google Identity Services (GIS) OAuth token client, scope `drive`. The token
- *   is kept in memory only, with its expiry, and re-requested silently (`prompt: ''`, hinted with
- *   the signed-in @shcolaw.com email) when it runs out. The first request shows Google's
+ * - Access token: Google Identity Services (GIS) OAuth token client, scope `drive`, shared with
+ *   Calendar / Tasks / Gmail through googleWorkspaceAuth.ts. The token is kept in memory only,
+ *   with its expiry, and re-requested silently (`prompt: ''`, hinted with the signed-in
+ *   @shcolaw.com email) when it runs out. The first request shows Google's
  *   consent screen once. The full `drive` scope is needed so approvers / admins can open files
  *   other staff uploaded; the OAuth consent screen is "Internal" to the Workspace.
  * - Every Drive REST v3 call passes `supportsAllDrives=true`.
@@ -16,7 +19,7 @@ import { getPracticeSettings } from './templateService';
  *   reader permission for that one @shcolaw.com user).
  */
 
-export const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
+export const DRIVE_SCOPE = GOOGLE_SCOPES.drive;
 const API = 'https://www.googleapis.com/drive/v3';
 const UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
@@ -54,16 +57,14 @@ export const parseDriveFolderId = (input: string): string => {
   return /^[\w-]{10,}$/.test(s) ? s : '';
 };
 
-/** OAuth Web client IDs look like `123-abc.apps.googleusercontent.com`. */
-export const looksLikeClientId = (s: string) => /^[\w-]+\.apps\.googleusercontent\.com$/.test(String(s || '').trim());
+export { looksLikeClientId };
 
 export const getDriveConfig = (): DriveConfig => {
   const s = getPracticeSettings();
-  const env = String((import.meta.env.VITE_GOOGLE_OAUTH_CLIENT_ID as string | undefined) || '').trim();
-  const saved = String(s.googleOAuthClientId || '').trim();
+  const c = getGoogleClientId();
   return {
-    clientId: env || saved,
-    clientIdSource: env ? 'env' : saved ? 'settings' : 'none',
+    clientId: c.clientId,
+    clientIdSource: c.source,
     rootFolderId: parseDriveFolderId(s.driveRootFolderId || ''),
     rootFolderName: s.driveRootFolderName || '',
     hrFolderId: parseDriveFolderId(s.driveHrFolderId || ''),
@@ -73,109 +74,31 @@ export const getDriveConfig = (): DriveConfig => {
 /** Drive is "set up" once the owner has saved both a root folder and an OAuth client ID. */
 export const isDriveConfigured = (c: DriveConfig = getDriveConfig()) => Boolean(c.clientId && c.rootFolderId);
 
-/* ------------------------------------------------------------------ GIS token */
+/* ------------------------------------------------------------------ token (shared Google Workspace auth) */
 
-interface TokenResponse { access_token?: string; expires_in?: number | string; scope?: string; error?: string; error_description?: string }
-interface TokenClient { requestAccessToken: (o?: { prompt?: string; hint?: string }) => void }
-interface GoogleOAuth2 {
-  initTokenClient: (cfg: {
-    client_id: string; scope: string; hint?: string; prompt?: string;
-    callback: (r: TokenResponse) => void;
-    error_callback?: (e: { type?: string; message?: string }) => void;
-  }) => TokenClient;
-  hasGrantedAllScopes?: (r: TokenResponse, ...scopes: string[]) => boolean;
-}
-type GoogleGlobal = { accounts?: { oauth2?: GoogleOAuth2 } };
-const gsi = () => (window as unknown as { google?: GoogleGlobal }).google?.accounts?.oauth2;
+export { loadGoogleIdentity };
 
-let gsiLoading: Promise<void> | null = null;
-/** Loads https://accounts.google.com/gsi/client once. */
-export const loadGoogleIdentity = (): Promise<void> => {
-  if (gsi()) return Promise.resolve();
-  if (gsiLoading) return gsiLoading;
-  gsiLoading = new Promise<void>((resolve, reject) => {
-    const el = document.createElement('script');
-    el.src = 'https://accounts.google.com/gsi/client';
-    el.async = true;
-    el.defer = true;
-    el.onload = () => (gsi() ? resolve() : reject(new Error('Google sign-in library loaded but is not available.')));
-    el.onerror = () => { gsiLoading = null; reject(new Error('Could not load Google sign-in (accounts.google.com). Check the internet connection, or whether a browser extension is blocking it.')); };
-    document.head.appendChild(el);
-  });
-  return gsiLoading;
-};
-
-let token: { value: string; expiresAt: number; clientId: string; email: string } | null = null;
-let tokenPending: Promise<string> | null = null;
-
-const signedInEmail = () => String(firebaseAuth.currentUser?.email || '').toLowerCase();
-
-/** Forget the cached token (e.g. after a 401, or on sign-out). */
-export const clearDriveToken = () => { token = null; };
+/** Forget the cached Drive token (e.g. after a 401, or on sign-out). */
+export const clearDriveToken = () => clearGoogleTokens('drive');
 
 /** Fired on window whenever a fresh Drive token arrives (photos waiting for one can load). */
 export const DRIVE_TOKEN_EVENT = 'shco-drive-token';
+if (typeof window !== 'undefined') {
+  window.addEventListener(GOOGLE_TOKEN_EVENT, (e) => {
+    const scopes = (e as CustomEvent<{ scopes?: string[] }>).detail?.scopes || [];
+    if (scopes.includes(DRIVE_SCOPE)) window.dispatchEvent(new CustomEvent(DRIVE_TOKEN_EVENT));
+  });
+}
 
 /** True when a Drive token for the current config and user is cached and not about to expire. */
-export const hasValidDriveToken = () => {
-  const cfg = getDriveConfig();
-  return !!token && token.clientId === cfg.clientId && token.email === signedInEmail() && token.expiresAt - 60_000 > Date.now();
-};
+export const hasValidDriveToken = () => hasValidGoogleToken('drive');
 
 /**
  * Returns a valid access token, requesting one through GIS when there is none or it expires
  * within a minute. Call this directly from a click handler where possible: GIS opens a small
  * popup, which browsers only allow shortly after a user action.
  */
-export async function getDriveAccessToken(): Promise<string> {
-  const cfg = getDriveConfig();
-  if (!cfg.clientId) throw new Error('Google Drive is not set up: no OAuth client ID. Ask the Managing Partner to add it in Firm & Practice Settings → Firm & Letterhead → Google Drive storage.');
-  const email = signedInEmail();
-  if (token && hasValidDriveToken()) return token.value;
-  if (tokenPending) return tokenPending;
-  tokenPending = (async () => {
-    await loadGoogleIdentity();
-    const oauth2 = gsi();
-    if (!oauth2) throw new Error('Google sign-in is not available in this browser.');
-    return new Promise<string>((resolve, reject) => {
-      const client = oauth2.initTokenClient({
-        client_id: cfg.clientId,
-        scope: DRIVE_SCOPE,
-        hint: email || undefined,
-        prompt: '',
-        callback: (r) => {
-          if (r.error || !r.access_token) {
-            reject(new Error(r.error === 'access_denied'
-              ? 'Google Drive access was not allowed. Click again and choose “Allow” so the portal can save files to the firm’s Shared Drive.'
-              : 'Google did not give Drive access (' + (r.error_description || r.error || 'no token') + ').'));
-            return;
-          }
-          if (oauth2.hasGrantedAllScopes && !oauth2.hasGrantedAllScopes(r, DRIVE_SCOPE)) {
-            reject(new Error('Google Drive access was only partly allowed. Click again and tick the Google Drive permission.'));
-            return;
-          }
-          token = { value: r.access_token, expiresAt: Date.now() + (Number(r.expires_in) || 3600) * 1000, clientId: cfg.clientId, email };
-          resolve(r.access_token);
-          window.dispatchEvent(new CustomEvent(DRIVE_TOKEN_EVENT));
-        },
-        error_callback: (e) => {
-          const t = String(e?.type || '');
-          reject(new Error(
-            t === 'popup_failed_to_open' ? 'The browser blocked the Google sign-in popup. Allow popups for this site, then try again.'
-              : t === 'popup_closed' ? 'The Google sign-in window was closed before Drive access was given. Try again and choose “Allow”.'
-                : 'Google sign-in for Drive failed' + (e?.message ? ': ' + e.message : '.') + ' If this keeps happening, check that this site’s address is in the OAuth client’s Authorized JavaScript origins.',
-          ));
-        },
-      });
-      client.requestAccessToken({ prompt: '', hint: email || undefined });
-    });
-  })();
-  try {
-    return await tokenPending;
-  } finally {
-    tokenPending = null;
-  }
-}
+export const getDriveAccessToken = (): Promise<string> => getGoogleAccessToken('drive');
 
 /* ------------------------------------------------------------------ REST helpers */
 

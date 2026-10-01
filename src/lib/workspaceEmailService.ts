@@ -1,4 +1,7 @@
 /* Google Workspace Gmail API Service for Finance Department Notifications */
+import { clearGoogleTokens } from '../services/googleWorkspaceAuth';
+import { sendEmail } from '../services/gmailService';
+import { escapeHtml as esc } from './emailMime';
 
 export interface EmailLogEntry {
   id: string;
@@ -12,30 +15,23 @@ export interface EmailLogEntry {
 }
 
 const STORAGE_KEY_EMAIL_LOGS = 'shco_workspace_email_logs';
-const STORAGE_KEY_GMAIL_TOKEN = 'shco_gmail_access_token_session';
 
+/**
+ * Gmail access now comes from the shared Google Workspace sign-in (services/googleWorkspaceAuth,
+ * scope gmail.send), requested when the user clicks. These three functions are kept so older
+ * imports still compile; tokens are no longer stored in sessionStorage.
+ */
 export function getGmailAccessToken(): string | null {
-  try {
-    return sessionStorage.getItem(STORAGE_KEY_GMAIL_TOKEN);
-  } catch {
-    return null;
-  }
+  return null;
 }
 
-export function setGmailAccessToken(token: string): void {
-  try {
-    sessionStorage.setItem(STORAGE_KEY_GMAIL_TOKEN, token);
-  } catch (err) {
-    console.warn('Unable to persist Gmail token in session storage.', err);
-  }
+/** @deprecated No-op: Gmail tokens come from googleWorkspaceAuth. */
+export function setGmailAccessToken(_token: string): void {
+  /* no-op */
 }
 
 export function clearGmailAccessToken(): void {
-  try {
-    sessionStorage.removeItem(STORAGE_KEY_GMAIL_TOKEN);
-  } catch {
-    // no-op when sessionStorage is unavailable
-  }
+  clearGoogleTokens('gmail');
 }
 
 export function getEmailAuditLogs(): EmailLogEntry[] {
@@ -57,39 +53,8 @@ function saveEmailAuditLogs(logs: EmailLogEntry[]): void {
 }
 
 function getDefaultInitialLogs(): EmailLogEntry[] {
-  return [
-    {
-      id: 'LOG-1001',
-      pvId: 'PV-2026-101',
-      recipient: 'finance@shcolaw.com',
-      subject: '[FINANCE ALERT] New Payment Voucher PV-2026-101 Created for Approval',
-      sentAt: new Date(Date.now() - 3600000 * 2).toISOString(),
-      status: 'SENT',
-      snippet: 'Payment Voucher PV-2026-101 (RM 450.00) generated for Travel Mileage Claim. Prepared by Amirul Hasif.',
-      channel: 'Google Workspace Gmail API',
-    },
-  ];
-}
-
-/**
- * Encodes email headers and HTML body into RFC 2822 base64url format required by Gmail API
- */
-function createRawGmailMessage(to: string, subject: string, htmlContent: string): string {
-  const emailLines = [
-    `To: ${to}`,
-    `Subject: ${subject}`,
-    'Content-Type: text/html; charset=utf-8',
-    'MIME-Version: 1.0',
-    '',
-    htmlContent,
-  ].join('\r\n');
-
-  // Base64URL encoding
-  const base64Encoded = btoa(unescape(encodeURIComponent(emailLines)));
-  return base64Encoded
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
+  // No made-up history: the log only ever shows what this device really tried to send.
+  return [];
 }
 
 export interface PaymentVoucherNotificationPayload {
@@ -124,18 +89,18 @@ export async function sendFinancePvNotificationEmail(
         <div style="background-color: #fef3c7; border-left: 4px solid #d97706; padding: 12px; margin-bottom: 20px; border-radius: 4px;">
           <strong style="color: #92400e; font-size: 14px;">⚡ Automated Payment Voucher Notification</strong>
           <p style="margin: 4px 0 0 0; font-size: 13px; color: #78350f;">
-            A new Payment Voucher <strong>${payload.pvId}</strong> has been generated and queued for Partner approval.
+            A new Payment Voucher <strong>${esc(payload.pvId)}</strong> has been generated and queued for Partner approval.
           </p>
         </div>
 
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px;">
           <tr style="border-bottom: 1px solid #f1f5f9;">
             <td style="padding: 8px 0; color: #64748b; font-weight: bold;">Voucher ID:</td>
-            <td style="padding: 8px 0; font-family: monospace; font-weight: bold; color: #0f172a;">${payload.pvId}</td>
+            <td style="padding: 8px 0; font-family: monospace; font-weight: bold; color: #0f172a;">${esc(payload.pvId)}</td>
           </tr>
           <tr style="border-bottom: 1px solid #f1f5f9;">
             <td style="padding: 8px 0; color: #64748b; font-weight: bold;">Date Created:</td>
-            <td style="padding: 8px 0; color: #0f172a;">${payload.date}</td>
+            <td style="padding: 8px 0; color: #0f172a;">${esc(payload.date)}</td>
           </tr>
           <tr style="border-bottom: 1px solid #f1f5f9;">
             <td style="padding: 8px 0; color: #64748b; font-weight: bold;">Account Target:</td>
@@ -143,15 +108,15 @@ export async function sendFinancePvNotificationEmail(
           </tr>
           <tr style="border-bottom: 1px solid #f1f5f9;">
             <td style="padding: 8px 0; color: #64748b; font-weight: bold;">Category:</td>
-            <td style="padding: 8px 0; color: #0f172a;">${payload.voucherCategory}</td>
+            <td style="padding: 8px 0; color: #0f172a;">${esc(payload.voucherCategory)}</td>
           </tr>
           <tr style="border-bottom: 1px solid #f1f5f9;">
             <td style="padding: 8px 0; color: #64748b; font-weight: bold;">Matter Ref:</td>
-            <td style="padding: 8px 0; font-family: monospace; color: #0f172a;">${payload.fileRef || 'General Firm Operations'}</td>
+            <td style="padding: 8px 0; font-family: monospace; color: #0f172a;">${esc(payload.fileRef || 'General Firm Operations')}</td>
           </tr>
           <tr style="border-bottom: 1px solid #f1f5f9;">
             <td style="padding: 8px 0; color: #64748b; font-weight: bold;">Prepared By:</td>
-            <td style="padding: 8px 0; color: #0f172a;">${payload.preparedBy}</td>
+            <td style="padding: 8px 0; color: #0f172a;">${esc(payload.preparedBy)}</td>
           </tr>
           <tr>
             <td style="padding: 12px 0; color: #16223A; font-weight: bold; font-size: 15px;">Voucher Amount:</td>
@@ -163,7 +128,7 @@ export async function sendFinancePvNotificationEmail(
 
         <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; border-radius: 6px; margin-bottom: 20px;">
           <span style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: bold; display: block; margin-bottom: 4px;">Particulars / Description</span>
-          <p style="margin: 0; font-size: 13px; color: #334155;">${payload.description}</p>
+          <p style="margin: 0; font-size: 13px; color: #334155;">${esc(payload.description)}</p>
         </div>
 
         <div style="text-align: center; margin-top: 24px;">
@@ -183,40 +148,26 @@ export async function sendFinancePvNotificationEmail(
   let sentSuccessfully = false;
   let statusMessage = '';
 
-  const token = getGmailAccessToken();
-
-  if (token) {
-    try {
-      const rawMessage = createRawGmailMessage(recipient, subject, htmlBody);
-      const res = await fetch('https://gmail.googleapis.com/v1/users/me/messages/send', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ raw: rawMessage }),
-      });
-
-      if (res.ok) {
-        sentSuccessfully = true;
-        statusMessage = `Delivered to ${recipient} via Gmail API`;
-      } else {
-        const errorData = await res.json().catch(() => null);
-        console.warn('Gmail API returned an error; not marking the email as sent.', errorData);
-        sentSuccessfully = false;
-        statusMessage = `Not sent — Gmail API rejected the message for ${recipient}`;
-      }
-    } catch (err) {
-      console.warn('Network or CORS error invoking Gmail API; not marking the email as sent.', err);
-      sentSuccessfully = false;
-      statusMessage = `Not sent — could not reach the Gmail API for ${recipient}`;
-    }
-  } else {
-    // No caller in this app ever calls setGmailAccessToken(), so this branch is what
-    // actually runs every time in practice — there is no real Gmail connection to send
-    // through. Log it honestly instead of claiming a delivery that never happened.
+  try {
+    const text = [
+      'A new Payment Voucher ' + payload.pvId + ' has been generated and queued for Partner approval.',
+      '',
+      'Voucher ID: ' + payload.pvId,
+      'Date: ' + payload.date,
+      'Account: ' + payload.accountSet,
+      'Category: ' + payload.voucherCategory,
+      'File reference: ' + (payload.fileRef || 'General Firm Operations'),
+      'Prepared by: ' + payload.preparedBy,
+      'Amount: RM ' + payload.amount.toFixed(2),
+      '',
+      'Particulars: ' + payload.description,
+    ].join('\n');
+    await sendEmail({ to: recipient, subject, text, html: htmlBody });
+    sentSuccessfully = true;
+    statusMessage = `Sent to ${recipient} via Gmail`;
+  } catch (err) {
     sentSuccessfully = false;
-    statusMessage = `Not sent — no Gmail connection is configured (logged for ${recipient})`;
+    statusMessage = `Not sent — ${err instanceof Error ? err.message : String(err)}`;
   }
 
   // Create audit log entry
