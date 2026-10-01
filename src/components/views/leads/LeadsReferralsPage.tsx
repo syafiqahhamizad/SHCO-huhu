@@ -2138,6 +2138,14 @@ export const LeadsReferralsPage: React.FC = () => {
               <span className="text-[10.5px]" style={{ color: 'rgba(255,255,255,.75)' }}>
                 Partners, staff and outside referrers · year to date · click a name to see their leads
               </span>
+              <button
+                type="button"
+                onClick={() => setCurrentView('referral')}
+                className="ml-auto cursor-pointer whitespace-nowrap border-0 bg-transparent p-0 text-[10.5px] font-bold"
+                style={{ color: '#FBF2E9' }}
+              >
+                Referral partners &amp; fee rates →
+              </button>
             </div>
             <div
               className="grid gap-[14px] border-b border-[#EEF1F5] bg-[#F6F8FA] px-[14px] py-[7px] text-[9.5px] font-bold tracking-[.08em] text-[#5B6478] uppercase"
