@@ -5,6 +5,8 @@ import { getPracticeSettings } from '../../../services/templateService';
 import type { Case, FirmGoal, Milestone } from '../../../types';
 import { StatusBadge } from '../../ui';
 import { X } from 'lucide-react';
+import { caseFinder, feeIncomeOfPayment, pctChange } from '../../../lib/financeMetrics';
+import { endOfToday, inRange } from '../../../lib/localDate';
 
 /**
  * "Direction" sub-tab of My Dashboard, Managing Partner only, with Growth merged in.
@@ -39,7 +41,6 @@ export const DirectionTab: React.FC = () => {
     invoices,
     payments,
     timeEntries,
-    expenses,
     clients,
     leads,
     updateDirectionStatement,
@@ -96,31 +97,27 @@ export const DirectionTab: React.FC = () => {
 
   const now = useMemo(() => new Date(), []);
   const yearStart = useMemo(() => new Date(now.getFullYear(), 0, 1), [now]);
-  const ytdEnd = useMemo(() => new Date(now.getTime() + 86_400_000), [now]); // exclusive, includes today
+  const ytdEnd = useMemo(() => endOfToday(now), [now]); // exclusive: start of tomorrow, local
   const lastYearStart = useMemo(() => new Date(now.getFullYear() - 1, 0, 1), [now]);
   const lastYtdEnd = useMemo(() => new Date(now.getFullYear() - 1, now.getMonth(), now.getDate() + 1), [now]);
 
-  const inRange = (dateStr: string | undefined, start: Date, end: Date): boolean => {
-    if (!dateStr) return false;
-    const d = new Date(dateStr);
-    if (Number.isNaN(d.getTime())) return false;
-    return d >= start && d < end;
-  };
-
   /* ----------------------------- shared lookups ----------------------------- */
 
-  const caseById = useMemo(() => new Map<string, Case>(cases.map((c) => [c.id, c])), [cases]);
+  const findCase = useMemo(() => caseFinder(cases), [cases]);
   const practiceAreaOf = (c?: Case) => c?.practiceArea || c?.type || 'Unclassified';
   const clientNameById = useMemo(() => new Map(clients.map((c) => [c.id, c.name])), [clients]);
 
   const validInvoices = useMemo(() => invoices.filter((i) => i.status !== 'Voided'), [invoices]);
+  // Fees = fee income per payment: payment × (fees + reimbursements) ÷ invoice total (no SST,
+  // no disbursements) — the same definition as Dashboard → Finance. Invoices match a file by
+  // caseId or fileRef.
   const invoiceMeta = useMemo(() => {
-    const m = new Map<string, { area: string; clientId: string }>();
+    const m = new Map<string, { area: string; clientId: string; inv: (typeof invoices)[number] }>();
     validInvoices.forEach((inv) => {
-      m.set(inv.id, { area: practiceAreaOf(caseById.get(inv.caseId)), clientId: inv.clientId });
+      m.set(inv.id, { area: practiceAreaOf(findCase(inv.caseId, inv.fileRef)), clientId: inv.clientId, inv });
     });
     return m;
-  }, [validInvoices, caseById]);
+  }, [validInvoices, findCase]);
 
   /* ----------------------------- Practice areas (real, year to date) ----------------------------- */
 
@@ -130,25 +127,21 @@ export const DirectionTab: React.FC = () => {
     payments.forEach((p) => {
       const meta = invoiceMeta.get(p.invoiceId);
       if (!meta) return;
-      if (inRange(p.date, yearStart, ytdEnd)) feesYtd.set(meta.area, (feesYtd.get(meta.area) || 0) + Number(p.amount || 0));
-      if (inRange(p.date, lastYearStart, lastYtdEnd)) feesLastYtd.set(meta.area, (feesLastYtd.get(meta.area) || 0) + Number(p.amount || 0));
+      const fee = feeIncomeOfPayment(Number(p.amount || 0), meta.inv);
+      if (inRange(p.date, yearStart, ytdEnd)) feesYtd.set(meta.area, (feesYtd.get(meta.area) || 0) + fee);
+      if (inRange(p.date, lastYearStart, lastYtdEnd)) feesLastYtd.set(meta.area, (feesLastYtd.get(meta.area) || 0) + fee);
     });
 
     const timeCost = new Map<string, number>();
     timeEntries
       .filter((t) => t.billable && inRange(t.date, yearStart, ytdEnd))
       .forEach((t) => {
-        const area = practiceAreaOf(caseById.get(t.caseId));
+        const area = practiceAreaOf(findCase(t.caseId));
         timeCost.set(area, (timeCost.get(area) || 0) + Number(t.hours || 0) * Number(t.rate || 0));
       });
 
-    const directExp = new Map<string, number>();
-    expenses
-      .filter((e) => e.billable && inRange(e.date, yearStart, ytdEnd))
-      .forEach((e) => {
-        const area = practiceAreaOf(caseById.get(e.caseId));
-        directExp.set(area, (directExp.get(area) || 0) + Number(e.amount || 0));
-      });
+    // Disbursements paid for clients are recovered from them and are excluded from fees, so
+    // they are excluded from cost too (same basis as Dashboard → Finance "Profit by …").
 
     const areaNames = new Set<string>([...cases.map((c) => practiceAreaOf(c)), ...feesYtd.keys()]);
     const totalFees = [...feesYtd.values()].reduce((s, v) => s + v, 0);
@@ -157,18 +150,21 @@ export const DirectionTab: React.FC = () => {
     const rows = [...areaNames].map((name) => {
       const fees = feesYtd.get(name) || 0;
       const lastFees = feesLastYtd.get(name) || 0;
-      const cost = (timeCost.get(name) || 0) + (directExp.get(name) || 0);
+      const cost = timeCost.get(name) || 0;
       const margin = fees > 0 ? Math.round(((fees - cost) / fees) * 100) : cost > 0 ? -100 : 0;
-      const growth = lastFees > 0 ? Math.round(((fees - lastFees) / lastFees) * 100) : fees > 0 ? 100 : 0;
+      // No fees last year to date: growth is "new" (or "—"), not +100%.
+      const growth: number | null = lastFees > 0 ? Math.round(((fees - lastFees) / lastFees) * 100) : null;
+      const growthLabel = pctChange(fees, lastFees);
       // Signal rule (no equivalent formula in the mockup, which hand-assigned these):
       // Grow = growing fees and a healthy margin; Rethink = shrinking or thin margin; else Hold.
-      const signal: 'Grow' | 'Hold' | 'Rethink' = growth > 10 && margin >= 30 ? 'Grow' : growth < -10 || margin < 15 ? 'Rethink' : 'Hold';
-      return { name, fees, share: totalFees > 0 ? Math.round((fees / totalFees) * 100) : 0, w: Math.round((fees / maxFees) * 100), growth, margin, signal };
+      const g = growth ?? (fees > 0 ? Infinity : 0);
+      const signal: 'Grow' | 'Hold' | 'Rethink' = g > 10 && margin >= 30 ? 'Grow' : g < -10 || margin < 15 ? 'Rethink' : 'Hold';
+      return { name, fees, share: totalFees > 0 ? Math.round((fees / totalFees) * 100) : 0, w: Math.round((fees / maxFees) * 100), growth, growthLabel, margin, signal };
     });
 
     rows.sort((a, b) => b.fees - a.fees);
     return { rows, totalFees };
-  }, [cases, payments, invoiceMeta, timeEntries, expenses, caseById, yearStart, ytdEnd, lastYearStart, lastYtdEnd]);
+  }, [cases, payments, invoiceMeta, timeEntries, findCase, yearStart, ytdEnd, lastYearStart, lastYtdEnd]);
 
   const SIGNAL_TONE: Record<'Grow' | 'Hold' | 'Rethink', 'green' | 'blue' | 'red'> = { Grow: 'green', Hold: 'blue', Rethink: 'red' };
 
@@ -179,7 +175,7 @@ export const DirectionTab: React.FC = () => {
     payments.forEach((p) => {
       const meta = invoiceMeta.get(p.invoiceId);
       if (!meta || !inRange(p.date, yearStart, ytdEnd)) return;
-      feesByClient.set(meta.clientId, (feesByClient.get(meta.clientId) || 0) + Number(p.amount || 0));
+      feesByClient.set(meta.clientId, (feesByClient.get(meta.clientId) || 0) + feeIncomeOfPayment(Number(p.amount || 0), meta.inv));
     });
     const sorted = [...feesByClient.entries()].filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
     const total = sorted.reduce((s, [, v]) => s + v, 0);
@@ -280,7 +276,13 @@ export const DirectionTab: React.FC = () => {
 
   /* ----------------------------- Growth: enquiry funnel (real, from leads) ----------------------------- */
 
+  // Limited to the labelled period (this month, by the lead's enquiry date). Leads with no
+  // enquiry date can't be placed in a month and are counted separately as "undated".
+  const monthStart = useMemo(() => new Date(now.getFullYear(), now.getMonth(), 1), [now]);
+  const periodLeads = useMemo(() => leads.filter((l) => inRange(l.createdAt, monthStart, ytdEnd)), [leads, monthStart, ytdEnd]);
+  const undatedLeads = useMemo(() => leads.filter((l) => !l.createdAt).length, [leads]);
   const funnel = useMemo(() => {
+    const leads = periodLeads;
     const total = leads.length;
     const contactedPlus = leads.filter((l) => ['Contacted', 'Consultation', 'Quoted', 'Converted'].includes(l.stage)).length;
     const consultationPlus = leads.filter((l) => ['Consultation', 'Quoted', 'Converted'].includes(l.stage)).length;
@@ -292,7 +294,7 @@ export const DirectionTab: React.FC = () => {
       { label: 'Became clients', n: converted, color: palette.green },
     ];
     return rows.map((r) => ({ ...r, w: total > 0 ? Math.round((r.n / total) * 100) : 0 }));
-  }, [leads]);
+  }, [periodLeads]);
 
   const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   const funnelPeriodLabel = `${MONTH_NAMES[now.getMonth()]} ${currentYear}`;
@@ -567,9 +569,8 @@ export const DirectionTab: React.FC = () => {
               <span className="text-right text-[11.5px]" style={{ color: palette.slate }}>
                 {a.share}%
               </span>
-              <span className="text-right text-[12px] font-bold" style={{ color: a.growth < 0 ? palette.red : a.growth > 20 ? palette.green : palette.navy }}>
-                {a.growth > 0 ? '+' : ''}
-                {a.growth}%
+              <span className="text-right text-[12px] font-bold" style={{ color: a.growth == null ? palette.slate : a.growth < 0 ? palette.red : a.growth > 20 ? palette.green : palette.navy }}>
+                {a.growthLabel}
               </span>
               <span className="text-right text-[11.5px]" style={{ color: palette.navy }}>
                 {a.margin}%
@@ -580,7 +581,7 @@ export const DirectionTab: React.FC = () => {
             </div>
           ))}
           <div className="px-3.5 py-2.5 text-[10.5px]" style={{ background: palette.page, color: palette.slate }}>
-            Margin = fees collected minus staff time cost and direct expenses for that area.
+            Fees = fee income collected (fees + reimbursements, excl. SST and disbursements). Margin = (fees − billable time at charge-out rate) ÷ fees — same basis as Dashboard → Finance.
           </div>
         </div>
 
@@ -856,9 +857,9 @@ export const DirectionTab: React.FC = () => {
               {funnelPeriodLabel}
             </span>
           </div>
-          {leads.length === 0 ? (
+          {periodLeads.length === 0 ? (
             <div className="px-3.5 py-6 text-center text-[11px]" style={{ color: palette.slate }}>
-              No leads recorded yet.
+              No enquiries dated {funnelPeriodLabel}.{undatedLeads ? ` ${undatedLeads} lead${undatedLeads === 1 ? '' : 's'} have no enquiry date and are not counted.` : ''}
             </div>
           ) : (
             funnel.map((f) => (
@@ -872,6 +873,11 @@ export const DirectionTab: React.FC = () => {
                 </div>
               </div>
             ))
+          )}
+          {periodLeads.length > 0 && undatedLeads > 0 && (
+            <div className="px-3.5 py-2 text-[10px]" style={{ background: '#F6F8FA', color: palette.slate }}>
+              {undatedLeads} lead{undatedLeads === 1 ? '' : 's'} with no enquiry date not counted.
+            </div>
           )}
         </div>
 

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../../../context/AppContext';
 import type { Payslip } from '../../../types';
 import { identityTokens } from '../../../lib/identity';
+import { annualLeaveBalance } from '../../../lib/teamMetrics';
 import { getPracticeSettings } from '../../../services/templateService';
 import {
   buildEaHtml, buildFileDirectory, buildMyClaimRows, buildPayslipHtml, card, cardTitle, dedLines, dedOf, dMonY, earnLines, FirmLetterhead,
@@ -68,7 +69,9 @@ export const StaffPortalView: React.FC = () => {
   if (currentUser.role === 'Client') return <div style={{ padding: 32, textAlign: 'center' }}>Staff Portal is available to staff accounts only.</div>;
 
   const latest = mySlips[0];
-  const waiting = claimRows.filter((c) => c.status === 'Waiting');
+  // Only money owed back to this person (travel / own-pocket claims) — vendor payment requests (PVs) are not theirs to receive.
+  const waiting = claimRows.filter((c) => c.status === 'Waiting' && c.source !== 'pv');
+  const al = annualLeaveBalance(leaveApplications || [], currentUser.id);
   const tiles: [string, string, string, string, Tab][] = [
     [
       'Net pay' + (latest ? ' · ' + MONTHS_SHORT[Number(latest.period.slice(5, 7)) - 1] : ''),
@@ -77,8 +80,8 @@ export const StaffPortalView: React.FC = () => {
       '#2F6F4E',
       'pay',
     ],
-    ['Claims waiting', rm(waiting.reduce((s, x) => s + x.amt, 0)), waiting.length + ' item(s) with partner', '#8A6534', 'claims' as Tab],
-    ['Annual leave left', Math.max(0, 16 - used('Annual')) + ' days', 'of 16 this year', '#3D6B9C', 'leave'],
+    ['Claims waiting', rm(waiting.reduce((s, x) => s + x.amt, 0)), waiting.length + ' claim(s) owed to you, with partner', '#8A6534', 'claims' as Tab],
+    ['Annual leave left', al.left + ' days', `of ${al.entitlement} this year${al.pending ? ` · ${al.pending} pending approval` : ''}`, '#3D6B9C', 'leave'],
     ['Goals on track', goals.filter((g) => g.status === 'On track' || g.status === 'Done').length + ' of ' + goals.length, 'personal & career', '#6B3D8C', 'goals'],
   ];
 

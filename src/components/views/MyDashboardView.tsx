@@ -41,6 +41,8 @@ import { Donut, MiniBarChart, ProgressBar, TaskFormModal, blankTaskDraft } from 
 import type { TaskDraft } from '../ui';
 import { palette, tint, tintText } from '../../lib/designTokens';
 import { useConfirmation } from '../../hooks/useConfirmation';
+import { localIso, parseLocal, toLocalMonth } from '../../lib/localDate';
+import { caseFinder, isIssued, owedBalance, paidByInvoice } from '../../lib/financeMetrics';
 
 type Bucket = 'overdue' | 'today' | 'week' | 'later';
 type FilterValue = 'all' | Bucket | 'hearing' | 'waiting' | 'unbilled';
@@ -93,10 +95,11 @@ const BUCKET_META: Record<Bucket, { label: string; accent: string; tint: string;
 const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+/** LOCAL calendar date (toISOString() is UTC — before 08:00 in Malaysia it says yesterday). */
+const iso = (d: Date) => localIso(d);
 const DONE = ['Done', 'Completed', 'Approved', 'Cancelled'];
 
-const daysBetween = (a: string, b: string) => Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
+const daysBetween = (a: string, b: string) => Math.round((parseLocal(b) - parseLocal(a)) / 86400000);
 
 const dueLabelFor = (bucket: Bucket, dueDate: string, todayStr: string): { label: string; bg: string; fg: string } => {
   if (!dueDate) return { label: 'No date', bg: '#F0F2F5', fg: palette.slate };
@@ -108,10 +111,10 @@ const dueLabelFor = (bucket: Bucket, dueDate: string, todayStr: string): { label
   if (bucket === 'week') {
     const d = daysBetween(todayStr, dueDate);
     if (d <= 1) return { label: 'Tomorrow', bg: tint.blue, fg: tintText.blue };
-    const wd = WEEKDAY[new Date(dueDate).getDay()];
+    const wd = WEEKDAY[new Date(parseLocal(dueDate)).getDay()];
     return { label: `In ${d} days · ${wd}`, bg: tint.blue, fg: tintText.blue };
   }
-  const dt = new Date(dueDate);
+  const dt = new Date(parseLocal(dueDate));
   return { label: `${WEEKDAY[dt.getDay()]} ${dt.getDate()} ${MONTH[dt.getMonth()]}`, bg: '#F0F2F5', fg: palette.slate };
 };
 
@@ -178,7 +181,7 @@ export const MyDashboardView: React.FC = () => {
   const { confirm, ConfirmationModal } = useConfirmation();
 
   const todayStr = iso(new Date());
-  const weekStr = iso(new Date(Date.now() + 7 * 86400000));
+  const weekStr = (() => { const d = new Date(); d.setDate(d.getDate() + 7); return iso(d); })();
 
   // See src/lib/identity.ts — upstream stores the same person as a display name,
   // a partner code or an id depending on the collection.
@@ -206,6 +209,14 @@ export const MyDashboardView: React.FC = () => {
           isPartner
       ),
     [cases, me, isPartner]
+  );
+
+  // Files this person actually handles — used for the "My" money figures. Partners do NOT get
+  // every file here (myCases above includes all files for partners so they can see the work
+  // queue); billed / collected / aging must be their own files only.
+  const myOwnCases: Case[] = useMemo(
+    () => (cases || []).filter((c: Case) => mine(c.lawyerInCharge) || mine(c.lawyers as any) || mine(c.partners as any)),
+    [cases, me]
   );
 
   const rows: Row[] = useMemo(() => {
@@ -479,24 +490,28 @@ export const MyDashboardView: React.FC = () => {
     return { pct, dueToday: dueToday.length, doneToday: doneToday.length, days, streak };
   }, [myCases, todayStr]);
 
-  // My billed / collected / aging receivables — this month, from real invoices + payments on my matters.
+  // My billed / collected / aging receivables — this month (local time), from real invoices +
+  // payments on MY files. Billed = issued invoices only (not Draft / Pending Review / Voided);
+  // aging = owed balance (total − payments − written off); invoices match by caseId or fileRef.
   const billing = useMemo(() => {
-    const myCaseIds = new Set(myCases.map((c) => c.id));
-    const myInvoices = (invoices || []).filter((i: any) => myCaseIds.has(i.caseId));
-    const paidFor = (invId: string) => (payments || []).filter((p: any) => p.invoiceId === invId).reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
+    const findCase = caseFinder(cases || []);
+    const myCaseIds = new Set(myOwnCases.map((c) => c.id));
+    const myInvoices = (invoices || []).filter((i: any) => isIssued(i) && myCaseIds.has(findCase(i.caseId, i.fileRef)?.id || ''));
+    const myInvoiceIds = new Set(myInvoices.map((i: any) => i.id));
+    const paidMap = paidByInvoice(payments || []);
+    const paidFor = (invId: string) => paidMap.get(invId) || 0;
 
-    const billedThisMonth = myInvoices.filter((i: any) => (i.date || '').startsWith(monthStr)).reduce((s: number, i: any) => s + Number(i.total || 0), 0);
+    const billedThisMonth = myInvoices.filter((i: any) => toLocalMonth(i.date) === monthStr).reduce((s: number, i: any) => s + Number(i.total || 0), 0);
     const collectedThisMonth = (payments || [])
-      .filter((p: any) => myInvoices.some((i: any) => i.id === p.invoiceId) && (p.date || '').startsWith(monthStr))
+      .filter((p: any) => myInvoiceIds.has(p.invoiceId) && toLocalMonth(p.date) === monthStr)
       .reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
 
     const buckets = { current: 0, d31: 0, d61: 0, d91: 0, over120: 0 };
     myInvoices.forEach((i: any) => {
-      if (i.status === 'Paid' || i.status === 'Voided') return;
-      const balance = Number(i.total || 0) - paidFor(i.id);
-      if (balance <= 0) return;
+      const balance = owedBalance(i, paidFor(i.id));
+      if (balance <= 0.005) return;
       const due = i.dueDate || i.date;
-      const days = due ? Math.floor((new Date(todayStr).getTime() - new Date(due).getTime()) / 86400000) : 0;
+      const days = due ? Math.max(0, daysBetween(due, todayStr)) : 0;
       if (days <= 30) buckets.current += balance;
       else if (days <= 60) buckets.d31 += balance;
       else if (days <= 90) buckets.d61 += balance;
@@ -509,7 +524,7 @@ export const MyDashboardView: React.FC = () => {
     const collectionRate = totalBilled ? Math.round((totalCollected / totalBilled) * 100) : 0;
 
     return { billedThisMonth, collectedThisMonth, buckets, totalBilled, totalCollected, collectionRate };
-  }, [myCases, invoices, payments, monthStr, todayStr]);
+  }, [myOwnCases, cases, invoices, payments, monthStr, todayStr]);
 
   // My referrals — Lead.assignedTo (mine) grouped by real referralSourceCategory, converted = stage === 'Converted'.
   const myReferrals = useMemo(() => {
@@ -1310,7 +1325,7 @@ export const MyDashboardView: React.FC = () => {
                 const isHearing = e.stream === 'hearing';
                 const color = isHearing ? palette.purple : palette.red;
                 const bg = isHearing ? tint.purple : tint.red;
-                const dt = e.dueDate ? new Date(e.dueDate) : null;
+                const dt = e.dueDate ? new Date(parseLocal(e.dueDate)) : null;
                 return (
                   <button
                     key={e.id}

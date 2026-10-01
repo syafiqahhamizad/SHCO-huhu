@@ -568,11 +568,17 @@ export const LeadsReferralsPage: React.FC = () => {
     })
     .sort((a, b) => b.total - a.total);
 
+  // "Leads · YTD" = enquiries received this calendar year (by the lead's enquiry date). Leads
+  // with no enquiry date can't be placed in a year: they are reported as "undated", not
+  // silently counted as this year's.
+  const ytdYear = todayStr.slice(0, 4);
+  const ytdLeads = L.filter((l) => l.date && l.date.slice(0, 4) === ytdYear && l.date <= todayStr);
+  const undatedLeads = L.filter((l) => !l.date).length;
   const kpis: { label: string; value: number; note: string; Icon: React.ElementType; color: string; onClick: () => void }[] = [
     {
       label: 'Leads · YTD',
-      value: L.length,
-      note: 'enquiries',
+      value: ytdLeads.length,
+      note: `enquiries in ${ytdYear}${undatedLeads ? ` · ${undatedLeads} undated not counted` : ''}`,
       Icon: UserPlus,
       color: '#16223A',
       onClick: () => goLeads({ lf: 'all' }),

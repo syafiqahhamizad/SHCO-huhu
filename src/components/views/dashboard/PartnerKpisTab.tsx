@@ -4,6 +4,8 @@ import { useApp } from '../../../context/AppContext';
 import { identityTokens, isMine, partnerCode as toPartnerCode } from '../../../lib/identity';
 import { palette } from '../../../lib/designTokens';
 import { ProgressBar } from '../../ui';
+import { caseFinder, isIssued, partnerShare, receivedWithinDays } from '../../../lib/financeMetrics';
+import { parseLocal, toLocalYear } from '../../../lib/localDate';
 import {
   getPracticeSettings,
   setPartnerKpiTarget,
@@ -70,10 +72,24 @@ export const PartnerKpisTab: React.FC<{ scope: 'all' | 'own' }> = ({ scope }) =>
   const weights = settings.partnerKpiWeights || DEFAULT_PARTNER_KPI_WEIGHTS;
   const targetsByCode = settings.partnerKpiTargets || {};
 
-  const caseById = useMemo(() => new Map(cases.map((c) => [c.id, c])), [cases]);
+  const findCase = useMemo(() => caseFinder(cases), [cases]);
   const thisYear = new Date().getFullYear();
 
   const ownCode = toPartnerCode(currentUser);
+
+  /** Each client's earliest-opened matter (clientId may list several clients, comma-separated). */
+  const firstMatterByClient = useMemo(() => {
+    const m = new Map<string, (typeof cases)[number]>();
+    cases.forEach((c) => {
+      const t = parseLocal(c.fileOpenedDate || c.createdDate);
+      if (!t) return;
+      String(c.clientId || '').split(',').map((x) => x.trim()).filter(Boolean).forEach((id) => {
+        const cur = m.get(id);
+        if (!cur || t < parseLocal(cur.fileOpenedDate || cur.createdDate)) m.set(id, c);
+      });
+    });
+    return m;
+  }, [cases]);
 
   const scorecards: PartnerScorecard[] = useMemo(() => {
     const partnerUsers = (users || []).filter((u) => u.role === 'Partner');
@@ -84,31 +100,31 @@ export const PartnerKpisTab: React.FC<{ scope: 'all' | 'own' }> = ({ scope }) =>
         const tokens = identityTokens(u);
         const target = (metric: PartnerKpiMetric) => targetsByCode[code]?.[metric] ?? DEFAULT_PARTNER_KPI_TARGETS[metric];
 
-        const pInvoices = invoices.filter((inv) => caseById.get(inv.caseId)?.partners?.includes(code as any));
-        const billed = pInvoices.reduce((s, inv) => s + (inv.total || 0), 0);
-        const paidInvoices = pInvoices.filter((inv) => inv.status === 'Paid');
-        const collectedTotal = paidInvoices.reduce((s, inv) => s + (inv.total || 0), 0);
-        const collectedWithin60Amt = paidInvoices.reduce((s, inv) => {
-          const invPayments = (payments || []).filter((p) => p.invoiceId === inv.id);
-          const lastPaymentDate = invPayments.length ? invPayments.map((p) => new Date(p.date).getTime()).sort((a, b) => b - a)[0] : null;
-          if (lastPaymentDate == null) return s;
-          const days = (lastPaymentDate - new Date(inv.date).getTime()) / 86400000;
-          return days <= 60 ? s + (inv.total || 0) : s;
-        }, 0);
+        // Year to date, issued invoices only (not Draft / Pending Review / Voided). A file with
+        // several partners splits each invoice equally between them, so the firm's fees are
+        // never counted twice across scorecards.
+        const pInvoices = invoices
+          .filter((inv) => isIssued(inv) && toLocalYear(inv.date) === thisYear)
+          .map((inv) => ({ inv, share: partnerShare(findCase(inv.caseId, inv.fileRef)?.partners as string[] | undefined, code) }))
+          .filter((x) => x.share > 0);
+        const billed = pInvoices.reduce((s, x) => s + Number(x.inv.total || 0) * x.share, 0);
+        // Collected within 60 days = money received within 60 days of the invoice date ÷ billed
+        // YTD. Partial payments count for what was received in time.
+        const collectedWithin60Amt = pInvoices.reduce(
+          (s, x) => s + Math.min(Number(x.inv.total || 0), receivedWithinDays(x.inv, payments || [], 60, parseLocal)) * x.share,
+          0
+        );
         const collectedWithin60Pct = billed > 0 ? (collectedWithin60Amt / billed) * 100 : 0;
 
-        const partnerCases = cases.filter((c) => c.partners?.includes(code as any));
-        const newClientIds = new Set(
-          partnerCases
-            .filter((c) => {
-              const opened = c.fileOpenedDate || c.createdDate;
-              return opened && new Date(opened).getFullYear() === thisYear;
-            })
-            .map((c) => c.clientId)
-        );
+        // New clients = clients whose FIRST matter with the firm was opened this year, credited
+        // to the partner(s) on that first matter.
+        const newClientIds = new Set<string>();
+        firstMatterByClient.forEach((c, clientId) => {
+          if (toLocalYear(c.fileOpenedDate || c.createdDate) === thisYear && c.partners?.includes(code as any)) newClientIds.add(clientId);
+        });
 
         const billableHours = (timeEntries || [])
-          .filter((t) => isMine(t.feeEarner, tokens) && t.billable && new Date(t.date).getFullYear() === thisYear)
+          .filter((t) => isMine(t.feeEarner, tokens) && t.billable && toLocalYear(t.date) === thisYear)
           .reduce((s, t) => s + (t.hours || 0), 0);
 
         const complianceItems = (settings.complianceRegister || []).filter((c) => isMine(c.owner, tokens));
@@ -123,7 +139,6 @@ export const PartnerKpisTab: React.FC<{ scope: 'all' | 'own' }> = ({ scope }) =>
           complianceOnTime: complianceOnTimePct == null ? null : { actual: complianceOnTimePct, target: target('complianceOnTime') },
           mentoring: null,
         };
-        void collectedTotal;
 
         return {
           code,
@@ -134,7 +149,7 @@ export const PartnerKpisTab: React.FC<{ scope: 'all' | 'own' }> = ({ scope }) =>
           metrics,
         };
       });
-  }, [users, scope, ownCode, invoices, payments, cases, timeEntries, caseById, targetsByCode, settings.complianceRegister, thisYear]);
+  }, [users, scope, ownCode, invoices, payments, cases, timeEntries, findCase, firstMatterByClient, targetsByCode, settings.complianceRegister, thisYear]);
 
   const scoreFor = (card: PartnerScorecard) => {
     let weighted = 0;

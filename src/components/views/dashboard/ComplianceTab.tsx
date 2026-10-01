@@ -4,6 +4,7 @@ import { palette, tint, tintText, serifFont } from '../../../lib/designTokens';
 import { getPracticeSettings } from '../../../services/templateService';
 import type { ComplianceItem } from '../../../types';
 import { StatusBadge } from '../../ui';
+import { localIso } from '../../../lib/localDate';
 
 /** Partner-code -> avatar color. Mirrors the fixed 'SH' | 'AH' | 'ZA' partner codes in
  * types.ts (see PartnerCode) — not a design token because it keys off partner identity,
@@ -34,7 +35,7 @@ const fmtDue = (iso: string) => {
   return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 };
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
+const todayIso = () => localIso(new Date()); // local date, not UTC
 
 const daysBetween = (fromIso: string, toIso: string) => {
   const from = new Date(fromIso).getTime();

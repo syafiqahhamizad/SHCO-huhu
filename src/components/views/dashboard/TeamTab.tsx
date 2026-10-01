@@ -5,6 +5,9 @@ import { identityTokens, isMine, partnerCode } from '../../../lib/identity';
 import { palette, tint, tintText } from '../../../lib/designTokens';
 import { StatCard } from '../../ui';
 import type { StaffGoal, User } from '../../../types';
+import { inRange, parseLocal, todayLocal } from '../../../lib/localDate';
+import { annualLeaveBalance, ANNUAL_LEAVE_DAYS, proRatedTarget } from '../../../lib/teamMetrics';
+import { payslipCost, payslipCounts } from '../../../lib/financeMetrics';
 
 /**
  * My Dashboard -> Team (Managing Partner only). Mirrors My Dashboard.dc.html's `isPeople`
@@ -23,10 +26,8 @@ import type { StaffGoal, User } from '../../../types';
 // Busy = one of these slips. Overloaded = over 110% for 3 months or 15+h overtime.
 // Under target = below 70% of hours.
 const DEFAULT_TARGET_HOURS_PER_MONTH = 160;
-// No leave-entitlement field exists in StaffProfile yet. Malaysia's Employment Act minimum is
-// 8 days rising with tenure; SHCO's own firm policy isn't captured anywhere in the data model,
-// so this is a single assumed constant applied to everyone (not a fabricated per-person number).
-const ASSUMED_ANNUAL_LEAVE_DAYS = 16;
+// Annual leave: same entitlement and rule as the Staff Portal tile (src/lib/teamMetrics.ts) —
+// approved and pending applications both reduce the balance; pending is labelled.
 
 const AVATAR_COLORS = [palette.blue, palette.green, palette.gold, palette.purple, palette.red, palette.navy];
 
@@ -64,14 +65,15 @@ interface TeamRow {
   targetHours: number;
   overtimeHours: number;
   overdueTasks: number;
-  leaveLeft: number | null;
+  leaveLeft: number;
+  leavePending: number;
   filesCount: number;
   files: { name: string; ref: string; stage: string }[];
   why: string[];
 }
 
 export const TeamTab: React.FC = () => {
-  const { currentUser, isAdmin, users, cases, timeEntries, leaveApplications, addStaffGoal, showToast } = useApp();
+  const { currentUser, isAdmin, users, cases, timeEntries, leaveApplications, payslips, addStaffGoal, showToast } = useApp();
   const [openCode, setOpenCode] = useState<string | null>(null);
   const [goalDraft, setGoalDraft] = useState<{ type: StaffGoal['type']; text: string; help: string }>({ type: 'Career', text: '', help: '' });
   const [addingGoalFor, setAddingGoalFor] = useState<string | null>(null);
@@ -79,7 +81,8 @@ export const TeamTab: React.FC = () => {
   const isMP = Boolean(isAdmin) || Boolean(currentUser?.isSuperAdmin);
 
   const rows: TeamRow[] = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayLocal();
+    const now = new Date();
     return (users || [])
       .filter((u) => u.status === 'Active')
       .map((u, i) => {
@@ -91,41 +94,43 @@ export const TeamTab: React.FC = () => {
           const { start, end } = monthBounds(offset);
           return (timeEntries || [])
             .filter((t) => isMine(t.feeEarner, tokens))
-            .filter((t) => {
-              const d = new Date(t.date);
-              return d >= start && d < end;
-            })
+            .filter((t) => inRange(t.date, start, end))
             .reduce((sum, t) => sum + (t.hours || 0), 0);
         };
         const hoursThisMonth = Math.round(hoursInMonth(0) * 10) / 10;
-        const ratios = [0, 1, 2].map((o) => (targetHours > 0 ? hoursInMonth(o) / targetHours : 0));
-        const overtimeHours = Math.max(0, Math.round((hoursThisMonth - targetHours) * 10) / 10);
+        // The current month is compared with a PRO-RATED target (target × working days elapsed ÷
+        // working days in the month) — comparing 10 days of hours with a full month's target
+        // made everyone look "Under target" early in the month.
+        const targetToDate = Math.round(proRatedTarget(targetHours, now) * 10) / 10;
+        const ratio0 = targetToDate > 0 ? hoursThisMonth / targetToDate : 0;
+        // "Over 110% for 3 months" uses the last three COMPLETE months against the full target.
+        const pastRatios = [1, 2, 3].map((o) => (targetHours > 0 ? hoursInMonth(o) / targetHours : 0));
+        const overtimeHours = Math.max(0, Math.round((hoursThisMonth - targetToDate) * 10) / 10);
 
         const overdueTasks = (cases || []).reduce(
           (n, c) => n + (c.tasks || []).filter((t) => isMine(t.assignedTo, tokens) && t.dueDate && t.dueDate < today && !['Completed', 'Done'].includes(t.status)).length,
           0
         );
 
-        const ratio0 = ratios[0];
         let load: TeamRow['load'];
-        if ((ratios[0] > 1.1 && ratios[1] > 1.1 && ratios[2] > 1.1) || overtimeHours >= 15) load = 'Overloaded';
+        if (pastRatios.every((r) => r > 1.1) || overtimeHours >= 15) load = 'Overloaded';
         else if (ratio0 < 0.7) load = 'Under target';
         else if (ratio0 >= 0.85 && ratio0 <= 1.1 && overdueTasks < 2 && overtimeHours < 10) load = 'Healthy';
         else load = 'Busy';
 
-        const leaveUsedThisYear = (leaveApplications || [])
-          .filter((l) => l.userId === u.id && l.leaveType === 'Annual' && l.status === 'Approved' && l.startDate?.startsWith(String(new Date().getFullYear())))
-          .reduce((sum, l) => sum + (l.days || 0), 0);
-        const leaveLeft = Math.max(0, ASSUMED_ANNUAL_LEAVE_DAYS - leaveUsedThisYear);
+        const leave = annualLeaveBalance(leaveApplications || [], u.id, now.getFullYear());
+        const leaveLeft = leave.left;
 
         const userCases = (cases || []).filter(
           (c) => c.status !== 'Archive' && (isMine(c.lawyerInCharge, tokens) || (c.lawyers || []).some((l) => isMine(l, tokens)) || (partnerCode(u) && c.partners?.includes(partnerCode(u) as any)))
         );
 
         const why = [
-          `Hours ${hoursThisMonth} / ${targetHours} h this month (${targetHours > 0 ? Math.round(ratio0 * 100) : 0}% of target)`,
+          `Hours ${hoursThisMonth} h this month vs ${targetToDate} h expected so far (${targetHours} h full month) — ${Math.round(ratio0 * 100)}% of target to date`,
+          `Last 3 complete months: ${pastRatios.map((r) => Math.round(r * 100) + '%').join(', ')} of target`,
           `${overdueTasks} overdue task${overdueTasks === 1 ? '' : 's'}`,
-          `${overtimeHours} h overtime this month`,
+          `${overtimeHours} h over the pro-rated target this month`,
+          `Annual leave: ${leave.left} of ${ANNUAL_LEAVE_DAYS} days left${leave.pending ? ` (${leave.pending} pending approval)` : ''}`,
         ];
 
         return {
@@ -134,14 +139,15 @@ export const TeamTab: React.FC = () => {
           color: AVATAR_COLORS[i % AVATAR_COLORS.length],
           initials: initialsOf(u.name),
           years: u.staffProfile?.joinDate
-            ? `${Math.max(0, new Date().getFullYear() - new Date(u.staffProfile.joinDate).getFullYear())} yrs`
+            ? `${Math.max(0, now.getFullYear() - new Date(parseLocal(u.staffProfile.joinDate) || Date.now()).getFullYear())} yrs`
             : '—',
           load,
           hoursThisMonth,
-          targetHours,
+          targetHours: targetToDate,
           overtimeHours,
           overdueTasks,
           leaveLeft,
+          leavePending: leave.pending,
           filesCount: userCases.length,
           files: userCases.slice(0, 8).map((c) => ({ name: c.title, ref: c.ref, stage: c.stage || c.status })),
           why,
@@ -149,17 +155,35 @@ export const TeamTab: React.FC = () => {
       });
   }, [users, cases, timeEntries, leaveApplications]);
 
+  /** Payroll cost (gross + employer EPF + SOCSO/EIS) of the latest month with approved/paid payslips. */
+  const payroll = useMemo(() => {
+    const counted = (payslips || []).filter(payslipCounts);
+    if (!counted.length) return null;
+    const period = counted.map((p) => p.period).sort().slice(-1)[0];
+    const list = counted.filter((p) => p.period === period);
+    return { period, total: list.reduce((s, p) => s + payslipCost(p), 0), n: list.length };
+  }, [payslips]);
+
   const peopleKpis = useMemo(() => {
     const active = rows.length;
-    const inactive = (users || []).filter((u) => u.status === 'Inactive').length;
+    // Leavers: people whose last working day is within the last 12 months. Users marked
+    // Inactive without a last working day can't be dated, so they are reported separately.
+    const yearAgo = new Date();
+    yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+    const leftUsers = (users || []).filter((u) => u.status === 'Inactive' || ['Resigned', 'Terminated'].includes(u.staffProfile?.employment?.status || ''));
+    const lwd = (u: User) => parseLocal(u.staffProfile?.employment?.lastWorkingDay);
+    const leftDated = leftUsers.filter((u) => { const t = lwd(u); return t && t >= yearAgo.getTime() && t <= Date.now(); }).length;
+    const undated = leftUsers.filter((u) => !lwd(u)).length;
     const motivationFlags = rows.filter((r) => r.overtimeHours >= 15 || r.leaveLeft <= 2 || r.overdueTasks >= 2).length;
     return [
       { label: 'Headcount', value: String(active), note: `${active} active staff on record`, vc: palette.navy },
-      { label: 'Monthly payroll', value: 'Not tracked', note: 'no payroll data model yet', vc: palette.slate },
-      { label: 'Left in last 12 months', value: String(inactive), note: 'inactive users on record (no separation date tracked)', vc: inactive > 0 ? palette.gold : palette.green },
+      payroll
+        ? { label: 'Monthly payroll', value: `RM ${Math.round(payroll.total).toLocaleString('en-MY')}`, note: `${payroll.period} · ${payroll.n} payslip${payroll.n === 1 ? '' : 's'} · gross + employer EPF/SOCSO/EIS`, vc: palette.navy }
+        : { label: 'Monthly payroll', value: '—', note: 'no approved or paid payslips yet', vc: palette.slate },
+      { label: 'Left in last 12 months', value: String(leftDated), note: undated ? `by last working day · ${undated} inactive with no last working day recorded (not counted)` : 'by last working day (HR record)', vc: leftDated > 0 ? palette.gold : palette.green },
       { label: 'Motivation flags', value: String(motivationFlags), note: '15h+ overtime, 2 or fewer leave days left, or 2+ overdue tasks', vc: motivationFlags > 0 ? palette.red : palette.green },
     ];
-  }, [rows, users]);
+  }, [rows, users, payroll]);
 
   if (!isMP) {
     return (
@@ -241,14 +265,14 @@ export const TeamTab: React.FC = () => {
                   <span className="self-start rounded-full px-1.5 py-0.5 text-[10px] font-bold" style={{ backgroundColor: loadMeta.bg, color: loadMeta.fg }}>
                     {r.load}
                   </span>
-                  <span className="text-[9.5px] text-[#5B6478]">{r.hoursThisMonth} / {r.targetHours} h</span>
+                  <span className="text-[9.5px] text-[#5B6478]" title="target pro-rated to working days so far this month">{r.hoursThisMonth} / {r.targetHours} h to date</span>
                 </span>
                 <span className="text-[12px] font-bold text-[#16223A]">{r.filesCount}</span>
                 <span className="text-[11.5px] font-bold" style={{ color: r.overtimeHours >= 15 ? palette.red : r.overtimeHours >= 10 ? palette.gold : palette.navy }}>
                   {r.overtimeHours} h
                 </span>
                 <span className="text-[11.5px] font-bold" style={{ color: r.leaveLeft <= 2 || r.leaveLeft >= 20 ? palette.gold : palette.navy }}>
-                  {r.leaveLeft} d
+                  {r.leaveLeft} d{r.leavePending > 0 && <span className="block text-[9px] font-normal text-[#5B6478]">{r.leavePending} pending</span>}
                 </span>
                 <span className="text-[11px] text-[#5B6478]">Not tracked</span>
                 <span className="text-[11px] text-[#5B6478]">Not tracked</span>
@@ -357,8 +381,8 @@ export const TeamTab: React.FC = () => {
         })}
 
         <div className="bg-[#F6F8FA] px-3.5 py-2 text-[10.5px] leading-relaxed text-[#5B6478]">
-          <strong className="text-[#16223A]">How workload is decided:</strong> Healthy = 85–110% of target hours, under 2 overdue tasks, under 10 h overtime. Busy = one of these
-          slips. Overloaded = over 110% for 3 months or 15+ h overtime. Under target = below 70% hours. Happiness comes from a 2-question monthly check-in in Staff Portal —
+          <strong className="text-[#16223A]">How workload is decided:</strong> Healthy = 85–110% of target hours (pro-rated to working days so far this month), under 2 overdue tasks, under 10 h overtime. Busy = one of these
+          slips. Overloaded = over 110% in each of the last 3 complete months, or 15+ h over the pro-rated target. Under target = below 70% hours. Happiness comes from a 2-question monthly check-in in Staff Portal —
           not yet built, so it is shown as "Not recorded" until that exists.
         </div>
       </div>

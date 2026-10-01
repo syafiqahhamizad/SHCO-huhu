@@ -7,8 +7,28 @@ import {
   type SinkingFund,
   type Commitment,
 } from '../../../services/templateService';
-import type { Invoice, QuotationLineItem } from '../../../types';
+import type { Invoice } from '../../../types';
 import { Plus, X } from 'lucide-react';
+import {
+  SALARY_CAT,
+  caseFinder,
+  feeIncomeOfPayment,
+  fundProgress,
+  isIssued,
+  isOfficeExpense,
+  isOverheadVoucher,
+  isPaidClaim,
+  monthlyFixedCost,
+  officeCash,
+  officeExpenseDate,
+  owedBalance,
+  paidByInvoice,
+  payslipCost,
+  payslipCounts,
+  pctChange,
+  runwayLabel,
+} from '../../../lib/financeMetrics';
+import { inRange, parseLocal } from '../../../lib/localDate';
 
 /**
  * "Finance" sub-tab of My Dashboard, Managing Partner only. Replicates the moneyFirm block
@@ -16,8 +36,18 @@ import { Plus, X } from 'lucide-react';
  * a Profit & loss table, a Net-profit-by-month chart, "Money position today", "Cash reserve
  * & sinking funds" (editable), "Commitments" (editable), and 3 "Profit by X" cards.
  *
- * Every figure is derived from real useApp() data (invoices, payments, expenses, timeEntries,
- * cases, officeBuckets, retainers, programmes) — nothing here is sample/fabricated. The two
+ * Every figure is derived from real useApp() data (invoices, payments, receipts, expenses,
+ * payslips, payment vouchers, travel claims, bank accounts, timeEntries, cases, retainers,
+ * programmes) — nothing here is sample/fabricated. Definitions are shared with the rest of
+ * the app through src/lib/financeMetrics.ts:
+ *  - Fee income = payment × (fees + reimbursements) ÷ invoice total (no SST, no disbursements).
+ *    Disbursements paid for clients and their recoveries net to zero, so neither is in the P&L.
+ *  - Staff cost = payroll cost from approved/paid payslips for the period (gross + employer
+ *    EPF + employer SOCSO/EIS) plus salary/statutory office expenses — not hours × charge-out rate.
+ *  - Overheads = Finance Home's office spending: approved/paid non-billable expenses (staff
+ *    claims once paid back), paid office payment vouchers (not client disbursements) and paid
+ *    staff travel claims. Rejected / pending items never count.
+ *  - Unpaid invoices = issued invoices' owed balance (total − payments − written off). The two
  * editable tables (sinking funds & commitments) are firm-maintained settings persisted on
  * PracticeSettings (services/templateService.ts) — there is no other real data source for a
  * fund's target/monthly-contribution amount or a commitment's due date, so they start empty
@@ -35,11 +65,6 @@ const fmtK = (v: number) => {
   return (neg ? '(' : '') + 'RM ' + val + 'k' + (neg ? ')' : '');
 };
 
-const pctChange = (a: number, b: number): string => {
-  if (!b) return a === 0 ? '0%' : a > 0 ? '+100%' : '-100%';
-  const p = Math.round(((a - b) / Math.abs(b)) * 100);
-  return (p > 0 ? '+' : '') + p + '%';
-};
 
 const GREEN = '#2F6F4E';
 const RED = '#B23A2E';
@@ -105,31 +130,15 @@ const lastYearBounds = (kind: PeriodKind, offset: number, now: Date): Bounds => 
   return quarterBounds(Math.floor(total / 4), ((total % 4) + 4) % 4);
 };
 
-const inBounds = (dateStr: string | undefined, b: Bounds): boolean => {
-  if (!dateStr) return false;
-  const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return false;
-  return d >= b.start && d < b.end;
-};
+/** Local-date bucketing: date-only strings are local days, UTC timestamps are converted first. */
+const inBounds = (dateStr: string | undefined, b: Bounds): boolean => inRange(dateStr, b.start, b.end);
 
 /* ----------------------------- P&L aggregation ----------------------------- */
 
-/** Fraction of an invoice's line items that are "Fee" (vs Disbursement/Reimbursement).
- * Falls back to 100% fee when the invoice has no itemised lines (most invoices don't). */
-const invoiceFeeRatio = (inv: Invoice | undefined): number => {
-  const items: QuotationLineItem[] | undefined = inv?.lineItems;
-  if (!items || items.length === 0) return 1;
-  const total = items.reduce((s, li) => s + Number(li.amount || 0), 0);
-  if (total <= 0) return 1;
-  const feeAmt = items
-    .filter((li) => li.category === 'Fee - Fixed' || li.category === 'Fee - SRO')
-    .reduce((s, li) => s + Number(li.amount || 0), 0);
-  return feeAmt / total;
-};
-
 interface PeriodAgg {
   feesCollected: number;
-  reimbCollected: number;
+  /** Office receipts not tied to an invoice (e.g. proforma / advance fees), as Finance Home counts them. */
+  otherIncome: number;
   staffCost: number;
   overheadByCategory: Map<string, number>;
   overheadTotal: number;
@@ -140,7 +149,7 @@ interface PeriodAgg {
 
 const emptyAgg = (): PeriodAgg => ({
   feesCollected: 0,
-  reimbCollected: 0,
+  otherIncome: 0,
   staffCost: 0,
   overheadByCategory: new Map(),
   overheadTotal: 0,
@@ -152,7 +161,7 @@ const emptyAgg = (): PeriodAgg => ({
 /* ----------------------------- component ----------------------------- */
 
 export const FinanceTab: React.FC = () => {
-  const { invoices, payments, expenses, timeEntries, cases, officeBuckets, retainers, programmes } = useApp();
+  const { invoices, payments, receipts, expenses, payslips, paymentVouchers, travelClaims, bankAccounts, timeEntries, cases, retainers, programmes } = useApp();
 
   const now = useMemo(() => new Date(), []);
 
@@ -178,41 +187,48 @@ export const FinanceTab: React.FC = () => {
 
   const invoiceById = useMemo(() => new Map(invoices.map((i) => [i.id, i])), [invoices]);
 
-  const paidForInvoice = useMemo(() => {
-    const m = new Map<string, number>();
-    payments.forEach((p) => m.set(p.invoiceId, (m.get(p.invoiceId) || 0) + Number(p.amount || 0)));
-    return m;
-  }, [payments]);
+  const paidForInvoice = useMemo(() => paidByInvoice(payments), [payments]);
+  const findCase = useMemo(() => caseFinder(cases), [cases]);
 
   /* --- P&L aggregation for an arbitrary bounds window --- */
   const computeAgg = React.useCallback(
     (b: Bounds): PeriodAgg => {
       const agg = emptyAgg();
+      const addOverhead = (cat: string, amt: number) => agg.overheadByCategory.set(cat, (agg.overheadByCategory.get(cat) || 0) + amt);
       payments.forEach((p) => {
         if (!inBounds(p.date, b)) return;
         const inv = invoiceById.get(p.invoiceId);
-        if (inv && inv.status === 'Voided') return;
-        const ratio = invoiceFeeRatio(inv);
-        agg.feesCollected += Number(p.amount || 0) * ratio;
-        agg.reimbCollected += Number(p.amount || 0) * (1 - ratio);
+        if (inv) agg.feesCollected += feeIncomeOfPayment(Number(p.amount || 0), inv);
       });
-      timeEntries.forEach((t) => {
-        if (!inBounds(t.date, b)) return;
-        agg.staffCost += Number(t.hours || 0) * Number(t.rate || 0);
+      receipts.forEach((r) => {
+        if (r.accountSet === 'CLIENT' || r.invoiceId || !inBounds(r.date, b)) return;
+        agg.otherIncome += Number(r.amount || 0);
+      });
+      // Payroll cost for the period the payslip is for (gross + employer EPF + SOCSO/EIS).
+      payslips.forEach((p) => {
+        if (!payslipCounts(p) || !inBounds(`${p.period}-01`, b)) return;
+        agg.staffCost += payslipCost(p);
       });
       expenses.forEach((e) => {
-        if (e.billable) return; // client-billable direct costs aren't firm overhead
-        if (!inBounds(e.date, b)) return;
-        const cat = e.category || 'Other costs';
-        agg.overheadByCategory.set(cat, (agg.overheadByCategory.get(cat) || 0) + Number(e.amount || 0));
+        if (!isOfficeExpense(e) || !inBounds(officeExpenseDate(e), b)) return;
+        if (SALARY_CAT.test(e.category || '')) agg.staffCost += Number(e.amount || 0);
+        else addOverhead(e.category || 'Other costs', Number(e.amount || 0));
+      });
+      paymentVouchers.forEach((v) => {
+        if (!isOverheadVoucher(v) || !inBounds(v.paidAt, b)) return;
+        addOverhead(v.voucherCategory === 'Office Operating' ? 'Office bills (payment vouchers)' : 'Other payment vouchers', Number(v.amount || 0));
+      });
+      travelClaims.forEach((t) => {
+        if (!isPaidClaim(t) || !inBounds(t.paidAt, b)) return;
+        addOverhead('Staff travel claims', Number(t.total || 0));
       });
       agg.overheadTotal = [...agg.overheadByCategory.values()].reduce((s, v) => s + v, 0);
-      agg.totalIncome = agg.feesCollected + agg.reimbCollected;
+      agg.totalIncome = agg.feesCollected + agg.otherIncome;
       agg.totalExpense = agg.staffCost + agg.overheadTotal;
       agg.netProfit = agg.totalIncome - agg.totalExpense;
       return agg;
     },
-    [payments, invoiceById, timeEntries, expenses]
+    [payments, invoiceById, receipts, payslips, expenses, paymentVouchers, travelClaims]
   );
 
   const curBounds = useMemo(() => periodBounds(perKind, offset, now), [perKind, offset, now]);
@@ -224,6 +240,13 @@ export const FinanceTab: React.FC = () => {
   const ly = useMemo(() => computeAgg(lyBounds), [computeAgg, lyBounds]);
 
   const margin = (agg: PeriodAgg) => (agg.totalIncome > 0 ? Math.round((agg.netProfit / agg.totalIncome) * 100) : 0);
+  const marginLabel = (agg: PeriodAgg) => (agg.totalIncome > 0 ? `${margin(agg)}%` : '—');
+  /** Margin change in points; "—" when either period has no income (no margin to compare). */
+  const marginDelta = (a: PeriodAgg, b: PeriodAgg) => {
+    if (!(a.totalIncome > 0) || !(b.totalIncome > 0)) return '—';
+    const d = margin(a) - margin(b);
+    return `${d >= 0 ? '+' : ''}${d} pts`;
+  };
 
   /* --- Profit & loss table rows --- */
   const overheadRows = useMemo(() => {
@@ -257,11 +280,11 @@ export const FinanceTab: React.FC = () => {
   const plRows: PlRow[] = useMemo(
     () => [
       { label: 'Income', t: null, p: null, l: null, kind: 'head' },
-      { label: 'Fees collected', t: cur.feesCollected, p: prev.feesCollected, l: ly.feesCollected, kind: 'row' },
-      { label: 'Disbursements & reimbursements collected', t: cur.reimbCollected, p: prev.reimbCollected, l: ly.reimbCollected, kind: 'row' },
+      { label: 'Fee income collected (fees + reimbursements, excl. SST)', t: cur.feesCollected, p: prev.feesCollected, l: ly.feesCollected, kind: 'row' },
+      { label: 'Other office receipts (not against an invoice)', t: cur.otherIncome, p: prev.otherIncome, l: ly.otherIncome, kind: 'row' },
       { label: 'Total income', t: cur.totalIncome, p: prev.totalIncome, l: ly.totalIncome, kind: 'total' },
       { label: 'Expenses', t: null, p: null, l: null, kind: 'head' },
-      { label: 'Staff cost (time recorded)', t: -cur.staffCost, p: -prev.staffCost, l: -ly.staffCost, kind: 'row', cost: true },
+      { label: 'Staff cost (payroll incl. employer EPF/SOCSO/EIS)', t: -cur.staffCost, p: -prev.staffCost, l: -ly.staffCost, kind: 'row', cost: true },
       ...overheadRows.map((r) => ({ label: r.label, t: -r.t, p: -r.p, l: -r.l, kind: 'row' as const, cost: true })),
       { label: 'Total expenses', t: -cur.totalExpense, p: -prev.totalExpense, l: -ly.totalExpense, kind: 'total', cost: true },
       { label: 'Net profit', t: cur.netProfit, p: prev.netProfit, l: ly.netProfit, kind: 'net' },
@@ -270,7 +293,8 @@ export const FinanceTab: React.FC = () => {
   );
 
   /* --- Net profit by month chart (12 months of current vs prior calendar year) --- */
-  const monthlyCommitTotal = useMemo(() => commits.filter((c) => c.frequency === 'Monthly').reduce((s, c) => s + Number(c.amount || 0), 0), [commits]);
+  // Fixed costs per month = monthly commitments + annual commitments ÷ 12.
+  const monthlyCommitTotal = useMemo(() => monthlyFixedCost(commits), [commits]);
 
   const monthChart = useMemo(() => {
     const year = now.getFullYear();
@@ -281,12 +305,12 @@ export const FinanceTab: React.FC = () => {
       if (!isFuture) {
         value = computeAgg(monthBounds(year, i)).netProfit;
       } else {
-        // Real, derived "forecast": unpaid invoice balances due that month, less fixed
-        // monthly commitments — never a fabricated number.
+        // Real, derived "forecast": issued invoices' owed balance (after payments and
+        // write-offs) due that month, less fixed costs per month — never a fabricated number.
         const dueThisMonth = invoices
-          .filter((inv) => inv.status !== 'Paid' && inv.status !== 'Voided')
+          .filter((inv) => isIssued(inv))
           .filter((inv) => inBounds(inv.dueDate, monthBounds(year, i)))
-          .reduce((s, inv) => s + (Number(inv.total || 0) - (paidForInvoice.get(inv.id) || 0)), 0);
+          .reduce((s, inv) => s + owedBalance(inv, paidForInvoice.get(inv.id) || 0), 0);
         value = dueThisMonth - monthlyCommitTotal;
       }
       const priorValue = computeAgg(monthBounds(year - 1, i)).netProfit;
@@ -297,38 +321,45 @@ export const FinanceTab: React.FC = () => {
   }, [now, computeAgg, invoices, paidForInvoice, monthlyCommitTotal]);
 
   /* --- Money position today --- */
-  const officeAccountBalance = useMemo(() => officeBuckets.reduce((s, b) => s + b.balance, 0), [officeBuckets]);
+  // Office cash: the same "Office bank" figure Finance Home shows (office bank accounts'
+  // current balance). officeBuckets is never populated, so it is not used.
+  const officeBanks = useMemo(() => (bankAccounts || []).filter((b) => b.status !== 'Archived' && !(b.functions || []).includes('Petty Cash') && !(b.functions || []).includes('Disbursement') && !(b.type === 'Trust' || (b.functions || []).includes('Trust Account'))), [bankAccounts]);
+  const officeAccountBalance = useMemo(() => officeCash(bankAccounts || []), [bankAccounts]);
 
   const unpaidInvoicesInfo = useMemo(() => {
     let total = 0;
     let over60 = 0;
+    let n = 0;
     invoices.forEach((inv) => {
-      if (inv.status === 'Paid' || inv.status === 'Voided') return;
-      const balance = Number(inv.total || 0) - (paidForInvoice.get(inv.id) || 0);
-      if (balance <= 0) return;
+      if (!isIssued(inv)) return;
+      const balance = owedBalance(inv, paidForInvoice.get(inv.id) || 0);
+      if (balance <= 0.005) return;
       total += balance;
-      const due = inv.dueDate || inv.date;
-      const days = due ? Math.floor((Date.now() - new Date(due).getTime()) / 86400000) : 0;
+      n++;
+      const t = parseLocal(inv.dueDate || inv.date);
+      const days = t ? Math.floor((Date.now() - t) / 86400000) : 0;
       if (days > 60) over60 += balance;
     });
-    return { total, over60Pct: total > 0 ? Math.round((over60 / total) * 100) : 0 };
+    return { total, n, over60Pct: total > 0 ? Math.round((over60 / total) * 100) : 0 };
   }, [invoices, paidForInvoice]);
 
   const wip = useMemo(() => {
     const activities = timeEntries.filter((t) => t.billable && !t.billed && !t.writtenOff).reduce((s, t) => s + Number(t.hours || 0) * Number(t.rate || 0), 0);
     const disb = expenses.filter((e) => e.billable && !e.billed && !e.writtenOff).reduce((s, e) => s + Number(e.amount || 0), 0);
     const files = new Set([
-      ...timeEntries.filter((t) => t.billable && !t.billed && !t.writtenOff).map((t) => t.caseId),
-      ...expenses.filter((e) => e.billable && !e.billed && !e.writtenOff).map((e) => e.caseId),
+      ...timeEntries.filter((t) => t.billable && !t.billed && !t.writtenOff).map((t) => findCase(t.caseId)?.id || t.caseId),
+      ...expenses.filter((e) => e.billable && !e.billed && !e.writtenOff).map((e) => findCase(e.caseId, e.fileRef)?.id || e.caseId || e.fileRef),
     ]).size;
     return { total: activities + disb, files };
-  }, [timeEntries, expenses]);
+  }, [timeEntries, expenses, findCase]);
 
-  const clientAccountBalance = useMemo(() => retainers.reduce((s, r) => s + (r.type === 'Deposit' ? r.amount : -r.amount), 0), [retainers]);
+  const clientAccountBalance = useMemo(() => retainers.reduce((s, r) => s + (r.type === 'Deposit' ? Number(r.amount || 0) : -Number(r.amount || 0)), 0), [retainers]);
 
   const position = [
-    { label: 'Office account', note: `${officeBuckets.length} bucket${officeBuckets.length === 1 ? '' : 's'} · covers ${(officeAccountBalance / Math.max(1, monthlyCommitTotal || 1)).toFixed(1)} months of fixed costs`, amt: fmtFull(officeAccountBalance), c: GREEN },
-    { label: 'Unpaid invoices', note: `${unpaidInvoicesInfo.over60Pct}% over 60 days`, amt: fmtFull(unpaidInvoicesInfo.total), c: RED },
+    officeAccountBalance == null
+      ? { label: 'Office account', note: 'no office bank account set up · see Accounts & Finance → Office Account', amt: 'See Office Account', c: SLATE }
+      : { label: 'Office account', note: `${officeBanks.map((b) => b.bankName).join(' + ')} · covers ${runwayLabel(officeAccountBalance, commits)} of fixed costs`, amt: fmtFull(officeAccountBalance), c: GREEN },
+    { label: 'Unpaid invoices', note: `${unpaidInvoicesInfo.n} issued invoice${unpaidInvoicesInfo.n === 1 ? '' : 's'} · ${unpaidInvoicesInfo.over60Pct}% over 60 days past due`, amt: fmtFull(unpaidInvoicesInfo.total), c: RED },
     { label: 'Work not billed yet', note: `time & disbursements recorded, no invoice · ${wip.files} file${wip.files === 1 ? '' : 's'}`, amt: fmtFull(wip.total), c: GOLD },
     { label: 'Client account', note: `${retainers.length} entries · trust balance`, amt: fmtFull(clientAccountBalance), c: NAVY },
   ];
@@ -340,7 +371,7 @@ export const FinanceTab: React.FC = () => {
 
   const reserveTotal = funds.reduce((s, f) => s + Number(f.balance || 0), 0);
   const operatingFund = funds[0];
-  const runway = operatingFund && monthlyCommitTotal > 0 ? `${(Number(operatingFund.balance || 0) / monthlyCommitTotal).toFixed(1)} months` : '—';
+  const runway = operatingFund ? runwayLabel(Number(operatingFund.balance || 0), commits) : '—';
 
   /* --- Commitments handlers --- */
   const filteredCommits = commits.filter((c) => c.frequency === cm);
@@ -354,20 +385,25 @@ export const FinanceTab: React.FC = () => {
   const ytdBounds = useMemo(() => yearBounds(now.getFullYear(), true), [now]);
 
   const caseProfits = useMemo(() => {
+    // Invoices match a file by caseId (id or ref) or fileRef.
     const invByCase = new Map<string, Invoice[]>();
     invoices.forEach((inv) => {
       if (inv.status === 'Voided') return;
-      const arr = invByCase.get(inv.caseId) || [];
+      const k = findCase(inv.caseId, inv.fileRef);
+      if (!k) return;
+      const arr = invByCase.get(k.id) || [];
       arr.push(inv);
-      invByCase.set(inv.caseId, arr);
+      invByCase.set(k.id, arr);
     });
     return cases
       .map((c) => {
-        const invIds = new Set((invByCase.get(c.id) || []).map((i) => i.id));
-        const fees = payments.filter((p) => invIds.has(p.invoiceId) && inBounds(p.date, ytdBounds)).reduce((s, p) => s + Number(p.amount || 0), 0);
-        const timeCost = timeEntries.filter((t) => t.caseId === c.id && inBounds(t.date, ytdBounds)).reduce((s, t) => s + Number(t.hours || 0) * Number(t.rate || 0), 0);
-        const directExp = expenses.filter((e) => e.caseId === c.id && e.billable && inBounds(e.date, ytdBounds)).reduce((s, e) => s + Number(e.amount || 0), 0);
-        const cost = timeCost + directExp;
+        const invs = new Map((invByCase.get(c.id) || []).map((i) => [i.id, i] as [string, Invoice]));
+        // Fee income (fees + reimbursements, excl. SST and disbursements).
+        const fees = payments.filter((p) => invs.has(p.invoiceId) && inBounds(p.date, ytdBounds)).reduce((s, p) => s + feeIncomeOfPayment(Number(p.amount || 0), invs.get(p.invoiceId)), 0);
+        // Billable time at charge-out rate — the same basis as Dashboard → Direction. Client
+        // disbursements are recovered and excluded from fees, so they are excluded from cost too.
+        const timeCost = timeEntries.filter((t) => t.billable && findCase(t.caseId)?.id === c.id && inBounds(t.date, ytdBounds)).reduce((s, t) => s + Number(t.hours || 0) * Number(t.rate || 0), 0);
+        const cost = timeCost;
         const profit = fees - cost;
         const margin2 = fees > 0 ? Math.round((profit / fees) * 100) : cost > 0 ? -100 : 0;
         return {
@@ -380,7 +416,7 @@ export const FinanceTab: React.FC = () => {
         };
       })
       .filter((cp) => cp.fees > 0 || cp.profit !== 0);
-  }, [cases, invoices, payments, timeEntries, expenses, ytdBounds]);
+  }, [cases, invoices, payments, timeEntries, findCase, ytdBounds]);
 
   const areaProfits = useMemo(() => {
     const map = new Map<string, { fees: number; profit: number }>();
@@ -402,7 +438,7 @@ export const FinanceTab: React.FC = () => {
   }, [caseProfits]);
 
   const profitCards = [
-    { title: 'Profit by practice area', sub: 'year to date', col: 'Area', rows: areaProfits, foot: 'Profit = fees collected − staff time cost − direct expenses.' },
+    { title: 'Profit by practice area', sub: 'year to date', col: 'Area', rows: areaProfits, foot: 'Profit = fee income collected (excl. SST & disbursements) − billable time at charge-out rate. Margin = profit ÷ fee income.' },
     { title: 'Profit by file', sub: 'best & worst this year', col: 'File', rows: fileProfits.map((r) => ({ name: r.name, profit: r.profit, margin: r.margin })), foot: 'Year to date · same calculation, per matter.' },
     {
       title: 'Profit by programme',
@@ -486,10 +522,10 @@ export const FinanceTab: React.FC = () => {
         ))}
         <div className="flex flex-col gap-1.5" style={{ ...cardStyle, padding: '14px 16px' }}>
           <span className="text-[9.5px] font-bold uppercase tracking-[.1em]" style={{ color: SLATE }}>Profit margin</span>
-          <span style={{ fontFamily: serifFont, fontSize: 24, fontWeight: 700, color: GREEN, lineHeight: 1.1 }}>{margin(cur)}%</span>
+          <span style={{ fontFamily: serifFont, fontSize: 24, fontWeight: 700, color: GREEN, lineHeight: 1.1 }}>{marginLabel(cur)}</span>
           <span className="flex gap-2.5 whitespace-nowrap text-[10.5px]" style={{ color: SLATE }}>
-            <span>vs prev <strong style={{ color: deltaColor(margin(cur), margin(prev), true) }}>{margin(cur) - margin(prev) >= 0 ? '+' : ''}{margin(cur) - margin(prev)} pts</strong></span>
-            <span>vs last yr <strong style={{ color: deltaColor(margin(cur), margin(ly), true) }}>{margin(cur) - margin(ly) >= 0 ? '+' : ''}{margin(cur) - margin(ly)} pts</strong></span>
+            <span>vs prev <strong style={{ color: deltaColor(margin(cur), margin(prev), true) }}>{marginDelta(cur, prev)}</strong></span>
+            <span>vs last yr <strong style={{ color: deltaColor(margin(cur), margin(ly), true) }}>{marginDelta(cur, ly)}</strong></span>
           </span>
         </div>
       </section>
@@ -520,7 +556,7 @@ export const FinanceTab: React.FC = () => {
               );
             }
             const isTotal = r.kind === 'total' || r.kind === 'net';
-            const delta = r.l ? pctChange(r.cost ? Math.abs(r.t || 0) : r.t || 0, r.cost ? Math.abs(r.l) : r.l) : '';
+            const delta = pctChange(r.cost ? Math.abs(r.t || 0) : r.t || 0, r.cost ? Math.abs(r.l || 0) : r.l || 0);
             const dColor = r.l ? deltaColor(r.cost ? -(r.t || 0) : r.t || 0, r.cost ? -r.l : r.l, true) : SLATE;
             return (
               <div
@@ -606,10 +642,8 @@ export const FinanceTab: React.FC = () => {
             <div className="px-3.5 py-4 text-center text-[11px]" style={{ color: SLATE }}>No reserve funds set up yet. Add one below.</div>
           )}
           {funds.map((f, i) => {
-            const pct = Math.min(100, Math.round((Number(f.balance || 0) / Math.max(1, Number(f.target || 0))) * 100));
-            const m = f.monthly > 0 ? Math.ceil((f.target - f.balance) / f.monthly) : null;
-            const color = pct >= 75 ? GREEN : pct >= 40 ? '#C9A86A' : '#B2542F';
-            const eta = pct >= 100 ? 'reached' : m && m > 0 ? `${pct}% · full in ${m} mo` : `${pct}%`;
+            const { pct, label: eta } = fundProgress(f);
+            const color = !(Number(f.target) > 0) ? '#C9D3E0' : pct >= 75 ? GREEN : pct >= 40 ? '#C9A86A' : '#B2542F';
             return (
               <div key={f.id} className="grid items-center gap-2 px-3.5 py-1.5" style={{ gridTemplateColumns: 'minmax(0,1.6fr) 80px 70px 80px 100px 20px', borderBottom: '1px solid #F0F2F5' }}>
                 <input value={f.name} onChange={(e) => updateFund(f.id, { name: e.target.value })} className="w-full rounded-[5px] px-1.5 py-1 text-[11px] font-semibold" style={{ border: '1px solid #E3E7EC', color: NAVY }} />

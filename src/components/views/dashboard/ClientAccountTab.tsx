@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { useApp } from '../../../context/AppContext';
 import { palette, tint, tintText, serifFont } from '../../../lib/designTokens';
 import type { Retainer } from '../../../types';
+import { parseLocal } from '../../../lib/localDate';
 
 /** Partner-code -> avatar color. Mirrors the fixed 'SH' | 'AH' | 'ZA' partner codes in
  * types.ts (see PartnerCode) — not a design token because it keys off partner identity,
@@ -13,13 +14,18 @@ const PARTNER_COLOR: Record<string, string> = {
 };
 
 const fmtRM = (n: number) =>
-  `RM ${n.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `RM ${Number(n || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-const monthsBetween = (fromIso: string, toDate: Date): number => {
-  const from = new Date(fromIso);
-  if (Number.isNaN(from.getTime())) return 0;
-  return (toDate.getFullYear() - from.getFullYear()) * 12 + (toDate.getMonth() - from.getMonth());
+/** Ledger amounts can arrive as strings from older imports ('500' + '300' = '500300'). */
+const amt = (r: Retainer) => Number(r.amount || 0);
+const signed = (r: Retainer) => (r.type === 'Deposit' ? amt(r) : -amt(r));
+/** Whole days since a stored date (local calendar); 0 when unknown. */
+const daysSinceLocal = (s: string, now: Date) => {
+  const t = parseLocal(s);
+  return t ? Math.floor((now.getTime() - t) / 86400000) : 0;
 };
+/** Dormant = no movement for more than 365 days — the Accounts & Finance → Client account rule. */
+const DORMANT_DAYS = 365;
 
 interface MatterGroup {
   clientId: string;
@@ -54,6 +60,7 @@ export const ClientAccountTab: React.FC = () => {
     clients,
     threeWayRec,
     bankReconciliationEntries,
+    bankAccounts,
     clientAccountChecks,
     toggleClientAccountCheck,
   } = useApp();
@@ -69,23 +76,22 @@ export const ClientAccountTab: React.FC = () => {
   const totalHeld = useMemo(() => {
     const clientBalances: Record<string, number> = {};
     retainers.forEach((r) => {
-      clientBalances[r.clientId] = (clientBalances[r.clientId] || 0) + (r.type === 'Deposit' ? r.amount : -r.amount);
+      clientBalances[r.clientId] = (clientBalances[r.clientId] || 0) + signed(r);
     });
     return Object.values(clientBalances).reduce((acc, v) => acc + v, 0);
   }, [retainers]);
 
   // Per-matter (clientId + caseId) groupings — needed for overdrawn / dormant /
-  // stakeholder detection and the "Largest balances" table, which the client-level
-  // total above doesn't give us.
+  // closed-file detection and the "Largest balances" table, which the client-level
+  // total above doesn't give us. Entries with no matter are kept (grouped per client under
+  // caseId '') so the matter totals add up to "Total held", and are flagged below.
   const matterGroups = useMemo<MatterGroup[]>(() => {
     const map = new Map<string, MatterGroup>();
     retainers.forEach((r) => {
-      if (!r.clientId || !r.caseId) return;
-      const key = `${r.clientId}|${r.caseId}`;
-      const delta = r.type === 'Deposit' ? r.amount : -r.amount;
-      const g = map.get(key) || { clientId: r.clientId, caseId: r.caseId, balance: 0, lastDate: '', entries: [] };
-      g.balance += delta;
-      if (!g.lastDate || r.date > g.lastDate) g.lastDate = r.date;
+      const key = `${r.clientId || ''}|${r.caseId || ''}`;
+      const g = map.get(key) || { clientId: r.clientId || '', caseId: r.caseId || '', balance: 0, lastDate: '', entries: [] };
+      g.balance += signed(r);
+      if (!g.lastDate || parseLocal(r.date) > parseLocal(g.lastDate)) g.lastDate = r.date;
       g.entries.push(r);
       map.set(key, g);
     });
@@ -97,7 +103,7 @@ export const ClientAccountTab: React.FC = () => {
   const nameRef = (g: MatterGroup) => {
     const client = clientById.get(g.clientId);
     const kase = caseById.get(g.caseId);
-    return { client, kase, label: `${client?.name || g.clientId} · ${kase?.ref || g.caseId}` };
+    return { client, kase, label: `${client?.name || g.clientId || 'No client'} · ${kase?.ref || g.caseId || 'no matter linked'}` };
   };
 
   // Items to check — real detection against retainers, no fabricated rows.
@@ -114,7 +120,7 @@ export const ClientAccountTab: React.FC = () => {
           key: `unidentified:${r.id}`,
           title: r.remarks || 'Unidentified receipt',
           ref: `Retainer ${r.id} · ${r.date}`,
-          amount: r.amount,
+          amount: amt(r),
           why: 'No client/matter link — must be identified before it can be reconciled.',
           color: palette.blue,
         });
@@ -123,7 +129,18 @@ export const ClientAccountTab: React.FC = () => {
     matterGroups.forEach((g) => {
       const { client, kase, label } = nameRef(g);
 
-      if (g.balance < 0) {
+      if (!g.caseId && Math.abs(g.balance) > 0.005) {
+        items.push({
+          key: `nomatter:${g.clientId}`,
+          title: label,
+          ref: `${g.entries.length} ledger entr${g.entries.length === 1 ? 'y' : 'ies'} with no matter`,
+          amount: g.balance,
+          why: 'Client money held without a matter — link each entry to a file so it can be reconciled per matter.',
+          color: palette.blue,
+        });
+      }
+
+      if (g.balance < -0.005) {
         items.push({
           key: `overdrawn:${g.clientId}:${g.caseId}`,
           title: label,
@@ -134,19 +151,20 @@ export const ClientAccountTab: React.FC = () => {
         });
       }
 
-      if (g.balance > 0 && monthsBetween(g.lastDate, today) > 12) {
+      if (g.balance > 0.005 && daysSinceLocal(g.lastDate, today) > DORMANT_DAYS) {
         items.push({
           key: `dormant:${g.clientId}:${g.caseId}`,
           title: label,
           ref: `No movement since ${g.lastDate}`,
           amount: g.balance,
-          why: 'Dormant over 12 months — consider reporting to the Registrar of Unclaimed Moneys.',
+          why: 'No movement for more than 365 days — consider reporting to the Registrar of Unclaimed Moneys.',
           color: palette.gold,
         });
       }
 
-      if (g.balance > 0 && kase?.status === 'Closed') {
+      if (g.balance > 0.005 && kase?.status === 'Closed') {
         items.push({
+          // key prefix kept as 'stakeholder:' so existing audit-trail ticks still match.
           key: `stakeholder:${g.clientId}:${g.caseId}`,
           title: label,
           ref: kase?.title || g.caseId,
@@ -163,23 +181,31 @@ export const ClientAccountTab: React.FC = () => {
   }, [retainers, matterGroups, caseById, clientById, today]);
 
   const openCount = checkItems.filter((i) => !checkedMap.has(i.key)).length;
-  const stakeholderHeld = checkItems
+  // There is no stakeholder-sum data in the system; this is money still held on CLOSED files.
+  const closedFilesHeld = checkItems
     .filter((i) => i.key.startsWith('stakeholder:'))
     .reduce((acc, i) => acc + i.amount, 0);
 
+  // Only the CLIENT account's bank reconciliation counts (office / petty cash recs don't).
+  const clientBankIds = useMemo(
+    () => new Set((bankAccounts || []).filter((b) => !(b.functions || []).includes('Petty Cash') && !(b.functions || []).includes('Disbursement') && (b.type === 'Trust' || (b.functions || []).includes('Trust Account'))).map((b) => b.id)),
+    [bankAccounts]
+  );
+  const clientRecs = useMemo(() => bankReconciliationEntries.filter((e) => clientBankIds.has(e.bankAccountId)), [bankReconciliationEntries, clientBankIds]);
+
   const reconciledToDate = useMemo(() => {
-    const dated = bankReconciliationEntries.filter((e) => e.status === 'Reconciled' && e.reconciledDate);
+    const dated = clientRecs.filter((e) => e.status === 'Reconciled' && e.reconciledDate);
     if (dated.length === 0) return null;
     return dated.reduce((latest, e) => (e.reconciledDate! > latest ? e.reconciledDate! : latest), dated[0].reconciledDate!);
-  }, [bankReconciliationEntries]);
+  }, [clientRecs]);
 
   const latestRecon = threeWayRec.length > 0 ? threeWayRec[threeWayRec.length - 1] : null;
 
   const latestSignOff = useMemo(() => {
-    const dated = bankReconciliationEntries.filter((e) => e.status === 'Reconciled' && e.reconciledBy && e.reconciledDate);
+    const dated = clientRecs.filter((e) => e.status === 'Reconciled' && e.reconciledBy && e.reconciledDate);
     if (dated.length === 0) return null;
     return dated.reduce((latest, e) => (e.reconciledDate! > latest.reconciledDate! ? e : latest), dated[0]);
-  }, [bankReconciliationEntries]);
+  }, [clientRecs]);
 
   const kpis = [
     {
@@ -191,7 +217,7 @@ export const ClientAccountTab: React.FC = () => {
     {
       label: 'Reconciled to',
       value: reconciledToDate ?? 'Not yet',
-      note: reconciledToDate ? 'Latest bank reconciliation date' : 'No reconciliation entries on file',
+      note: reconciledToDate ? 'Latest client-account bank reconciliation' : clientBankIds.size ? 'No client-account reconciliation on file' : 'No client bank account set up',
       color: reconciledToDate ? palette.green : palette.red,
     },
     {
@@ -201,16 +227,16 @@ export const ClientAccountTab: React.FC = () => {
       color: openCount > 0 ? palette.red : palette.green,
     },
     {
-      label: 'Stakeholder sums held',
-      value: fmtRM(stakeholderHeld),
-      note: 'Held on matters marked Closed',
-      color: stakeholderHeld > 0 ? palette.gold : palette.green,
+      label: 'Balances on closed files',
+      value: fmtRM(closedFilesHeld),
+      note: 'Client money still held on matters marked Closed',
+      color: closedFilesHeld > 0 ? palette.gold : palette.green,
     },
   ];
 
   const largestBalances = useMemo(() => {
     return matterGroups
-      .filter((g) => g.balance > 0)
+      .filter((g) => g.balance > 0.005)
       .sort((a, b) => b.balance - a.balance)
       .slice(0, 5)
       .map((g) => {
@@ -429,7 +455,7 @@ export const ClientAccountTab: React.FC = () => {
                   <span className="flex-1 text-[11.5px]" style={{ color: palette.navy }}>
                     Difference (bank vs cash book)
                   </span>
-                  <strong className="text-[11.5px]" style={{ color: latestRecon.bankVsCashBook === 0 ? palette.green : palette.red }}>
+                  <strong className="text-[11.5px]" style={{ color: Math.abs(Number(latestRecon.bankVsCashBook || 0)) < 0.005 ? palette.green : palette.red }}>
                     {fmtRM(latestRecon.bankVsCashBook)}
                   </strong>
                 </div>
