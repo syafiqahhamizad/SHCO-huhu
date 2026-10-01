@@ -1818,8 +1818,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     switch (type) {
       case 'case': {
-        const registeredCases = cases.filter((caseRecord) => caseRecord.id.startsWith('CASE-'));
-        return generateNextMatterSequenceNumber(registeredCases, 1);
+        // Every existing file counts (real files use ids like CS-001), so running numbers never
+        // repeat; 4 digits to match the firm's refs (…/0001/08-2026).
+        return generateNextMatterSequenceNumber(cases, 1).padStart(4, '0');
       }
       case 'receipt':
         return `HQ-OR-${String(nextNum).padStart(4, '0')}`;
