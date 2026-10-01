@@ -1630,10 +1630,8 @@ export const CasesView: React.FC = () => {
     e.preventDefault();
     if (!selectedCase || !docName.trim()) return;
 
-    const practice = (selectedCase.gdriveCategory || selectedCase.practiceArea || selectedCase.type || '').toLowerCase();
-    const driveUrl = selectedCase.gdriveFolderUrl || (practice.includes('litigation') || practice.includes('civil')
-      ? 'https://drive.google.com/drive/folders/1sY6K_OtFRoWCkBNd5ArDOoKtSZHiYN3h?usp=drive_link'
-      : 'https://drive.google.com/drive/folders/0ANq_mzZTq_HeUk9PVA');
+    // The matter's own Drive folder if one has been linked; no placeholder folder otherwise.
+    const driveUrl = selectedCase.gdriveFolderUrl || undefined;
 
     const newDoc = {
       id: `D${Math.floor(100 + Math.random() * 900)}`,

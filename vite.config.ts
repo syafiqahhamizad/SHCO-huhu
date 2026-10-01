@@ -24,9 +24,7 @@ export default defineConfig(() => {
               return 'firebaseCore';
             }
             if (id.includes('/react/') || id.includes('/react-dom/')) return 'react';
-            if (id.includes('/recharts/')) return 'charts';
             if (id.includes('/lucide-react/')) return 'icons';
-            if (id.includes('/motion/')) return 'motion';
             return undefined;
           },
         },

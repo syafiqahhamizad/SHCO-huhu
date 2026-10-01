@@ -27,8 +27,6 @@ const SimplifiedAccountingView = React.lazy(() => import('./components/views/Sim
 // Quotations, reimbursement approvals and the trust pages as what users see. The old view files
 // are kept (not deleted) but no longer routed to for these ids.
 const AccountsFinanceView = React.lazy(() => import('./components/views/finance/AccountsFinanceView').then((module) => ({ default: module.AccountsFinanceView })));
-const SystemViews = import('./components/views/SystemViews');
-const WorkspaceView = React.lazy(() => SystemViews.then((module) => ({ default: module.WorkspaceView })));
 const PracticeSettingsView = React.lazy(() => import('./components/views/PracticeSettingsView').then((module) => ({ default: module.PracticeSettingsView })));
 const TrustAuditLogsView = React.lazy(() => import('./components/views/TrustAuditLogsView').then((module) => ({ default: module.TrustAuditLogsView })));
 const InventoryView = React.lazy(() => import('./components/views/InventoryView').then((module) => ({ default: module.InventoryView })));
@@ -193,8 +191,6 @@ const MainContent: React.FC = () => {
         return <InventoryView />;
 
       // System Integrations
-      case 'workspace':
-        return <WorkspaceView />;
       case 'logs':
         return <ActivityLogsView />;
       case 'users':

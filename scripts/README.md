@@ -24,24 +24,17 @@ Deploy the final rules from `firestore.rules` in the project root.
 
 Deploy the final rules from `storage.rules` in the project root.
 
-## 4) Custom claims
+## 4) Access list
 
-Set custom claims using the Firebase Admin SDK.
-
-Example:
-
-```bash
-export FIREBASE_SERVICE_ACCOUNT='{"type":"service_account", ... }'
-node scripts/setCustomClaims.js
-```
-
-This script assigns claims like:
-- role
-- admin
-- superAdmin
-- portalAccess
+Who may sign in, and with which role, is the owner-managed access list
+(`practiceSystem/access` in Firestore). The Managing Partner publishes it from
+Firm & Practice Settings → Users & Roles. Custom claims and Cloud Functions are
+no longer used.
 
 ## 5) Deploy
+
+Pushing to `main` deploys automatically (GitHub Actions → `firebase deploy`).
+Manual deploy:
 
 ```bash
 firebase login

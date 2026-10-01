@@ -3072,12 +3072,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       parentFolder = 'SHCO Practice - Criminal Defence';
     }
 
-    const defaultDriveUrl = category === 'Litigation'
-      ? 'https://drive.google.com/drive/folders/1sY6K_OtFRoWCkBNd5ArDOoKtSZHiYN3h?usp=drive_link'
-      : `https://drive.google.com/drive/folders/gdrive_${category.toLowerCase()}_master`;
-
-    const folderId = caseObj.gdriveFolderId || (category === 'Litigation' ? '1sY6K_OtFRoWCkBNd5ArDOoKtSZHiYN3h' : `gdrive_${category.toLowerCase()}_${Date.now()}`);
-    const folderUrl = caseObj.gdriveFolderUrl || defaultDriveUrl;
+    // Only a real folder link given on the case is kept — no placeholder folders are invented.
+    const folderId = caseObj.gdriveFolderId || undefined;
+    const folderUrl = caseObj.gdriveFolderUrl || undefined;
 
     const enhancedCase: Case = {
       ...caseObj,
@@ -3101,22 +3098,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return updatedCases;
     });
     logAuditEvent('CREATE', 'CASES', enhancedCase.id, `${enhancedCase.ref} — ${enhancedCase.title}`, `New matter opened under practice area: ${enhancedCase.type}.`);
-    addActivityLog('Matter Opened', `${enhancedCase.ref} — ${enhancedCase.title} [Google Drive: ${category} Folder]`);
-    showToast(`Matter created & linked to Google Drive (${category} Folder)`);
-
-    try {
-      fetch('/api/drive/create-case-folder', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          caseRef: enhancedCase.ref,
-          caseTitle: enhancedCase.title,
-          practiceArea: enhancedCase.type,
-        }),
-      }).catch((e) => console.log('Backend sync non-blocking error:', e));
-    } catch (e) {
-      // Non-blocking
-    }
+    addActivityLog('Matter Opened', `${enhancedCase.ref} — ${enhancedCase.title}`);
+    showToast('Matter created.');
   };
 
   const updateCase = (id: string, updates: Partial<Case>) => {
