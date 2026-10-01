@@ -12,6 +12,7 @@
  *   - payroll cost    = gross + employer EPF + employer SOCSO/EIS          (slipCalc)
  */
 import type { Case, Expense, Invoice, Payment, PaymentVoucher, Payslip, TravelClaim } from '../types';
+import { invoiceComposition, isNonExpensePv, round2 } from './financeCalc';
 import { computeTotals } from './billingEngine';
 
 /* ------------------------------ invoices ------------------------------ */
@@ -25,9 +26,22 @@ export const paidByInvoice = (payments: Pick<Payment, 'invoiceId' | 'amount'>[])
   return m;
 };
 
-/** What the client still owes: total − payments − written off, never below 0; voided = 0. */
-export const owedBalance = (inv: Pick<Invoice, 'status' | 'total' | 'writtenOff'>, paid: number): number =>
-  inv.status === 'Voided' ? 0 : Math.max(0, Number(inv.total || 0) - Number(paid || 0) - Number(inv.writtenOff || 0));
+/** What the client still owes: total − payments − written off − proforma deposit applied,
+ * never below 0; voided = 0. Same rule as the finance module's invBal. */
+export const owedBalance = (inv: Pick<Invoice, 'status' | 'total' | 'writtenOff' | 'depositApplied'>, paid: number): number =>
+  inv.status === 'Voided' ? 0 : Math.max(0, round2(Number(inv.total || 0) - Number(paid || 0) - Number(inv.writtenOff || 0) - Number(inv.depositApplied || 0)));
+
+/** Money received against invoices: payments plus proforma deposits applied (dated on issue),
+ * the same events the finance module counts as fee income. */
+export const moneyInEvents = (
+  invoices: Pick<Invoice, 'id' | 'status' | 'date' | 'issuedAt' | 'depositApplied'>[],
+  payments: Pick<Payment, 'invoiceId' | 'date' | 'amount'>[],
+): { invoiceId: string; date: string; amount: number }[] => [
+  ...payments.map((p) => ({ invoiceId: p.invoiceId, date: p.date, amount: Number(p.amount || 0) })),
+  ...invoices
+    .filter((i) => isIssued(i) && Number(i.depositApplied || 0) > 0)
+    .map((i) => ({ invoiceId: i.id, date: i.issuedAt || i.date, amount: Number(i.depositApplied || 0) })),
+];
 
 /** Invoice belongs to the file when its caseId is the file's id or ref, or its fileRef is the ref. */
 export const invoiceOnCase = (inv: Pick<Invoice, 'caseId' | 'fileRef'>, c: Pick<Case, 'id' | 'ref'>): boolean =>
@@ -48,16 +62,9 @@ export const caseFinder = (cases: Case[]) => {
  */
 export const feeShare = (inv: Pick<Invoice, 'total' | 'tax' | 'lineItems'> | undefined): number => {
   if (!inv) return 0;
-  const total = Number(inv.total || 0);
-  if (!(total > 0)) return 0;
-  let fee: number;
-  if (inv.lineItems && inv.lineItems.length) {
-    const t = computeTotals(inv.lineItems, false);
-    fee = t.fees + t.reimbursements;
-  } else {
-    fee = total - Number(inv.tax || 0);
-  }
-  return Math.min(1, Math.max(0, fee / total));
+  const c = invoiceComposition(inv);
+  if (!(c.total > 0)) return 0;
+  return Math.min(1, Math.max(0, (c.fees + c.reimb) / c.total));
 };
 
 /** Fee income in one payment: payment × (fees + reimbursements) ÷ invoice total. */
@@ -140,7 +147,7 @@ export const officeExpenseDate = (e: Expense): string | undefined => (e.claimant
 
 /** Office PVs that are firm overheads: paid, not from the client account, not a disbursement paid for a client. */
 export const isOverheadVoucher = (v: PaymentVoucher): boolean =>
-  v.accountSet !== 'CLIENT' && !!v.paidAt && v.approvalStatus !== 'Rejected' && v.voucherCategory !== 'Disbursement' && v.voucherCategory !== 'Client Disb' && v.voucherCategory !== 'Legal Fees Transfer';
+  v.accountSet !== 'CLIENT' && !!v.paidAt && v.approvalStatus !== 'Rejected' && !isNonExpensePv(v.voucherCategory);
 
 /** Staff travel claims count once paid back (Finance Home). */
 export const isPaidClaim = (t: TravelClaim): boolean => !!t.paidAt && t.approvalStatus !== 'Rejected';

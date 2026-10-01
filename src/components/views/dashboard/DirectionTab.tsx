@@ -5,7 +5,7 @@ import { getPracticeSettings } from '../../../services/templateService';
 import type { Case, FirmGoal, Milestone } from '../../../types';
 import { StatusBadge } from '../../ui';
 import { X } from 'lucide-react';
-import { caseFinder, feeIncomeOfPayment, pctChange } from '../../../lib/financeMetrics';
+import { caseFinder, feeIncomeOfPayment, moneyInEvents, pctChange } from '../../../lib/financeMetrics';
 import { endOfToday, inRange } from '../../../lib/localDate';
 
 /**
@@ -124,10 +124,10 @@ export const DirectionTab: React.FC = () => {
   const practiceAreas = useMemo(() => {
     const feesYtd = new Map<string, number>();
     const feesLastYtd = new Map<string, number>();
-    payments.forEach((p) => {
+    moneyInEvents(invoices, payments).forEach((p) => {
       const meta = invoiceMeta.get(p.invoiceId);
       if (!meta) return;
-      const fee = feeIncomeOfPayment(Number(p.amount || 0), meta.inv);
+      const fee = feeIncomeOfPayment(p.amount, meta.inv);
       if (inRange(p.date, yearStart, ytdEnd)) feesYtd.set(meta.area, (feesYtd.get(meta.area) || 0) + fee);
       if (inRange(p.date, lastYearStart, lastYtdEnd)) feesLastYtd.set(meta.area, (feesLastYtd.get(meta.area) || 0) + fee);
     });
@@ -164,7 +164,7 @@ export const DirectionTab: React.FC = () => {
 
     rows.sort((a, b) => b.fees - a.fees);
     return { rows, totalFees };
-  }, [cases, payments, invoiceMeta, timeEntries, findCase, yearStart, ytdEnd, lastYearStart, lastYtdEnd]);
+  }, [cases, payments, invoices, invoiceMeta, timeEntries, findCase, yearStart, ytdEnd, lastYearStart, lastYtdEnd]);
 
   const SIGNAL_TONE: Record<'Grow' | 'Hold' | 'Rethink', 'green' | 'blue' | 'red'> = { Grow: 'green', Hold: 'blue', Rethink: 'red' };
 
@@ -172,10 +172,10 @@ export const DirectionTab: React.FC = () => {
 
   const concentration = useMemo(() => {
     const feesByClient = new Map<string, number>();
-    payments.forEach((p) => {
+    moneyInEvents(invoices, payments).forEach((p) => {
       const meta = invoiceMeta.get(p.invoiceId);
       if (!meta || !inRange(p.date, yearStart, ytdEnd)) return;
-      feesByClient.set(meta.clientId, (feesByClient.get(meta.clientId) || 0) + feeIncomeOfPayment(Number(p.amount || 0), meta.inv));
+      feesByClient.set(meta.clientId, (feesByClient.get(meta.clientId) || 0) + feeIncomeOfPayment(p.amount, meta.inv));
     });
     const sorted = [...feesByClient.entries()].filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
     const total = sorted.reduce((s, [, v]) => s + v, 0);
@@ -196,7 +196,7 @@ export const DirectionTab: React.FC = () => {
       top1Name,
       clientCount: sorted.length,
     };
-  }, [payments, invoiceMeta, yearStart, ytdEnd, clientNameById]);
+  }, [payments, invoices, invoiceMeta, yearStart, ytdEnd, clientNameById]);
 
   const concentrationTone: 'green' | 'gold' | 'red' =
     concentration.top1Pct >= 25 ? 'red' : concentration.top1Pct >= 15 ? 'gold' : 'green';

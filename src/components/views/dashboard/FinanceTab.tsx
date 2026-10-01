@@ -13,6 +13,7 @@ import {
   SALARY_CAT,
   caseFinder,
   feeIncomeOfPayment,
+  moneyInEvents,
   fundProgress,
   isIssued,
   isOfficeExpense,
@@ -188,6 +189,7 @@ export const FinanceTab: React.FC = () => {
   const invoiceById = useMemo(() => new Map(invoices.map((i) => [i.id, i])), [invoices]);
 
   const paidForInvoice = useMemo(() => paidByInvoice(payments), [payments]);
+  const moneyIn = useMemo(() => moneyInEvents(invoices, payments), [invoices, payments]);
   const findCase = useMemo(() => caseFinder(cases), [cases]);
 
   /* --- P&L aggregation for an arbitrary bounds window --- */
@@ -195,10 +197,10 @@ export const FinanceTab: React.FC = () => {
     (b: Bounds): PeriodAgg => {
       const agg = emptyAgg();
       const addOverhead = (cat: string, amt: number) => agg.overheadByCategory.set(cat, (agg.overheadByCategory.get(cat) || 0) + amt);
-      payments.forEach((p) => {
+      moneyIn.forEach((p) => {
         if (!inBounds(p.date, b)) return;
         const inv = invoiceById.get(p.invoiceId);
-        if (inv) agg.feesCollected += feeIncomeOfPayment(Number(p.amount || 0), inv);
+        if (inv) agg.feesCollected += feeIncomeOfPayment(p.amount, inv);
       });
       receipts.forEach((r) => {
         if (r.accountSet === 'CLIENT' || r.invoiceId || !inBounds(r.date, b)) return;
@@ -228,7 +230,7 @@ export const FinanceTab: React.FC = () => {
       agg.netProfit = agg.totalIncome - agg.totalExpense;
       return agg;
     },
-    [payments, invoiceById, receipts, payslips, expenses, paymentVouchers, travelClaims]
+    [moneyIn, invoiceById, receipts, payslips, expenses, paymentVouchers, travelClaims]
   );
 
   const curBounds = useMemo(() => periodBounds(perKind, offset, now), [perKind, offset, now]);
@@ -399,7 +401,7 @@ export const FinanceTab: React.FC = () => {
       .map((c) => {
         const invs = new Map((invByCase.get(c.id) || []).map((i) => [i.id, i] as [string, Invoice]));
         // Fee income (fees + reimbursements, excl. SST and disbursements).
-        const fees = payments.filter((p) => invs.has(p.invoiceId) && inBounds(p.date, ytdBounds)).reduce((s, p) => s + feeIncomeOfPayment(Number(p.amount || 0), invs.get(p.invoiceId)), 0);
+        const fees = moneyIn.filter((p) => invs.has(p.invoiceId) && inBounds(p.date, ytdBounds)).reduce((s, p) => s + feeIncomeOfPayment(p.amount, invs.get(p.invoiceId)), 0);
         // Billable time at charge-out rate — the same basis as Dashboard → Direction. Client
         // disbursements are recovered and excluded from fees, so they are excluded from cost too.
         const timeCost = timeEntries.filter((t) => t.billable && findCase(t.caseId)?.id === c.id && inBounds(t.date, ytdBounds)).reduce((s, t) => s + Number(t.hours || 0) * Number(t.rate || 0), 0);
@@ -416,7 +418,7 @@ export const FinanceTab: React.FC = () => {
         };
       })
       .filter((cp) => cp.fees > 0 || cp.profit !== 0);
-  }, [cases, invoices, payments, timeEntries, findCase, ytdBounds]);
+  }, [cases, invoices, moneyIn, timeEntries, findCase, ytdBounds]);
 
   const areaProfits = useMemo(() => {
     const map = new Map<string, { fees: number; profit: number }>();
