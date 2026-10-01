@@ -13,6 +13,7 @@ const ComprehensiveDashboardView = React.lazy(() => import('./components/views/C
 const LeadsReferralsView = React.lazy(() => import('./components/views/LeadsReferralsView').then((module) => ({ default: module.LeadsReferralsView })));
 const ClientsView = React.lazy(() => import('./components/views/ClientsView').then((module) => ({ default: module.ClientsView })));
 const CasesView = React.lazy(() => import('./components/views/CasesView').then((module) => ({ default: module.CasesView })));
+const ServiceLogPage = React.lazy(() => import('./components/views/cases/ServiceLogPage').then((module) => ({ default: module.ServiceLogPage })));
 const ClientPortalView = React.lazy(() => import('./components/views/ClientPortalView').then((module) => ({ default: module.ClientPortalView })));
 const PracticeViews = import('./components/views/PracticeViews');
 const HearingsView = React.lazy(() => PracticeViews.then((module) => ({ default: module.HearingsView })));
@@ -181,6 +182,8 @@ const MainContent: React.FC = () => {
         return <CaseStatusView />;
       case 'deadlines':
         return <DeadlinesView />;
+      case 'serviceLog':
+        return <ServiceLogPage />;
       case 'courts':
         return <CourtsView />;
       case 'referral':

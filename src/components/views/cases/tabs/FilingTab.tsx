@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useApp } from '../../../../context/AppContext';
 import type { ServiceRecord } from '../../../../types';
-import { prepareStorage, storeMatterFile, openStoredFile, useStorageLabel, type StoredMatterFile } from '../../../../services/fileStorageService';
+import { openStoredFile, useStorageLabel, type StoredMatterFile } from '../../../../services/fileStorageService';
 import { css, S, Card, Field, Seg } from '../caseUi';
-import { METHODS, P, PROOF_TYPES, actionOf, courtOf, daysFrom, deriveMatchKey, fmt, hasProof, isDeadline, isDone, isoOf, proofTypeFor, todayIso } from '../caseModel';
-import { histEntry, newId, type WF } from '../wf';
+import { METHODS, P, PROOF_TYPES, actionOf, courtOf, daysFrom, fmt, hasProof, isoOf, proofTypeFor, todayIso } from '../caseModel';
+import { addServicePatch, newServiceRecord, uploadServiceProof, withProof } from '../serviceModel';
+import type { WF } from '../wf';
 
 /** View id of the firm-wide Service Log page (built separately). */
 export const SERVICE_LOG_VIEW = 'serviceLog';
@@ -28,35 +29,17 @@ export const FilingTab: React.FC<{ w: WF }> = ({ w }) => {
 
   const switchSub = (k: string) => { setSub(k as 'filing' | 'service'); setF(blank(k === 'filing' ? 'Filed' : 'Served')); setPicked(null); };
 
-  const upload = async (file: File, dir: string): Promise<StoredMatterFile> => {
-    await prepareStorage();
-    return storeMatterFile({ ref: c.ref, title: c.title, folderId: c.gdriveFolderId, sub: dir === 'Filed' ? 'Filing' : 'Service', file, uploadedBy: w.me });
-  };
-
   const saveS = async () => {
     if (!f.doc.trim()) { w.toast('Add the document'); return; }
     let stored: StoredMatterFile | null = null;
     if (picked) {
       setBusy('save');
-      try { stored = await upload(picked, f.dir || 'Served'); } catch (e) { setBusy(''); w.toast('Proof not uploaded: ' + (e instanceof Error ? e.message : String(e))); return; }
+      try { stored = await uploadServiceProof(c, picked, f.dir || 'Served', w.me); } catch (e) { setBusy(''); w.toast('Proof not uploaded: ' + (e instanceof Error ? e.message : String(e))); return; }
       setBusy('');
     }
-    const row: ServiceRecord = {
-      id: newId('SR'), date: f.date, action: f.dir, documentServed: f.doc.trim(), servedOn: f.party.trim(), method: f.method, servedBy: f.by.trim(),
-      proofObtained: stored ? 'Y' : 'N', notes: f.notes.trim(), proofType: pt,
-      ...(stored ? { proofFileName: stored.name, driveFileId: stored.driveFileId, webViewLink: stored.webViewLink, storagePath: stored.storagePath } : {}),
-      recordedBy: w.me, recordedAt: todayIso(),
-    };
-    // A filing whose document contains an open deadline's key ticks that deadline off.
-    const doc = f.doc.toLowerCase();
-    const hit = f.dir === 'Filed' ? (c.tasks || []).find((t) => isDeadline(t) && !isDone(t) && (t.matchKey || deriveMatchKey(t.title)) && doc.includes(t.matchKey || deriveMatchKey(t.title))) : undefined;
-    const tasks = hit ? (c.tasks || []).map((t) => (t.id === hit.id ? { ...t, status: 'Completed' as const, doneOn: f.date, completedAt: new Date().toISOString(), lastUpdatedBy: w.me } : t)) : undefined;
-    const label = f.dir === 'Filed' ? 'Filed' : f.dir === 'Served' ? 'Served' : 'Received';
-    w.save({
-      serviceRecord: [row, ...recs],
-      ...(tasks ? { tasks } : {}),
-      activityLogs: [histEntry(label + ': ' + row.documentServed + (stored ? ' (proof saved)' : ' (no proof yet)') + (hit ? '. Deadline "' + hit.title + '" ticked off' : ''), w.me, 'Service Record'), ...(c.activityLogs || [])],
-    });
+    const row = newServiceRecord({ ...f, dir: f.dir || 'Served', proofType: pt }, stored, w.me);
+    const { patch, hit } = addServicePatch(c, row, w.me);
+    w.save(patch);
     setPicked(null);
     setF(blank(f.dir));
     setOpen(false);
@@ -66,9 +49,8 @@ export const FilingTab: React.FC<{ w: WF }> = ({ w }) => {
   const uploadFor = async (r: ServiceRecord, file: File) => {
     setBusy(r.id);
     try {
-      const stored = await upload(file, actionOf(r));
-      const type = r.proofType || proofTypeFor(actionOf(r), r.method);
-      w.save({ serviceRecord: recs.map((x) => (x.id === r.id ? { ...x, proofObtained: 'Y' as const, proofType: type, proofFileName: stored.name, driveFileId: stored.driveFileId, webViewLink: stored.webViewLink, storagePath: stored.storagePath } : x)) }, 'Proof uploaded for ' + r.documentServed, 'Document Upload');
+      const stored = await uploadServiceProof(c, file, actionOf(r), w.me);
+      w.save({ serviceRecord: withProof(c, r, stored) }, 'Proof uploaded for ' + r.documentServed, 'Document Upload');
       w.toast('Proof saved. ' + storage);
     } catch (e) {
       w.toast('Proof not uploaded: ' + (e instanceof Error ? e.message : String(e)));

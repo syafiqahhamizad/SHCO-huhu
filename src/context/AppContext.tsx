@@ -2223,6 +2223,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     calendar: 'cases',
     caseStatus: 'cases',
     deadlines: 'cases',
+    serviceLog: 'cases',
     courts: 'cases',
     lawFirmRegistry: 'cases',
     referral: 'cases',
