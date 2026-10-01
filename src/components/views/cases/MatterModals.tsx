@@ -6,20 +6,53 @@ import { css, S, Modal } from './caseUi';
 import { fmt, isDone, lawyerOf, openedOf, practiceOf, rm, stagesFor, todayIso } from './caseModel';
 import { histEntry, type WF } from './wf';
 
+/**
+ * Rebuilds a file reference with new partner / lawyer codes, keeping everything from the matter
+ * code onwards (matter code, client initials, running number, month-year). The people slots are
+ * everything between "SHC" and the first matter/practice code, so stale or duplicated codes there
+ * are replaced too. Partners are joined with '-' when the old ref did that ("SHC/SH-AH/…"),
+ * otherwise one segment each. Returns null when the ref doesn't start with SHC/SHCO.
+ */
+export const rebuildRef = (ref: string, newPartners: string[], newLawyer: string, matterCodes: string[]): string | null => {
+  const segs = (ref || '').split('/');
+  if (segs[0] !== 'SHC' && segs[0] !== 'SHCO') return null;
+  const codes = new Set(matterCodes.map((x) => x.toUpperCase()));
+  let anchor = segs.findIndex((x, i) => i > 0 && codes.has(x.toUpperCase()));
+  if (anchor < 0) return null;
+  const joined = segs.slice(1, anchor).some((x) => x.includes('-'));
+  const sorted = [...newPartners].sort((a, b) => Number(b === 'SH') - Number(a === 'SH'));
+  const partnerPart = sorted.length ? (joined ? [sorted.join('-')] : sorted) : [];
+  return [segs[0], ...partnerPart, ...(newLawyer ? [newLawyer] : []), ...segs.slice(anchor)].join('/');
+};
+
 export const EditMatterModal: React.FC<{ w: WF; onClose: () => void }> = ({ w, onClose }) => {
-  const { currentUser, isAdmin } = useApp();
+  const { currentUser, isAdmin, renameCaseRef } = useApp();
   const { c, staff } = w;
   const s = getPracticeSettings();
   const areas = (s.practiceAreas && s.practiceAreas.length ? s.practiceAreas : DEFAULT_PRACTICE_SETTINGS.practiceAreas) || [];
   const practices = Array.from(new Set([practiceOf(c), ...areas.map((a) => a.name)].filter(Boolean)));
-  const init = { title: c.title, practice: practiceOf(c), status: c.status, partners: [...(c.partners || [])] as string[], lawyer: lawyerOf(c), opened: openedOf(c), drive: c.gdriveFolderUrl || '', why: '' };
+  const init = { title: c.title, practice: practiceOf(c), status: c.status, partners: [...(c.partners || [])] as string[], lawyer: lawyerOf(c), opened: openedOf(c), drive: c.gdriveFolderUrl || '', ref: c.ref || '', why: '' };
   const [ed, setEd] = useState(init);
   const firmAdmin = Boolean(isAdmin || currentUser?.isSuperAdmin);
-  const L: Record<string, string> = { title: 'Title', practice: 'Practice', status: 'Status', partners: 'Partner', lawyer: 'Lawyer', opened: 'Opened', drive: 'Drive folder' };
+  const L: Record<string, string> = { title: 'Title', practice: 'Practice', status: 'Status', partners: 'Partner', lawyer: 'Lawyer', opened: 'Opened', drive: 'Drive folder', ref: 'Reference' };
+  const lawyerCodeOf = (name: string) => staff.find((p) => p.name === name)?.code || '';
+  // Prefer the file's own saved matter code; the firm-wide list is only a fallback for older files.
+  const matterCodes = c.matterCode ? [c.matterCode.split('/')[0]] : [
+    ...((s.matterCodes && s.matterCodes.length ? s.matterCodes : DEFAULT_PRACTICE_SETTINGS.matterCodes) || []).map((m) => m.code),
+    ...areas.map((a) => a.code),
+    'LIT', 'CONV', 'CORP', 'FAM', 'EMP', 'PRO', 'CRIM', 'CR', 'SYR', 'EST', 'L',
+  ].filter(Boolean) as string[];
+  const suggestedRef = rebuildRef(c.ref || '', ed.partners, lawyerCodeOf(ed.lawyer), matterCodes);
+  const refOutOfDate = !!suggestedRef && suggestedRef !== ed.ref;
   const diff = Object.keys(L).filter((k) => JSON.stringify((ed as Record<string, unknown>)[k]) !== JSON.stringify((init as Record<string, unknown>)[k]));
   const partners = staff.filter((p) => p.isPartner);
   const save = () => {
     if (!diff.length) { onClose(); return; }
+    if (ed.ref.trim() !== init.ref) {
+      if (!firmAdmin) { w.toast('Only an admin can change the reference number'); return; }
+      if (!renameCaseRef(c.id, ed.ref, ed.why.trim() || 'Reference updated')) return;
+    }
+    if (diff.length === 1 && diff[0] === 'ref') { onClose(); return; }
     if (!ed.title.trim()) { w.toast('Add the matter title'); return; }
     if (!ed.partners.length) { w.toast('Pick a partner in charge'); return; }
     if (ed.drive.trim() && !/^https:\/\/drive\.google\.com\//.test(ed.drive.trim())) { w.toast('Paste the folder link from Google Drive (https://drive.google.com/…)'); return; }
@@ -53,6 +86,15 @@ export const EditMatterModal: React.FC<{ w: WF; onClose: () => void }> = ({ w, o
         </div>
         <label style={css('display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>Lawyer in charge</span><select value={ed.lawyer} onChange={(e) => setEd({ ...ed, lawyer: e.target.value })} style={css(inp)}><option value="">None</option>{staff.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}{ed.lawyer && !staff.some((p) => p.name === ed.lawyer) && <option value={ed.lawyer}>{ed.lawyer}</option>}</select></label>
         <label style={css('display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>Date opened{firmAdmin ? '' : ' (admin only)'}</span><input type="date" disabled={!firmAdmin} value={ed.opened} onChange={(e) => setEd({ ...ed, opened: e.target.value })} style={css(inp)} /></label>
+        <div style={css('grid-column:1/-1;display:flex;flex-direction:column;gap:5px')}>
+          <span style={css(lb)}>Reference number{firmAdmin ? '' : ' (admin only)'}</span>
+          <div style={css('display:flex;gap:8px')}>
+            <input value={ed.ref} disabled={!firmAdmin} onChange={(e) => setEd({ ...ed, ref: e.target.value })} style={css(inp + ';flex:1;font-family:ui-monospace, monospace;font-weight:700;color:#8A6D3B')} />
+            {firmAdmin && refOutOfDate && <button type="button" onClick={() => setEd({ ...ed, ref: suggestedRef! })} style={css('border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;color:#16223A;background:#fff;border:1px solid #C9D1DC;cursor:pointer;font-family:inherit;white-space:nowrap')}>Rebuild from partners &amp; lawyer</button>}
+          </div>
+          {refOutOfDate && <span style={css('font-size:12px;line-height:1.5;color:#8A6D3B')}>With these partners / lawyer the reference would be <b style={css('font-family:ui-monospace, monospace')}>{suggestedRef}</b>.{firmAdmin ? ' Use Rebuild to apply it, or type your own.' : ' Ask an admin to update the reference.'}</span>}
+          {firmAdmin && ed.ref.trim() !== init.ref && <span style={css('font-size:12px;line-height:1.5;color:#4A5468')}>Invoices, receipts, vouchers, claims, quotations and ledger lines linked to {init.ref} move to the new reference. Give a reason below.</span>}
+        </div>
         <label style={css('grid-column:1/-1;display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>Google Drive folder</span><input value={ed.drive} onChange={(e) => setEd({ ...ed, drive: e.target.value })} placeholder="Paste the folder link from Google Drive" style={css(inp)} /></label>
         <label style={css('grid-column:1/-1;display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>Reason for change</span><input value={ed.why} onChange={(e) => setEd({ ...ed, why: e.target.value })} placeholder="Recorded in History, e.g. File reassigned" style={css(inp)} /></label>
         <p style={css('grid-column:1/-1;margin:0;font-size:12px;line-height:1.5;color:#4A5468')}>Parties are edited in Overview. Court, suit no., coram and opposing solicitors are changed in the Court tab so their history is kept. Closing a file goes through Request to close.</p>

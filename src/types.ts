@@ -571,6 +571,8 @@ export interface CaseActivityLog {
 export interface Case {
   id: string;
   ref: string;
+  /** Earlier reference numbers of this file (after an admin changed the ref). */
+  previousRefs?: string[];
   title: string;
   createdDate?: string;
   fileOpenedDate?: string;

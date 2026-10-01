@@ -205,6 +205,7 @@ interface AppContextType {
   deleteUser: (userId: string) => boolean;
   updateUserStaffProfile: (userId: string, profile: User['staffProfile']) => void;
   updateUserIdentity: (userId: string, updates: { name?: string; code?: string }) => boolean;
+  renameCaseRef: (caseId: string, newRef: string, reason: string) => boolean;
   addStaffGoal: (userId: string, goal: StaffGoal) => void;
   updateStaffGoal: (userId: string, goalId: string, updates: Partial<StaffGoal>) => void;
   addAttendanceRecord: (record: AttendanceRecord) => void;
@@ -3104,6 +3105,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Matter created.');
   };
 
+  // Changes a file's reference number (admins / Super Admin only) and re-points every record
+  // that links to the file by reference, so invoices, receipts, vouchers, claims, quotations
+  // and ledger lines stay attached. Old refs are kept on the case for lookup and history.
+  const renameCaseRef = (caseId: string, newRefInput: string, reason: string): boolean => {
+    if (!(isAdmin || currentUser.isSuperAdmin)) {
+      showToast('Only an admin can change a file reference number.');
+      return false;
+    }
+    const target = cases.find((c) => c.id === caseId);
+    const newRef = newRefInput.trim().replace(/\s+/g, '');
+    if (!target) return false;
+    if (!newRef) { showToast('Enter the new reference number.'); return false; }
+    if (!reason.trim()) { showToast('Give a reason for changing the reference.'); return false; }
+    const oldRef = target.ref;
+    if (newRef === oldRef) return true;
+    if (cases.some((c) => c.id !== caseId && (c.ref || '').toLowerCase() === newRef.toLowerCase())) {
+      showToast(`${newRef} is already used by another file.`);
+      return false;
+    }
+    const swap = <T extends { fileRef?: string }>(list: T[]) =>
+      list.map((r) => (r.fileRef === oldRef ? { ...r, fileRef: newRef } : r));
+    setQuotations((prev) => swap(prev));
+    setExpenses((prev) => swap(prev));
+    setInvoices((prev) => swap(prev));
+    setReceipts((prev) => swap(prev));
+    setPaymentVouchers((prev) => swap(prev));
+    setTravelClaims((prev) => swap(prev));
+    setGeneralLedger((prev) => swap(prev));
+    const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+    setCases((prev) => {
+      const updated = prev.map((c) =>
+        c.id === caseId
+          ? {
+              ...c,
+              ref: newRef,
+              previousRefs: Array.from(new Set([...(c.previousRefs || []), oldRef].filter(Boolean))),
+              activityLogs: [
+                { id: `CAL-${Date.now()}`, timestamp: stamp, type: 'Status Update' as const, title: 'Reference number changed', description: `${oldRef} → ${newRef} (${reason.trim()})`, actor: currentUser.name },
+                ...(c.activityLogs || []),
+              ],
+            }
+          : c
+      );
+      setClients((prevClients) => syncClientMatterLinks(updated, prevClients));
+      return updated;
+    });
+    logAuditEvent('UPDATE', 'CASES', caseId, newRef, `Reference changed from ${oldRef} to ${newRef}: ${reason.trim()}`);
+    showToast(`Reference changed to ${newRef}. Linked invoices, receipts, vouchers and claims updated.`);
+    return true;
+  };
+
   const updateCase = (id: string, updates: Partial<Case>) => {
     const hasCaseOverride = Boolean(currentUser.isAdmin || currentUser.isSuperAdmin);
     if (!hasCaseOverride && !hasModulePermission('cases', 'e')) {
@@ -3653,6 +3705,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         sendClientPortalInvite,
         addCase,
         updateCase,
+        renameCaseRef,
         deleteCase,
         addCaseActivityLog,
         addLawFirmRegistryEntry,
