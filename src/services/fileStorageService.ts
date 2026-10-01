@@ -4,7 +4,7 @@ import {
   describeStorageError, getClaimAttachmentUrl, openClaimAttachment, uploadClaimAttachment, uploadHrFile, validateClaimFile,
 } from './firebaseStorageService';
 import {
-  DRIVE_TOKEN_EVENT, downloadDriveFile, driveViewUrl, ensureFolderPath, getDriveAccessToken, getDriveConfig, grantReader, hasValidDriveToken, isDriveConfigured, uploadToDrive,
+  DRIVE_TOKEN_EVENT, downloadDriveFile, driveSafeName, driveViewUrl, ensureFolderPath, getDriveAccessToken, getDriveConfig, grantReader, hasValidDriveToken, isDriveConfigured, uploadToDrive,
 } from './googleDriveService';
 
 /**
@@ -119,6 +119,51 @@ export async function storeFinanceProof(file: File, uploadedBy: string, ref?: st
   const folder = await ensureFolderPath(c.rootFolderId, ['Finance proofs', yyyy()]);
   const f = await uploadToDrive(folder, file, (ref ? ref + ' - ' : '') + file.name, typeOf(file), 'Finance proof uploaded by ' + uploadedBy);
   return { driveFileId: f.id, webViewLink: f.webViewLink, uploadedBy };
+}
+
+/* ------------------------------------------------------------------ matter files */
+
+/** Drive folder name for a matter: "<file ref, / as -> - <title>". */
+export const matterFolderName = (ref: string, title?: string) => driveSafeName([String(ref || '').replace(/\//g, '-'), title].filter(Boolean).join(' - ')).slice(0, 120);
+
+/**
+ * Creates (or finds) the matter's own folder in the firm Shared Drive: `Matters/<ref - title>/`.
+ * Drive only — returns null when Drive is not set up in Firm Settings.
+ */
+export async function ensureMatterFolder(ref: string, title?: string): Promise<{ id: string; url: string } | null> {
+  if (activeStorage() !== 'drive') return null;
+  const c = getDriveConfig();
+  const id = await ensureFolderPath(c.rootFolderId, ['Matters', matterFolderName(ref, title)]);
+  return { id, url: 'https://drive.google.com/drive/folders/' + encodeURIComponent(id) };
+}
+
+export interface StoredMatterFile { name: string; driveFileId?: string; webViewLink?: string; storagePath?: string; size: number; contentType: string; uploadedAt: string; uploadedBy: string }
+
+/**
+ * A file kept on a matter (filing / service proof, correspondence, documents).
+ * Drive: `<matter folder>/<sub>/` — the matter's own folder when it has one, else
+ * `Matters/<ref - title>/<sub>/` under the firm root. Firebase (Drive not set up):
+ * `confidential/claims/matters/<ref>_<sub>/…`, which firm staff can read under storage.rules.
+ */
+export async function storeMatterFile(opts: { ref: string; title?: string; folderId?: string; sub: 'Filing' | 'Service' | 'Correspondence' | 'Documents'; file: File; uploadedBy: string }): Promise<StoredMatterFile> {
+  const { file } = opts;
+  const problem = validateClaimFile(file);
+  if (problem) throw new Error(problem);
+  const uploadedAt = new Date().toISOString();
+  if (activeStorage() !== 'drive') {
+    const up = await uploadClaimAttachment('matters', String(opts.ref || 'file').replace(/\//g, '-') + '_' + opts.sub, file);
+    return { name: file.name, storagePath: up.path, size: file.size, contentType: typeOf(file), uploadedAt, uploadedBy: opts.uploadedBy };
+  }
+  const c = getDriveConfig();
+  try {
+    const folder = opts.folderId
+      ? await ensureFolderPath(opts.folderId, [opts.sub])
+      : await ensureFolderPath(c.rootFolderId, ['Matters', matterFolderName(opts.ref, opts.title), opts.sub]);
+    const f = await uploadToDrive(folder, file, file.name, typeOf(file), opts.sub + ' for ' + opts.ref + ' uploaded by ' + opts.uploadedBy);
+    return { name: file.name, driveFileId: f.id, webViewLink: f.webViewLink, size: file.size, contentType: typeOf(file), uploadedAt, uploadedBy: opts.uploadedBy };
+  } catch (err) {
+    throw new Error(file.name + ': ' + (err instanceof Error ? err.message : String(err)));
+  }
 }
 
 /* ------------------------------------------------------------------ opening */

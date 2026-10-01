@@ -38,7 +38,6 @@ const AboutAppView = React.lazy(() => import('./components/views/AboutAppView').
 const ActivityLogsView = React.lazy(() => import('./components/views/ActivityLogsView').then((module) => ({ default: module.ActivityLogsView })));
 const FirmStartCentreView = React.lazy(() => import('./components/views/FirmStartCentreView').then((module) => ({ default: module.FirmStartCentreView })));
 const MyDashboardView = React.lazy(() => import('./components/views/MyDashboardView').then((module) => ({ default: module.MyDashboardView })));
-const NewCaseModal = React.lazy(() => import('./components/NewCaseModal').then((module) => ({ default: module.NewCaseModal })));
 const NewClientModal = React.lazy(() => import('./components/NewClientModal').then((module) => ({ default: module.NewClientModal })));
 
 const SETTINGS_VIEWS = ['users', 'roles', 'practiceSettings', 'practice-settings', 'firmSettings', 'firm-settings', 'settings'];
@@ -58,7 +57,22 @@ const MainContent: React.FC = () => {
     cloudAccessNotice,
     retryCloudSync,
     logoutUser,
+    setCurrentCaseId,
   } = useApp();
+
+  // "Open new file" (from anywhere, incl. Leads → open a file with prefill) is a page in Cases.
+  React.useEffect(() => {
+    if (isNewCaseModalOpen && currentView !== 'cases') {
+      setCurrentCaseId(null);
+      setCurrentView('cases');
+    }
+  }, [isNewCaseModalOpen, currentView, setCurrentView, setCurrentCaseId]);
+  // Leaving Cases while the New File page is open closes it.
+  const prevView = React.useRef(currentView);
+  React.useEffect(() => {
+    if (prevView.current === 'cases' && currentView !== 'cases' && isNewCaseModalOpen) setIsNewCaseModalOpen(false);
+    prevView.current = currentView;
+  }, [currentView, isNewCaseModalOpen, setIsNewCaseModalOpen]);
 
   if (!isAuthenticated) {
     return (
@@ -235,12 +249,6 @@ const MainContent: React.FC = () => {
         </main>
       </div>
       <Suspense fallback={null}>
-        {isNewCaseModalOpen && (
-          <NewCaseModal
-            isOpen={isNewCaseModalOpen}
-            onClose={() => setIsNewCaseModalOpen(false)}
-          />
-        )}
         {isRegisterClientModalOpen && (
           <NewClientModal
             isOpen={isRegisterClientModalOpen}

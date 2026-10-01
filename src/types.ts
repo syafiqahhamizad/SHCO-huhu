@@ -221,6 +221,16 @@ export interface Hearing {
   outcome: string;
   clientAttendanceRequired?: 'Compulsory' | 'Optional' | 'Not Required';
   hearingReasonNote?: string;
+  /** Cases redesign (additive): days before the date the PIC wants a reminder (shown in My Work; e-mail reminders are not connected). */
+  remindDaysBefore?: number;
+  /** Where this hearing came from, e.g. "Court memo 2 Sep 2026". Absent = added by hand. */
+  source?: string;
+  /** Google Calendar (court diary) event id — set only after Google confirmed the event was created. */
+  googleEventId?: string;
+  googleEventLink?: string;
+  /** Who added it and when. */
+  addedBy?: string;
+  addedAt?: string;
 }
 
 export interface CaseDocument {
@@ -231,6 +241,9 @@ export interface CaseDocument {
   driveUrl?: string;
   dataUrl?: string;
   mimeType?: string;
+  /** Cases redesign (additive): stored copy in Drive / Firebase Storage. */
+  driveFileId?: string;
+  storagePath?: string;
 }
 
 export interface OpposingSolicitorRecord {
@@ -301,6 +314,12 @@ export interface CourtDiaryEntry {
   nextDate: string;
   tasks: string;
   links: string;
+  /** Cases redesign (additive): reminder days before the next court date (data only). */
+  remindDaysBefore?: number;
+  /** Task created from this memo (Case.tasks id). */
+  taskId?: string;
+  recordedBy?: string;
+  recordedAt?: string;
 }
 
 export interface TaskChecklistItem {
@@ -339,17 +358,160 @@ export interface Task {
   completedAt?: string;
   lastUpdatedBy?: string;
   lastUpdatedAt?: string;
+  /** Cases redesign (additive). 'Task' = ordinary to-do; anything else is a deadline
+   * (court order / Rules of Court / limitation / key date) shown with a red DEADLINE tag. */
+  kind?: TaskKind;
+  /** Reminder lead time in days for deadlines (3 by default, 30 for limitation). Data only. */
+  remindDaysBefore?: number;
+  /** Lower-case phrase; logging a filing whose document contains it ticks this deadline off. */
+  matchKey?: string;
+  /** Where the task came from, e.g. "Court memo 2 Sep 2026" or "Meeting note 26 Sep". */
+  source?: string;
+  createdBy?: string;
+  createdAt?: string;
+  /** Date it was completed (YYYY-MM-DD). */
+  doneOn?: string;
+  /** User asked for Google Tasks sync (only the assignee's own Google Tasks can be written). */
+  syncToGoogle?: boolean;
+  /** Google Tasks id per user id (Google Tasks is per user) — set only after Google confirmed. */
+  googleTaskIds?: Record<string, string>;
 }
+
+/** Cases redesign: Task kinds. */
+export type TaskKind = 'Task' | 'Court order' | 'Rules of Court' | 'Limitation' | 'Key date';
 
 export interface ServiceRecord {
   id: string;
   date: string;
   documentServed: string;
+  /** Party served on / received from — or, for a filing, the court. */
   servedOn: string;
   method: string;
   servedBy: string;
   proofObtained: 'Y' | 'N';
   notes: string;
+  /** Cases redesign (additive). Absent on older records = 'Served'. */
+  action?: 'Filed' | 'Served' | 'Received';
+  proofType?: string;
+  proofFileName?: string;
+  /** Proof stored in the firm Google Drive (Matters/<file>/Filing or /Service). */
+  driveFileId?: string;
+  webViewLink?: string;
+  /** Proof stored in Firebase Storage (when Drive is not set up). */
+  storagePath?: string;
+  recordedBy?: string;
+  recordedAt?: string;
+}
+
+/** Cases redesign — one party on a file (clients we act for, opposing parties, opposing solicitors). */
+export interface MatterParty {
+  id: string;
+  side: 'client' | 'opposing' | 'solicitor';
+  name: string;
+  /** NRIC / passport / company no. */
+  idNo?: string;
+  /** e.g. "1st Plaintiff", "2nd Defendant", "For 1st Defendant". */
+  role: string;
+  /** Phone / e-mail / counsel — free text shown under the name. */
+  contact?: string;
+  phone?: string;
+  email?: string;
+  /** Solicitors: which party they act for. */
+  actsFor?: string;
+  /** Firm ref (solicitors). */
+  firmRef?: string;
+  clientId?: string;
+  since?: string;
+  /** Set when a firm is replaced (notice of change). The firm stays listed, struck through. */
+  dischargedOn?: string;
+}
+
+/** Cases redesign — court details kept beside the legacy Case.court / judge / courtCaseNo fields. */
+export interface MatterCourtDetails {
+  level?: string;
+  location?: string;
+  address?: string;
+  division?: string;
+  coramSince?: string;
+}
+
+export interface MatterCourtChange {
+  id: string;
+  date: string;
+  field: 'Coram' | 'Opp. solicitors' | 'Court details';
+  from: string;
+  to: string;
+  reason: string;
+  by?: string;
+}
+
+/** A client update on the file. Prepared first; "Sent by e-mail" only after Gmail confirmed
+ * the send; WhatsApp only ever "Opened in WhatsApp" (the portal can't see delivery / read). */
+export interface MatterClientUpdate {
+  id: string;
+  at: string;
+  trigger: 'AUTO_STATUS' | 'AUTO_COURT_DATE' | 'MANUAL' | 'MANUAL_STATUS';
+  title: string;
+  message: string;
+  channels: ('whatsapp' | 'email')[];
+  deliveryStatus: 'Prepared — not sent' | 'Sent by e-mail' | 'Opened in WhatsApp' | 'Sent by e-mail · Opened in WhatsApp';
+  by?: string;
+  emailTo?: string;
+  emailSentAt?: string;
+  emailMessageId?: string;
+  emailError?: string;
+  whatsappOpenedAt?: string;
+}
+
+export interface MatterNote {
+  id: string;
+  kind: 'Meeting' | 'Phone call' | 'Client instructions' | 'Opposing side' | 'Legal research' | 'Internal';
+  date: string;
+  title?: string;
+  /** Attendees / spoke with / instructed by / sources / for (label depends on kind). */
+  with?: string;
+  text: string;
+  by: string;
+  createdAt?: string;
+  taskId?: string;
+}
+
+export interface MatterWeeklyStatus {
+  /** Monday of the week (YYYY-MM-DD). */
+  week: string;
+  saved: string;
+  by: string;
+  stage: number;
+  stageName: string;
+  health: 'On track' | 'At risk' | 'Stuck';
+  /** Did last week's next step happen. */
+  outcome?: 'Done' | 'In progress' | 'Slipped' | '';
+  prevNext?: string;
+  why?: string;
+  progress: string;
+  next: string;
+  nextBy: string;
+  flag: string;
+  /** A client update was prepared from this entry (not sent — messaging not connected). */
+  clientUpdatePrepared?: boolean;
+}
+
+export interface MatterCloseCheck {
+  label: string;
+  ok: boolean;
+  detail: string;
+}
+
+export interface MatterCloseRequest {
+  status: 'Pending' | 'Sent back' | 'Approved';
+  requestedBy: string;
+  requestedAt: string;
+  outcome: string;
+  note?: string;
+  checklist: MatterCloseCheck[];
+  decidedBy?: string;
+  decidedAt?: string;
+  sendBackReason?: string;
 }
 
 export interface MeetingNote {
@@ -483,6 +645,33 @@ export interface Case {
   governingLaw?: string;
   targetClosingDate?: string;
   retainerStatus?: string;
+
+  /* ---------------- Cases redesign (Working File) — all optional/additive ---------------- */
+  /** Parties on the file. When absent, the parties are read from the legacy single-client /
+   * opposing fields above (clientsList, opposingPartiesList, opposingSolicitorsRegistry…). */
+  caseParties?: MatterParty[];
+  courtDetails?: MatterCourtDetails;
+  courtChanges?: MatterCourtChange[];
+  clientUpdates?: MatterClientUpdate[];
+  /** Prepare a client update automatically on status change / next court date. Default on. */
+  clientUpdatesAuto?: boolean;
+  fileNotes?: MatterNote[];
+  /** Index into the practice area's status stages (File opened … Enforcement / closed). */
+  statusStage?: number;
+  statusStageName?: string;
+  weeklyStatus?: MatterWeeklyStatus[];
+  closeRequest?: MatterCloseRequest;
+  closedDate?: string;
+  closedBy?: string;
+  closeOutcome?: string;
+  archiveBoxNo?: string;
+  archiveLocation?: string;
+  destroyAfter?: string;
+  deletionRequest?: { by: string; at: string; reason: string };
+  /** Practice-specific intake answers from the New File form (label → value). */
+  intakeDetails?: Record<string, string>;
+  /** Partner review of a possible conflict when the file was opened. */
+  conflictReview?: { status: 'Clear' | 'Reviewed'; detail?: string; by?: string; at?: string };
 }
 
 export interface QuotationLineItem {

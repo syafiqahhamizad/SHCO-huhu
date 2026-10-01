@@ -1,0 +1,115 @@
+import React, { useState } from 'react';
+import { useApp } from '../../../context/AppContext';
+import type { Case, PartnerCode } from '../../../types';
+import { DEFAULT_PRACTICE_SETTINGS, getPracticeSettings } from '../../../services/templateService';
+import { css, S, Modal } from './caseUi';
+import { fmt, isDone, lawyerOf, openedOf, practiceOf, rm, stagesFor, todayIso } from './caseModel';
+import { histEntry, type WF } from './wf';
+
+export const EditMatterModal: React.FC<{ w: WF; onClose: () => void }> = ({ w, onClose }) => {
+  const { currentUser, isAdmin } = useApp();
+  const { c, staff } = w;
+  const s = getPracticeSettings();
+  const areas = (s.practiceAreas && s.practiceAreas.length ? s.practiceAreas : DEFAULT_PRACTICE_SETTINGS.practiceAreas) || [];
+  const practices = Array.from(new Set([practiceOf(c), ...areas.map((a) => a.name)].filter(Boolean)));
+  const init = { title: c.title, practice: practiceOf(c), status: c.status, partners: [...(c.partners || [])] as string[], lawyer: lawyerOf(c), opened: openedOf(c), drive: c.gdriveFolderUrl || '', why: '' };
+  const [ed, setEd] = useState(init);
+  const firmAdmin = Boolean(isAdmin || currentUser?.isSuperAdmin);
+  const L: Record<string, string> = { title: 'Title', practice: 'Practice', status: 'Status', partners: 'Partner', lawyer: 'Lawyer', opened: 'Opened', drive: 'Drive folder' };
+  const diff = Object.keys(L).filter((k) => JSON.stringify((ed as Record<string, unknown>)[k]) !== JSON.stringify((init as Record<string, unknown>)[k]));
+  const partners = staff.filter((p) => p.isPartner);
+  const save = () => {
+    if (!diff.length) { onClose(); return; }
+    if (!ed.title.trim()) { w.toast('Add the matter title'); return; }
+    if (!ed.partners.length) { w.toast('Pick a partner in charge'); return; }
+    if (ed.drive.trim() && !/^https:\/\/drive\.google\.com\//.test(ed.drive.trim())) { w.toast('Paste the folder link from Google Drive (https://drive.google.com/…)'); return; }
+    const practiceChanged = ed.practice !== init.practice;
+    const lawyers = ed.lawyer ? Array.from(new Set([ed.lawyer, ...(c.lawyers || []).filter((n) => n !== init.lawyer)])) : (c.lawyers || []).filter((n) => n !== init.lawyer);
+    const patch: Partial<Case> = {
+      title: ed.title.trim(), type: ed.practice, practiceArea: ed.practice, status: ed.status as Case['status'], partners: ed.partners as PartnerCode[],
+      lawyerInCharge: ed.lawyer || undefined, lawyers, gdriveFolderUrl: ed.drive.trim() || undefined,
+      ...(ed.drive.trim() !== init.drive ? { gdriveFolderId: (ed.drive.match(/folders\/([\w-]+)/) || [])[1] || undefined } : {}),
+      ...(firmAdmin || ed.opened === init.opened ? { fileOpenedDate: ed.opened || c.fileOpenedDate } : {}),
+      ...(practiceChanged ? { statusStage: 0, statusStageName: stagesFor(ed.practice)[0] } : {}),
+    };
+    const what = 'Matter details updated: ' + diff.map((k) => L[k] + (k === 'title' || k === 'drive' ? '' : ' → ' + (k === 'opened' ? fmt(ed.opened) : k === 'partners' ? ed.partners.join(', ') : String((ed as Record<string, unknown>)[k]) || '—'))).join(', ') + (ed.why.trim() ? ' (' + ed.why.trim() + ')' : '');
+    w.save({ ...patch, activityLogs: [histEntry(what, w.me), ...(c.activityLogs || [])] });
+    onClose();
+    w.toast(what);
+  };
+  const lb = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#4A5468';
+  const inp = 'border-radius:8px;border:1px solid #C9D1DC;padding:9px 11px;font-size:13px;font-family:inherit;color:#16223A;background:#fff';
+  return (
+    <Modal onClose={onClose} width={640} top>
+      <div style={css('display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid #DDE3EB')}><strong style={css('font-family:Georgia, serif;font-size:16px;color:#16223A')}>Edit matter details</strong><span style={css('font-family:ui-monospace, monospace;font-size:11.5px;font-weight:700;color:#8A6D3B')}>{c.ref}</span><button type="button" onClick={onClose} style={css('margin-left:auto;background:none;border:0;cursor:pointer;color:#4A5468;font-size:15px')}>✕</button></div>
+      <div style={css('display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding:18px 20px')}>
+        <label style={css('grid-column:1/-1;display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>Matter title</span><input value={ed.title} onChange={(e) => setEd({ ...ed, title: e.target.value })} style={css(inp)} /></label>
+        <label style={css('display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>Practice area</span><select value={ed.practice} onChange={(e) => setEd({ ...ed, practice: e.target.value })} style={css(inp)}>{practices.map((o) => <option key={o} value={o}>{o}</option>)}</select></label>
+        <label style={css('display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>File status</span><select value={ed.status} onChange={(e) => setEd({ ...ed, status: e.target.value as Case['status'] })} style={css(inp)}><option value="Active">Active</option><option value="Pending">Pending (on hold)</option>{(init.status === 'Closed' || init.status === 'Archive') && <option value={init.status}>{init.status}</option>}</select></label>
+        <div style={css('grid-column:1/-1;display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>Partner in charge</span>
+          <div style={css('display:flex;gap:6px;flex-wrap:wrap')}>{partners.map((p) => { const on = ed.partners.includes(p.code); return <button key={p.code} type="button" onClick={() => setEd({ ...ed, partners: on ? ed.partners.filter((x) => x !== p.code) : [...ed.partners, p.code] })} style={css(`border-radius:8px;padding:6px 11px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;background:${on ? '#16223A' : '#fff'};color:${on ? '#fff' : '#16223A'};border:1px solid ${on ? '#16223A' : '#C9D1DC'}`)}>{p.name} ({p.code})</button>; })}
+            {ed.partners.filter((code) => !partners.some((p) => p.code === code)).map((code) => <span key={code} style={css('border-radius:8px;padding:6px 11px;font-size:12.5px;font-weight:600;background:#16223A;color:#fff')}>{code}</span>)}
+          </div>
+        </div>
+        <label style={css('display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>Lawyer in charge</span><select value={ed.lawyer} onChange={(e) => setEd({ ...ed, lawyer: e.target.value })} style={css(inp)}><option value="">None</option>{staff.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}{ed.lawyer && !staff.some((p) => p.name === ed.lawyer) && <option value={ed.lawyer}>{ed.lawyer}</option>}</select></label>
+        <label style={css('display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>Date opened{firmAdmin ? '' : ' (admin only)'}</span><input type="date" disabled={!firmAdmin} value={ed.opened} onChange={(e) => setEd({ ...ed, opened: e.target.value })} style={css(inp)} /></label>
+        <label style={css('grid-column:1/-1;display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>Google Drive folder</span><input value={ed.drive} onChange={(e) => setEd({ ...ed, drive: e.target.value })} placeholder="Paste the folder link from Google Drive" style={css(inp)} /></label>
+        <label style={css('grid-column:1/-1;display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>Reason for change</span><input value={ed.why} onChange={(e) => setEd({ ...ed, why: e.target.value })} placeholder="Recorded in History, e.g. File reassigned" style={css(inp)} /></label>
+        <p style={css('grid-column:1/-1;margin:0;font-size:12px;line-height:1.5;color:#4A5468')}>Parties are edited in Overview. Court, suit no., coram and opposing solicitors are changed in the Court tab so their history is kept. Closing a file goes through Request to close.</p>
+      </div>
+      <div style={css('display:flex;align-items:center;gap:10px;padding:12px 20px;border-top:1px solid #DDE3EB;background:#F6F8FA;border-radius:0 0 12px 12px')}>
+        <span style={css('font-size:12px;color:#4A5468')}>{diff.length ? diff.length + ' change(s): ' + diff.map((k) => L[k]).join(', ') : 'No changes yet'}</span>
+        <button type="button" onClick={onClose} style={css('margin-left:auto;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;color:#4A5468;background:#fff;border:1px solid #DDE3EB;cursor:pointer;font-family:inherit')}>Cancel</button>
+        <button type="button" onClick={save} style={css('border-radius:8px;padding:8px 18px;font-size:12px;font-weight:700;color:#fff;background:#16223A;border:0;cursor:pointer;font-family:inherit')}>Save changes</button>
+      </div>
+    </Modal>
+  );
+};
+
+export const DeleteMatterModal: React.FC<{ w: WF; onClose: () => void }> = ({ w, onClose }) => {
+  const { deleteCase, addNotification, setCurrentCaseId } = useApp();
+  const { c, isPartner, money } = w;
+  const [why, setWhy] = useState('');
+  const [typed, setTyped] = useState('');
+  const blocked = isPartner && Math.abs(money.clientBalance) > 0.005;
+  const ok = !!why && typed.trim() === c.ref && !blocked;
+  const impact: [string, string, boolean][] = [
+    ['Open tasks removed from My Work', String((c.tasks || []).filter((t) => !isDone(t)).length), false],
+    ['Court dates on the file', String((c.hearings || []).length), false],
+    ['Filing & service entries hidden', String((c.serviceRecord || []).length), false],
+    ['Client account balance', rm(money.clientBalance), blocked],
+  ];
+  const confirm = () => {
+    if (blocked) { w.toast('Clear the client account balance first'); return; }
+    if (!why) { w.toast('Choose a reason'); return; }
+    if (typed.trim() !== c.ref) { w.toast('File no. does not match'); return; }
+    if (!isPartner) {
+      w.save({ deletionRequest: { by: w.me, at: todayIso(), reason: why } }, 'Deletion requested: ' + why);
+      addNotification({ title: 'Deletion request: ' + c.ref, message: w.me + ' asked to delete ' + c.ref + ' (' + why + ').', type: 'system', linkTab: 'cases', linkId: c.id });
+      onClose();
+      w.toast('Deletion request sent to the partner in charge: ' + why);
+      return;
+    }
+    deleteCase(c.id);
+    setCurrentCaseId(null);
+    w.toast(c.ref + ' deleted (' + why + '). It can be restored from Cases › Recycle bin');
+  };
+  return (
+    <Modal onClose={onClose} width={520} top>
+      <div style={css('display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid #DDE3EB')}><strong style={css('font-family:Georgia, serif;font-size:16px;color:#8E2A20')}>{isPartner ? 'Delete this matter?' : 'Request deletion'}</strong><button type="button" onClick={onClose} style={css('margin-left:auto;background:none;border:0;cursor:pointer;color:#4A5468;font-size:15px')}>✕</button></div>
+      <div style={css('display:flex;flex-direction:column;gap:14px;padding:18px 20px')}>
+        <p style={css('margin:0;font-size:13px;line-height:1.55;color:#16223A')}>{isPartner ? 'Use this only for files opened in error or duplicates. Finished matters should be closed, not deleted. Deleted matters go to the recycle bin and can be restored.' : 'Only a partner can delete a matter. Your request goes to the partner in charge with the reason below.'}</p>
+        <div style={css('display:flex;flex-direction:column;gap:6px;padding:12px 14px;border-radius:8px;background:#F6F8FA;border:1px solid #DDE3EB')}>
+          {impact.map(([k, v, red]) => <div key={k} style={css('display:flex;gap:10px;font-size:12.5px')}><span style={css('flex:1;color:#4A5468')}>{k}</span><strong style={css(`color:${red ? '#8E2A20' : '#16223A'}`)}>{v}</strong></div>)}
+        </div>
+        {blocked && <p style={css('margin:0;padding:10px 12px;border-radius:8px;background:#F6E4E1;font-size:12.5px;line-height:1.5;color:#8E2A20')}>Client account holds a balance. Refund or transfer it in Accounts &amp; Finance before this matter can be deleted.</p>}
+        <label style={css('display:flex;flex-direction:column;gap:5px')}><span style={css(S.label)}>Reason</span><select value={why} onChange={(e) => setWhy(e.target.value)} style={css(S.input)}><option value="">Choose a reason</option><option value="Opened in error">Opened in error</option><option value="Duplicate of another file">Duplicate of another file</option><option value="Client did not proceed">Client did not proceed</option></select></label>
+        <label style={css('display:flex;flex-direction:column;gap:5px')}><span style={css(S.label)}>Type the file no. to confirm</span><input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={c.ref} style={css(S.input + ';font-family:ui-monospace, monospace')} /></label>
+      </div>
+      <div style={css('display:flex;align-items:center;gap:10px;padding:12px 20px;border-top:1px solid #DDE3EB;background:#F6F8FA;border-radius:0 0 12px 12px')}>
+        <button type="button" onClick={onClose} style={css('margin-left:auto;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;color:#4A5468;background:#fff;border:1px solid #DDE3EB;cursor:pointer;font-family:inherit')}>Cancel</button>
+        <button type="button" onClick={confirm} style={css(`border-radius:8px;padding:8px 18px;font-size:12px;font-weight:700;color:#fff;background:#8E2A20;border:0;cursor:pointer;font-family:inherit;opacity:${ok ? 1 : 0.4}`)}>{isPartner ? 'Delete matter' : 'Send request'}</button>
+      </div>
+    </Modal>
+  );
+};

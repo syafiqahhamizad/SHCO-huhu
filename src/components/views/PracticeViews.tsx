@@ -2498,7 +2498,8 @@ export const ReferralView: React.FC = () => {
 
 /* ================= 9. FILE CLOSING CHECKLIST (MALAYSIAN BAR RISK MANAGEMENT COMPLIANT) ================= */
 export const FileClosingView: React.FC = () => {
-  const { cases, updateCase, showToast } = useApp();
+  const { cases, updateCase, showToast, setCurrentView, setCurrentCaseId, setCaseSubTab } = useApp();
+  const closeRequests = cases.filter((c) => c.closeRequest?.status === 'Pending');
 
   const [checkedItems, setCheckedItems] = useState<Record<string, { inv: boolean; trust: boolean; docs: boolean; letter: boolean; boxNo: string }>>({});
 
@@ -2577,6 +2578,27 @@ export const FileClosingView: React.FC = () => {
         </div>
       </div>
 
+      {/* Close requests sent from a Working File (Request to close) — the partner approves there. */}
+      {closeRequests.length > 0 && (
+        <div className="bg-white border border-[#E8D9B8] p-4 rounded-xl space-y-2">
+          <h3 className="font-serif text-sm font-bold text-[#16223A]">Close requests waiting for partner approval ({closeRequests.length})</h3>
+          {closeRequests.map((cs) => (
+            <div key={cs.id} className="flex flex-wrap items-center gap-3 border-t border-slate-100 pt-2">
+              <span className="ref-seal">{cs.ref}</span>
+              <span className="font-bold text-[#16223A]">{cs.title}</span>
+              <span className="text-slate-500">Requested by {cs.closeRequest?.requestedBy} · {cs.closeRequest?.requestedAt} · {cs.closeRequest?.outcome}</span>
+              <button
+                type="button"
+                onClick={() => { setCaseSubTab('overview'); setCurrentCaseId(cs.id); setCurrentView('cases'); }}
+                className="ml-auto rounded-lg bg-[#16223A] px-3 py-1.5 text-xs font-bold text-white"
+              >
+                Open file to approve
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Case Files Pending Audit List */}
       <div className="space-y-3">
         {openCases.length === 0 ? (
@@ -2586,7 +2608,7 @@ export const FileClosingView: React.FC = () => {
         ) : (
           openCases.map((cs) => {
             const checks = checkedItems[cs.id] || { inv: false, trust: false, docs: false, pii: false, letter: false, boxNo: '' };
-            const allChecked = checks.inv && checks.trust && checks.docs && checks.pii && checks.letter;
+            const allChecked = checks.inv && checks.trust && checks.docs && checks.letter;
 
             return (
               <div key={cs.id} className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs space-y-3.5">

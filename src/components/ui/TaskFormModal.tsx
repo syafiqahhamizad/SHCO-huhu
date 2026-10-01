@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Activity, Calendar, Flag, FolderOpen, Tag, User, X } from 'lucide-react';
-import { TaskChecklistItem } from '../../types';
+import { Activity, Calendar, Flag, FolderOpen, Gavel, Tag, User, X } from 'lucide-react';
+import { TaskChecklistItem, TaskKind } from '../../types';
 import { palette, tint, tintText } from '../../lib/designTokens';
 
 export interface TaskDraft {
@@ -9,11 +9,13 @@ export interface TaskDraft {
   assignedTo: string;
   dueDate: string;
   priority: 'High' | 'Medium' | 'Low';
-  status: 'Not Started' | 'In Progress' | 'In Review';
+  status: 'Not Started' | 'In Progress' | 'In Review' | 'Completed';
   taskType: string;
   description: string;
   checklist: TaskChecklistItem[];
   syncGoogle: boolean;
+  /** Additive (Cases Working File): Task or a deadline kind. Absent = 'Task'. */
+  kind?: TaskKind;
 }
 
 export const blankTaskDraft = (defaultAssignee = ''): TaskDraft => ({
@@ -53,7 +55,20 @@ interface TaskFormModalProps {
   onClose: () => void;
   onCreate: () => void;
   onCreateAnother: () => void;
+  /** Additive (Cases Working File). Matter fixed to this file — shown read-only. */
+  fixedMatterLabel?: string;
+  /** Show the Kind row (Task / Deadline: court order / Rules of Court / limitation / Key date). */
+  showKind?: boolean;
+  /** Edit an existing task: header says Edit, footer shows Delete + Save changes. */
+  editing?: boolean;
+  onDelete?: () => void;
+  /** When set, Google Tasks isn't connected: the toggle is disabled and this note is shown. */
+  googleTasksNote?: string;
+  /** Offer "Completed" in the Status select (editing an existing task). */
+  allowCompleted?: boolean;
 }
+
+const KINDS: [TaskKind, string][] = [['Task', 'Task'], ['Court order', 'Deadline: court order'], ['Rules of Court', 'Deadline: Rules of Court'], ['Limitation', 'Deadline: limitation'], ['Key date', 'Key date']];
 
 /** ClickUp / Planner-style task form modal — full properties grid, checklist, and Google Tasks sync toggle. */
 export const TaskFormModal: React.FC<TaskFormModalProps> = ({
@@ -66,6 +81,12 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   onClose,
   onCreate,
   onCreateAnother,
+  fixedMatterLabel,
+  showKind,
+  editing,
+  onDelete,
+  googleTasksNote,
+  allowCompleted,
 }) => {
   const [newCheck, setNewCheck] = useState('');
 
@@ -108,6 +129,9 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   })();
 
   const checkedCount = draft.checklist.filter((c) => c.completed).length;
+  const kind = draft.kind || 'Task';
+  const isDl = kind !== 'Task';
+  const noun = isDl ? 'deadline' : 'task';
 
   return (
     <div
@@ -121,7 +145,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
           <span className="rounded-md px-2 py-1 text-[11px] font-bold" style={{ backgroundColor: tint.blue, color: tintText.blue }}>
             {scope === 'private' ? 'Private to-do' : 'Matter to-do'}
           </span>
-          <span className="text-[11px] text-[#5B6478]">New task · syncs to Google Tasks</span>
+          <span className="text-[11px] text-[#5B6478]">{editing ? 'Edit' : 'New'} {noun} · {googleTasksNote ? 'Google Tasks: your own tasks only' : 'syncs to Google Tasks'}</span>
           <button type="button" onClick={onClose} className="ml-auto flex p-1 text-[#5B6478] hover:text-[#16223A]">
             <X className="h-[18px] w-[18px]" />
           </button>
@@ -140,7 +164,9 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
         <div className="grid grid-cols-[110px_minmax(0,1fr)_110px_minmax(0,1fr)] items-center gap-x-3.5 gap-y-3 px-5 py-4">
           <span className="flex items-center gap-1.5 text-[11px] font-semibold text-[#5B6478]"><FolderOpen className="h-[13px] w-[13px]" />Matter</span>
           <div className="col-span-3">
-            {scope === 'matter' ? (
+            {scope === 'matter' && fixedMatterLabel ? (
+              <span className="block rounded-lg border border-[#DDE3EB] bg-[#F6F8FA] px-2.5 py-2 text-[12.5px] text-[#16223A]">{fixedMatterLabel}</span>
+            ) : scope === 'matter' ? (
               <select
                 value={draft.caseId}
                 onChange={(e) => set('caseId', e.target.value)}
@@ -175,6 +201,40 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
               );
             })}
           </div>
+
+          {showKind && (
+            <>
+              <span className="flex items-center gap-1.5 text-[11px] font-semibold text-[#5B6478]"><Gavel className="h-[13px] w-[13px]" />Kind</span>
+              <div className="col-span-3 flex flex-col gap-1.5">
+                <div className="flex flex-wrap gap-1.5">
+                  {KINDS.map(([k, label]) => {
+                    const on = kind === k;
+                    const dl = k !== 'Task';
+                    return (
+                      <button
+                        key={k}
+                        type="button"
+                        onClick={() => setDraft((d) => ({ ...d, kind: k, priority: dl ? 'High' : d.priority }))}
+                        className="rounded-md px-2.5 py-1.5 text-[11.5px] font-bold"
+                        style={{
+                          border: `1.5px solid ${on ? (dl ? '#B23A2E' : '#16223A') : palette.border}`,
+                          backgroundColor: on ? (dl ? '#FBEDE9' : '#16223A') : '#fff',
+                          color: on ? (dl ? '#B23A2E' : '#fff') : '#16223A',
+                        }}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {isDl && (
+                  <span className="text-[11px] text-[#B23A2E]">
+                    Deadlines show in My Work with a red tag, {kind === 'Limitation' ? '30' : '3'} days ahead. A matching filing in Filing &amp; service ticks it off.
+                  </span>
+                )}
+              </div>
+            </>
+          )}
 
           <span className="flex items-center gap-1.5 text-[11px] font-semibold text-[#5B6478]"><Calendar className="h-[13px] w-[13px]" />Due date</span>
           <div className="col-span-3 flex flex-wrap items-center gap-2">
@@ -236,6 +296,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
             <option value="Not Started">Not Started</option>
             <option value="In Progress">In Progress</option>
             <option value="In Review">In Review</option>
+            {allowCompleted && <option value="Completed">Completed</option>}
           </select>
 
           <span className="flex items-center gap-1.5 text-[11px] font-semibold text-[#5B6478]"><Tag className="h-[13px] w-[13px]" />Task type</span>
@@ -306,6 +367,14 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
         </div>
 
         <div className="flex items-center gap-2.5 border-t border-[#DDE3EB] bg-[#F6F8FA] px-5 py-3">
+          {googleTasksNote ? (
+            <span className="flex items-center gap-2 text-[11.5px] text-slate-400" title={googleTasksNote}>
+              <span className="relative h-[17px] w-[30px] rounded-full" style={{ backgroundColor: '#CBD5E1' }}>
+                <span className="absolute top-[2px] h-[13px] w-[13px] rounded-full bg-white" style={{ left: 2 }} />
+              </span>
+              {googleTasksNote}
+            </span>
+          ) : (
           <button
             type="button"
             onClick={() => set('syncGoogle', !draft.syncGoogle)}
@@ -316,14 +385,20 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
             </span>
             Sync to Google Tasks
           </button>
+          )}
+          {editing && onDelete && (
+            <button type="button" onClick={onDelete} className="text-[11.5px] font-bold text-[#B23A2E]">Delete</button>
+          )}
           <button type="button" onClick={onClose} className="ml-auto rounded-lg border border-[#DDE3EB] bg-white px-3.5 py-2 text-[12px] font-semibold text-[#5B6478]">
             Cancel
           </button>
-          <button type="button" onClick={onCreateAnother} disabled={!draft.title.trim()} className="rounded-lg border border-[#16223A] bg-white px-3.5 py-2 text-[12px] font-bold text-[#16223A] disabled:opacity-40">
-            Create &amp; add another
-          </button>
+          {!editing && (
+            <button type="button" onClick={onCreateAnother} disabled={!draft.title.trim()} className="rounded-lg border border-[#16223A] bg-white px-3.5 py-2 text-[12px] font-bold text-[#16223A] disabled:opacity-40">
+              Create &amp; add another
+            </button>
+          )}
           <button type="button" onClick={onCreate} disabled={!draft.title.trim()} className="rounded-lg bg-[#16223A] px-4.5 py-2 text-[12px] font-bold text-white disabled:opacity-40">
-            Create task
+            {editing ? 'Save changes' : isDl ? 'Create deadline' : 'Create task'}
           </button>
         </div>
       </div>
