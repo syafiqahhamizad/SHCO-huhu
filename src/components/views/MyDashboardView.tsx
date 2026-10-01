@@ -193,7 +193,8 @@ export const MyDashboardView: React.FC = () => {
   // Sub-tab access tier for My Dashboard's role-based layout (see MY_DASHBOARD_ROLE_BASED.md):
   // Managing Partner sees everything, Partner sees a subset (own scorecard only for
   // Partner KPIs), Staff (Lawyer/Assistant/Accountant/Reviewer) only sees My work.
-  const isMP = Boolean(isAdmin) || Boolean(currentUser?.isSuperAdmin);
+  // Managing Partner = the Super Admin only (an admin partner is not MP).
+  const isMP = Boolean(currentUser?.isSuperAdmin) || String(currentUser?.email || '').toLowerCase() === 'syafiqahhamizad@shcolaw.com';
   const isPartnerTier = !isMP && currentRole === 'Partner';
   const canSeeClientAccountTile = isMP || isPartnerTier;
   const canSeePartnerKpisTile = isMP || isPartnerTier;

@@ -78,7 +78,8 @@ export const TeamTab: React.FC = () => {
   const [goalDraft, setGoalDraft] = useState<{ type: StaffGoal['type']; text: string; help: string }>({ type: 'Career', text: '', help: '' });
   const [addingGoalFor, setAddingGoalFor] = useState<string | null>(null);
 
-  const isMP = Boolean(isAdmin) || Boolean(currentUser?.isSuperAdmin);
+  // Managing Partner = the Super Admin only (an admin partner is not MP).
+  const isMP = Boolean(currentUser?.isSuperAdmin) || String(currentUser?.email || '').toLowerCase() === 'syafiqahhamizad@shcolaw.com';
 
   const rows: TeamRow[] = useMemo(() => {
     const today = todayLocal();

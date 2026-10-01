@@ -46,9 +46,12 @@ export const UsersTab = ({ C }: { C: SettingsCtx }) => {
     if (v === cur) return;
     if (u.email === SUPER_EMAIL && v !== 'Managing Partner') return C.msg('The Managing Partner is always Super admin');
     const { role, mp } = roleFromDesign(v);
+    // Managing Partner is the Super Admin only; nobody else can be made MP.
+    if (mp) return C.msg('Only the Super Admin is the Managing Partner. To give ' + u.name + ' extra rights, use Admin instead.');
     const noAdmin = role === 'Client' || role === 'Reviewer';
-    const isAdmin = mp ? true : noAdmin || (role === 'Partner' && !mp) ? false : u.isAdmin;
-    const isSuperAdmin = noAdmin || (role === 'Partner' && !mp) ? false : u.isSuperAdmin;
+    // Admin is a separate right and is kept when the role changes (except roles that can't be admins).
+    const isAdmin = noAdmin ? false : u.isAdmin;
+    const isSuperAdmin = false;
     if (updateUserRoleAndAdmin(u.id, role, isAdmin, isSuperAdmin)) {
       C.log('User Role Changed', u.name + ': ' + cur + ' → ' + v);
       C.msg(u.name + ' is now ' + v);
@@ -58,8 +61,8 @@ export const UsersTab = ({ C }: { C: SettingsCtx }) => {
   const toggleAdmin = (u: User) => {
     if (u.email === SUPER_EMAIL) return C.msg('The Managing Partner is always Super admin');
     if (u.role === 'Client' || u.role === 'Reviewer') return C.msg(designRole(u) + ' cannot be an admin');
-    const sup = isSuper(u);
-    const next = sup ? { a: false, s: false, label: 'no longer an admin' } : u.isAdmin ? { a: true, s: true, label: 'now a Super admin' } : { a: true, s: false, label: 'now an admin' };
+    // Admin on / off only. Super admin is reserved for the Managing Partner.
+    const next = u.isAdmin ? { a: false, s: false, label: 'no longer an admin' } : { a: true, s: false, label: 'now an admin' };
     if (updateUserRoleAndAdmin(u.id, u.role, next.a, next.s)) {
       C.log('User Admin Changed', u.name + ' is ' + next.label);
       C.msg(u.name + ' is ' + next.label);
@@ -197,8 +200,9 @@ const AddPersonModal = ({ C, roles, branches, hq, onClose }: { C: SettingsCtx; r
     }
     if ((role === 'Partner' || role === 'Lawyer') && !em.endsWith('@shcolaw.com')) return fail('Partner and Lawyer accounts must use a verified @shcolaw.com Google Workspace email.');
     if (users.some((u) => u.email.toLowerCase() === em)) return fail(`${em} is already in the roster.`);
+    if (mp && em !== SUPER_EMAIL) return fail('Only the Super Admin is the Managing Partner. Choose Partner and tick Admin instead.');
     const admin = mp || (isAdmin && !isClient && role !== 'Reviewer');
-    const sup = isSuperAdmin && !isClient && role !== 'Reviewer';
+    const sup = em === SUPER_EMAIL && (mp || isSuperAdmin);
     if ((admin || sup) && !C.isSuperAdmin) return fail('Admin privileges can only be assigned by the Super Admin.');
     setErr('');
     setBusy(true);

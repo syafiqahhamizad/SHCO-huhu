@@ -63,7 +63,8 @@ export const finRoleKey = (currentRole: string | undefined, currentUser: Partial
   if (role === 'Client') return 'S';
   if (/account/i.test(role)) return 'A';
   if (role === 'Reviewer') return 'R';
-  if (role === 'Partner') return isAdmin || currentUser?.isSuperAdmin ? 'M' : 'P';
+  // Managing Partner = the Super Admin only; an admin partner is still a Partner here.
+  if (role === 'Partner') return currentUser?.isSuperAdmin || String(currentUser?.email || '').toLowerCase() === 'syafiqahhamizad@shcolaw.com' ? 'M' : 'P';
   return 'S';
 };
 

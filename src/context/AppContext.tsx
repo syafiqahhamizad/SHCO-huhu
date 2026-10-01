@@ -1068,7 +1068,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const targetUser = users.find((u) => u.id === targetUserId);
-    const resolvedIsSuperAdmin = newIsSuperAdmin !== undefined ? newIsSuperAdmin : targetUser?.isSuperAdmin;
+    // Super Admin (= Managing Partner) is reserved for the owner identity.
+    const resolvedIsSuperAdmin =
+      (targetUser?.email || '').toLowerCase() === 'syafiqahhamizad@shcolaw.com' &&
+      (newIsSuperAdmin !== undefined ? newIsSuperAdmin : targetUser?.isSuperAdmin);
 
     setUsers((prev) =>
       prev.map((u) => {

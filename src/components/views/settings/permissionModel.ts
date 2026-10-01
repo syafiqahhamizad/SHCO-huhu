@@ -27,8 +27,9 @@ const MASK_IDX: Record<string, number> = { Partner: 0, Lawyer: 1, Assistant: 2, 
 
 export const SUPER_EMAIL = 'syafiqahhamizad@shcolaw.com';
 export const isSuper = (u?: Partial<User> | null) => !!u && (u.email === SUPER_EMAIL || !!u.isSuperAdmin);
-/** Managing Partner = a Partner with the admin / super-admin flag (lib/financeAccess finRoleKey). */
-export const isManagingPartner = (u?: Partial<User> | null) => !!u && u.role === 'Partner' && (!!u.isAdmin || isSuper(u));
+/** Managing Partner = the Super Admin partner only. Admin is a separate system right (settings,
+ * users, logs, HR records) and does not make a partner Managing Partner. */
+export const isManagingPartner = (u?: Partial<User> | null) => !!u && u.role === 'Partner' && isSuper(u);
 /** Role name shown in the design's role dropdown. */
 export const designRole = (u: Partial<User>): string => (isManagingPartner(u) ? 'Managing Partner' : u.role === 'Reviewer' ? 'Reviewer (auditor)' : String(u.role || ''));
 
