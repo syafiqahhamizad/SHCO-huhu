@@ -157,8 +157,8 @@ const SMALL_TILES: LauncherTile[] = [
   { label: 'Claims', view: 'reimbursements', icon: Receipt, bg: '#8A6D3B' },
   { label: 'Accounting', view: 'accountingCentre', icon: Building2, bg: '#2E7D7A' },
   { label: 'Trust Account', view: 'retainers', icon: ShieldCheck, bg: '#1F7A5C' },
-  { label: 'Staff Portal', view: 'staff-portal', icon: UserCog, bg: '#6B3D8C' },
-  { label: 'Client Portal', view: 'client-portal', icon: UserCheck, bg: '#16223A' },
+  { label: 'Staff Portal', view: 'staffPortal', icon: UserCog, bg: '#6B3D8C' },
+  { label: 'Client Portal', view: 'clientPortal', icon: UserCheck, bg: '#16223A' },
   { label: 'Firm Inventory', view: 'inventory', icon: Package, bg: '#4C5A72' },
   // TODO: point Library at a dedicated view once one exists; it currently opens the Law Library tab of Inventory.
   { label: 'Library', view: 'inventory', icon: BookMarked, bg: '#16223A' },

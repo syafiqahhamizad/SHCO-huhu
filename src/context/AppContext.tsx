@@ -1327,35 +1327,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
     return readStored(STORAGE_KEY + '_notifications', operationalFallback<NotificationItem>([
+          // Preview-only samples (?preview=1), pointing at the preview matter CS-001.
           {
             id: 'NOTIF-101',
             title: 'Upcoming Hearing Alert',
-            message: 'High Court Trial for Kapal Mewah Sdn Bhd (Ref: SHC/LIT/KAPAL009/2025) is scheduled for 18.08.2026 before YA Dato\' Azman.',
+            message: "Case management for Putrie Nur Armanie Qaliesya (minor) v Shukrina Binti Sa'ad & Ors is coming up.",
             type: 'hearing',
             timestamp: '2026-08-11 09:30',
             read: false,
             linkTab: 'hearings',
-            linkId: 'LIT-002',
+            linkId: 'CS-001',
           },
           {
             id: 'NOTIF-102',
             title: 'Invoice Marked as Paid',
-            message: 'Tax Invoice INV-2026-003 for Encik Farid Iskandar (RM 18,500.00) has been verified and marked as PAID by Finance.',
+            message: 'A tax invoice has been verified and marked as PAID by Finance.',
             type: 'invoice',
             timestamp: '2026-08-11 11:15',
             read: false,
             linkTab: 'billing',
-            linkId: 'INV-2026-003',
-          },
-          {
-            id: 'NOTIF-103',
-            title: 'Approaching Hearing Date',
-            message: 'Case Management for Tan Ah Kow (Ref: SHC/LIT/TAN001/2026) scheduled on 22.08.2026 at Shah Alam High Court 4.',
-            type: 'hearing',
-            timestamp: '2026-08-10 16:45',
-            read: true,
-            linkTab: 'hearings',
-            linkId: 'LIT-001',
           },
         ]));
   });
@@ -2205,6 +2195,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     firmDashboard: 'dashboard',
     partnerDashboard: 'dashboard',
     clientPortal: 'clientPortal',
+    // URL-style aliases routed in App.tsx must gate the same as their main id (unmapped ids
+    // fall back to the always-visible 'dashboard' module).
+    myDashboard: 'dashboard',
+    'client-portal': 'clientPortal',
+    tasks: 'cases',
+    'case-status': 'cases',
+    'file-closing': 'cases',
+    referrals: 'cases',
+    'bank-accounts': 'officeFinance',
+    'bank-reconciliation': 'officeFinance',
+    'trust-audit-logs': 'retainers',
     leads: 'leads',
     leadsReferrals: 'leads',
     'leads-referrals': 'leads',
@@ -2254,8 +2255,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     firmSettings: 'settings',
     logs: 'logs',
     roles: 'logs',
-    about: 'settings',
-    account: 'settings',
+    // Personal pages: every staff member can open their own account and the About page.
+    about: 'dashboard',
+    account: 'dashboard',
   };
 
   const addCustomRole = (roleName: string): boolean => {
