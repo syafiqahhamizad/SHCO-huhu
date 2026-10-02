@@ -1,5 +1,5 @@
 /**
- * Pure helpers for Google Calendar court events (checked by src/lib/integrations.check.ts).
+ * Pure helpers for Google Calendar court events (tested in src/lib/integrations.test.ts).
  */
 
 export const COURT_TIME_ZONE = 'Asia/Kuala_Lumpur';

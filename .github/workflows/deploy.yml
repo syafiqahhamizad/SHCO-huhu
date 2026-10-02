@@ -28,8 +28,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Type-check and tests gate everything below: a failing step stops the job, so
+      # neither the production deploy nor the PR preview deploy runs.
       - name: Type-check
-        run: npm run lint
+        run: npx tsc --noEmit
+
+      - name: Run tests
+        run: npm test
 
       - name: Build app
         run: npm run build

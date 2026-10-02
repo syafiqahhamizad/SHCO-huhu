@@ -1,7 +1,7 @@
 /**
  * Accounts & Finance — pure calculation helpers (no React, no Firebase, no settings).
  *
- * Shared by the finance controller / tabs and by src/lib/finance.check.ts, so every screen uses
+ * Shared by the finance controller / tabs and by src/lib/finance.test.ts, so every screen uses
  * ONE definition of: local-date bucketing, invoice composition (fees / reimbursements /
  * disbursements / SST), fee income from money received, claim-form approval totals and months
  * of fixed costs covered.

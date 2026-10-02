@@ -48,7 +48,7 @@
  *    government employees are exempt. https://www.perkeso.gov.my/en/our-services/employer-employee/contributions.html
  *  - "Wages" (Act 800 s.2) likewise excludes travelling allowance and annual bonus.
  *
- * Tables: ./statutoryTables.ts. Self-check: `npx tsx src/lib/statutory.check.ts`.
+ * Tables: ./statutoryTables.ts. Tests: src/lib/statutory.test.ts (`npm test`).
  */
 import { ACT4_BANDS, EIS_BANDS } from './statutoryTables';
 

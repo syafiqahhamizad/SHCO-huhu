@@ -1,7 +1,7 @@
 /**
  * Builds RFC 2822 / MIME e-mail messages for the Gmail API (users.messages.send `raw`).
  * Pure functions (no browser APIs beyond TextEncoder / btoa, both in Node 18+), so they can be
- * checked with `npx tsx src/lib/integrations.check.ts`.
+ * tested in src/lib/integrations.test.ts (`npm test`).
  */
 
 /** Base64 of the UTF-8 bytes of `s`. */
