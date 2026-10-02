@@ -26,7 +26,7 @@ export const FIXED_ROLE_COLS: [string, string][] = [['Managing Partner', ''], ['
 const MASK_IDX: Record<string, number> = { Partner: 0, Lawyer: 1, Assistant: 2, Accountant: 3, Reviewer: 4, Client: 5 };
 
 export const SUPER_EMAIL = 'syafiqahhamizad@shcolaw.com';
-export const isSuper = (u?: Partial<User> | null) => !!u && (u.email === SUPER_EMAIL || !!u.isSuperAdmin);
+export const isSuper = (u?: Partial<User> | null) => !!u && ((u.email || '').trim().toLowerCase() === SUPER_EMAIL.toLowerCase() || !!u.isSuperAdmin);
 /** Managing Partner = the Super Admin partner only. Admin is a separate system right (settings,
  * users, logs, HR records) and does not make a partner Managing Partner. */
 export const isManagingPartner = (u?: Partial<User> | null) => !!u && u.role === 'Partner' && isSuper(u);

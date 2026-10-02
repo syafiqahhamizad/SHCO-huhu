@@ -42,10 +42,7 @@ describe('generateNextMatterSequenceNumber (getNextSequenceId("case"))', () => {
   it('year-sized persisted counters are ignored', () => expect(generateNextMatterSequenceNumber([], 2028)).toBe('001'));
   it('0999 → 1000', () => expect(nextCaseNo([c('SHC/SH/LIT/QAL/0999/09-2026')])).toBe('1000'));
 
-  // KNOWN LIMITATION (reported, not fixed): extractMatterRunningNumber only accepts running numbers
-  // below 1000, so once file 1000 exists it is ignored and numbering restarts. `it.fails` keeps the
-  // suite green while documenting the expected behaviour; it will start failing once this is fixed.
-  it.fails('after file 1000 the next number is 1001 (currently restarts at 0001)', () => {
+  it('after file 1000 the next number is 1001', () => {
     expect(nextCaseNo([c('SHC/SH/LIT/QAL/0999/09-2026'), c('SHC/SH/LIT/QAL/1000/09-2026')])).toBe('1001');
   });
 });

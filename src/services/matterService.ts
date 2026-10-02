@@ -17,8 +17,9 @@ export const extractMatterRunningNumber = (ref?: string): number => {
   const dateIndex = segments.findIndex((segment) => /^\d{2}-\d{2}(?:\d{2})?$/.test(segment));
 
   if (dateIndex > 0) {
+    // The segment before the month-year is always the running number (never a year), so 1000+ is valid.
     const runningNumber = Number(segments[dateIndex - 1]);
-    if (Number.isInteger(runningNumber) && runningNumber >= 0 && runningNumber < 1000) return runningNumber;
+    if (/^\d{1,6}$/.test(segments[dateIndex - 1]) && Number.isInteger(runningNumber)) return runningNumber;
   }
 
   // Legacy references may end with a standalone year, e.g. .../001/2025.
