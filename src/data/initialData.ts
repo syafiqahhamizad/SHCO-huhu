@@ -19,8 +19,6 @@ import {
   Deadline,
   Meeting,
   Programme,
-  Court,
-  Judge,
   TimeEntry,
   Expense,
   Invoice,
@@ -552,15 +550,6 @@ export const INITIAL_DEADLINES: Deadline[] = [];
 export const INITIAL_MEETINGS: Meeting[] = [];
 
 export const INITIAL_PROGRAMMES: Programme[] = [];
-
-export const INITIAL_COURTS: Court[] = [
-  { id: 'CRT1', name: 'Sessions Court Kuala Terengganu', city: 'Kuala Terengganu' },
-  { id: 'CRT2', name: 'High Court Kuala Lumpur', city: 'Kuala Lumpur' },
-];
-
-export const INITIAL_JUDGES: Judge[] = [
-  { id: 'J1', name: 'YA Puan Hakim Zarina', courtId: 'CRT1' },
-];
 
 export const INITIAL_TIME_ENTRIES: TimeEntry[] = [];
 

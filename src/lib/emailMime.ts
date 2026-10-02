@@ -5,7 +5,7 @@
  */
 
 /** Base64 of the UTF-8 bytes of `s`. */
-export function base64Utf8(s: string): string {
+function base64Utf8(s: string): string {
   const bytes = new TextEncoder().encode(s);
   let bin = '';
   for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
@@ -38,7 +38,7 @@ export function encodeMimeHeader(value: string): string {
 }
 
 const EMAIL_RE = /^[^\s@<>,;:"()[\]\\]+@[^\s@<>,;:"()[\]\\]+\.[^\s@<>,;:"()[\]\\]{2,}$/;
-export const isValidEmail = (s: string) => EMAIL_RE.test(String(s || '').trim());
+const isValidEmail = (s: string) => EMAIL_RE.test(String(s || '').trim());
 
 /** Splits "a@x.com, b@y.com; c@z.com" (or an array) into trimmed addresses. Throws on an invalid one. */
 export function parseAddressList(input: string | string[] | undefined | null): string[] {

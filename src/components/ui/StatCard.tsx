@@ -23,4 +23,3 @@ export const StatCard: React.FC<StatCardProps> = ({ label, value, note, color, o
   </div>
 );
 
-export default StatCard;

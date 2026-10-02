@@ -10,17 +10,9 @@ import {
   Landmark,
   BarChart3,
   Plus,
-  Download,
   Search,
-  Trash2,
-  Edit2,
-  CheckCircle,
-  XCircle,
-  AlertCircle,
-  Eye,
   FileText,
 } from 'lucide-react';
-import { TimeEntry, Invoice, Payment, Expense, TravelClaim, PaymentVoucher, BankAccount, Receipt as ReceiptRecord } from '../../types';
 import { buildTimeEntryItems, computeTotals } from '../../lib/billingEngine';
 import { submitInvoiceToMyInvois } from '../../services/eInvoiceService';
 
@@ -79,20 +71,10 @@ export const SimplifiedAccountingView: React.FC = () => {
     addInvoice,
     updateInvoice,
     addExpense,
-    updateExpense,
-    deleteExpense,
     addPayment,
-    updatePayment,
-    deletePayment,
     addTimeEntry,
     updateTimeEntry,
-    deleteTimeEntry,
-    addTravelClaim,
-    updateTravelClaim,
-    addPaymentVoucher,
-    updatePaymentVoucher,
     addBankAccount,
-    updateBankAccount,
     showToast,
     currentView,
   } = useApp();

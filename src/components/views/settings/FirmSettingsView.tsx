@@ -71,4 +71,3 @@ export const FirmSettingsView = () => {
   );
 };
 
-export default FirmSettingsView;

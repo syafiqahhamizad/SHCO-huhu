@@ -11,7 +11,7 @@ import { WHATSAPP_OPENED_STATUS, whatsappLink } from '../../../lib/whatsapp';
 import { courtOf, isDone, stamp } from './caseModel';
 import type { WF } from './wf';
 
-export { isCourtDiaryConfigured, googleErrorMessage };
+export { isCourtDiaryConfigured };
 
 export const updateStatus = (u: Pick<MatterClientUpdate, 'emailSentAt' | 'whatsappOpenedAt'>): MatterClientUpdate['deliveryStatus'] =>
   u.emailSentAt && u.whatsappOpenedAt ? 'Sent by e-mail · Opened in WhatsApp' : u.emailSentAt ? 'Sent by e-mail' : u.whatsappOpenedAt ? WHATSAPP_OPENED_STATUS : 'Prepared — not sent';
@@ -53,7 +53,7 @@ export async function autoSend(w: WF, u: MatterClientUpdate, to?: string): Promi
 
 /* ------------------------------------------------------------------ court diary */
 
-export const eventInput = (c: Case, h: Pick<Hearing, 'purpose' | 'date' | 'time' | 'source'>, attendees: string[]) => {
+const eventInput = (c: Case, h: Pick<Hearing, 'purpose' | 'date' | 'time' | 'source'>, attendees: string[]) => {
   const court = courtOf(c);
   return {
     title: h.purpose + ' — ' + c.title + ' (' + c.ref + ')',

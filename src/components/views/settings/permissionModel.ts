@@ -19,7 +19,7 @@ export const PERM_ROWS: [string, string, string?, string?][] = [
 ];
 
 /** Keys an admin always has in full on top of their role (design ADMK). */
-export const ADMIN_KEYS = ['settings', 'users', 'logs', 'hrRecords', 'settings.firm', 'settings.banks', 'settings.templates', 'settings.lists', 'settings.permissions'];
+const ADMIN_KEYS = ['settings', 'users', 'logs', 'hrRecords', 'settings.firm', 'settings.banks', 'settings.templates', 'settings.lists', 'settings.permissions'];
 
 /** The design's fixed role order; index 1.. maps to the app's own roles. */
 export const FIXED_ROLE_COLS: [string, string][] = [['Managing Partner', ''], ['Partner', 'Partner'], ['Lawyer', 'Lawyer'], ['Assistant', 'Assistant'], ['Accountant', 'Accountant'], ['Reviewer', 'Reviewer'], ['Client', 'Client']];
@@ -33,10 +33,10 @@ export const isManagingPartner = (u?: Partial<User> | null) => !!u && u.role ===
 /** Role name shown in the design's role dropdown. */
 export const designRole = (u: Partial<User>): string => (isManagingPartner(u) ? 'Managing Partner' : u.role === 'Reviewer' ? 'Reviewer (auditor)' : String(u.role || ''));
 
-export const toBits = (p?: ModulePermissions | null) => (p ? `${p.v ? 1 : 0}${p.a ? 1 : 0}${p.e ? 1 : 0}` : '000');
+const toBits = (p?: ModulePermissions | null) => (p ? `${p.v ? 1 : 0}${p.a ? 1 : 0}${p.e ? 1 : 0}` : '000');
 export const fromBits = (b: string): ModulePermissions => ({ v: b[0] === '1' ? 1 : 0, a: b[1] === '1' ? 1 : 0, e: b[2] === '1' ? 1 : 0 });
 export const flipBit = (b: string, i: number) => b.split('').map((c, y) => (y === i ? (c === '1' ? '0' : '1') : c)).join('');
-export const andBits = (a: string, b: string) => a.split('').map((c, y) => (c === '1' && b[y] === '1' ? '1' : '0')).join('');
+const andBits = (a: string, b: string) => a.split('').map((c, y) => (c === '1' && b[y] === '1' ? '1' : '0')).join('');
 
 const row = (key: string) => PERM_ROWS.find((r) => r[0] === key);
 export const parentOf = (key: string) => row(key)?.[2];
@@ -57,7 +57,7 @@ export const roleOwnBits = (matrix: RolePermissionsMatrix, role: string, key: st
 };
 
 /** A role's effective bits for a key: own cell capped by its tab. */
-export const roleBits = (matrix: RolePermissionsMatrix, role: string, key: string): string => {
+const roleBits = (matrix: RolePermissionsMatrix, role: string, key: string): string => {
   const own = roleOwnBits(matrix, role, key);
   const p = parentOf(key);
   return p ? andBits(own, roleOwnBits(matrix, role, p)) : own;

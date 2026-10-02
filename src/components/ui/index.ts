@@ -5,7 +5,5 @@ export { MiniBarChart } from './MiniBarChart';
 export type { BarDatum } from './MiniBarChart';
 export { ProgressBar } from './ProgressBar';
 export { StatusBadge } from './StatusBadge';
-export { TabPills } from './TabPills';
-export type { TabPillItem } from './TabPills';
 export { TaskFormModal, blankTaskDraft } from './TaskFormModal';
 export type { TaskDraft } from './TaskFormModal';

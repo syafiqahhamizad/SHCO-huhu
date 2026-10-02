@@ -139,7 +139,7 @@ export const AREAS: Record<string, AreaTemplate> = {
     disb: [['Syariah Court filing fees', 80], ['Service of documents', 150]],
     reimb: [['Printing & Photocopy charges', 80], ['Travelling Expenses', 150], ['Miscellaneous', 50]] },
 };
-export const areaFromRef = (ref?: string): string => { const c = (ref || '').split('/')[1]; return Object.keys(AREAS).find((a) => AREAS[a].code === c) || 'Litigation'; };
+const areaFromRef = (ref?: string): string => { const c = (ref || '').split('/')[1]; return Object.keys(AREAS).find((a) => AREAS[a].code === c) || 'Litigation'; };
 /** Best practice-area template for a free-text practice area / matter type (e.g. "Civil Litigation"). */
 export const areaFromName = (name?: string, ref?: string): string => {
   const n = String(name || '').toLowerCase();
@@ -169,7 +169,7 @@ export const totals = (d: Pick<FinanceDoc, 'type' | 'lines' | 'sstRate' | 'depos
 const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty', 'twenty-one', 'twenty-two', 'twenty-three', 'twenty-four'];
 export const schedule = (total: number, months: number, upfront: number): [string, number][] => { total = Math.max(0, Math.round((Number(total) || 0) * 100) / 100); months = Math.max(1, Math.min(24, Math.round(months || 1))); upfront = Math.min(total, Math.max(0, upfront || 0)); if (total === 0) return [['Month 1 (Full Payment)', 0]]; if (months === 1) return [['Month 1 (Full Payment)', total]]; const first = upfront || Math.round(total / months * 100) / 100; const each = Math.max(0, Math.floor((total - first) / (months - 1))); const out: [string, number][] = [['Month 1 (Upfront Payment)', first]]; for (let i = 2; i < months; i++) out.push(['Month ' + i, each]); out.push(['Month ' + months, Math.round((total - first - each * (months - 2)) * 100) / 100]); return out; };
 export const ARR_TERMS = 'Early Settlement: In the event the matter is settled before the completion of the instalment period, all payments made shall be non-refundable, and the outstanding balance for the remaining unpaid months shall be charged at ten per cent (10%) of the settlement sum.\nDisbursements & Reimbursements: Charged in accordance with the agreed quotation. Any additional disbursements and/or reimbursements incurred shall be notified to and borne by the Client, and any unused portion of disbursements paid shall be refunded to the Client accordingly.\nWork shall not proceed if instalment payments are not settled, unless otherwise agreed in writing.';
-export const num = (n: number | string | undefined) => Number(n || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const num = (n: number | string | undefined) => Number(n || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const money = (n: number | string | undefined) => 'RM ' + num(n);
 const TITLES: Record<DocType, string> = { Quotation: 'QUOTATION', Proforma: 'PROFORMA INVOICE', Invoice: 'INVOICE', Receipt: 'OFFICIAL RECEIPT' };
 const esc = (s: unknown) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] as string)).replace(/\n/g, '<br>');
@@ -179,8 +179,6 @@ const HDR = 'font-family:Georgia,\'Times New Roman\',serif;color:#16223A';
 const firmBlock = () => FIRM.header ? '<div style="' + HDR + '"><img src="' + FIRM.header + '" alt="' + esc(FIRM.name) + '" style="width:100%;max-width:470px;height:auto;display:block"></div>' : '<div style="' + HDR + '"><img src="' + LOGO.name + '" alt="' + FIRM.name + '" width="240" style="width:240px;height:auto;display:block"><div style="font-size:8.5pt;font-style:italic;color:#3D6B9C;line-height:1.4;margin-top:4px">' + esc(FIRM.tag1) + '<br>' + esc(FIRM.tag2) + '</div><div style="font-size:7.5pt;line-height:1.5;color:#5B6478;margin-top:5px">' + (FIRM.reg ? esc(FIRM.reg) + '<br>' : '') + esc(FIRM.addr) + '<br>' + FIRM.email + ' · ' + FIRM.tel + '</div></div>';
 const boxTable = (rows: [string, unknown][]) => rows.map(([k, v]) => '<div><span style="color:#5B6478">' + k + '</span> ' + esc(v) + '</div>').join('');
 const topHead = (title: string, rows: [string, unknown][]) => '<table style="width:100%;border-collapse:collapse"><tr><td style="vertical-align:top;padding:0">' + firmBlock() + '</td><td style="vertical-align:top;padding:0 0 0 12px;width:200px;text-align:right;' + HDR + ';font-size:8.5pt;line-height:1.6">' + (title ? '<div style="font-size:15pt;font-weight:bold;letter-spacing:.5px;line-height:1.15;margin-bottom:4px">' + title + '</div>' : '') + boxTable(rows) + '</td></tr></table><div style="border-top:2px solid #16223A;margin:12px 0 14px"></div>';
-/** Letterhead only (option 3c) — for letters / statements that build their own body. */
-export const letterhead = () => topHead('', []);
 const receiptOrig = (d: FinanceDoc) => { const bk = BANK[d.account] || BANK.Office;
   const kv = [['Amount received', '<b style="font-size:15px">' + money(d.amount) + '</b>'], ['Being payment for', esc(d.forNo || d.matter || '-')], ['Payment method', esc(d.method || '-')], ['Paid into', esc(bk[0]) + ' · ' + esc(bk[1]) + ' · A/C ' + bk[2]]].concat((d.proofs || []).length ? [['Proof of payment', esc((d.proofs || []).map((q) => q.name).join('; '))]] : []);
   return topHead('OFFICIAL RECEIPT', [['No.', d.no], ['Date', d.date], ['Account', d.account]])
@@ -234,15 +232,15 @@ const parseCsv = (text: string): string[][] => { const rows: string[][] = []; le
 const XLSX_URL = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm';
 /** Reads a CSV natively, or an Excel file via SheetJS loaded on demand from jsdelivr. */
 export const readSheet = async (file: File): Promise<string[][]> => { if (/\.csv$/i.test(file.name)) return parseCsv((await file.text()).replace(/^﻿/, '')); const X: any = await import(/* @vite-ignore */ XLSX_URL); const wb = X.read(await file.arrayBuffer()); return X.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' }); };
-export const IMPORT_COLS = ['Date (dd.mm.yyyy)', 'Type (Receipt / Payment / Invoice)', 'Account (Office / Client)', 'Client', 'Our Ref', 'Document No.', 'Description', 'Amount (RM)', 'Method', 'Proof reference'];
+const IMPORT_COLS = ['Date (dd.mm.yyyy)', 'Type (Receipt / Payment / Invoice)', 'Account (Office / Client)', 'Client', 'Our Ref', 'Document No.', 'Description', 'Amount (RM)', 'Method', 'Proof reference'];
 export const importTemplate = () => csv('SHCO import template', [IMPORT_COLS, ['15.01.2025', 'Invoice', 'Office', 'FB Fastaqim Buildings', 'SHC/LIT/FB/SH/005/2025', 'INV-25-0012', 'Professional fees – defence', '10000', '', ''], ['20.01.2025', 'Receipt', 'Office', 'FB Fastaqim Buildings', 'SHC/LIT/FB/SH/005/2025', 'OR-25-0031', 'Payment for INV-25-0012', '2000', 'Online transfer', 'IBG screenshot 20.01'], ['22.01.2025', 'Payment', 'Client', 'FB Fastaqim Buildings', 'SHC/LIT/FB/SH/005/2025', 'PV-25-0008', 'Court filing fees', '16', 'Online transfer', 'e-Filing receipt']]);
 /* ---------- Firm & Practice Settings → documents ----------
  * Firm details, bank accounts, the HQ letterhead image and edited fee templates live in Firm &
  * Practice Settings. They are applied onto FIRM / BANK / AREAS in place (built-in values stay the
  * fallback), on load and whenever settings change, so every screen/Word/PDF copy picks them up. */
 /** Built-in template code → practice-area tag used in Firm & Practice Settings. */
-export const AREA_TAG: Record<string, string> = { LIT: 'L', PRO: 'EST', FAM: 'SY' };
-export const areaTag = (code: string) => AREA_TAG[code] || code;
+const AREA_TAG: Record<string, string> = { LIT: 'L', PRO: 'EST', FAM: 'SY' };
+const areaTag = (code: string) => AREA_TAG[code] || code;
 const BUILTIN_FIRM = { ...FIRM };
 const BUILTIN_BANK: Record<DocAccount, [string, string, string]> = { Office: [...BANK.Office], 'Client account': [...BANK['Client account']], Disbursement: [...BANK.Disbursement] };
 const BUILTIN_AREAS: Record<string, AreaTemplate> = Object.fromEntries(Object.entries(AREAS).map(([k, a]) => [k, { ...a, prof: clone(a.prof), disb: clone(a.disb), reimb: clone(a.reimb) }]));
@@ -253,7 +251,7 @@ export const builtInFeeTemplates = (): Record<string, { desc: string; prof: { d:
   return Object.fromEntries(Object.values(BUILTIN_AREAS).map((a) => [areaTag(a.code), { desc: a.desc, prof: o(a.prof), disb: o(a.disb), reimb: o(a.reimb) }]));
 };
 
-export const applyPracticeSettingsToDocs = () => {
+const applyPracticeSettingsToDocs = () => {
   const s = getPracticeSettings();
   const reg = String(s.firmRegNo || '').trim();
   const hq = (s.branches || []).find((b) => b.hq) || (s.branches || [])[0];

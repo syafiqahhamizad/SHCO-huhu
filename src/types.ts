@@ -781,18 +781,6 @@ export interface Deadline {
   lawyer: string;
 }
 
-export interface Court {
-  id: string;
-  name: string;
-  city: string;
-}
-
-export interface Judge {
-  id: string;
-  name: string;
-  courtId: string;
-}
-
 export interface TimeEntry {
   id: string;
   caseId: string;

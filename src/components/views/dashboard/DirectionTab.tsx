@@ -35,7 +35,7 @@ import { endOfToday, inRange } from '../../../lib/localDate';
  *    / Analytics connection, none of which exists in this codebase. Both render an honest
  *    "Not connected yet" state instead of a fabricated rating or follower counts.
  */
-export const DirectionTab: React.FC = () => {
+const DirectionTab: React.FC = () => {
   const {
     cases,
     invoices,

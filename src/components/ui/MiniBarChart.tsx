@@ -33,4 +33,3 @@ export const MiniBarChart: React.FC<MiniBarChartProps> = ({ data, height = 70, s
   );
 };
 
-export default MiniBarChart;

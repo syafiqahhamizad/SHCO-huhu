@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../../../context/AppContext';
-import { palette, tint, tintText, serifFont } from '../../../lib/designTokens';
+import { palette, tintText, serifFont } from '../../../lib/designTokens';
 import { getPracticeSettings } from '../../../services/templateService';
 import type { ComplianceItem } from '../../../types';
 import { StatusBadge } from '../../ui';
@@ -96,7 +96,7 @@ const FREQUENCIES: ComplianceItem['frequency'][] = ['Monthly', 'Quarterly', 'Ann
  * refreshes it on the 'shco-practice-settings-updated' event — the same pattern
  * PracticeSettingsView.tsx uses.
  */
-export const ComplianceTab: React.FC = () => {
+const ComplianceTab: React.FC = () => {
   const { currentUser, toggleComplianceItem, updateComplianceItem, addComplianceItem } = useApp();
   const [settings, setSettings] = useState(() => getPracticeSettings());
   const [seg, setSeg] = useState<'all' | 'action' | 'ok'>('all');

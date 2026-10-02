@@ -79,7 +79,6 @@ const NAV_GROUPS: NavGroup[] = [
       { id: 'caseStatus', label: 'Case Status', icon: Activity },
       { id: 'deadlines', label: 'Deadlines', icon: Flag },
       { id: 'serviceLog', label: 'Service Log', icon: FileCheck2 },
-      { id: 'courts', label: 'Courts & Judges', icon: Landmark },
       { id: 'fileClosing', label: 'File Closing', icon: FolderX },
     ],
   },
@@ -136,7 +135,7 @@ const VIEW_ALIASES: Record<string, string> = {
 };
 
 /** The sidebar item id that matches the current view. */
-export const activeNavId = (view: string): string => {
+const activeNavId = (view: string): string => {
   if (isFinanceView(view)) {
     const tab = FINANCE_VIEW_TO_TAB[view];
     return FIN_TABS.find((t) => t[0] === tab)?.[3] || view;

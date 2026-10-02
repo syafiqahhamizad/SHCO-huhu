@@ -22,7 +22,7 @@ export const P = {
   b: { bg: '#E4ECF5', fg: '#2F4F7A' },
 } as const;
 
-export const AVATAR: Record<string, string> = { SH: '#16223A', DH: '#8A6D3B', AH: '#3D6B9C', ZA: '#6B3D8C', NI: '#2E7D7A', AF: '#2F6F4E' };
+const AVATAR: Record<string, string> = { SH: '#16223A', DH: '#8A6D3B', AH: '#3D6B9C', ZA: '#6B3D8C', NI: '#2E7D7A', AF: '#2F6F4E' };
 const AVATAR_FALLBACK = ['#2E7D7A', '#2F6F4E', '#6B3D8C', '#3D6B9C', '#8A6D3B'];
 
 /* ------------------------------------------------------------------ dates */
@@ -110,7 +110,6 @@ export const stageKey = (practice: string): string => {
   return 'Civil Litigation';
 };
 export const stagesFor = (practice: string) => STAGES[stageKey(practice)];
-export const isCourtPractice = (practice: string) => /Civil Litigation|Syariah|Family|Employment|Criminal/.test(stageKey(practice));
 
 /** Current stage index: Case.statusStage, else mapped from the legacy free-text Case.stage. */
 export const stageIndexOf = (c: Case): number => {
@@ -131,7 +130,7 @@ export const stageIndexOf = (c: Case): number => {
   return 0;
 };
 
-export const STAGE_MSG: Record<string, string> = {
+const STAGE_MSG: Record<string, string> = {
   'File opened': 'we have opened your file and are reviewing your documents.',
   Pleadings: 'your claim has been filed in court and served on the other side.',
   'Case management': 'the court is now setting the timetable for the case.',
@@ -209,9 +208,6 @@ export const legacyFromParties = (parties: MatterParty[], c: Case): Partial<Case
   };
 };
 
-/** "A & Anor v B & Ors" style title is the matter title as saved; this only shortens for crumbs. */
-export const anor = (names: string[]) => (names.length > 2 ? names[0] + ' & Ors' : names.length === 2 ? names[0] + ' & Anor' : names[0] || '');
-
 /* ------------------------------------------------------------------ court */
 
 export const COURT_LEVELS = ['Federal Court', 'Court of Appeal', 'High Court', 'Sessions Court', 'Magistrates Court', 'Syariah High Court', 'Syariah Subordinate Court', 'Industrial Court', 'Arbitration (AIAC)'];
@@ -237,7 +233,6 @@ export const courtOf = (c: Case) => {
 
 export const isDeadline = (t: Pick<Task, 'kind'>) => !!t.kind && t.kind !== 'Task';
 export const isDone = (t: Pick<Task, 'status'>) => t.status === 'Completed' || t.status === 'Done';
-export const KIND_LABEL: Record<string, string> = { Task: 'Task', 'Court order': 'Deadline: court order', 'Rules of Court': 'Deadline: Rules of Court', Limitation: 'Deadline: limitation', 'Key date': 'Key date' };
 
 /** "File affidavit in reply (Encl. 12)" → "affidavit in reply". Used to tick deadlines off from filings. */
 export const deriveMatchKey = (title: string) =>
@@ -256,7 +251,7 @@ export const hasProof = (r: ServiceRecord) => !!(r.driveFileId || r.webViewLink 
 
 export interface Person { name: string; code: string; color: string; role: string; isPartner: boolean; email?: string; id?: string }
 
-export const codeFor = (u: Pick<User, 'name' | 'code'>) => {
+const codeFor = (u: Pick<User, 'name' | 'code'>) => {
   if (u.code) return u.code.toUpperCase();
   const w = String(u.name || '').split(/\s+/).filter((x) => x && !/^(bin|binti|b\.|bt\.)$/i.test(x));
   return ((w[0]?.[0] || '') + (w[1]?.[0] || '')).toUpperCase() || '—';
@@ -268,7 +263,7 @@ export const staffOf = (users: User[] = []): Person[] =>
     return { id: u.id, name: u.name, code, email: u.email, role: String(u.role || ''), isPartner: u.role === 'Partner', color: AVATAR[code] || AVATAR_FALLBACK[i % AVATAR_FALLBACK.length] };
   });
 
-export const personByName = (staff: Person[], name?: string): Person | undefined => {
+const personByName = (staff: Person[], name?: string): Person | undefined => {
   const n = String(name || '').trim().toLowerCase();
   if (!n) return undefined;
   return staff.find((p) => p.name.toLowerCase() === n || p.code.toLowerCase() === n);
@@ -283,7 +278,7 @@ export const lawyerOf = (c: Case) => (c.lawyerInCharge || '').split(',')[0].trim
 
 /* ------------------------------------------------------------------ matching records to the file */
 
-export const onFile = (c: Pick<Case, 'id' | 'ref'>, caseId?: string, fileRef?: string) =>
+const onFile = (c: Pick<Case, 'id' | 'ref'>, caseId?: string, fileRef?: string) =>
   (!!caseId && (caseId === c.id || caseId === c.ref)) || (!!fileRef && fileRef === c.ref);
 
 /* ------------------------------------------------------------------ money on the file */

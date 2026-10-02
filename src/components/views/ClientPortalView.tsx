@@ -1,34 +1,24 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
-  ShieldCheck,
   FileText,
-  Clock,
   Download,
   Eye,
   Send,
   Lock,
-  PhoneCall,
   Calendar,
   CheckCircle2,
-  AlertCircle,
   FolderOpen,
   Receipt,
   User,
   Building2,
-  ExternalLink,
   MessageSquare,
-  HelpCircle,
   TrendingUp,
   Activity,
   ArrowRight,
   Info,
   ChevronDown,
   ChevronUp,
-  Check,
-  AlertTriangle,
-  FileCheck,
-  Sparkles,
 } from 'lucide-react';
 import { DocPreviewModal } from '../modals/DocPreviewModal';
 

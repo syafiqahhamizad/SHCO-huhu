@@ -31,4 +31,3 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ label, tone, className
   );
 };
 
-export default StatusBadge;

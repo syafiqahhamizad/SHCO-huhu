@@ -77,4 +77,3 @@ ${groups.map(([t, rows]) => `<div class="gr"><div class="k">${esc(t)}</div>${row
   );
 };
 
-export default FileCoverModal;

@@ -53,7 +53,7 @@ export interface FileRefIndexEntry {
 const FILE_KEYS = new Set(['attachments', 'hrDocuments', 'photo', 'proofs', 'paidProof', 'documents', 'kycDocuments', 'files']);
 
 /** Walks the export and lists every attachment / document reference it finds. */
-export const indexFileRefs = (root: unknown, base: string): FileRefIndexEntry[] => {
+const indexFileRefs = (root: unknown, base: string): FileRefIndexEntry[] => {
   const out: FileRefIndexEntry[] = [];
   const walk = (v: unknown, where: string, underFileKey: boolean) => {
     if (Array.isArray(v)) {
@@ -93,7 +93,7 @@ const withTimeout = <T,>(p: Promise<T>, ms: number, what: string): Promise<T> =>
   Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error(what + ' timed out')), ms))]);
 
 const pad = (n: number) => String(n).padStart(2, '0');
-export const backupFileName = (d = new Date()) =>
+const backupFileName = (d = new Date()) =>
   'SHCO-portal-backup-' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes()) + '.json';
 
 export interface BackupResult {

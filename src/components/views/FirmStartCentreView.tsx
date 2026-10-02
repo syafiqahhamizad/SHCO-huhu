@@ -36,7 +36,6 @@ import {
   Map,
   MapPin,
   Megaphone,
-  Network,
   Package,
   PartyPopper,
   Plus,
@@ -95,11 +94,6 @@ const formatDay = (value: string) =>
 
 const HOME_TAB = { id: 'home', label: 'Overview', icon: Home } as const;
 
-// Icons available when adding/editing a Firm Start Centre page or card; falls back to BookOpen.
-const START_CENTRE_ICONS: Record<string, React.ElementType> = {
-  UserPlus, BookOpen, Network, ShieldCheck, ListChecks, GraduationCap, FolderOpen, Scale, Contact, Package, Building2,
-};
-const iconFor = (name: string) => START_CENTRE_ICONS[name] || BookOpen;
 const LinkIconFallback = FileText;
 
 const QUICK_LINK_GROUPS: QuickLinkGroup[] = [

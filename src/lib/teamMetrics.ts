@@ -5,7 +5,7 @@
 import type { LeaveApplication } from '../types';
 
 /** Mon–Fri days in [from, to] (inclusive, local dates). */
-export const workingDaysBetween = (from: Date, to: Date): number => {
+const workingDaysBetween = (from: Date, to: Date): number => {
   let n = 0;
   const d = new Date(from.getFullYear(), from.getMonth(), from.getDate());
   const end = new Date(to.getFullYear(), to.getMonth(), to.getDate()).getTime();

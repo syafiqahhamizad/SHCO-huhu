@@ -26,7 +26,7 @@ export const GOOGLE_SCOPES = {
 
 export type GoogleService = keyof typeof GOOGLE_SCOPES;
 
-export const GOOGLE_SERVICE_LABEL: Record<GoogleService, string> = {
+const GOOGLE_SERVICE_LABEL: Record<GoogleService, string> = {
   drive: 'Google Drive', calendar: 'Google Calendar', tasks: 'Google Tasks', gmail: 'Gmail',
 };
 const API_NAME: Record<GoogleService, string> = {
@@ -233,14 +233,6 @@ export async function getGoogleAccessToken(service: GoogleService): Promise<stri
   }
 }
 
-/**
- * Get tokens for several services inside one click (before any other await), so later calls in
- * the same flow do not need a popup. Requests run one after the other; the first failure throws.
- */
-export async function prepareGoogleAccess(services: GoogleService[]): Promise<void> {
-  for (const s of services) await getGoogleAccessToken(s);
-}
-
 /* ------------------------------------------------------------------ REST */
 
 export interface GoogleFetchHints {
@@ -251,7 +243,7 @@ export interface GoogleFetchHints {
 }
 
 /** Turns a Google API error response into something the staff member (or owner) can act on. */
-export const describeGoogleApiError = (service: GoogleService, status: number, reason: string, message: string, hints: GoogleFetchHints = {}): { code: GoogleErrorCode; message: string } => {
+const describeGoogleApiError = (service: GoogleService, status: number, reason: string, message: string, hints: GoogleFetchHints = {}): { code: GoogleErrorCode; message: string } => {
   const L = GOOGLE_SERVICE_LABEL[service];
   const r = reason.toLowerCase(), m = message.toLowerCase();
   if (r === 'accessnotconfigured' || r === 'service_disabled' || m.includes('has not been used') || m.includes('is disabled')) {

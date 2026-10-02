@@ -22,7 +22,7 @@ interface GTask { id: string; title?: string; notes?: string; status?: string; d
 const listCache = new Map<string, Promise<string>>();
 
 /** Finds the user's "SHCO Portal" task list, creating it if missing. Returns its ID. */
-export function ensureTaskList(): Promise<string> {
+function ensureTaskList(): Promise<string> {
   const email = signedInGoogleEmail();
   const hit = listCache.get(email);
   if (hit) return hit;

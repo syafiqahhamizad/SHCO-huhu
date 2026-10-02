@@ -9,7 +9,7 @@ export const rm = (n: number) =>
   'RM ' + Number(n || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const num2 = (n: number) => Number(n || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-export const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 export const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -48,7 +48,6 @@ export const esc = (s: unknown) =>
 export const serif = 'ui-serif, Georgia, serif';
 export const card: React.CSSProperties = { overflow: 'hidden', borderRadius: 12, border: '1px solid #DDE3EB', background: '#fff' };
 export const cardTitle: React.CSSProperties = { fontFamily: serif, fontSize: 14.5, color: '#16223A' };
-export const fieldLabel: React.CSSProperties = { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#5B6478' };
 export const labelWrap: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4 };
 
 /* ------------------------------------------------------------------ payslips */

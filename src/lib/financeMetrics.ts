@@ -13,7 +13,6 @@
  */
 import type { Case, Expense, Invoice, Payment, PaymentVoucher, Payslip, TravelClaim } from '../types';
 import { invoiceComposition, isNonExpensePv, round2 } from './financeCalc';
-import { computeTotals } from './billingEngine';
 
 /* ------------------------------ invoices ------------------------------ */
 

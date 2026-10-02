@@ -30,23 +30,11 @@ export const Card: React.FC<{ children: React.ReactNode; style?: string; classNa
   <div className={className} style={css(S.card + (style ? ';' + style : ''))}>{children}</div>
 );
 
-export const CardHead: React.FC<{ title: React.ReactNode; sub?: React.ReactNode; children?: React.ReactNode }> = ({ title, sub, children }) => (
-  <div style={css(S.head)}>
-    <strong style={css('font-family:Georgia, serif;font-size:15px;color:#16223A')}>{title}</strong>
-    {sub != null && <span style={css(S.sub)}>{sub}</span>}
-    {children}
-  </div>
-);
-
 export const Field: React.FC<{ label: React.ReactNode; children: React.ReactNode; span?: string }> = ({ label, children, span }) => (
   <label style={css('display:flex;flex-direction:column;gap:5px' + (span ? ';grid-column:' + span : ''))}>
     <span style={css(S.label)}>{label}</span>
     {children}
   </label>
-);
-
-export const Pill: React.FC<{ tone: { bg: string; fg: string }; children: React.ReactNode; style?: string }> = ({ tone, children, style = '' }) => (
-  <span style={css(`padding:2px 9px;border-radius:10px;font-size:11.5px;font-weight:700;background:${tone.bg};color:${tone.fg};white-space:nowrap${style ? ';' + style : ''}`)}>{children}</span>
 );
 
 export const boxStyle = (on: boolean, size = 18) =>

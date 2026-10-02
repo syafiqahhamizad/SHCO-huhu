@@ -50,4 +50,3 @@ export const Donut: React.FC<DonutProps> = ({ segments, size = 110, thickness = 
   );
 };
 
-export default Donut;

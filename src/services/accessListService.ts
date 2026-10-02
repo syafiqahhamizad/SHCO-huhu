@@ -19,7 +19,7 @@ import type { User } from '../types';
 
 export const ACCESS_OWNER_EMAIL = 'syafiqahhamizad@shcolaw.com';
 
-export const ACCESS_ROLES = ['partner', 'lawyer', 'assistant', 'accountant', 'reviewer', 'client'] as const;
+const ACCESS_ROLES = ['partner', 'lawyer', 'assistant', 'accountant', 'reviewer', 'client'] as const;
 export type AccessRole = (typeof ACCESS_ROLES)[number];
 
 export interface AccessEntry {

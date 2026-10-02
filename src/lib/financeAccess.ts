@@ -84,4 +84,3 @@ export const canSeeFinanceNav = (viewId: string, rk: FinRoleKey): boolean => {
   return !!row && row[4].includes(rk);
 };
 
-export const FINANCE_ROLE_LABEL: Record<FinRoleKey, string> = { M: 'Managing Partner', P: 'Partner', A: 'Accounts', R: 'Reviewer', S: 'Staff' };

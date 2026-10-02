@@ -22,4 +22,3 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({ label, valueLabel, pct
   </div>
 );
 
-export default ProgressBar;

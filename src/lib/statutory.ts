@@ -123,7 +123,7 @@ export function calcEis(wage: number, age: number, period: string): EisResult {
 /* ------------------------------------------------------------------ age & residency */
 
 /** Parse a date of birth: 'YYYY-MM-DD' (form input), 'DD.MM.YYYY' or 'DD/MM/YYYY'. */
-export function parseDob(s?: string): { y: number; m: number; d: number } | null {
+function parseDob(s?: string): { y: number; m: number; d: number } | null {
   const t = String(s || '').trim();
   let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (m) return { y: +m[1], m: +m[2], d: +m[3] };
@@ -133,7 +133,7 @@ export function parseDob(s?: string): { y: number; m: number; d: number } | null
 }
 
 /** Date of birth from a Malaysian MyKad number (YYMMDD-PB-###G). Century: YY after the current year's YY → 1900s. */
-export function dobFromNric(nric?: string, now = new Date()): { y: number; m: number; d: number } | null {
+function dobFromNric(nric?: string, now = new Date()): { y: number; m: number; d: number } | null {
   const digits = String(nric || '').replace(/\D/g, '');
   if (digits.length !== 12) return null;
   const yy = +digits.slice(0, 2), mm = +digits.slice(2, 4), dd = +digits.slice(4, 6);

@@ -6,12 +6,12 @@ import { card, cardTitle, labelWrap, periodLabel, thisPeriod } from './staffPort
 type GoalStatus = NonNullable<StaffGoal['status']>;
 const GS: GoalStatus[] = ['Not started', 'On track', 'Behind', 'Done'];
 const GC: Record<GoalStatus, [string, string]> = { 'Not started': ['#F0F2F5', '#5B6478'], 'On track': ['#E7EEF6', '#2F5680'], Behind: ['#FBEDE9', '#B23A2E'], Done: ['#E6EFE9', '#2F6F4E'] };
-export const MOODS = ['Great', 'Good', 'Okay', 'Stretched', 'Struggling'];
+const MOODS = ['Great', 'Good', 'Okay', 'Stretched', 'Struggling'];
 const TOPICS = ['Workload', 'Deadlines', 'Team', 'Clients', 'Learning', 'Health', 'Family', 'Idea for the firm'];
 const LBL: React.CSSProperties = { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#5B6478' };
 
 /** Stored mood is 5 = Great … 1 = Struggling, 0 = no rating. */
-export const moodName = (m: number) => (m >= 1 && m <= 5 ? MOODS[5 - m] : 'No rating');
+const moodName = (m: number) => (m >= 1 && m <= 5 ? MOODS[5 - m] : 'No rating');
 
 export const StaffGoalsTab: React.FC = () => {
   const { currentUser, addStaffGoal, updateStaffGoal, updateUserStaffProfile, showToast } = useApp();

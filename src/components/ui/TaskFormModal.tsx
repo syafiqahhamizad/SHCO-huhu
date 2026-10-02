@@ -406,4 +406,3 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   );
 };
 
-export default TaskFormModal;

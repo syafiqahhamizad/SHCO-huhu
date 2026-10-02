@@ -70,37 +70,3 @@ export const scanClientConflicts = (
   return matches;
 };
 
-/**
- * Scans an opposing party name against firm clients to verify if they are active clients.
- */
-export const scanOpposingPartyConflicts = (
-  opposingPartyName: string,
-  allClients: Client[],
-  allCases: Case[]
-): ConflictMatch[] => {
-  const matches: ConflictMatch[] = [];
-  const query = (opposingPartyName || '').trim().toLowerCase();
-  if (!query || query.length < 3) return matches;
-
-  allClients.forEach((c) => {
-    const clientName = (c.name || '').toLowerCase();
-    if (clientName.includes(query) || query.includes(clientName)) {
-      matches.push({
-        label: `⚠️ ADVERSE CLIENT CONFLICT (${c.id})`,
-        detail: `Opposing party "${opposingPartyName}" is an active client of SHCO Law Firm ("${c.name}" - ${c.id})`,
-      });
-    }
-  });
-
-  allCases.forEach((cs) => {
-    const title = (cs.title || '').toLowerCase();
-    if (title.includes(query)) {
-      matches.push({
-        label: `Existing Matter Match (${cs.ref})`,
-        detail: `Opposing party named in existing matter "${cs.title}" (${cs.ref})`,
-      });
-    }
-  });
-
-  return matches;
-};

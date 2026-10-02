@@ -41,8 +41,6 @@ import {
   ThreeWayRecRow,
   DocTemplate,
   Deadline,
-  Court,
-  Judge,
   TimeEntry,
   Expense,
   Invoice,
@@ -113,8 +111,6 @@ import {
   INITIAL_DEADLINES,
   INITIAL_MEETINGS,
   INITIAL_PROGRAMMES,
-  INITIAL_COURTS,
-  INITIAL_JUDGES,
   INITIAL_TIME_ENTRIES,
   INITIAL_EXPENSES,
   INITIAL_INVOICES,
@@ -249,8 +245,6 @@ interface AppContextType {
   threeWayRec: ThreeWayRecRow[];
   docTemplates: DocTemplate[];
   deadlines: Deadline[];
-  courts: Court[];
-  judges: Judge[];
   timeEntries: TimeEntry[];
   expenses: Expense[];
   invoices: Invoice[];
@@ -400,8 +394,6 @@ interface AppContextType {
   incrementSequenceCounter: (type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense') => void;
   resetSequenceCounters: () => void;
   factoryResetSystem: () => Promise<void>;
-  resetAllData: () => void;
-  clearAllDataToBlank: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -1285,7 +1277,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         return JSON.parse(saved);
       } catch {
-        return INITIAL_CLIENTS;
+        return operationalFallback(INITIAL_CLIENTS);
       }
     })() : operationalFallback(INITIAL_CLIENTS);
 
@@ -1332,7 +1324,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [docTemplates] = useState<DocTemplate[]>(INITIAL_DOC_TEMPLATES);
 
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
-    return readStored(STORAGE_KEY + '_notifications', [
+    return readStored(STORAGE_KEY + '_notifications', operationalFallback<NotificationItem>([
           {
             id: 'NOTIF-101',
             title: 'Upcoming Hearing Alert',
@@ -1363,7 +1355,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             linkTab: 'hearings',
             linkId: 'LIT-001',
           },
-        ]);
+        ]));
   });
 
   const unreadNotificationsCount = notifications.filter((n) => !n.read).length;
@@ -1384,7 +1376,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to load audit logs:', e);
     }
-    return [
+    return operationalFallback<AuditLogEntry>([
       {
         id: 'AUD-1001',
         timestamp: new Date().toLocaleString('en-MY', { dateStyle: 'medium', timeStyle: 'short' }),
@@ -1415,7 +1407,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         details: 'Client registered into primary firm database with IC 750812-10-5431.',
         performedBy: 'Amer Haiqal (Partner)',
       },
-    ];
+    ]);
   });
 
   useEffect(() => {
@@ -1658,9 +1650,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [deadlines, setDeadlines] = useState<Deadline[]>(() => {
     return readStored(STORAGE_KEY + '_deadlines', operationalFallback(INITIAL_DEADLINES));
   });
-
-  const [courts] = useState<Court[]>(INITIAL_COURTS);
-  const [judges] = useState<Judge[]>(INITIAL_JUDGES);
 
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>(() =>
     readStored(STORAGE_KEY + '_timeEntries', operationalFallback(INITIAL_TIME_ENTRIES))
@@ -2225,7 +2214,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     caseStatus: 'cases',
     deadlines: 'cases',
     serviceLog: 'cases',
-    courts: 'cases',
     lawFirmRegistry: 'cases',
     referral: 'cases',
     fileClosing: 'cases',
@@ -3475,55 +3463,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Deadline added');
   };
 
-  const resetAllData = () => {
-    Object.keys(localStorage).forEach((key) => {
-      if (key.startsWith(STORAGE_KEY)) localStorage.removeItem(key);
-    });
-    setLeads(INITIAL_LEADS);
-    setClients(INITIAL_CLIENTS);
-    setCases(INITIAL_CASES);
-    setQuotations(INITIAL_QUOTATIONS);
-    setTravelClaims(INITIAL_TRAVEL_CLAIMS);
-    setReceipts(INITIAL_RECEIPTS);
-    setPaymentVouchers(INITIAL_PAYMENT_VOUCHERS);
-    setGeneralLedger(INITIAL_GENERAL_LEDGER);
-    setDeadlines(INITIAL_DEADLINES);
-    setTimeEntries(INITIAL_TIME_ENTRIES);
-    setExpenses(INITIAL_EXPENSES);
-    setInvoices(INITIAL_INVOICES);
-    setPayments(INITIAL_PAYMENTS);
-    setRetainers(INITIAL_RETAINERS);
-    setLawFirmRegistry(INITIAL_LAW_FIRM_REGISTRY);
-    setAttendanceRecords([]);
-    setLeaveApplications([]);
-    setLogs(INITIAL_LOGS);
-    showToast('System data reset to initial benchmark state');
-  };
 
-  const clearAllDataToBlank = () => {
-    Object.keys(localStorage).forEach((key) => {
-      if (key.startsWith(STORAGE_KEY)) localStorage.removeItem(key);
-    });
-    setLeads([]);
-    setClients([]);
-    setCases([]);
-    setQuotations([]);
-    setTravelClaims([]);
-    setReceipts([]);
-    setPaymentVouchers([]);
-    setGeneralLedger([]);
-    setDeadlines([]);
-    setTimeEntries([]);
-    setExpenses([]);
-    setInvoices([]);
-    setPayments([]);
-    setRetainers([]);
-    setLawFirmRegistry([]);
-    setAttendanceRecords([]);
-    setLeaveApplications([]);
-    setLogs([]);
-    showToast('All system records cleared. Ready for new live data entry.');
-  };
+
+
 
   return (
     <AppContext.Provider
@@ -3618,8 +3560,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         threeWayRec,
         docTemplates,
         deadlines,
-        courts,
-        judges,
         timeEntries,
         expenses,
         invoices,
@@ -3741,8 +3681,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         incrementSequenceCounter,
         resetSequenceCounters,
         factoryResetSystem,
-        resetAllData,
-        clearAllDataToBlank,
       }}
     >
       {children}

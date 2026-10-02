@@ -161,7 +161,7 @@ const emptyAgg = (): PeriodAgg => ({
 
 /* ----------------------------- component ----------------------------- */
 
-export const FinanceTab: React.FC = () => {
+const FinanceTab: React.FC = () => {
   const { invoices, payments, receipts, expenses, payslips, paymentVouchers, travelClaims, bankAccounts, timeEntries, cases, retainers, programmes } = useApp();
 
   const now = useMemo(() => new Date(), []);

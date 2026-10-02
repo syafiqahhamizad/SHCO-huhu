@@ -1,61 +1,6 @@
 /* Google Workspace Gmail API Service for Finance Department Notifications */
-import { clearGoogleTokens } from '../services/googleWorkspaceAuth';
 import { sendEmail } from '../services/gmailService';
 import { escapeHtml as esc } from './emailMime';
-
-export interface EmailLogEntry {
-  id: string;
-  pvId: string;
-  recipient: string;
-  subject: string;
-  sentAt: string;
-  status: 'SENT' | 'PENDING' | 'FAILED';
-  snippet: string;
-  channel: 'Google Workspace Gmail API';
-}
-
-const STORAGE_KEY_EMAIL_LOGS = 'shco_workspace_email_logs';
-
-/**
- * Gmail access now comes from the shared Google Workspace sign-in (services/googleWorkspaceAuth,
- * scope gmail.send), requested when the user clicks. These three functions are kept so older
- * imports still compile; tokens are no longer stored in sessionStorage.
- */
-export function getGmailAccessToken(): string | null {
-  return null;
-}
-
-/** @deprecated No-op: Gmail tokens come from googleWorkspaceAuth. */
-export function setGmailAccessToken(_token: string): void {
-  /* no-op */
-}
-
-export function clearGmailAccessToken(): void {
-  clearGoogleTokens('gmail');
-}
-
-export function getEmailAuditLogs(): EmailLogEntry[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_EMAIL_LOGS);
-    if (!raw) return getDefaultInitialLogs();
-    return JSON.parse(raw);
-  } catch {
-    return getDefaultInitialLogs();
-  }
-}
-
-function saveEmailAuditLogs(logs: EmailLogEntry[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY_EMAIL_LOGS, JSON.stringify(logs));
-  } catch (err) {
-    console.error('Failed to save email logs', err);
-  }
-}
-
-function getDefaultInitialLogs(): EmailLogEntry[] {
-  // No made-up history: the log only ever shows what this device really tried to send.
-  return [];
-}
 
 export interface PaymentVoucherNotificationPayload {
   pvId: string;
@@ -169,21 +114,6 @@ export async function sendFinancePvNotificationEmail(
     sentSuccessfully = false;
     statusMessage = `Not sent — ${err instanceof Error ? err.message : String(err)}`;
   }
-
-  // Create audit log entry
-  const newLog: EmailLogEntry = {
-    id: logId,
-    pvId: payload.pvId,
-    recipient,
-    subject,
-    sentAt: new Date().toISOString(),
-    status: sentSuccessfully ? 'SENT' : 'FAILED',
-    snippet: `PV ${payload.pvId} (RM ${payload.amount.toFixed(2)}) for ${payload.voucherCategory}. Prepared by ${payload.preparedBy}`,
-    channel: 'Google Workspace Gmail API',
-  };
-
-  const existingLogs = getEmailAuditLogs();
-  saveEmailAuditLogs([newLog, ...existingLogs]);
 
   return {
     success: sentSuccessfully,

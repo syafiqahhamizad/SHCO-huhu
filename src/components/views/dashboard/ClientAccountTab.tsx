@@ -53,7 +53,7 @@ interface CheckItem {
  * All figures are derived from real useApp() data (retainers, cases, clients,
  * threeWayRec, bankReconciliationEntries) — nothing here is fabricated.
  */
-export const ClientAccountTab: React.FC = () => {
+const ClientAccountTab: React.FC = () => {
   const {
     retainers,
     cases,
@@ -240,7 +240,7 @@ export const ClientAccountTab: React.FC = () => {
       .sort((a, b) => b.balance - a.balance)
       .slice(0, 5)
       .map((g) => {
-        const { client, kase, label } = nameRef(g);
+        const { kase, label } = nameRef(g);
         const pic = kase?.partners?.[0] || '—';
         return {
           key: `${g.clientId}:${g.caseId}`,

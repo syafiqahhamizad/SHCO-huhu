@@ -3,14 +3,9 @@ import { useApp } from '../../context/AppContext';
 import { InventoryItem } from '../../types';
 import {
   BookMarked,
-  Package,
   Plus,
   Search,
-  BookOpen,
-  Archive,
   Edit2,
-  CheckCircle2,
-  AlertTriangle,
   MapPin,
   Sparkles,
 } from 'lucide-react';

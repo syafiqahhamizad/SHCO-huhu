@@ -3,12 +3,12 @@ import { useApp } from '../../../context/AppContext';
 import type { Case, MatterCloseCheck } from '../../../types';
 import { css, S, Modal, ModalHead, Card, boxStyle } from './caseUi';
 import { addDays, daysFrom, fmt, isDone, rm, todayIso } from './caseModel';
-import { histEntry, type WF } from './wf';
+import { type WF } from './wf';
 
-export const OUTCOMES = ['Settled', 'Judgment for client', 'Judgment against client', 'Withdrawn / discontinued', 'Completed (non-court matter)', 'Client ended our retainer'];
+const OUTCOMES = ['Settled', 'Judgment for client', 'Judgment against client', 'Withdrawn / discontinued', 'Completed (non-court matter)', 'Client ended our retainer'];
 
 /** Checks that the system can verify from real records. */
-export const systemChecks = (w: WF): MatterCloseCheck[] => {
+const systemChecks = (w: WF): MatterCloseCheck[] => {
   const { c, money } = w;
   const open = (c.tasks || []).filter((t) => !isDone(t));
   const future = (c.hearings || []).filter((h) => daysFrom(h.date) > 0 && h.status === 'Scheduled');

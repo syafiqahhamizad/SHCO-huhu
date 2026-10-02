@@ -5,20 +5,11 @@ import {
   Lock,
   LogIn,
   AlertCircle,
-  CheckCircle2,
   KeyRound,
   Building2,
   Users,
-  ArrowRight,
-  UserPlus,
   HelpCircle,
   Scale,
-  Mail,
-  RefreshCcw,
-  Check,
-  ChevronRight,
-  Briefcase,
-  Layers,
 } from 'lucide-react';
 
 export const SignInPortal: React.FC = () => {

@@ -21,7 +21,6 @@ export const localIso = (d: Date | number = new Date()): string => {
 /** YYYY-MM of a Date / timestamp in local time. */
 export const localMonth = (d: Date | number = new Date()): string => localIso(d).slice(0, 7);
 export const todayLocal = () => localIso(new Date());
-export const thisMonthLocal = () => localMonth(new Date());
 
 /**
  * Timestamp (ms) of a stored date. Date-only strings are read as LOCAL midnight (unlike
@@ -69,9 +68,3 @@ export const inRange = (s: unknown, start: Date, end: Date): boolean => {
 };
 /** Start of tomorrow, local — the exclusive end of "to date" ranges. */
 export const endOfToday = (now = new Date()) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-/** Whole days between two stored dates (b − a), by local calendar day. */
-export const daysBetweenLocal = (a: unknown, b: unknown): number => {
-  const ta = parseLocal(toLocalIso(a)), tb = parseLocal(toLocalIso(b));
-  if (!ta || !tb) return 0;
-  return Math.round((tb - ta) / 86400000);
-};

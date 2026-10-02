@@ -125,8 +125,6 @@ export const Header: React.FC = () => {
         return { title: 'Deadlines', sub: 'Limitation periods and court filing dates' };
       case 'serviceLog':
         return { title: 'Service Log', sub: 'Every document served and received, across all files' };
-      case 'courts':
-        return { title: 'Courts & Judges', sub: 'Directory of Malaysian courts and presiding officers' };
       case 'referral':
       case 'referrals':
         return { title: 'Referral Partners', sub: 'Who refers matters and what commission is owed' };

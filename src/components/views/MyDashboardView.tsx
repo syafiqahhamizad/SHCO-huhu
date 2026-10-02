@@ -22,7 +22,6 @@ import {
   Target,
   Timer,
   Trash2,
-  User,
   Users as UsersIcon,
   Video,
   X,
@@ -156,7 +155,6 @@ export const MyDashboardView: React.FC = () => {
     addMeeting,
     currentUser,
     currentRole,
-    isAdmin,
     setCurrentView,
     setCurrentCaseId,
     updateCase,
@@ -975,7 +973,6 @@ export const MyDashboardView: React.FC = () => {
       <>
       <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         {kpis.map((k) => {
-          const active = k.filter && k.filter !== 'all' ? filter === k.filter : k.filter === 'all' && filter === 'all';
           const ring = k.filter ? (filter === k.filter ? `0 0 0 3px ${tint.gold}` : 'none') : 'none';
           return (
             <button
@@ -1551,4 +1548,3 @@ export const MyDashboardView: React.FC = () => {
   );
 };
 
-export default MyDashboardView;

@@ -95,11 +95,3 @@ export const Area = ({ value, onCommit, style, rows }: { value: string; onCommit
   );
 };
 
-/** Card header: serif title + optional grey note (block or inline). */
-export const CardHead = ({ title, note, inline, children }: { title: React.ReactNode; note?: React.ReactNode; inline?: boolean; children?: React.ReactNode }) => (
-  <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}>
-    <strong style={css(S.h)}>{title}</strong>
-    {note != null && <span style={css(inline ? 'margin-left:8px;font-size:10.5px;color:#5B6478' : 'display:block;font-size:10.5px;color:#5B6478')}>{note}</span>}
-    {children}
-  </div>
-);

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useApp } from '../../../context/AppContext';
 import { STAFF_VISIBLE_DOCS, StaffSelfView } from './StaffSelfView';
 import type { HrDocument, StaffProfile, User } from '../../../types';
@@ -21,7 +21,7 @@ const BTN_DARK: React.CSSProperties = { ...BTN, border: 0, background: '#16223A'
 const STAFF_ID_RE = /^SHCO-ST-(\d+)$/;
 
 /** Next free SHCO-ST-000N — same scheme addUser uses, never re-using an existing number. */
-export const nextStaffId = (users: User[]) => {
+const nextStaffId = (users: User[]) => {
   const used = new Set(users.map((u) => u.staffProfile?.staffId).filter(Boolean) as string[]);
   const highest = Array.from(used).reduce((m, id) => {
     const x = id.match(STAFF_ID_RE);
@@ -48,7 +48,7 @@ const baseProfile = (u: User): StaffProfile =>
   };
 
 export const StaffProfileTab: React.FC<{ lh: string }> = ({ lh }) => {
-  const { currentUser, users, isAdmin } = useApp();
+  const { currentUser, users } = useApp();
   // Only admins and people granted "HR records" reach this tab (Staff Portal gates it).
   const admin = true;
   const [selId, setSelId] = useState(currentUser.id);
@@ -92,7 +92,7 @@ export const StaffProfileTab: React.FC<{ lh: string }> = ({ lh }) => {
 /* ------------------------------------------------------------------ photo */
 
 /** Staff photo: Firebase Storage download URL, or Drive bytes via the viewer's Drive token. */
-export const StaffAvatar: React.FC<{ photo?: HrDocument; name: string; size: number; fontSize: number; border?: boolean }> = ({ photo, name, size, fontSize, border }) => {
+const StaffAvatar: React.FC<{ photo?: HrDocument; name: string; size: number; fontSize: number; border?: boolean }> = ({ photo, name, size, fontSize, border }) => {
   const { url, needsDrive, connect } = useStoredImageUrl(photo);
   if (url) return <img src={url} alt={name} style={{ width: size, height: size, borderRadius: 9999, objectFit: 'cover', display: 'block', border: border ? '1px solid #DDE3EB' : undefined }} />;
   const initial = <span style={{ width: size, height: size, borderRadius: 9999, background: '#16223A', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: serif, fontSize, fontWeight: 700 }}>{name.slice(0, 1)}</span>;

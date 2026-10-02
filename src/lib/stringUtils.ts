@@ -5,7 +5,7 @@
 /**
  * Derives a URL/mention-safe username from a display name, e.g. "Amer Haiqal" -> "amerhaiqal".
  */
-export function slugifyUsername(name: string): string {
+function slugifyUsername(name: string): string {
   return (name || '')
     .trim()
     .toLowerCase()
@@ -31,7 +31,7 @@ export function getUsername(user: { name: string; username?: string }): string {
  *   "syahmi bin hassan" -> "Syahmi Bin Hassan"
  *   "ACME SDN BHD" -> "Acme Sdn Bhd"
  */
-export function toTitleCase(str: string): string {
+function toTitleCase(str: string): string {
   if (!str) return '';
 
   const trimmed = str.trim().replace(/\s+/g, ' ');

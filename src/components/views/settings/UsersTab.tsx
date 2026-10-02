@@ -16,7 +16,7 @@ const suggestCode = (name: string) =>
   name.replace(/\b(encik|puan|cik|tuan|dato'?|datin|dr|mr|mrs|ms)\b\.?/gi, '').split(/[\s@.]+/).filter((w) => /^[a-z]/i.test(w) && !/^(bin|binti|bt|bte|a\/l|a\/p)$/i.test(w)).map((w) => w[0]).join('').toUpperCase().slice(0, 3);
 
 /** 'YYYY-MM-DD HH:MM' → 'Today 9:12' / 'Yesterday' / '3 days ago' / '12 Aug 2026'. */
-export const lastLoginLabel = (ts?: string) => {
+const lastLoginLabel = (ts?: string) => {
   if (!ts) return '—';
   const d = new Date(ts.replace(' ', 'T'));
   if (Number.isNaN(d.getTime())) return ts;

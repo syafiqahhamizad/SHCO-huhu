@@ -1,49 +1,22 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Task, User } from '../../types';
 import { getUsername } from '../../lib/stringUtils';
-import { X as XIcon } from 'lucide-react';
 import {
   Clock,
   Calendar as CalendarIcon,
-  FolderOpen,
-  FileSignature,
-  CheckSquare,
   Activity,
   Flag,
-  Landmark,
   Share2,
   FolderX,
   Plus,
-  Check,
-  AlertTriangle,
-  FileText,
-  Building,
   ExternalLink,
   History,
   Columns,
   List,
   GripVertical,
   ArrowRight,
-  CheckCircle2,
   Download,
-  Cloud,
-  CloudUpload,
-  FolderPlus,
-  RefreshCw,
-  Search,
-  Trash2,
-  Eye,
-  Folder,
-  File,
-  Move,
-  Copy,
-  Sparkles,
-  Layers,
-  Upload,
-  Link,
-  CheckCircle,
-  Filter,
 } from 'lucide-react';
 
 /* ================= 1. HEARINGS VIEW ================= */
@@ -380,7 +353,7 @@ export const CalendarView: React.FC = () => {
 };
 
 // Partner In Charge Helper derived from Ref
-export const getPartnerInChargeFromRef = (refStr: string): string => {
+const getPartnerInChargeFromRef = (refStr: string): string => {
   if (!refStr) return 'Messrs. Syafiqah Hamizad & Co';
   const parts = refStr.split('/');
   if (parts.length >= 3) {
@@ -410,39 +383,6 @@ interface ActionHistoryLog {
   updatedBy: string;
 }
 
-const INITIAL_HISTORY_LOGS: ActionHistoryLog[] = [
-  {
-    id: 'LOG-1001',
-    timestamp: '2026-08-07 10:15 AM',
-    taskTitle: 'Draft Affidavit in Support for Interlocutory Application',
-    caseRef: 'WA-22NCvC-412-08/2026/SH',
-    caseTitle: 'CIMB Bank Bhd v Tan Sri Vincent Tan',
-    fromStatus: 'Pending',
-    toStatus: 'In Progress',
-    updatedBy: 'Syafiqah Hamizad (Partner)',
-  },
-  {
-    id: 'LOG-1002',
-    timestamp: '2026-08-07 09:30 AM',
-    taskTitle: 'File Notice of Appeal & Certificate of Urgency',
-    caseRef: 'B-02(NCvC)(W)-1290-07/2026/AH',
-    caseTitle: 'Ahmad Zaki Resources v Federal Territory Land Executive',
-    fromStatus: 'In Progress',
-    toStatus: 'Completed',
-    updatedBy: 'Amer Haiqal (Partner)',
-  },
-  {
-    id: 'LOG-1003',
-    timestamp: '2026-08-06 04:45 PM',
-    taskTitle: 'Conduct CTOS & Insolvency Search on Judgment Debtor',
-    caseRef: 'WA-24NCC-780-06/2026/ZA',
-    caseTitle: 'Malayan Banking Bhd v Syarikat Pembinaan Maju',
-    fromStatus: 'Pending',
-    toStatus: 'Completed',
-    updatedBy: 'Zulaikha Afendi (Partner)',
-  },
-];
-
 export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCaseId }) => {
   const { cases, users, currentUser, currentPartnerCode, isAdmin, updateCase, setCurrentCaseId, setCurrentView, showToast, addNotification, addDeadline, addCaseActivityLog } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
@@ -455,10 +395,9 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
 
   // History Log Modal & State
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
-  const [actionHistoryLogs, setActionHistoryLogs] = useState<ActionHistoryLog[]>(INITIAL_HISTORY_LOGS);
+  const [actionHistoryLogs, setActionHistoryLogs] = useState<ActionHistoryLog[]>([]);
 
   // Drag & Drop State
-  const [draggedItem, setDraggedItem] = useState<{ caseId: string; taskId: string } | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
 
   // New Action Modal State
@@ -716,7 +655,6 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
   // Drag and Drop Events
   const handleDragStart = (e: React.DragEvent, caseId: string, taskId: string) => {
     e.dataTransfer.setData('application/json', JSON.stringify({ caseId, taskId }));
-    setDraggedItem({ caseId, taskId });
   };
 
   const handleDragOver = (e: React.DragEvent, colName: string) => {
@@ -733,7 +671,6 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
   const handleDrop = (e: React.DragEvent, targetStatus: 'Pending' | 'In Progress' | 'In Review' | 'Completed') => {
     e.preventDefault();
     setDragOverColumn(null);
-    setDraggedItem(null);
     try {
       const dataStr = e.dataTransfer.getData('application/json');
       if (!dataStr) return;
@@ -2133,7 +2070,6 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
   );
 };
 
-export const TasksView = CaseStatusView;
 
 /* ================= 6. DEADLINES VIEW ================= */
 export const DeadlinesView: React.FC = () => {
@@ -2211,51 +2147,9 @@ export const DeadlinesView: React.FC = () => {
   );
 };
 
-/* ================= 7. COURTS & JUDGES VIEW ================= */
-export const CourtsView: React.FC = () => {
-  const { courts, judges } = useApp();
-
-  return (
-    <div className="space-y-4">
-      <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
-        <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-          <Landmark className="w-5 h-5 text-[#3D6B9C]" />
-          Malaysian Courts Directory
-        </h2>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs space-y-3">
-          <h3 className="font-serif font-bold text-sm text-[#16223A]">Courts Register</h3>
-          <div className="divide-y divide-slate-100 text-xs">
-            {courts.map((c) => (
-              <div key={c.id} className="py-2 flex justify-between">
-                <span className="font-bold text-slate-800">{c.name}</span>
-                <span className="text-slate-500 font-mono">{c.city}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs space-y-3">
-          <h3 className="font-serif font-bold text-sm text-[#16223A]">Judges Register</h3>
-          <div className="divide-y divide-slate-100 text-xs">
-            {judges.map((j) => (
-              <div key={j.id} className="py-2 flex justify-between">
-                <span className="font-bold text-slate-800">{j.name}</span>
-                <span className="text-slate-500 font-mono">Sessions Court</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 /* ================= 8. REFERRAL VIEW ================= */
 export const ReferralView: React.FC = () => {
-  const { referralPartners = [], cases = [], addReferralPartner, showToast } = useApp();
+  const { referralPartners = [], cases = [], addReferralPartner } = useApp();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [refName, setRefName] = useState('');

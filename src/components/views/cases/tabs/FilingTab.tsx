@@ -8,7 +8,7 @@ import { addServicePatch, newServiceRecord, uploadServiceProof, withProof } from
 import type { WF } from '../wf';
 
 /** View id of the firm-wide Service Log page (built separately). */
-export const SERVICE_LOG_VIEW = 'serviceLog';
+const SERVICE_LOG_VIEW = 'serviceLog';
 
 export const FilingTab: React.FC<{ w: WF }> = ({ w }) => {
   const { setCurrentView } = useApp();

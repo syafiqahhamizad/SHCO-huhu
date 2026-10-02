@@ -64,7 +64,7 @@ interface PartnerScorecard {
  * tracked" state instead of an invented number, and are excluded from the weighted overall
  * score rather than silently treated as 0.
  */
-export const PartnerKpisTab: React.FC<{ scope: 'all' | 'own' }> = ({ scope }) => {
+const PartnerKpisTab: React.FC<{ scope: 'all' | 'own' }> = ({ scope }) => {
   const { currentUser, users, cases, invoices, payments, timeEntries, showToast } = useApp();
   const [settings, setSettings] = useState(() => getPracticeSettings());
   const [editing, setEditing] = useState(false);

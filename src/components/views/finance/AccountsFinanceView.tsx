@@ -80,4 +80,3 @@ export const AccountsFinanceView = ({ initialTab = 'overview' }: { initialTab?: 
   );
 };
 
-export default AccountsFinanceView;

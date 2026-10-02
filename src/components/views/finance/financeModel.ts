@@ -48,7 +48,7 @@ export const MON = MONTHS.map((m) => m.slice(0, 3));
 /** Date parsing / month bucketing: lib/financeCalc (full ISO timestamps → LOCAL day, so a
  * payment at 07:30 MYT on the 1st is on the 1st, not the previous day). */
 export { parseDate, periodKey, inPeriod } from '../../../lib/financeCalc';
-import { parseDate, periodKey, isStatutoryCategory } from '../../../lib/financeCalc';
+import { parseDate, isStatutoryCategory } from '../../../lib/financeCalc';
 export const isoOf = (t: number) => { if (!t) return ''; const x = new Date(t); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
 export const todayIso = () => isoOf(Date.now());
 /** dd.mm.yyyy — the firm's document date format. */
@@ -62,7 +62,7 @@ export const num0 = (v: unknown) => Number(String(v ?? '').replace(/[^0-9.-]/g, 
 
 /* ------------------------------ colours (design maps) ------------------------------ */
 export const SC: Record<string, [string, string]> = { Overdue: ['#FBEDE9', '#B23A2E'], 'Part-paid': ['#FBF2E9', '#8A6534'], Sent: ['#E7EEF6', '#2F5680'], Paid: ['#E6EFE9', '#2F6F4E'], Draft: ['#F0F2F5', '#5B6478'], Accepted: ['#E6EFE9', '#2F6F4E'], Expired: ['#F0F2F5', '#5B6478'], Unpaid: ['#FBF2E9', '#8A6534'], Issued: ['#E6EFE9', '#2F6F4E'], 'Proforma made': ['#E7EEF6', '#2F5680'], Invoiced: ['#E7EEF6', '#2F5680'], 'Pending Approval': ['#FBF2E9', '#8A6534'], Ready: ['#E7EEF6', '#2F5680'], Declined: ['#F0F2F5', '#5B6478'], Voided: ['#F0F2F5', '#94A3B8'], Historical: ['#F1EBF6', '#6B3D8C'] };
-export const PC: Record<string, string> = { SH: '#16223A', AH: '#3D6B9C', ZA: '#6B3D8C' };
+const PC: Record<string, string> = { SH: '#16223A', AH: '#3D6B9C', ZA: '#6B3D8C' };
 export const picColor = (code: string) => PC[code] || '#2E7D7A';
 
 /* ------------------------------ documents ------------------------------ */
@@ -71,7 +71,7 @@ export const itemAmount = (i: QuotationLineItem) => {
   const t = i.chargeType === 'Per Quantity' ? q * u : (i.unitPrice != null ? u : Number(i.amount || 0));
   return Number.isFinite(t) ? t : 0;
 };
-export const itemsToLines = (items?: QuotationLineItem[], fallback?: { desc: string; amount: number }): DocLines => {
+const itemsToLines = (items?: QuotationLineItem[], fallback?: { desc: string; amount: number }): DocLines => {
   const L: DocLines = { prof: [], disb: [], reimb: [] };
   (items || []).forEach((i) => {
     // Old invoices stored SST as a {category:'Tax'} line: SST is recomputed, so never turn it into a fee.
@@ -154,7 +154,7 @@ export const receiptToDoc = (r: Receipt, lk: Lookups, proofs: { name: string; ur
 // `Finance proofs/<YYYY>/` in the background and the record is then patched with the Drive
 // file id / link (see useFinanceController's proof-upload effect), so it opens on any device.
 const proofUrls = new Map<string, string>();
-export const proofKey = (owner: string, name: string) => owner + '::' + name;
+const proofKey = (owner: string, name: string) => owner + '::' + name;
 /** Identifies one attached file across records (the same proof object can be copied onto a receipt too). */
 export const proofSig = (p: Pick<FinanceProof, 'name' | 'size' | 'uploadedAt'>) => p.name + '|' + (p.size || 0) + '|' + p.uploadedAt;
 type ProofUpload = { ok: true; driveFileId?: string; webViewLink?: string; uploadedBy?: string } | { ok: false; error: string; name: string };
@@ -163,7 +163,7 @@ const proofListeners = new Set<() => void>();
 let proofUploader = '';
 /** Who is attaching proofs in this session (set by the finance controller). */
 export const setProofUploader = (name: string) => { proofUploader = name; };
-export const driveProofFor = (p: Pick<FinanceProof, 'name' | 'size' | 'uploadedAt'>) => { const r = proofUploads.get(proofSig(p)); return r && 'driveFileId' in r ? r : undefined; };
+const driveProofFor = (p: Pick<FinanceProof, 'name' | 'size' | 'uploadedAt'>) => { const r = proofUploads.get(proofSig(p)); return r && 'driveFileId' in r ? r : undefined; };
 export const proofUploadResults = () => proofUploads;
 export const subscribeProofUploads = (fn: () => void) => { proofListeners.add(fn); return () => { proofListeners.delete(fn); }; };
 const notifyProofs = () => proofListeners.forEach((fn) => fn());
@@ -183,7 +183,7 @@ export const filesToProofs = (owner: string, files: FileList | File[] | null | u
     return p;
   });
 };
-export const proofUrl = (owner: string, name: string) => proofUrls.get(proofKey(owner, name)) || '';
+const proofUrl = (owner: string, name: string) => proofUrls.get(proofKey(owner, name)) || '';
 /** Best link for a proof: its Drive page (saved on the record, or just uploaded), else this session's copy. */
 export const proofLink = (owner: string, p: Pick<FinanceProof, 'name' | 'size' | 'uploadedAt' | 'webViewLink' | 'driveFileId'>) =>
   driveViewUrl(p) || driveViewUrl(driveProofFor(p) || {}) || proofUrl(owner, p.name);

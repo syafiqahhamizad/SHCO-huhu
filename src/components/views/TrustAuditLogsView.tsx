@@ -5,11 +5,6 @@ import {
   Lock,
   Search,
   FileCheck2,
-  Calendar,
-  UserCheck,
-  Building,
-  Scale,
-  Sparkles,
   Download,
 } from 'lucide-react';
 

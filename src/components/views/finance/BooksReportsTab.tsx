@@ -1,14 +1,13 @@
 import React from 'react';
 import type { CashAcc, FinanceCtrl } from './useFinanceController';
-import { css, fd, findCase, glCode, inPeriod, MON, monthEnd, parseDate, proofLink, proofMissingMsg, rm, rm2 } from './financeModel';
+import { css, fd, findCase, glCode, inPeriod, MON, parseDate, proofLink, proofMissingMsg, rm, rm2 } from './financeModel';
 import type { FinanceProof } from '../../../types';
 import * as SD from '../../../lib/financeDocs';
 import { invoiceComposition } from '../../../lib/financeCalc';
-import type { Invoice } from '../../../types';
 
 export const BooksReportsTab = ({ F }: { F: FinanceCtrl }) => {
   const { app, cbAcc, setCbAcc, lk } = F;
-  const { invoices, payments, receipts, expenses, payslips, paymentVouchers, travelClaims, generalLedger, chartOfAccounts, retainers, threeWayRec } = app;
+  const { invoices, payments, payslips, generalLedger, chartOfAccounts, retainers } = app;
   const m = SD.money;
   const year = F.now.getFullYear();
   const [tbYear, setTbYear] = React.useState(year);
@@ -83,7 +82,6 @@ export const BooksReportsTab = ({ F }: { F: FinanceCtrl }) => {
     if (name === 'Aged debtors') return { period: fd(Date.now()), cols: ['Invoice', 'Client', 'Issued', 'Days', 'Age', 'Balance'], rows: F.openInvoices.map((i) => { const d = F.ageDays(i); return [i.id, i.partyName || F.clientName(i.clientId) || '—', fd(i.date), d, d <= 30 ? '0–30' : d <= 60 ? '31–60' : d <= 90 ? '61–90' : '90+', rm2(F.invBal(i))]; }) };
     if (name === 'Unbilled work (WIP)') return { period: fd(Date.now()), cols: ['Matter', 'Client', 'Time', 'Disbursements', 'Total', 'Oldest (days)'], rows: F.unbilled.map((u) => [u.ref + (u.title ? ' · ' + u.title : ''), u.client, rm(u.time), rm(u.disb), rm(u.time + u.disb), u.oldest]) };
     if (name === 'Client account reconciliation') {
-      const cb = F.cashBook('Client account'); const open = F.openingBalance('Client account');
       const rows = prev2.concat([new Date(year, F.now.getMonth(), 1)]).map((mm) => { const r = F.reconFor(mm); const tick = (F.settings.monthEndClose || {})[`${mm.getFullYear()}-${String(mm.getMonth() + 1).padStart(2, '0')}:c7`]; return [`${MON[mm.getMonth()]} ${mm.getFullYear()}`, rm2(r.ledgers), rm2(r.cash), r.bank == null ? '— (no statement)' : rm2(r.bank), r.status, tick ? `${tick.by} ${fd(tick.at)}` : '—']; });
       return { period: `${MON[prev2[0].getMonth()]}–${F.monShort} ${year}`, cols: ['Month', 'Client ledgers', 'Cash book', 'Bank statement', 'Status', 'Signed off'], rows };
     }

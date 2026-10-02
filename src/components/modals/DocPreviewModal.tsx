@@ -6,13 +6,11 @@ import {
   Download,
   Mail,
   MessageSquare,
-  Building2,
   CheckCircle,
   AlertTriangle,
   Printer,
   Send,
   ShieldCheck,
-  FileText,
 } from 'lucide-react';
 import { sendFinancePvNotificationEmail } from '../../lib/workspaceEmailService';
 

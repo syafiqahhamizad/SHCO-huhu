@@ -13,7 +13,7 @@ import { histEntry, type WF } from './wf';
  * are replaced too. Partners are joined with '-' when the old ref did that ("SHC/SH-AH/…"),
  * otherwise one segment each. Returns null when the ref doesn't start with SHC/SHCO.
  */
-export const rebuildRef = (ref: string, newPartners: string[], newLawyer: string, matterCodes: string[]): string | null => {
+const rebuildRef = (ref: string, newPartners: string[], newLawyer: string, matterCodes: string[]): string | null => {
   const segs = (ref || '').split('/');
   if (segs[0] !== 'SHC' && segs[0] !== 'SHCO') return null;
   const codes = new Set(matterCodes.map((x) => x.toUpperCase()));

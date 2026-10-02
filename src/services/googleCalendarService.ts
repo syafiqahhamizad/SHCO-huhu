@@ -36,7 +36,7 @@ export interface CourtEventInput {
 export interface CourtEventResult { eventId: string; htmlLink: string; calendarId: string }
 
 /** The court diary Calendar ID from Firm Settings ('' if not set). */
-export const getCourtDiaryCalendarId = () => parseCalendarId(getPracticeSettings().courtDiaryCalendarId || '');
+const getCourtDiaryCalendarId = () => parseCalendarId(getPracticeSettings().courtDiaryCalendarId || '');
 export const isCourtDiaryConfigured = () => !!getCourtDiaryCalendarId();
 
 const resolveCalendarId = (given?: string) => {
@@ -94,27 +94,10 @@ export async function createCourtEvent(input: CourtEventInput): Promise<CourtEve
 }
 
 /**
- * Replaces the event's title, date / time, location, description and attendees with `input`
- * (send the full current values). Attendees are notified of the change (`sendUpdates=all`).
- */
-export async function updateCourtEvent(eventId: string, input: CourtEventInput): Promise<CourtEventResult> {
-  if (!eventId) throw new GoogleWorkspaceError('No Google Calendar event ID to update.', 'bad_request', 'calendar');
-  const calendarId = resolveCalendarId(input.calendarId);
-  const { body } = eventBody(input);
-  const res = await googleApiFetch('calendar', eventUrl(calendarId, eventId) + '?sendUpdates=all', {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  }, { ...hints, notFound: 'That event is no longer in the court diary (it may have been deleted in Google Calendar). Create it again.' });
-  const ev = await res.json() as CalendarEvent;
-  return { eventId: ev.id || eventId, htmlLink: ev.htmlLink || '', calendarId };
-}
-
-/**
  * Deletes the event (attendees are told it was cancelled unless `notifyAttendees` is false).
  * An event that is already gone (404 / 410) counts as deleted.
  */
-export async function deleteCourtEvent(eventId: string, opts: { calendarId?: string; notifyAttendees?: boolean } = {}): Promise<void> {
+async function deleteCourtEvent(eventId: string, opts: { calendarId?: string; notifyAttendees?: boolean } = {}): Promise<void> {
   if (!eventId) throw new GoogleWorkspaceError('No Google Calendar event ID to delete.', 'bad_request', 'calendar');
   const calendarId = resolveCalendarId(opts.calendarId);
   try {

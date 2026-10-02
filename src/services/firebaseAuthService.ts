@@ -37,7 +37,7 @@ googleProvider.setCustomParameters({
   prompt: 'select_account',
 });
 
-export const SHCO_SUPER_ADMIN_EMAIL = 'syafiqahhamizad@shcolaw.com';
+const SHCO_SUPER_ADMIN_EMAIL = 'syafiqahhamizad@shcolaw.com';
 
 export async function signInStaffWithGoogle(): Promise<User> {
   const result = await signInWithPopup(firebaseAuth, googleProvider);
@@ -80,23 +80,8 @@ async function resolveAccessClaims(firebaseUser: User): Promise<{
   };
 }
 
-export async function getCurrentFirebaseAccessClaims(firebaseUser: User): Promise<{
-  role: MappedSHCORole;
-  isAdmin: boolean;
-  isSuperAdmin: boolean;
-  email: string;
-}> {
-  const { mappedRole, ...rest } = await resolveAccessClaims(firebaseUser);
-
-  if (!mappedRole) {
-    throw new Error('This Firebase account has no valid SHCO role. Ask the Super Admin to provision the account.');
-  }
-
-  return { role: mappedRole, ...rest };
-}
-
 /**
- * Same claim resolution as getCurrentFirebaseAccessClaims, but never throws when the
+ * Same claim resolution as resolveAccessClaims, but never throws when the
  * Firebase account has no custom-claim role yet. Used for Staff Google Workspace SSO:
  * a real @shcolaw.com staff member's Firebase Auth record is only created at the moment
  * of their FIRST Google sign-in (signInWithPopup creates it) — meaning custom claims can

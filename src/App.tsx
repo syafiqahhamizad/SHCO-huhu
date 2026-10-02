@@ -19,9 +19,7 @@ const PracticeViews = import('./components/views/PracticeViews');
 const HearingsView = React.lazy(() => PracticeViews.then((module) => ({ default: module.HearingsView })));
 const CalendarView = React.lazy(() => PracticeViews.then((module) => ({ default: module.CalendarView })));
 const CaseStatusView = React.lazy(() => PracticeViews.then((module) => ({ default: module.CaseStatusView })));
-const TasksView = React.lazy(() => PracticeViews.then((module) => ({ default: module.TasksView })));
 const DeadlinesView = React.lazy(() => PracticeViews.then((module) => ({ default: module.DeadlinesView })));
-const CourtsView = React.lazy(() => PracticeViews.then((module) => ({ default: module.CourtsView })));
 const ReferralView = React.lazy(() => PracticeViews.then((module) => ({ default: module.ReferralView })));
 const FileClosingView = React.lazy(() => PracticeViews.then((module) => ({ default: module.FileClosingView })));
 const SimplifiedAccountingView = React.lazy(() => import('./components/views/SimplifiedAccountingView').then((module) => ({ default: module.SimplifiedAccountingView })));
@@ -184,8 +182,6 @@ const MainContent: React.FC = () => {
         return <DeadlinesView />;
       case 'serviceLog':
         return <ServiceLogPage />;
-      case 'courts':
-        return <CourtsView />;
       case 'referral':
       case 'referrals':
         return <ReferralView />;

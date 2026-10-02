@@ -53,7 +53,7 @@ const cpdYear = () => todayIso().slice(0, 4);
 const numStr = (n?: number) => (typeof n === 'number' && Number.isFinite(n) ? String(n) : '');
 
 /** The old single-line emergency contact ("name · relationship · phone") split into parts where it can be. */
-export const parseLegacyEmergency = (s: string) => {
+const parseLegacyEmergency = (s: string) => {
   const parts = s.split(/\s*[·|;,]\s*/).map((x) => x.trim()).filter(Boolean);
   if (parts.length === 3) return { name: parts[0], relationship: parts[1], phone: parts[2] };
   if (parts.length === 2 && /\d{3}/.test(parts[1])) return { name: parts[0], relationship: '', phone: parts[1] };

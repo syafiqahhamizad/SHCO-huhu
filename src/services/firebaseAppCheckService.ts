@@ -1,7 +1,7 @@
 import { initializeAppCheck, ReCaptchaEnterpriseProvider, type AppCheck } from 'firebase/app-check';
 import { type FirebaseApp } from 'firebase/app';
 
-export function isTrustedAppHost(): boolean {
+function isTrustedAppHost(): boolean {
   if (typeof window === 'undefined') return true;
 
   const hostname = window.location.hostname.toLowerCase();

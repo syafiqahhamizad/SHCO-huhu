@@ -13,7 +13,7 @@ const isRealDate = (d: string) => {
   return t.getUTCFullYear() === +m[1] && t.getUTCMonth() === +m[2] - 1 && t.getUTCDate() === +m[3];
 };
 
-export const addDaysIso = (date: string, days: number) => {
+const addDaysIso = (date: string, days: number) => {
   const [y, m, d] = date.split('-').map(Number);
   const t = new Date(Date.UTC(y, m - 1, d + days));
   return t.toISOString().slice(0, 10);

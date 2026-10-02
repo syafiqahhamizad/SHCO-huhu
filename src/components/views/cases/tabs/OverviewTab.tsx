@@ -12,7 +12,7 @@ const T: Record<MatterParty['side'], [string, string, string]> = {
   solicitor: ['Opposing solicitors', '+ Register firm', 'e.g. For 1st Defendant'],
 };
 
-export const PartiesCard: React.FC<{ w: WF }> = ({ w }) => {
+const PartiesCard: React.FC<{ w: WF }> = ({ w }) => {
   const { clients = [] } = useApp();
   const { c, parties, ro } = w;
   const [addP, setAddP] = useState<'' | MatterParty['side']>('');
@@ -91,7 +91,7 @@ export const PartiesCard: React.FC<{ w: WF }> = ({ w }) => {
   );
 };
 
-export const ClientUpdatesCard: React.FC<{ w: WF }> = ({ w }) => {
+const ClientUpdatesCard: React.FC<{ w: WF }> = ({ w }) => {
   const { c, parties, ro } = w;
   const [openI, setOpenI] = useState<number | null>(null);
   const auto = c.clientUpdatesAuto !== false;

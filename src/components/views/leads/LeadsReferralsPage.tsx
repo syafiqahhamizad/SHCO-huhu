@@ -2780,4 +2780,3 @@ export const LeadsReferralsPage: React.FC = () => {
   );
 };
 
-export default LeadsReferralsPage;

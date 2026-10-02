@@ -7,7 +7,7 @@ import type { SinkingFund } from '../../../services/templateService';
 
 export const OfficeAccountTab = ({ F }: { F: FinanceCtrl }) => {
   const { app, lk } = F;
-  const { expenses, paymentVouchers, payslips, travelClaims, invoices } = app;
+  const { expenses, paymentVouchers, invoices } = app;
 
   /* ---- bank balances ---- */
   const mask = (no: string) => { const d = String(no || '').replace(/\s+/g, ''); return d.length > 8 ? d.slice(0, 4) + ' **** ' + d.slice(-4) : d || 'account no. to be set'; };

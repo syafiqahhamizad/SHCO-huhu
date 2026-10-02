@@ -33,11 +33,6 @@ export const tintText = {
   purple: '#6B3D8C',
 } as const;
 
-export const radius = {
-  card: '12px',
-  pill: '20px',
-} as const;
-
 /** Apply as style={{ fontFamily: serifFont }} — Tailwind's own `font-serif` utility does NOT map to this. */
 export const serifFont = "'Source Serif 4', Georgia, Cambria, 'Times New Roman', serif";
 

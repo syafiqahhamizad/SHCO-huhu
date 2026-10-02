@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 
 export const Toast: React.FC = () => {
   const { toastMessage } = useApp();

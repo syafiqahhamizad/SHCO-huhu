@@ -1,14 +1,14 @@
 import React from 'react';
 import type { FinanceCtrl } from './useFinanceController';
-import { css, daysSince, dShort, inPeriod, initials, parseDate, rm, rm2 } from './financeModel';
+import { css, inPeriod, initials, rm, rm2 } from './financeModel';
 import type { FinTab } from '../../../lib/financeAccess';
 
 /** "RM 1.42m" / "RM 212k" — the design's KPI short format. */
-export const rmShort = (n: number) => { const a = Math.abs(n), s = n < 0 ? '-' : ''; if (a >= 1e6) return s + 'RM ' + (a / 1e6).toFixed(2).replace(/\.?0+$/, '') + 'm'; if (a >= 1e4) return s + 'RM ' + Math.round(a / 1000) + 'k'; return rm(n); };
+const rmShort = (n: number) => { const a = Math.abs(n), s = n < 0 ? '-' : ''; if (a >= 1e6) return s + 'RM ' + (a / 1e6).toFixed(2).replace(/\.?0+$/, '') + 'm'; if (a >= 1e4) return s + 'RM ' + Math.round(a / 1000) + 'k'; return rm(n); };
 
 export const FinanceHomeTab = ({ F }: { F: FinanceCtrl }) => {
   const { app, period, monthName, monShort, lastDayLabel, nextMonShort } = F;
-  const { invoices, payments, receipts, expenses, payslips, paymentVouchers, travelClaims, threeWayRec, users, currentUser } = app;
+  const { payments, receipts, threeWayRec, users, currentUser } = app;
 
   /* ---------------- Alerts for Accounts (real items only) ---------------- */
   type Alert = { id: string; kind: 'Approved · to pay' | 'New claim' | 'Reminder' | 'Top up'; text: string; meta: string; amt: number; cta: string; tab: FinTab };
@@ -136,4 +136,3 @@ export const FinanceHomeTab = ({ F }: { F: FinanceCtrl }) => {
 };
 
 // Re-exported helpers used by other tabs.
-export { daysSince, dShort, parseDate };

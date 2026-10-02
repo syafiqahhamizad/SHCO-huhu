@@ -8,12 +8,9 @@ import {
   Folder,
   Users,
   UserCheck,
-  FileText,
   DollarSign,
-  AlertTriangle,
   CheckCircle2,
   Database,
-  RefreshCw,
   Archive,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';

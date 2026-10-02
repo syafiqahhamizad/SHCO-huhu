@@ -72,8 +72,8 @@ interface TeamRow {
   why: string[];
 }
 
-export const TeamTab: React.FC = () => {
-  const { currentUser, isAdmin, users, cases, timeEntries, leaveApplications, payslips, addStaffGoal, showToast } = useApp();
+const TeamTab: React.FC = () => {
+  const { currentUser, users, cases, timeEntries, leaveApplications, payslips, addStaffGoal, showToast } = useApp();
   const [openCode, setOpenCode] = useState<string | null>(null);
   const [goalDraft, setGoalDraft] = useState<{ type: StaffGoal['type']; text: string; help: string }>({ type: 'Career', text: '', help: '' });
   const [addingGoalFor, setAddingGoalFor] = useState<string | null>(null);

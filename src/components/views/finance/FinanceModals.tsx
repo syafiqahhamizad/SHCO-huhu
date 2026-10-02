@@ -1,6 +1,6 @@
 import React from 'react';
 import type { FinanceCtrl, EditorState } from './useFinanceController';
-import { css, filesToProofs, proofMissingMsg, proofUrl, rm2 } from './financeModel';
+import { css, filesToProofs, proofMissingMsg, rm2 } from './financeModel';
 import { storageLabel } from '../../../services/fileStorageService';
 import * as SD from '../../../lib/financeDocs';
 import { PV_DRAWINGS, PV_SST, PV_STATUTORY } from '../../../lib/financeCalc';
@@ -202,4 +202,3 @@ export const FormModal = ({ F }: { F: FinanceCtrl }) => {
   );
 };
 
-export { proofUrl };

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { StatCard, Donut, MiniBarChart } from '../ui';
+import { StatCard, Donut } from '../ui';
 import { palette } from '../../lib/designTokens';
 
 const money = (value: number) => `RM ${Math.round(value).toLocaleString()}`;
@@ -280,4 +280,3 @@ export const ComprehensiveDashboardView: React.FC = () => {
   );
 };
 
-export default ComprehensiveDashboardView;
