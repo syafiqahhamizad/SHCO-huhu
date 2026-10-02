@@ -1,23 +1,38 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Client, KycDoc, ConflictCheck, ConflictMatch } from '../../types';
+import { Client, ClientCdd, KycDoc } from '../../types';
 import { scanClientConflicts } from '../../lib/conflictUtils';
 import {
+  clientFolderName, DRIVE_REQUIRED_MSG, isUploadReady, openLegacyDataUrl, openStoredFile, prepareStorage, storeClientKycFile, useStorageLabel, validateClaimFile,
+} from '../../services/fileStorageService';
+
+/** Text input / textarea that saves once on blur (one audit line per change, not per keystroke). */
+type CommitProps = { value: string; onCommit: (v: string) => void; className?: string; placeholder?: string; type?: string; rows?: number; 'aria-label'?: string };
+const CommitField: React.FC<CommitProps & { multiline?: boolean }> = ({ value, onCommit, multiline, rows, ...rest }) => {
+  const [draft, setDraft] = useState(value);
+  const focused = useRef(false);
+  useEffect(() => { if (!focused.current) setDraft(value); }, [value]);
+  const common = {
+    ...rest,
+    value: draft,
+    onFocus: () => { focused.current = true; },
+    onBlur: () => { focused.current = false; if (draft !== value) onCommit(draft); },
+  };
+  return multiline
+    ? <textarea rows={rows} {...common} onChange={(e) => setDraft(e.target.value)} />
+    : <input {...common} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />;
+};
+
+/** Where a KYC document's file is: Drive (current), inline data URL (legacy), legacy Storage path, or nowhere. */
+const kycStorageOf = (k: KycDoc): 'drive' | 'legacy-inline' | 'none' => (k.driveFileId || k.webViewLink ? 'drive' : k.dataUrl ? 'legacy-inline' : 'none');
+import {
   Users,
-  Plus,
   Upload,
   Folder,
   ArrowLeft,
-  FileText,
-  Phone,
-  Mail,
-  MapPin,
   ShieldAlert,
   Download,
-  Sparkles,
-  ChevronRight,
   CheckCircle2,
-  Copy,
   X,
   UserPlus,
   Building2,
@@ -32,7 +47,6 @@ import {
   Info,
   Send,
   Key,
-  ExternalLink,
 } from 'lucide-react';
 import { exportToCsv } from '../../lib/exportUtils';
 
@@ -40,17 +54,18 @@ export const ClientsView: React.FC = () => {
   const {
     clients,
     cases,
-    addClient,
     updateClient,
     deleteClient,
     sendClientPortalInvite,
     currentRole,
     isAdmin,
     currentUser,
+    users = [],
+    auditLogs = [],
     setCurrentView,
     setCurrentCaseId,
+    setCaseSubTab,
     showToast,
-    isRegisterClientModalOpen,
     setIsRegisterClientModalOpen,
   } = useApp();
 
@@ -74,14 +89,21 @@ export const ClientsView: React.FC = () => {
   // Conflict Modal State
   const [conflictClient, setConflictClient] = useState<Client | null>(null);
   const [ccStatus, setCcStatus] = useState<'Clear' | 'Flagged' | 'Pending Partner Review'>('Clear');
-  const [ccBy, setCcBy] = useState('Syafiqah Hamizad');
+  const [ccBy, setCcBy] = useState(currentUser?.name || '');
   const [ccNotes, setCcNotes] = useState('');
+  // Who can record a conflict determination: the firm's partners (from the user list), plus
+  // whoever is signed in and anyone already recorded on this client.
+  const reviewerNames = Array.from(new Set([
+    ...users.filter((u) => u.role === 'Partner' && u.status !== 'Inactive').map((u) => u.name),
+    currentUser?.name || '',
+    conflictClient?.conflictCheck?.checkedBy || '',
+  ].filter(Boolean)));
 
   const handleOpenConflictModal = (e: React.MouseEvent | null, c: Client) => {
     if (e) e.stopPropagation();
     setConflictClient(c);
     setCcStatus(c.conflictCheck?.status || 'Clear');
-    setCcBy(c.conflictCheck?.checkedBy || 'Syafiqah Hamizad');
+    setCcBy(c.conflictCheck?.checkedBy || currentUser?.name || '');
     setCcNotes(c.conflictCheck?.notes || '');
   };
 
@@ -151,31 +173,78 @@ export const ClientsView: React.FC = () => {
     setClientToDelete(null);
   };
 
-  const handleSaveKyc = (e: React.FormEvent) => {
+  // KYC documents go to the firm Google Drive: Clients/<name (id)>/KYC/. Only metadata is kept on
+  // the client record. Blocked (with the reason) until Drive storage is set up in Firm Settings.
+  const [kycBusy, setKycBusy] = useState(false);
+  const storageLabel = useStorageLabel();
+  const openKycModal = () => {
+    if (!isUploadReady()) { showToast(DRIVE_REQUIRED_MSG); return; }
+    setIsKycModalOpen(true);
+  };
+  const handleSaveKyc = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedClient || !kycFile) {
       showToast('Select a KYC document before saving.');
       return;
     }
-
-    const reader = new FileReader();
-    reader.onload = () => {
+    if (!isUploadReady()) { showToast(DRIVE_REQUIRED_MSG); return; }
+    const problem = validateClaimFile(kycFile);
+    if (problem) { showToast(problem); return; }
+    const client = selectedClient;
+    setKycBusy(true);
+    try {
+      await prepareStorage();
+      const up = await storeClientKycFile({ id: client.id, name: client.name }, kycFile, currentUser?.name || 'Staff');
       const newKyc: KycDoc = {
         id: `KYC-${Date.now()}`,
         name: kycName.trim() || kycFile.name,
         type: kycType,
-        uploadedDate: new Date().toISOString().split('T')[0],
-        driveFolder: `Firm Repository / Clients / ${selectedClient.id}`,
-        dataUrl: typeof reader.result === 'string' ? reader.result : undefined,
-        mimeType: kycFile.type || undefined,
+        uploadedDate: up.uploadedAt.split('T')[0],
+        driveFolder: `Clients/${clientFolderName(client.name, client.id)}/KYC`,
+        driveFileId: up.driveFileId,
+        webViewLink: up.webViewLink,
+        size: up.size,
+        contentType: up.contentType,
+        uploadedAt: up.uploadedAt,
+        uploadedBy: up.uploadedBy,
       };
-      updateClient(selectedClient.id, { kyc: [...(selectedClient.kyc || []), newKyc] });
+      updateClient(client.id, { kyc: [...(client.kyc || []), newKyc] });
       setKycName('');
       setKycFile(null);
       setIsKycModalOpen(false);
-      showToast(`KYC document "${newKyc.name}" saved for ${selectedClient.name}`);
-    };
-    reader.readAsDataURL(kycFile);
+      showToast(`KYC document "${newKyc.name}" saved to Google Drive for ${client.name}`);
+    } catch (err) {
+      showToast('Not uploaded: ' + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setKycBusy(false);
+    }
+  };
+
+  const openKyc = async (k: KycDoc) => {
+    if (kycStorageOf(k) === 'drive') {
+      const err = await openStoredFile({ driveFileId: k.driveFileId, webViewLink: k.webViewLink });
+      if (err) showToast(err);
+      return;
+    }
+    if (k.dataUrl) { const err = openLegacyDataUrl(k.dataUrl, k.name); if (err) showToast(err); return; }
+    showToast('Only the name of this document was recorded. There is no stored copy.');
+  };
+
+  const removeKyc = (k: KycDoc) => {
+    if (!selectedClient) return;
+    if (!window.confirm('Remove “' + k.name + '” from ' + selectedClient.name + '’s KYC list? The file itself stays in Google Drive.')) return;
+    updateClient(selectedClient.id, { kyc: (selectedClient.kyc || []).filter((x) => x.id !== k.id) });
+  };
+
+  const saveCdd = (patch: Partial<ClientCdd>) => {
+    if (!selectedClient) return;
+    updateClient(selectedClient.id, { cdd: { ...(selectedClient.cdd || {}), ...patch, updatedBy: currentUser?.name || '', updatedAt: new Date().toISOString() } });
+  };
+
+  const openCaseFile = (caseId: string | null) => {
+    setCaseSubTab('overview');
+    setCurrentCaseId(caseId);
+    setCurrentView('cases');
   };
 
   const handleExportClients = () => {
@@ -282,6 +351,286 @@ export const ClientsView: React.FC = () => {
     }
   };
 
+  // Modals are shared by the client detail view and the directory view.
+  const modals = (
+    <>
+      {/* --- MANDATORY DELETE CONFIRMATION MODAL --- */}
+      {clientToDelete && (
+        <div className="fixed inset-0 bg-[#16223A]/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-rose-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start gap-3">
+              <div className="p-3 bg-rose-100 text-rose-700 rounded-full shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-serif text-base font-bold text-[#16223A]">
+                  Confirm Client Permanent Deletion
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Mandatory Firm Security Safeguard
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 p-3 bg-rose-50/70 border border-rose-200 rounded-lg text-xs space-y-2 text-rose-900">
+              <p>
+                Are you sure you want to permanently delete the client record for:
+              </p>
+              <div className="p-2 bg-white rounded border border-rose-200 font-bold text-[#16223A]">
+                <p>{clientToDelete.name}</p>
+                <p className="font-mono text-[11px] text-slate-500 font-normal">
+                  Client ID: {clientToDelete.id} • {clientToDelete.type}
+                </p>
+              </div>
+              <p className="text-[11px] text-rose-700">
+                ⚠️ <strong>Warning:</strong> Deleting this client moves the record (particulars, contact points, KYC list and CDD) to the Recycle Bin and removes their portal login. KYC files stay in Google Drive. Registered legal matters and billing ledgers are kept.
+              </p>
+            </div>
+
+            <div className="mt-2 text-[10.5px] text-slate-500 flex items-center gap-1">
+              <Lock className="w-3 h-3 text-amber-700" />
+              <span>Authorized Operator: <strong>{currentUser?.name || currentRole}</strong> ({currentRole} Role)</span>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4 mt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setClientToDelete(null)}
+                className="px-4 py-2 border border-[#DDE3EB] text-slate-700 hover:bg-slate-100 rounded-lg font-bold text-xs cursor-pointer transition-colors"
+              >
+                Cancel Keep Record
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-xs cursor-pointer shadow-md flex items-center gap-1.5 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Confirm Delete Client</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- PERMISSION DENIED MODAL --- */}
+      {showPermissionDeniedModal && (
+        <div className="fixed inset-0 bg-[#16223A]/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#DDE3EB]">
+            <div className="flex items-start gap-3">
+              <div className="p-3 bg-amber-100 text-amber-800 rounded-full shrink-0">
+                <Lock className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-serif text-base font-bold text-[#16223A]">
+                  Permission Restricted
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Firm Administrative Access Control
+                </p>
+              </div>
+            </div>
+
+            <p className="mt-4 text-xs text-slate-600 leading-relaxed">
+              Deleting client database profiles is strictly restricted to <strong>Firm Administrators</strong> and <strong>Partners</strong>. Your current role (<strong>{currentRole}</strong>) does not have deletion privileges for client master records.
+            </p>
+
+            <div className="flex justify-end pt-4 mt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowPermissionDeniedModal(false)}
+                className="px-4 py-2 bg-[#16223A] text-amber-300 rounded-lg font-bold text-xs cursor-pointer"
+              >
+                Understood
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- KYC UPLOAD MODAL --- */}
+      {isKycModalOpen && selectedClient && (
+        <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#DDE3EB]">
+            <h3 className="font-serif text-base font-bold text-[#16223A] mb-3">Upload KYC Compliance Document</h3>
+            <form onSubmit={handleSaveKyc} className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block uppercase mb-1">Document File</label>
+                <input
+                  type="file"
+                  required
+                  accept="image/*,.pdf"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setKycFile(file);
+                    if (file && !kycName) setKycName(file.name);
+                  }}
+                  className="w-full"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">Photo or PDF, up to 10 MB. Goes to Google Drive › Clients › {clientFolderName(selectedClient.name, selectedClient.id)} › KYC.</p>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block uppercase mb-1">Document Name / Reference</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. NRIC copy (front and back)"
+                  value={kycName}
+                  onChange={(e) => setKycName(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block uppercase mb-1">KYC Category</label>
+                <select value={kycType} onChange={(e) => setKycType(e.target.value)} className="w-full">
+                  <option value="Identity (NRIC/Passport)">Identity (NRIC/Passport)</option>
+                  <option value="SSM Corporate ROC Extract">SSM Corporate ROC Extract</option>
+                  <option value="Proof of Address (Utility Bill)">Proof of Address (Utility Bill)</option>
+                  <option value="Source of Funds Declaration">Source of Funds Declaration</option>
+                  <option value="Directors / Beneficial Owners (Form 49 / BO)">Directors / Beneficial Owners (Form 49 / BO)</option>
+                  <option value="Board Resolution / Authority">Board Resolution / Authority</option>
+                  <option value="PEP / Sanctions Screening Result">PEP / Sanctions Screening Result</option>
+                  <option value="Other KYC Document">Other KYC Document</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsKycModalOpen(false)}
+                  className="px-4 py-2 border border-[#DDE3EB] text-slate-700 hover:bg-slate-100 rounded-md font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={kycBusy}
+                  className={`px-4 py-2 bg-[#16223A] hover:bg-[#16223A] text-white rounded-md font-semibold ${kycBusy ? 'opacity-60 cursor-wait' : 'cursor-pointer'}`}
+                >
+                  {kycBusy ? 'Uploading…' : 'Upload to Google Drive'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Conflict Review Modal (Leads Concept) */}
+      {conflictClient && (
+        <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#DDE3EB] space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-serif text-base font-bold text-[#16223A]">
+                Conflict of Interest Check — {conflictClient.name}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setConflictClient(null)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500">
+              Formal partner determination under Legal Profession Act 1976 and Bar Council Guidelines.
+            </p>
+
+            {/* Display live conflict matches */}
+            {scanClientConflicts(
+              { id: conflictClient.id, name: conflictClient.name, icNo: conflictClient.icNo, registrationNo: conflictClient.registrationNo, email: conflictClient.email },
+              clients,
+              cases
+            ).length > 0 ? (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 space-y-1">
+                <span className="font-bold flex items-center gap-1 text-[11.5px]">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                  <span>Cross-Registry Matches Flagged ({scanClientConflicts({ id: conflictClient.id, name: conflictClient.name, icNo: conflictClient.icNo, registrationNo: conflictClient.registrationNo, email: conflictClient.email }, clients, cases).length}):</span>
+                </span>
+                <ul className="list-disc list-inside font-mono text-[11px] space-y-0.5 pt-1">
+                  {scanClientConflicts(
+                    { id: conflictClient.id, name: conflictClient.name, icNo: conflictClient.icNo, registrationNo: conflictClient.registrationNo, email: conflictClient.email },
+                    clients,
+                    cases
+                  ).map((m, i) => (
+                    <li key={i}><strong>{m.label}:</strong> {m.detail}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800 flex items-center gap-2 font-semibold">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>No adverse party or registered client matches found.</span>
+              </div>
+            )}
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block uppercase text-[10.5px] mb-1">
+                  Conflict Determination
+                </label>
+                <select
+                  value={ccStatus}
+                  onChange={(e) => setCcStatus(e.target.value as any)}
+                  className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg font-bold text-[#16223A]"
+                >
+                  <option value="Clear">Clear (No conflict of interest)</option>
+                  <option value="Flagged">Flagged (Direct / Potential Conflict)</option>
+                  <option value="Pending Partner Review">Pending Partner Review</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block uppercase text-[10.5px] mb-1">
+                  Reviewed By Partner
+                </label>
+                <select
+                  value={ccBy}
+                  onChange={(e) => setCcBy(e.target.value)}
+                  className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg font-semibold text-[#16223A]"
+                >
+                  {reviewerNames.map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block uppercase text-[10.5px] mb-1">
+                  Partner Review Notes
+                </label>
+                <textarea
+                  rows={3}
+                  value={ccNotes}
+                  onChange={(e) => setCcNotes(e.target.value)}
+                  className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg"
+                  placeholder="Record conflict search checks, IC cross-checks, and partner reasoning..."
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setConflictClient(null)}
+                  className="px-4 py-2 border border-[#DDE3EB] text-slate-700 hover:bg-slate-100 rounded-md font-semibold text-xs cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveClientConflictCheck}
+                  className="px-4 py-2 bg-[#16223A] hover:bg-[#16223A] text-amber-300 rounded-md font-bold text-xs cursor-pointer shadow-sm"
+                >
+                  Save Determination
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   // --- CLIENT DETAIL VIEW ---
   if (selectedClient) {
     return (
@@ -298,9 +647,9 @@ export const ClientsView: React.FC = () => {
             </button>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <input
+                <CommitField
                   value={selectedClient.name}
-                  onChange={(e) => updateClient(selectedClient.id, { name: e.target.value })}
+                  onCommit={(v) => updateClient(selectedClient.id, { name: v })}
                   className="font-serif text-base font-bold text-[#16223A] bg-transparent border-0 border-b border-transparent focus:border-[#3D6B9C] focus:ring-0 p-0"
                   aria-label="Client official name"
                 />
@@ -312,6 +661,18 @@ export const ClientsView: React.FC = () => {
                 >
                   <option value="Individual">Individual</option>
                   <option value="Corporate">Corporate</option>
+                </select>
+                <select
+                  value={selectedClient.status || 'Active'}
+                  onChange={(e) => updateClient(selectedClient.id, { status: e.target.value as Client['status'] })}
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold border ${selectedClient.status === 'Pending KYC' ? 'bg-amber-100 text-amber-900 border-amber-300' : 'bg-slate-100 text-slate-800 border-slate-300'}`}
+                  aria-label="Client status"
+                  title="Set to Active once KYC / CDD is complete"
+                >
+                  <option value="Active">Active</option>
+                  <option value="Pending KYC">Pending KYC</option>
+                  <option value="Inactive">Inactive</option>
+                  <option value="Archived">Archived</option>
                 </select>
                 <span className="font-mono text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
                   ID: {selectedClient.id}
@@ -415,15 +776,22 @@ export const ClientsView: React.FC = () => {
                         <Info className="w-3.5 h-3.5 text-blue-700" />
                         <span>Pending Partner Review</span>
                       </span>
-                    ) : (
+                    ) : selectedClient.conflictCheck ? (
                       <span className="px-2 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-200 rounded text-[11px] font-bold inline-flex items-center gap-1">
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                         <span>Clear (No Conflict)</span>
                       </span>
+                    ) : (
+                      <span className="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded text-[11px] font-bold inline-flex items-center gap-1">
+                        <Info className="w-3.5 h-3.5 text-amber-700" />
+                        <span>Not checked yet</span>
+                      </span>
                     )}
                   </div>
                   <p className="text-[11px] text-slate-500 mt-0.5">
-                    Screened by <strong className="text-[#16223A]">{selectedClient.conflictCheck?.checkedBy || 'Syafiqah Hamizad'}</strong> • {selectedClient.conflictCheck?.notes || 'No adverse matches found.'}
+                    {selectedClient.conflictCheck
+                      ? <>Screened by <strong className="text-[#16223A]">{selectedClient.conflictCheck.checkedBy || '—'}</strong>{selectedClient.conflictCheck.checkedDate ? ' on ' + selectedClient.conflictCheck.checkedDate : ''} • {selectedClient.conflictCheck.notes || '—'}</>
+                      : 'No conflict determination has been recorded for this client.'}
                   </p>
                 </div>
               </div>
@@ -520,17 +888,17 @@ export const ClientsView: React.FC = () => {
                   </div>
                   <div>
                     <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">SSM / ROC Registration No.</label>
-                    <input
+                    <CommitField
                       value={selectedClient.registrationNo || ''}
-                      onChange={(e) => updateClient(selectedClient.id, { registrationNo: e.target.value })}
+                      onCommit={(v) => updateClient(selectedClient.id, { registrationNo: v })}
                       className="w-full text-xs font-mono font-semibold"
                     />
                   </div>
                   <div>
                     <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Corporate Tax / SST No.</label>
-                    <input
+                    <CommitField
                       value={selectedClient.taxSstNo || ''}
-                      onChange={(e) => updateClient(selectedClient.id, { taxSstNo: e.target.value })}
+                      onCommit={(v) => updateClient(selectedClient.id, { taxSstNo: v })}
                       className="w-full text-xs font-mono font-semibold"
                     />
                   </div>
@@ -545,25 +913,25 @@ export const ClientsView: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                   <div>
                     <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">NRIC / Identification No.</label>
-                    <input
+                    <CommitField
                       value={selectedClient.icNo || selectedClient.icNumber || ''}
-                      onChange={(e) => updateClient(selectedClient.id, { icNo: e.target.value, icNumber: e.target.value })}
+                      onCommit={(v) => updateClient(selectedClient.id, { icNo: v, icNumber: v })}
                       className="w-full text-xs font-mono font-semibold"
                     />
                   </div>
                   <div>
                     <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Nationality</label>
-                    <input
+                    <CommitField
                       value={selectedClient.nationality || ''}
-                      onChange={(e) => updateClient(selectedClient.id, { nationality: e.target.value })}
+                      onCommit={(v) => updateClient(selectedClient.id, { nationality: v })}
                       className="w-full text-xs font-semibold"
                     />
                   </div>
                   <div>
                     <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Occupation / Profession</label>
-                    <input
+                    <CommitField
                       value={selectedClient.occupation || ''}
-                      onChange={(e) => updateClient(selectedClient.id, { occupation: e.target.value })}
+                      onCommit={(v) => updateClient(selectedClient.id, { occupation: v })}
                       className="w-full text-xs font-semibold"
                     />
                   </div>
@@ -575,20 +943,20 @@ export const ClientsView: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Contact Person / Representative</label>
-                <input
+                <CommitField
                   type="text"
                   value={selectedClient.contactPerson || ''}
-                  onChange={(e) => updateClient(selectedClient.id, { contactPerson: e.target.value })}
+                  onCommit={(v) => updateClient(selectedClient.id, { contactPerson: v })}
                   className="w-full text-xs font-semibold"
                 />
               </div>
 
               <div>
                 <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Designation / Role</label>
-                <input
+                <CommitField
                   type="text"
                   value={selectedClient.contactPersonDesignation || ''}
-                  onChange={(e) => updateClient(selectedClient.id, { contactPersonDesignation: e.target.value })}
+                  onCommit={(v) => updateClient(selectedClient.id, { contactPersonDesignation: v })}
                   placeholder="e.g. Managing Director / Individual"
                   className="w-full text-xs"
                 />
@@ -596,20 +964,20 @@ export const ClientsView: React.FC = () => {
 
               <div>
                 <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Telephone Number</label>
-                <input
+                <CommitField
                   type="text"
                   value={selectedClient.phone || ''}
-                  onChange={(e) => updateClient(selectedClient.id, { phone: e.target.value })}
+                  onCommit={(v) => updateClient(selectedClient.id, { phone: v })}
                   className="w-full text-xs font-mono"
                 />
               </div>
 
               <div>
                 <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Official Email Address</label>
-                <input
+                <CommitField
                   type="email"
                   value={selectedClient.email || ''}
-                  onChange={(e) => updateClient(selectedClient.id, { email: e.target.value })}
+                  onCommit={(v) => updateClient(selectedClient.id, { email: v })}
                   className="w-full text-xs font-mono"
                 />
               </div>
@@ -617,10 +985,10 @@ export const ClientsView: React.FC = () => {
 
             <div>
               <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Registered Address / Billing Office</label>
-              <textarea
+              <CommitField multiline
                 rows={2}
                 value={selectedClient.address || ''}
-                onChange={(e) => updateClient(selectedClient.id, { address: e.target.value })}
+                onCommit={(v) => updateClient(selectedClient.id, { address: v })}
                 className="w-full text-xs"
               />
             </div>
@@ -635,13 +1003,13 @@ export const ClientsView: React.FC = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Contact Person Name / Next Friend</label>
-                  <input
+                  <CommitField
                     type="text"
                     value={selectedClient.emergencyContactName || ''}
-                    onChange={(e) =>
+                    onCommit={(v) =>
                       updateClient(selectedClient.id, {
-                        emergencyContactName: e.target.value,
-                        emergencyContact: `${e.target.value} (${selectedClient.emergencyContactPhone || ''})`,
+                        emergencyContactName: v,
+                        emergencyContact: `${v} (${selectedClient.emergencyContactPhone || ''})`,
                       })
                     }
                     placeholder="Full Name"
@@ -650,10 +1018,10 @@ export const ClientsView: React.FC = () => {
                 </div>
                 <div>
                   <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Telephone Number</label>
-                  <input
+                  <CommitField
                     type="text"
                     value={selectedClient.emergencyContactPhone || ''}
-                    onChange={(e) => updateClient(selectedClient.id, { emergencyContactPhone: e.target.value })}
+                    onCommit={(v) => updateClient(selectedClient.id, { emergencyContactPhone: v })}
                     placeholder="01x-xxxxxxx / 03-xxxxxxx"
                     className="w-full text-xs font-mono"
                   />
@@ -663,10 +1031,10 @@ export const ClientsView: React.FC = () => {
 
             <div>
               <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Special Client Instructions &amp; Retainer Notes</label>
-              <textarea
+              <CommitField multiline
                 rows={3}
                 value={selectedClient.notes || ''}
-                onChange={(e) => updateClient(selectedClient.id, { notes: e.target.value })}
+                onCommit={(v) => updateClient(selectedClient.id, { notes: v })}
                 className="w-full text-xs"
                 placeholder="Client preferences, board resolution conditions, special billing instructions..."
               />
@@ -674,49 +1042,131 @@ export const ClientsView: React.FC = () => {
           </div>
         )}
 
-        {/* Subtab 2: KYC Documents */}
+        {/* Subtab 2: KYC / CDD */}
         {subTab === 'kyc' && (
-          <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-serif font-bold text-[#16223A]">KYC Compliance Files</h3>
-                <p className="text-[11px] text-slate-500">Statutory identity documents, SSM extracts, and source of funds verification</p>
+          <div className="space-y-4">
+            {/* Customer due diligence (AMLA) */}
+            <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-3">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <h3 className="font-serif font-bold text-[#16223A]">Customer due diligence (AMLA)</h3>
+                  <p className="text-[11px] text-slate-500">Risk rating, PEP screening, source of funds and how identity was verified. Saved on the client record.</p>
+                </div>
+                <span className="text-[10.5px] text-slate-500">
+                  {selectedClient.cdd?.updatedAt ? 'Last updated ' + selectedClient.cdd.updatedAt.slice(0, 10) + (selectedClient.cdd.updatedBy ? ' by ' + selectedClient.cdd.updatedBy : '') : 'Not completed yet'}
+                </span>
               </div>
-              <button
-                onClick={() => setIsKycModalOpen(true)}
-                className="bg-[#16223A] hover:bg-[#16223A] text-amber-300 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer text-xs shadow-2xs"
-              >
-                <Upload className="w-3.5 h-3.5" />
-                <span>Upload KYC Document</span>
-              </button>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                <label className="block">
+                  <span className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Risk rating</span>
+                  <select value={selectedClient.cdd?.riskRating || ''} onChange={(e) => saveCdd({ riskRating: (e.target.value || undefined) as ClientCdd['riskRating'] })} className="w-full text-xs font-semibold">
+                    <option value="">Not rated</option>
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Politically exposed person (PEP)</span>
+                  <select value={selectedClient.cdd?.pep || 'Not checked'} onChange={(e) => saveCdd({ pep: e.target.value as ClientCdd['pep'] })} className="w-full text-xs font-semibold">
+                    <option value="Not checked">Not checked</option>
+                    <option value="No">No</option>
+                    <option value="Yes">Yes</option>
+                  </select>
+                </label>
+                <label className="flex items-center gap-2 pt-5">
+                  <input type="checkbox" checked={!!selectedClient.cdd?.enhancedDueDiligence} onChange={(e) => saveCdd({ enhancedDueDiligence: e.target.checked })} />
+                  <span className="font-semibold text-[#16223A]">Enhanced due diligence applied</span>
+                </label>
+                {selectedClient.cdd?.pep === 'Yes' && (
+                  <label className="block sm:col-span-3">
+                    <span className="font-bold text-slate-600 block uppercase text-[10px] mb-1">PEP details (position, relationship)</span>
+                    <CommitField value={selectedClient.cdd?.pepDetails || ''} onCommit={(v) => saveCdd({ pepDetails: v })} className="w-full text-xs" />
+                  </label>
+                )}
+                <label className="block">
+                  <span className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Source of funds</span>
+                  <CommitField value={selectedClient.cdd?.sourceOfFunds || ''} onCommit={(v) => saveCdd({ sourceOfFunds: v })} placeholder="e.g. salary, sale of property" className="w-full text-xs" />
+                </label>
+                <label className="block">
+                  <span className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Source of wealth</span>
+                  <CommitField value={selectedClient.cdd?.sourceOfWealth || ''} onCommit={(v) => saveCdd({ sourceOfWealth: v })} className="w-full text-xs" />
+                </label>
+                <label className="block">
+                  <span className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Purpose of the relationship</span>
+                  <CommitField value={selectedClient.cdd?.purposeOfRelationship || ''} onCommit={(v) => saveCdd({ purposeOfRelationship: v })} placeholder="e.g. purchase of property" className="w-full text-xs" />
+                </label>
+                <label className="block">
+                  <span className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Identity verified how</span>
+                  <CommitField value={selectedClient.cdd?.verificationMethod || ''} onCommit={(v) => saveCdd({ verificationMethod: v })} placeholder="e.g. original NRIC sighted" className="w-full text-xs" />
+                </label>
+                <label className="block">
+                  <span className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Verified by</span>
+                  <CommitField value={selectedClient.cdd?.verifiedBy || ''} onCommit={(v) => saveCdd({ verifiedBy: v })} placeholder={currentUser?.name || ''} className="w-full text-xs" />
+                </label>
+                <label className="block">
+                  <span className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Verified on</span>
+                  <input type="date" value={selectedClient.cdd?.verifiedAt || ''} onChange={(e) => saveCdd({ verifiedAt: e.target.value })} className="w-full text-xs" />
+                </label>
+                <label className="block sm:col-span-3">
+                  <span className="font-bold text-slate-600 block uppercase text-[10px] mb-1">CDD notes</span>
+                  <CommitField multiline rows={2} value={selectedClient.cdd?.notes || ''} onCommit={(v) => saveCdd({ notes: v })} className="w-full text-xs" />
+                </label>
+              </div>
             </div>
 
-            <div className="divide-y divide-slate-100 border border-[#DDE3EB] rounded-lg overflow-hidden">
-              {(selectedClient.kyc || []).map((k) => (
-                <div key={k.id} className="p-3 flex items-center justify-between hover:bg-[#F6F8FA]">
-                  <div className="flex items-center gap-3">
-                    <Folder className="w-5 h-5 text-[#3D6B9C]" />
-                    <div>
-                      {k.dataUrl ? (
-                        <a href={k.dataUrl} download={k.name} target="_blank" rel="noreferrer" className="font-bold text-blue-800 underline hover:text-blue-950 text-xs">
-                          {k.name}
-                        </a>
-                      ) : (
-                        <p className="font-bold text-[#16223A] text-xs">{k.name}</p>
-                      )}
-                      <p className="text-[10px] text-slate-500">{k.type} • Uploaded: {k.uploadedDate}</p>
+            <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-4">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <h3 className="font-serif font-bold text-[#16223A]">KYC documents</h3>
+                  <p className="text-[11px] text-slate-500">Identity documents, SSM extracts, proof of address and source of funds. Files go to Google Drive › Clients › {clientFolderName(selectedClient.name, selectedClient.id)} › KYC.</p>
+                  <p className={`text-[10.5px] mt-0.5 ${isUploadReady() ? 'text-slate-500' : 'text-rose-700 font-semibold'}`}>{storageLabel}</p>
+                </div>
+                <button
+                  onClick={openKycModal}
+                  className="bg-[#16223A] hover:bg-[#16223A] text-amber-300 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer text-xs shadow-2xs"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Upload KYC Document</span>
+                </button>
+              </div>
+
+              <div className="divide-y divide-slate-100 border border-[#DDE3EB] rounded-lg overflow-hidden">
+                {(selectedClient.kyc || []).map((k) => {
+                  const where = kycStorageOf(k);
+                  return (
+                    <div key={k.id} className="p-3 flex items-center justify-between gap-3 hover:bg-[#F6F8FA]">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Folder className="w-5 h-5 text-[#3D6B9C] shrink-0" />
+                        <div className="min-w-0">
+                          {where === 'none' ? (
+                            <p className="font-bold text-[#16223A] text-xs">{k.name}</p>
+                          ) : (
+                            <button type="button" onClick={() => { void openKyc(k); }} className="font-bold text-blue-800 underline hover:text-blue-950 text-xs text-left cursor-pointer">
+                              {k.name}
+                            </button>
+                          )}
+                          <p className="text-[10px] text-slate-500">{k.type} • Uploaded: {k.uploadedDate}{k.uploadedBy ? ' by ' + k.uploadedBy : ''}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${where === 'drive' ? 'bg-emerald-100 text-emerald-900 border-emerald-200' : where === 'legacy-inline' ? 'bg-amber-50 text-amber-900 border-amber-300' : 'bg-slate-100 text-slate-600 border-slate-300'}`}
+                          title={where === 'legacy-inline' ? 'Older upload kept inside the shared database. It still opens; upload it again to move it to Google Drive.' : undefined}>
+                          {where === 'drive' ? 'In Google Drive' : where === 'legacy-inline' ? 'Older copy (not in Drive)' : 'Name only, no file'}
+                        </span>
+                        <button type="button" onClick={() => removeKyc(k)} title="Remove from this list" className="p-1 rounded text-slate-400 hover:text-rose-700 hover:bg-rose-50 cursor-pointer">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
+                  );
+                })}
+                {(!selectedClient.kyc || selectedClient.kyc.length === 0) && (
+                  <div className="p-6 text-center text-slate-400">
+                    No KYC documents uploaded yet.
                   </div>
-                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-900 text-[10px] font-bold rounded-full border border-emerald-200">
-                    Verified
-                  </span>
-                </div>
-              ))}
-              {(!selectedClient.kyc || selectedClient.kyc.length === 0) && (
-                <div className="p-6 text-center text-slate-400">
-                  No KYC documents uploaded yet.
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -727,11 +1177,11 @@ export const ClientsView: React.FC = () => {
             <div className="flex items-center justify-between">
               <h3 className="font-serif font-bold text-[#16223A]">Active &amp; Historical Legal Cases</h3>
               <button
-                onClick={() => setCurrentView('cases')}
+                onClick={() => openCaseFile(null)}
                 className="px-3 py-1.5 bg-[#16223A] hover:bg-[#16223A] text-amber-300 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
               >
                 <Briefcase className="w-3.5 h-3.5 text-amber-300" />
-                <span>Go to Legal Matters Registry</span>
+                <span>Go to Cases</span>
               </button>
             </div>
 
@@ -739,11 +1189,9 @@ export const ClientsView: React.FC = () => {
               {clientCases.map((cs) => (
                 <div
                   key={cs.id}
-                  onClick={() => {
-                    setCurrentCaseId(cs.id);
-                    setCurrentView('cases');
-                  }}
-                  className="p-3 bg-[#F6F8FA] hover:bg-[#F6F8FA] border border-[#DDE3EB] rounded-lg flex items-center justify-between text-xs cursor-pointer transition-colors"
+                  onClick={() => openCaseFile(cs.id)}
+                  title="Open the working file"
+                  className="p-3 bg-[#F6F8FA] hover:bg-[#EEF1F5] border border-[#DDE3EB] rounded-lg flex items-center justify-between text-xs cursor-pointer transition-colors"
                 >
                   <div>
                     <span className="font-mono font-bold text-[#3D6B9C] mr-2">{cs.ref}</span>
@@ -761,132 +1209,61 @@ export const ClientsView: React.FC = () => {
           </div>
         )}
 
-        {/* Subtab 4: Compliance & History Audit Logs */}
+        {/* Subtab 4: Compliance & history (real records only) */}
         {subTab === 'history' && (
           <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div>
-                <h3 className="font-serif font-bold text-[#16223A] text-sm flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-[#3D6B9C]" />
-                  <span>Compliance Audit Trail &amp; Record History</span>
-                </h3>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Immutable registration logs, conflict check screening determinations, and KYC compliance timeline for {selectedClient.name}.
-                </p>
-              </div>
-              <span className="px-2.5 py-1 bg-amber-50 border border-amber-300 text-[#16223A] font-bold text-[10.5px] rounded-lg">
-                Audit Verified
-              </span>
+            <div className="pb-3 border-b border-slate-100">
+              <h3 className="font-serif font-bold text-[#16223A] text-sm flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-[#3D6B9C]" />
+                <span>Compliance &amp; record history</span>
+              </h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                What is recorded for {selectedClient.name}: registration, conflict determination, KYC / CDD, and every change logged in the audit trail.
+              </p>
             </div>
 
-            {/* Timeline Log Cards */}
-            <div className="relative border-l-2 border-slate-200 ml-3 pl-5 space-y-5 py-2">
-              {/* Event 1: Master Registration */}
-              <div className="relative">
-                <div className="absolute -left-[27px] top-0.5 w-3.5 h-3.5 rounded-full bg-[#16223A] border-2 border-white ring-2 ring-amber-300/60" />
-                <div className="bg-[#F6F8FA] p-3.5 rounded-xl border border-[#DDE3EB] space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-[#16223A] text-xs">Master Client Profile Registered</span>
-                    <span className="text-[10px] font-mono text-slate-500">Intake Timestamp: 2026-08-18</span>
-                  </div>
-                  <p className="text-[11.5px] text-slate-700">
-                    Client registered as <strong>{selectedClient.type} Client ({selectedClient.entityCategory || selectedClient.type})</strong>.
-                  </p>
-                  <div className="text-[10.5px] text-slate-500 font-mono pt-1">
-                    Registered By: Puan Syafiqah Hamizad (Managing Partner) • Contact: {selectedClient.phone || 'Recorded'} • {selectedClient.email || 'Email registered'}
-                  </div>
-                </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div className="bg-[#F6F8FA] p-3 rounded-xl border border-[#DDE3EB]">
+                <span className="block text-[10px] text-slate-500 uppercase font-bold">Registered</span>
+                <span className="font-bold text-[#16223A]">{selectedClient.createdAt ? selectedClient.createdAt.slice(0, 10) : 'Date not recorded'}</span>
+                <span className="block text-[10.5px] text-slate-500">{selectedClient.type}{selectedClient.entityCategory ? ' · ' + selectedClient.entityCategory : ''}</span>
               </div>
-
-              {/* Event 2: Conflict Check Screening */}
-              <div className="relative">
-                <div className="absolute -left-[27px] top-0.5 w-3.5 h-3.5 rounded-full bg-emerald-600 border-2 border-white ring-2 ring-emerald-300" />
-                <div className="bg-emerald-50/60 p-3.5 rounded-xl border border-emerald-200 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-emerald-950 text-xs flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Conflict Check Screening Log</span>
-                    </span>
-                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-300 rounded text-[10px] font-bold">
-                      {selectedClient.conflictCheck?.status || 'Clear'}
-                    </span>
-                  </div>
-                  <p className="text-[11.5px] text-emerald-900">
-                    {selectedClient.conflictCheck?.notes || 'Initial conflict screening executed against firm master database. No adverse cross-matches found.'}
-                  </p>
-                  <div className="text-[10.5px] text-emerald-800 font-mono pt-1">
-                    Screened By: {selectedClient.conflictCheck?.checkedBy || 'Puan Syafiqah Hamizad'} • Date: {selectedClient.conflictCheck?.checkedDate || '2026-08-18'}
-                  </div>
-                </div>
+              <div className="bg-[#F6F8FA] p-3 rounded-xl border border-[#DDE3EB]">
+                <span className="block text-[10px] text-slate-500 uppercase font-bold">Conflict check</span>
+                <span className="font-bold text-[#16223A]">{selectedClient.conflictCheck?.status || 'Not checked yet'}</span>
+                <span className="block text-[10.5px] text-slate-500">{selectedClient.conflictCheck ? (selectedClient.conflictCheck.checkedBy || '—') + (selectedClient.conflictCheck.checkedDate ? ' · ' + selectedClient.conflictCheck.checkedDate : '') : 'No determination recorded'}</span>
               </div>
+              <div className="bg-[#F6F8FA] p-3 rounded-xl border border-[#DDE3EB]">
+                <span className="block text-[10px] text-slate-500 uppercase font-bold">KYC / CDD</span>
+                <span className="font-bold text-[#16223A]">{(selectedClient.kyc || []).length} document(s) · risk {selectedClient.cdd?.riskRating || 'not rated'}</span>
+                <span className="block text-[10.5px] text-slate-500">{selectedClient.cdd?.verifiedBy ? 'Verified by ' + selectedClient.cdd.verifiedBy + (selectedClient.cdd.verifiedAt ? ' · ' + selectedClient.cdd.verifiedAt : '') : 'Identity verification not recorded'}</span>
+              </div>
+            </div>
 
-              {/* Event 3: KYC Documents Verification */}
-              <div className="relative">
-                <div className="absolute -left-[27px] top-0.5 w-3.5 h-3.5 rounded-full bg-blue-600 border-2 border-white ring-2 ring-blue-300" />
-                <div className="bg-blue-50/60 p-3.5 rounded-xl border border-blue-200 space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-blue-950 text-xs flex items-center gap-1.5">
-                      <FileText className="w-3.5 h-3.5 text-blue-700" />
-                      <span>Statutory KYC Files Uploaded &amp; Verified</span>
-                    </span>
-                    <span className="text-[10px] font-mono text-blue-900 font-semibold">
-                      {selectedClient.kyc?.length || 0} File(s) Stored
-                    </span>
-                  </div>
-                  {(selectedClient.kyc || []).length > 0 ? (
-                    <div className="space-y-1 pt-1">
-                      {selectedClient.kyc?.map((k) => (
-                        <div key={k.id} className="bg-white p-2 rounded border border-blue-200 text-[11px] flex items-center justify-between">
-                          {k.dataUrl ? (
-                            <a
-                              href={k.dataUrl}
-                              download={k.name}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="font-bold text-blue-800 underline hover:text-blue-950"
-                            >
-                              {k.name}
-                            </a>
-                          ) : (
-                            <span className="font-bold text-slate-800">{k.name}</span>
-                          )}
-                          <span className="text-slate-600"> ({k.type})</span>
-                          <span className="text-[10px] font-mono text-slate-500">Uploaded: {k.uploadedDate}</span>
+            {(() => {
+              const trail = auditLogs.filter((a) => a.collection === 'CLIENTS' && a.recordId === selectedClient.id);
+              return (
+                <div className="border border-[#DDE3EB] rounded-lg overflow-hidden">
+                  <div className="px-3 py-2 bg-[#F6F8FA] border-b border-[#DDE3EB] text-[10px] font-bold uppercase tracking-wider text-slate-600">Audit trail ({trail.length})</div>
+                  {trail.length === 0 ? (
+                    <p className="p-4 text-center text-slate-400 text-xs">No changes logged for this client yet.</p>
+                  ) : (
+                    <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
+                      {trail.map((a) => (
+                        <div key={a.id} className="px-3 py-2 text-[11px] flex items-start justify-between gap-3">
+                          <span className="text-[#16223A]"><strong>{a.action}</strong> · {a.details}</span>
+                          <span className="text-[10px] font-mono text-slate-500 whitespace-nowrap">{a.timestamp} · {a.performedBy}</span>
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <p className="text-[11px] text-blue-900 italic">
-                      Standard registration identity files registered in master document drive.
-                    </p>
                   )}
                 </div>
-              </div>
-
-              {/* Event 4: Tagging & Profile Updates */}
-              <div className="relative">
-                <div className="absolute -left-[27px] top-0.5 w-3.5 h-3.5 rounded-full bg-amber-500 border-2 border-white ring-2 ring-amber-300" />
-                <div className="bg-amber-50/60 p-3.5 rounded-xl border border-amber-200 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-amber-950 text-xs">Profile Categorization &amp; Tags</span>
-                    <span className="text-[10px] font-mono text-amber-900 font-semibold">Active Tag Badges</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {(selectedClient.tags || []).length > 0 ? (
-                      selectedClient.tags?.map((t) => (
-                        <span key={t} className="px-2 py-0.5 bg-amber-200/80 text-amber-950 text-[10.5px] font-bold rounded border border-amber-300">
-                          #{t}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-[11px] text-amber-900 italic">No specific tags assigned.</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
+              );
+            })()}
           </div>
         )}
+
+        {modals}
       </div>
     );
   }
@@ -1129,6 +1506,15 @@ export const ClientsView: React.FC = () => {
                       <Info className="w-3 h-3 text-blue-700" />
                       <span>Pending</span>
                     </button>
+                  ) : !c.conflictCheck ? (
+                    <button
+                      onClick={(e) => handleOpenConflictModal(e, c)}
+                      className="px-2 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                      title="No conflict determination recorded yet: click to record one"
+                    >
+                      <Info className="w-3 h-3 text-amber-700" />
+                      <span>Not checked</span>
+                    </button>
                   ) : (
                     <button
                       onClick={(e) => handleOpenConflictModal(e, c)}
@@ -1193,277 +1579,7 @@ export const ClientsView: React.FC = () => {
         </table>
       </div>
 
-      {/* --- MANDATORY DELETE CONFIRMATION MODAL --- */}
-      {clientToDelete && (
-        <div className="fixed inset-0 bg-[#16223A]/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-rose-200 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-start gap-3">
-              <div className="p-3 bg-rose-100 text-rose-700 rounded-full shrink-0">
-                <AlertTriangle className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="font-serif text-base font-bold text-[#16223A]">
-                  Confirm Client Permanent Deletion
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Mandatory Firm Security Safeguard
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4 p-3 bg-rose-50/70 border border-rose-200 rounded-lg text-xs space-y-2 text-rose-900">
-              <p>
-                Are you sure you want to permanently delete the client record for:
-              </p>
-              <div className="p-2 bg-white rounded border border-rose-200 font-bold text-[#16223A]">
-                <p>{clientToDelete.name}</p>
-                <p className="font-mono text-[11px] text-slate-500 font-normal">
-                  Client ID: {clientToDelete.id} • {clientToDelete.type}
-                </p>
-              </div>
-              <p className="text-[11px] text-rose-700">
-                ⚠️ <strong>Warning:</strong> Deleting this client removes address particulars, contact points, and attached KYC documents. Registered legal matters and billing ledgers will remain in system archives.
-              </p>
-            </div>
-
-            <div className="mt-2 text-[10.5px] text-slate-500 flex items-center gap-1">
-              <Lock className="w-3 h-3 text-amber-700" />
-              <span>Authorized Operator: <strong>{currentUser?.name || currentRole}</strong> ({currentRole} Role)</span>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-4 mt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setClientToDelete(null)}
-                className="px-4 py-2 border border-[#DDE3EB] text-slate-700 hover:bg-slate-100 rounded-lg font-bold text-xs cursor-pointer transition-colors"
-              >
-                Cancel Keep Record
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-xs cursor-pointer shadow-md flex items-center gap-1.5 transition-colors"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Confirm Delete Client</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* --- PERMISSION DENIED MODAL --- */}
-      {showPermissionDeniedModal && (
-        <div className="fixed inset-0 bg-[#16223A]/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#DDE3EB]">
-            <div className="flex items-start gap-3">
-              <div className="p-3 bg-amber-100 text-amber-800 rounded-full shrink-0">
-                <Lock className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="font-serif text-base font-bold text-[#16223A]">
-                  Permission Restricted
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Firm Administrative Access Control
-                </p>
-              </div>
-            </div>
-
-            <p className="mt-4 text-xs text-slate-600 leading-relaxed">
-              Deleting client database profiles is strictly restricted to <strong>Firm Administrators</strong> and <strong>Partners</strong>. Your current role (<strong>{currentRole}</strong>) does not have deletion privileges for client master records.
-            </p>
-
-            <div className="flex justify-end pt-4 mt-4 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setShowPermissionDeniedModal(false)}
-                className="px-4 py-2 bg-[#16223A] text-amber-300 rounded-lg font-bold text-xs cursor-pointer"
-              >
-                Understood
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* --- KYC UPLOAD MODAL --- */}
-      {isKycModalOpen && selectedClient && (
-        <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#DDE3EB]">
-            <h3 className="font-serif text-base font-bold text-[#16223A] mb-3">Upload KYC Compliance Document</h3>
-            <form onSubmit={handleSaveKyc} className="space-y-3 text-xs">
-              <div>
-                <label className="font-bold text-slate-700 block uppercase mb-1">Document File</label>
-                <input
-                  type="file"
-                  required
-                  accept="image/*,.pdf"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0] || null;
-                    setKycFile(file);
-                    if (file && !kycName) setKycName(file.name);
-                  }}
-                  className="w-full"
-                />
-                <p className="text-[10px] text-slate-500 mt-1">Saved in this browser's local storage for this practice workspace.</p>
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block uppercase mb-1">Document Name / Reference</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. NRIC Copy - Datuk Dr. Robert Wong"
-                  value={kycName}
-                  onChange={(e) => setKycName(e.target.value)}
-                  className="w-full"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block uppercase mb-1">KYC Category</label>
-                <select value={kycType} onChange={(e) => setKycType(e.target.value)} className="w-full">
-                  <option value="Identity (NRIC/Passport)">Identity (NRIC/Passport)</option>
-                  <option value="SSM Corporate ROC Extract">SSM Corporate ROC Extract</option>
-                  <option value="Proof of Address (Utility Bill)">Proof of Address (Utility Bill)</option>
-                  <option value="Source of Funds Declaration">Source of Funds Declaration</option>
-                </select>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setIsKycModalOpen(false)}
-                  className="px-4 py-2 border border-[#DDE3EB] text-slate-700 hover:bg-slate-100 rounded-md font-semibold cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-[#16223A] hover:bg-[#16223A] text-white rounded-md font-semibold cursor-pointer"
-                >
-                  Upload
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Conflict Review Modal (Leads Concept) */}
-      {conflictClient && (
-        <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#DDE3EB] space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-serif text-base font-bold text-[#16223A]">
-                Conflict of Interest Check — {conflictClient.name}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setConflictClient(null)}
-                className="text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-500">
-              Formal partner determination under Legal Profession Act 1976 and Bar Council Guidelines.
-            </p>
-
-            {/* Display live conflict matches */}
-            {scanClientConflicts(
-              { id: conflictClient.id, name: conflictClient.name, icNo: conflictClient.icNo, registrationNo: conflictClient.registrationNo, email: conflictClient.email },
-              clients,
-              cases
-            ).length > 0 ? (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 space-y-1">
-                <span className="font-bold flex items-center gap-1 text-[11.5px]">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                  <span>Cross-Registry Matches Flagged ({scanClientConflicts({ id: conflictClient.id, name: conflictClient.name, icNo: conflictClient.icNo, registrationNo: conflictClient.registrationNo, email: conflictClient.email }, clients, cases).length}):</span>
-                </span>
-                <ul className="list-disc list-inside font-mono text-[11px] space-y-0.5 pt-1">
-                  {scanClientConflicts(
-                    { id: conflictClient.id, name: conflictClient.name, icNo: conflictClient.icNo, registrationNo: conflictClient.registrationNo, email: conflictClient.email },
-                    clients,
-                    cases
-                  ).map((m, i) => (
-                    <li key={i}><strong>{m.label}:</strong> {m.detail}</li>
-                  ))}
-                </ul>
-              </div>
-            ) : (
-              <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800 flex items-center gap-2 font-semibold">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>No adverse party or registered client matches found.</span>
-              </div>
-            )}
-
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="font-bold text-slate-700 block uppercase text-[10.5px] mb-1">
-                  Conflict Determination
-                </label>
-                <select
-                  value={ccStatus}
-                  onChange={(e) => setCcStatus(e.target.value as any)}
-                  className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg font-bold text-[#16223A]"
-                >
-                  <option value="Clear">Clear (No conflict of interest)</option>
-                  <option value="Flagged">Flagged (Direct / Potential Conflict)</option>
-                  <option value="Pending Partner Review">Pending Partner Review</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block uppercase text-[10.5px] mb-1">
-                  Reviewed By Partner
-                </label>
-                <select
-                  value={ccBy}
-                  onChange={(e) => setCcBy(e.target.value)}
-                  className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg font-semibold text-[#16223A]"
-                >
-                  <option value="Syafiqah Hamizad">Syafiqah Hamizad (SH)</option>
-                  <option value="Amer Haiqal">Amer Haiqal (AH)</option>
-                  <option value="Zulaikha Afendi">Zulaikha Afendi (ZA)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block uppercase text-[10.5px] mb-1">
-                  Partner Review Notes
-                </label>
-                <textarea
-                  rows={3}
-                  value={ccNotes}
-                  onChange={(e) => setCcNotes(e.target.value)}
-                  className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg"
-                  placeholder="Record conflict search checks, IC cross-checks, and partner reasoning..."
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setConflictClient(null)}
-                  className="px-4 py-2 border border-[#DDE3EB] text-slate-700 hover:bg-slate-100 rounded-md font-semibold text-xs cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveClientConflictCheck}
-                  className="px-4 py-2 bg-[#16223A] hover:bg-[#16223A] text-amber-300 rounded-md font-bold text-xs cursor-pointer shadow-sm"
-                >
-                  Save Determination
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {modals}
     </div>
   );
 };

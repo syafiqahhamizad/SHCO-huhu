@@ -150,9 +150,39 @@ export interface KycDoc {
   name: string;
   type: string;
   uploadedDate: string;
+  /** Where the file is, as a readable path (e.g. "Clients/Ahmad (HQ-C001)/KYC"). */
   driveFolder: string;
+  /** The file in the firm Google Drive (Clients/<name (id)>/KYC/). New uploads always have it. */
+  driveFileId?: string;
+  webViewLink?: string;
+  size?: number;
+  contentType?: string;
+  uploadedAt?: string;
+  uploadedBy?: string;
+  /** LEGACY, read-only: older uploads kept the whole file inline as a data URL (in the shared
+   * Firestore document). Still opens; never written any more. */
   dataUrl?: string;
   mimeType?: string;
+}
+
+/** Customer due diligence (AMLA 2001 / Bar Council AML/CFT guidance) captured on the client record. */
+export interface ClientCdd {
+  riskRating?: 'Low' | 'Medium' | 'High';
+  /** Politically exposed person (or family member / close associate of one). */
+  pep?: 'No' | 'Yes' | 'Not checked';
+  pepDetails?: string;
+  sourceOfFunds?: string;
+  sourceOfWealth?: string;
+  purposeOfRelationship?: string;
+  /** How identity was verified, e.g. "Original NRIC sighted", "SSM e-Info extract". */
+  verificationMethod?: string;
+  verifiedBy?: string;
+  verifiedAt?: string;
+  /** Enhanced due diligence applied (high risk / PEP). */
+  enhancedDueDiligence?: boolean;
+  notes?: string;
+  updatedBy?: string;
+  updatedAt?: string;
 }
 
 export type CorporateEntityCategory =
@@ -193,6 +223,8 @@ export interface Client {
   associatedCases?: string[];
   associatedCaseRefs?: string[];
   kyc: KycDoc[];
+  /** Customer due diligence (risk rating, PEP, source of funds, verification). */
+  cdd?: ClientCdd;
   tags?: string[];
   status?: 'Active' | 'Inactive' | 'Pending KYC' | 'Archived';
   createdAt?: string;
@@ -241,7 +273,7 @@ export interface CaseDocument {
   driveUrl?: string;
   dataUrl?: string;
   mimeType?: string;
-  /** Cases redesign (additive): stored copy in Drive / Firebase Storage. */
+  /** Stored copy in Google Drive (driveFileId). storagePath = legacy Firebase Storage copy, read-only. */
   driveFileId?: string;
   storagePath?: string;
 }
@@ -397,7 +429,7 @@ export interface ServiceRecord {
   /** Proof stored in the firm Google Drive (Matters/<file>/Filing or /Service). */
   driveFileId?: string;
   webViewLink?: string;
-  /** Proof stored in Firebase Storage (when Drive is not set up). */
+  /** LEGACY: proof stored in Firebase Storage before uploads moved to Google Drive (read-only). */
   storagePath?: string;
   recordedBy?: string;
   recordedAt?: string;
@@ -809,7 +841,8 @@ export interface ClaimDocument {
   uploadedAt?: string;
 }
 
-/** A receipt / supporting file kept in Firebase Storage. `path` is the Storage fullPath
+/** A receipt / supporting file. New uploads are in Google Drive (driveFileId / webViewLink); older ones
+ * kept in Firebase Storage have `path`, the Storage fullPath
  * (e.g. 'confidential/claims/{userId}/{recordId}/{timestamp}-{file}'); open it through
  * getDownloadURL so it works on every device. */
 export interface ClaimAttachment {
@@ -847,7 +880,7 @@ export interface Expense {
   attachmentName?: string;
   attachmentUrl?: string;
   documents?: ClaimDocument[];
-  /** Receipts stored in Firebase Storage (openable on any device). */
+  /** Receipts in Google Drive (older ones: Firebase Storage, read-only). Openable on any device. */
   attachments?: ClaimAttachment[];
   isClientUpfrontCovered?: boolean;
   clientTrustBalanceSnapshot?: number;
@@ -966,7 +999,7 @@ export interface PaymentVoucher {
   attachmentName?: string;
   attachmentUrl?: string;
   documents?: ClaimDocument[];
-  /** Supporting files stored in Firebase Storage (openable on any device). */
+  /** Supporting files in Google Drive (older ones: Firebase Storage, read-only). Openable on any device. */
   attachments?: ClaimAttachment[];
   /** Staff Portal payment request (PV) form number, e.g. 'PV-O-26-0012'. */
   formNo?: string;
@@ -1013,7 +1046,7 @@ export interface TravelClaim {
   attachmentName?: string;
   attachmentUrl?: string;
   documents?: ClaimDocument[];
-  /** Receipts stored in Firebase Storage (openable on any device). */
+  /** Receipts in Google Drive (older ones: Firebase Storage, read-only). Openable on any device. */
   attachments?: ClaimAttachment[];
   isClientUpfrontCovered?: boolean;
   clientTrustBalanceSnapshot?: number;
@@ -1177,7 +1210,7 @@ export interface StaffProfile {
   /** Marital status and number of children feed PCB tax reliefs. */
   maritalStatus?: 'Single' | 'Married' | 'Divorced' | 'Widowed';
   children?: number;
-  /** Staff photo in Firebase Storage (confidential/hr/{emailKey}/..., older files confidential/hr/{userId}/...). */
+  /** Staff photo in Google Drive (HR/<staff>/). Older photos: Firebase Storage confidential/hr/..., read-only. */
   photo?: HrDocument;
   homeAddress?: string;
   personalEmail?: string;
@@ -1220,13 +1253,13 @@ export interface StaffProfile {
   workHistory?: { employer: string; position: string; from: string; to: string }[];
   /** Ticked when the person has no previous employment (e.g. a fresh graduate or pupil). */
   noPriorEmployment?: boolean;
-  /** Scanned HR documents in Firebase Storage. Only the reference is stored here. */
+  /** Scanned HR documents in Google Drive (older ones: Firebase Storage). Only the reference is stored here. */
   hrDocuments?: HrDocument[];
   hrUpdatedAt?: string;
   hrUpdatedBy?: string;
 }
 
-/** A file in Firebase Storage attached to a staff member's HR record. */
+/** A file attached to a staff member's HR record (Google Drive; older ones Firebase Storage). */
 export interface HrDocument {
   name: string;
   /** Firebase Storage fullPath (older uploads). Drive uploads use driveFileId instead. */
@@ -1282,8 +1315,10 @@ export interface LeaveApplication {
   pic?: string;
   /** Half-day leave on a single day. */
   halfDay?: 'AM' | 'PM';
-  /** Supporting document (MC, discharge note, exam slip...) file name. */
+  /** Supporting document (MC, discharge note, exam slip...) file name. Older requests kept only this name. */
   attachmentName?: string;
+  /** The supporting document itself, in the firm Google Drive (Leave/<YYYY>/<staff>/). Metadata only. */
+  attachment?: ClaimAttachment;
 }
 
 export interface ActivityLog {

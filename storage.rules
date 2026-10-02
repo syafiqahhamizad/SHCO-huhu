@@ -93,22 +93,28 @@ service firebase.storage {
       return listedActiveWithRole(['client']) || legacyClient();
     }
 
-    // Claim / payment-request receipts: every firm user (claims are approved across devices).
+    // LEGACY, READ-ONLY. Since Oct 2026 every upload goes to the firm's Google Drive (Shared
+    // Drive); the portal no longer writes to Firebase Storage at all. The read rules below
+    // stay so files uploaded before the switch still open. All writes are denied.
+
+    // Claim / payment-request receipts and matter files (confidential/claims/matters/...):
+    // every firm user (claims are approved across devices).
     match /confidential/claims/{allPaths=**} {
-      allow read, write: if isFirmStaff();
+      allow read: if isFirmStaff();
+      allow write: if false;
     }
 
     // HR documents and staff photos: confidential/hr/{emailKey}/... (older files use
-    // confidential/hr/{userId}/...). Owner and admins read/write all; the staff member
-    // may read (not write) their own emailKey folder.
+    // confidential/hr/{userId}/...). Owner and admins read all; the staff member may read
+    // their own emailKey folder.
     match /confidential/hr/{person}/{allPaths=**} {
       allow read: if isCompanyAdmin() || (isFirmStaff() && person == accessKey());
-      allow write: if isCompanyAdmin();
+      allow write: if false;
     }
 
     match /clients/{clientId}/{allPaths=**} {
       allow read: if isFirmStaff() || (isClient() && request.auth.token.email.lower() == resource.metadata.get('ownerEmail', '').lower());
-      allow write: if isCompanyAdmin() || (isClient() && request.auth.uid == clientId && request.auth.token.email.lower() == request.resource.metadata.get('ownerEmail', '').lower());
+      allow write: if false;
     }
 
     match /{allPaths=**} {

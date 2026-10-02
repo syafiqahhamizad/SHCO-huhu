@@ -1,6 +1,12 @@
 import { getPracticeSettings } from './templateService';
 import {
-  GOOGLE_SCOPES, GOOGLE_TOKEN_EVENT, clearGoogleTokens, getGoogleAccessToken, getGoogleClientId, hasValidGoogleToken, loadGoogleIdentity, looksLikeClientId,
+  GOOGLE_SCOPES,
+  GOOGLE_TOKEN_EVENT,
+  clearGoogleTokens,
+  getGoogleAccessToken,
+  getGoogleClientId,
+  hasValidGoogleToken,
+  looksLikeClientId,
 } from './googleWorkspaceAuth';
 
 /**
@@ -19,7 +25,7 @@ import {
  *   reader permission for that one @shcolaw.com user).
  */
 
-export const DRIVE_SCOPE = GOOGLE_SCOPES.drive;
+const DRIVE_SCOPE = GOOGLE_SCOPES.drive;
 const API = 'https://www.googleapis.com/drive/v3';
 const UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
@@ -76,10 +82,9 @@ export const isDriveConfigured = (c: DriveConfig = getDriveConfig()) => Boolean(
 
 /* ------------------------------------------------------------------ token (shared Google Workspace auth) */
 
-export { loadGoogleIdentity };
 
 /** Forget the cached Drive token (e.g. after a 401, or on sign-out). */
-export const clearDriveToken = () => clearGoogleTokens('drive');
+const clearDriveToken = () => clearGoogleTokens('drive');
 
 /** Fired on window whenever a fresh Drive token arrives (photos waiting for one can load). */
 export const DRIVE_TOKEN_EVENT = 'shco-drive-token';
@@ -102,7 +107,7 @@ export const getDriveAccessToken = (): Promise<string> => getGoogleAccessToken('
 
 /* ------------------------------------------------------------------ REST helpers */
 
-export class DriveError extends Error {
+class DriveError extends Error {
   constructor(message: string, public status = 0, public reason = '') { super(message); }
 }
 
@@ -147,7 +152,7 @@ const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 /** Drive allows almost any name; keep folder/file names tidy and free of slashes. */
 export const driveSafeName = (s: string) => String(s || '').replace(/[\\/]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 150) || 'unnamed';
 
-export async function getDriveFile(id: string, fields = FILE_FIELDS): Promise<DriveFile> {
+async function getDriveFile(id: string, fields = FILE_FIELDS): Promise<DriveFile> {
   const res = await driveFetch(API + '/files/' + encodeURIComponent(id) + q({ fields }));
   return res.json();
 }
@@ -157,7 +162,7 @@ export async function getDriveFile(id: string, fields = FILE_FIELDS): Promise<Dr
 const folderCache = new Map<string, Promise<string>>();
 
 /** Finds a sub-folder by exact name under `parentId`, creating it if missing. Cached per session. */
-export function findOrCreateFolder(parentId: string, name: string): Promise<string> {
+function findOrCreateFolder(parentId: string, name: string): Promise<string> {
   const clean = driveSafeName(name);
   const key = parentId + '/' + clean;
   const hit = folderCache.get(key);
@@ -226,7 +231,7 @@ export async function uploadToDrive(folderId: string, file: Blob, name: string, 
 }
 
 /** Moves a file to the Shared Drive's trash (Drive empties it after 30 days). */
-export async function trashDriveFile(id: string): Promise<void> {
+async function trashDriveFile(id: string): Promise<void> {
   await driveFetch(API + '/files/' + encodeURIComponent(id) + q({ fields: 'id' }), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },

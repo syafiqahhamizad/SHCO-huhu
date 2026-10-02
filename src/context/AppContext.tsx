@@ -1277,6 +1277,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         return JSON.parse(saved);
       } catch {
+        // A corrupt local cache must never bring sample clients into the live app; the
+        // Firestore shared state replaces this on load.
         return operationalFallback(INITIAL_CLIENTS);
       }
     })() : operationalFallback(INITIAL_CLIENTS);
@@ -2894,6 +2896,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const normalizedClient: Client = {
       ...client,
+      createdAt: client.createdAt || new Date().toISOString(),
       name: normalizeClientName(client.name),
       contactPerson: client.contactPerson ? normalizeClientName(client.contactPerson) : client.contactPerson,
     };
@@ -2953,11 +2956,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(STORAGE_KEY + '_clients', JSON.stringify(updatedClients));
 
     // 2. Purge associated portal user login accounts
+    const clientEmail = (clientToDelete.email || '').trim().toLowerCase();
     const updatedUsers = users.filter(
       (u) =>
         !(
           u.role === 'Client' &&
-          (u.email.toLowerCase() === clientToDelete.email.toLowerCase() || u.id === clientToDelete.id)
+          ((!!clientEmail && (u.email || '').toLowerCase() === clientEmail) || u.id === clientToDelete.id)
         )
     );
     setUsers(updatedUsers);
@@ -2969,7 +2973,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 4. Logout if currently logged in as this client
     if (
       currentUser.role === 'Client' &&
-      (currentUser.email.toLowerCase() === clientToDelete.email.toLowerCase() || currentUser.id === clientToDelete.id)
+      ((!!clientEmail && (currentUser.email || '').toLowerCase() === clientEmail) || currentUser.id === clientToDelete.id)
     ) {
       logoutUser();
     }

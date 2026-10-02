@@ -14,7 +14,7 @@
  */
 import type React from 'react';
 import type { Invoice, Quotation, QuotationLineItem, Receipt, Case, Client, FinanceProof } from '../../../types';
-import { activeStorage, storeFinanceProof } from '../../../services/fileStorageService';
+import { DRIVE_REQUIRED_MSG, activeStorage, storeFinanceProof } from '../../../services/fileStorageService';
 import { driveViewUrl } from '../../../services/googleDriveService';
 import { computeTotals } from '../../../lib/billingEngine';
 import { type DocLines, type DocLine, type FinanceDoc, areaFromName, TERMS, defaultSstRate } from '../../../lib/financeDocs';
@@ -149,10 +149,12 @@ export const receiptToDoc = (r: Receipt, lk: Lookups, proofs: { name: string; ur
 };
 
 /* ------------------------------ proofs (session file cache + Google Drive) ------------------------------ */
-// Proof metadata is synced on the record. The file itself is viewable in this session through
-// an object URL; when Google Drive storage is set up (Firm Settings) it is also uploaded to
-// `Finance proofs/<YYYY>/` in the background and the record is then patched with the Drive
-// file id / link (see useFinanceController's proof-upload effect), so it opens on any device.
+// Proof metadata is synced on the record. The file is uploaded to the firm Google Drive
+// (`Finance proofs/<YYYY>/`) in the background and the record is then patched with the Drive
+// file id / link (see useFinanceController's proof-upload effect), so it opens on any device;
+// until then it is viewable in this session through an object URL. Attaching is BLOCKED when
+// Drive storage is not set up (callers check proofUploadBlocked() first; filesToProofs then
+// returns nothing), so no record ends up holding a name-only proof any more.
 const proofUrls = new Map<string, string>();
 const proofKey = (owner: string, name: string) => owner + '::' + name;
 /** Identifies one attached file across records (the same proof object can be copied onto a receipt too). */
@@ -169,20 +171,21 @@ export const subscribeProofUploads = (fn: () => void) => { proofListeners.add(fn
 const notifyProofs = () => proofListeners.forEach((fn) => fn());
 export const filesToProofs = (owner: string, files: FileList | File[] | null | undefined): FinanceProof[] => {
   const arr = files ? Array.from(files as ArrayLike<File>) : [];
-  const drive = activeStorage() === 'drive';
+  if (proofUploadBlocked()) return [];
   return arr.map((f) => {
     proofUrls.set(proofKey(owner, f.name), URL.createObjectURL(f));
     const p: FinanceProof = { name: f.name, size: f.size, type: f.type, uploadedAt: new Date().toISOString() };
-    if (drive) {
-      const sig = proofSig(p);
-      const ref = owner === 'form' ? '' : owner.slice(owner.indexOf(':') + 1);
-      storeFinanceProof(f, proofUploader || 'Accounts', ref)
-        .then((r) => { proofUploads.set(sig, { ok: true, ...r }); notifyProofs(); })
-        .catch((e) => { proofUploads.set(sig, { ok: false, name: f.name, error: e instanceof Error ? e.message : String(e) }); notifyProofs(); });
-    }
+    const sig = proofSig(p);
+    const ref = owner === 'form' ? '' : owner.slice(owner.indexOf(':') + 1);
+    storeFinanceProof(f, proofUploader || 'Accounts', ref)
+      .then((r) => { proofUploads.set(sig, { ok: true, ...r }); notifyProofs(); })
+      .catch((e) => { proofUploads.set(sig, { ok: false, name: f.name, error: e instanceof Error ? e.message : String(e) }); notifyProofs(); });
     return p;
   });
 };
+/** Proofs can only be attached once Google Drive storage is set up (message: DRIVE_REQUIRED_MSG). */
+export const proofUploadBlocked = () => activeStorage() !== 'drive';
+export { DRIVE_REQUIRED_MSG };
 const proofUrl = (owner: string, name: string) => proofUrls.get(proofKey(owner, name)) || '';
 /** Best link for a proof: its Drive page (saved on the record, or just uploaded), else this session's copy. */
 export const proofLink = (owner: string, p: Pick<FinanceProof, 'name' | 'size' | 'uploadedAt' | 'webViewLink' | 'driveFileId'>) =>
@@ -190,7 +193,7 @@ export const proofLink = (owner: string, p: Pick<FinanceProof, 'name' | 'size' |
 /** What to say when a proof has no openable copy. */
 export const proofMissingMsg = (name: string) => name + (activeStorage() === 'drive'
   ? ' (only the file name was kept: it was attached before Google Drive storage was set up, or its upload did not finish)'
-  : ' (file not stored: only the file name is kept. Set up Google Drive storage in Firm Settings to keep the files)');
+  : ' (file not stored: only the file name was kept, from before uploads went to Google Drive)');
 export const rememberProofUrls = (fromOwner: string, toOwner: string, proofs: FinanceProof[]) => {
   proofs.forEach((p) => { const u = proofUrls.get(proofKey(fromOwner, p.name)); if (u) proofUrls.set(proofKey(toOwner, p.name), u); });
 };

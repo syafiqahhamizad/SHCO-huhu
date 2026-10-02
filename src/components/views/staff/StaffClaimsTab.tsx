@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { useApp } from '../../../context/AppContext';
 import type { ClaimAttachment, ClaimDocument, Expense, PaymentVoucher, TravelClaim } from '../../../types';
 import { claimsStorageService } from '../../../services/claimsStorageService';
-import { openStoredFile, prepareStorage, storeClaimReceipt, storedFileKey, useStorageLabel, validateClaimFile } from '../../../services/fileStorageService';
+import { DRIVE_REQUIRED_MSG, isUploadReady, openStoredFile, prepareStorage, storeClaimReceipt, storedFileKey, useStorageLabel, validateClaimFile } from '../../../services/fileStorageService';
 import {
   card, cardTitle, ClaimKind, ClaimRow, ddmm, ddmmyyyy, FileDirectory, KIND_COLORS, labelWrap, OFFICE_LABEL, rm, STATUS_COLORS, todayIso,
 } from './staffPortalShared';
@@ -20,7 +20,7 @@ type Mode = 'Claim' | 'PV';
 type From = 'Disb' | 'Office' | 'Client';
 type Method = 'Bank transfer' | 'Online portal' | 'Cheque';
 
-/** A receipt picked in the form — the File itself is uploaded on submit (Google Drive when set up, else Firebase Storage). */
+/** A receipt picked in the form — the File itself is uploaded on submit to the firm Google Drive (blocked until Drive is set up). */
 interface FormDoc {
   id: string;
   name: string;
@@ -221,6 +221,7 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
 
   const addFiles = (list: FileList | null) => {
     if (!list || !list.length) return;
+    if (!isUploadReady()) { showToast(DRIVE_REQUIRED_MSG); return; }
     const added: FormDoc[] = [];
     for (const file of Array.from(list)) {
       const problem = validateClaimFile(file);
@@ -276,7 +277,7 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
     other.forEach((i, x) => idOf.set(i, seq(ex0, x)));
     if (D) items.forEach((i, x) => idOf.set(i, seq(pv0, x)));
 
-    // Upload receipts (Google Drive when set up, else Firebase Storage). If any upload fails, nothing is submitted.
+    // Upload receipts to the firm Google Drive. If any upload fails, nothing is submitted.
     setBusy(true);
     setUpErr('');
     const stored = new Map<Item, ClaimAttachment[]>();
