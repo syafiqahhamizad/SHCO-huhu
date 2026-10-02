@@ -43,6 +43,7 @@ import { palette, tint, tintText } from '../../lib/designTokens';
 import { useConfirmation } from '../../hooks/useConfirmation';
 import { localIso, parseLocal, toLocalMonth } from '../../lib/localDate';
 import { caseFinder, isIssued, owedBalance, paidByInvoice } from '../../lib/financeMetrics';
+import { driveViewUrl } from '../../services/googleDriveService';
 
 type Bucket = 'overdue' | 'today' | 'week' | 'later';
 type FilterValue = 'all' | Bucket | 'hearing' | 'waiting' | 'unbilled';
@@ -841,6 +842,9 @@ export const MyDashboardView: React.FC = () => {
       onPrimary: () => void;
       secondaryLabel: string;
       onSecondary: () => void;
+      /** Supporting document (e.g. a leave MC in Google Drive). */
+      docName?: string;
+      docUrl?: string;
     }[] = [];
 
     (leaveApplications || []).forEach((l: any) => {
@@ -849,7 +853,9 @@ export const MyDashboardView: React.FC = () => {
       out.push({
         id: `dec-leave-${l.id}`,
         title: `Leave: ${applicant}`,
-        subtitle: `${l.startDate}${l.endDate && l.endDate !== l.startDate ? ` – ${l.endDate}` : ''} · ${l.days} day(s) · ${l.reason || l.leaveType}`,
+        subtitle: `${l.startDate}${l.endDate && l.endDate !== l.startDate ? ` – ${l.endDate}` : ''} · ${l.days} day(s) · ${l.reason || l.leaveType}${l.attachmentName && !l.attachment ? ` · ${l.attachmentName} (name only)` : ''}`,
+        docName: l.attachment?.name,
+        docUrl: l.attachment ? driveViewUrl(l.attachment) : undefined,
         primaryLabel: 'Approve',
         onPrimary: () => updateLeaveApplication(l.id, { status: 'Approved', reviewedBy: currentUser?.name, reviewedAt: nowIso }),
         secondaryLabel: 'Reject',
@@ -1013,7 +1019,7 @@ export const MyDashboardView: React.FC = () => {
             {decisions.map((d) => (
               <div key={d.id} className="flex flex-col gap-2 p-3.5">
                 <p className="text-[12px] font-bold leading-snug text-[#16223A]">{d.title}</p>
-                <p className="flex-1 text-[10.5px] leading-snug text-[#5B6478]">{d.subtitle}</p>
+                <p className="flex-1 text-[10.5px] leading-snug text-[#5B6478]">{d.subtitle}{d.docUrl && <> · <a href={d.docUrl} target="_blank" rel="noopener noreferrer" className="font-bold text-[#2F4F7A] underline">{d.docName || 'Supporting document'}</a></>}</p>
                 <div className="flex gap-1.5">
                   <button type="button" onClick={d.onPrimary} className="flex-1 rounded-md bg-[#2F6F4E] px-2 py-1.5 text-[11px] font-bold text-white">{d.primaryLabel}</button>
                   <button type="button" onClick={d.onSecondary} className="flex-1 rounded-md border border-[#DDE3EB] bg-white px-2 py-1.5 text-[11px] font-bold text-[#16223A]">{d.secondaryLabel}</button>

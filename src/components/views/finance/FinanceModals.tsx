@@ -1,6 +1,6 @@
 import React from 'react';
 import type { FinanceCtrl, EditorState } from './useFinanceController';
-import { css, filesToProofs, proofMissingMsg, proofUrl, rm2 } from './financeModel';
+import { css, DRIVE_REQUIRED_MSG, filesToProofs, proofMissingMsg, proofUploadBlocked, proofUrl, rm2 } from './financeModel';
 import { storageLabel } from '../../../services/fileStorageService';
 import * as SD from '../../../lib/financeDocs';
 import { PV_DRAWINGS, PV_SST, PV_STATUTORY } from '../../../lib/financeCalc';
@@ -191,7 +191,7 @@ export const FormModal = ({ F }: { F: FinanceCtrl }) => {
           {def[1].map(([k, label, x]) => { const isOpts = Array.isArray(x), isFile = x === 'file'; const fl: FinanceProof[] = f.vals[k] || []; return (
             <div key={k} style={css('display:flex;flex-direction:column;gap:4px')}><span style={css(LBL)}>{label}</span>
               {!isOpts && !isFile && <input list={listFor(k)} value={f.vals[k] || ''} onChange={(ev) => set(k, ev.target.value)} placeholder={typeof x === 'string' ? x : ''} style={css(INPUT)} />}
-              {isFile && <div style={css('display:flex;align-items:center;gap:8px')}><label style={css('border:1px solid #DDE3EB;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit;white-space:nowrap')}>Choose files<input type="file" multiple accept="image/*,.pdf" onChange={(ev) => set(k, [...fl, ...filesToProofs('form', ev.target.files)])} style={css('display:none')} /></label><span style={css(`font-size:10.5px;color:${fl.length ? '#2F6F4E' : '#B23A2E'}`)}>{fl.length ? fl.map((q) => q.name).join(', ') : 'Nothing attached yet'}</span><span style={css('margin-left:auto;font-size:10px;color:#5B6478;white-space:nowrap')}>{storageLabel() === 'Saved to Firebase Storage' ? 'File kept in this session only (set up Google Drive in Firm Settings)' : storageLabel()}</span></div>}
+              {isFile && <div style={css('display:flex;align-items:center;gap:8px')}><label style={css('border:1px solid #DDE3EB;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit;white-space:nowrap')}>Choose files<input type="file" multiple accept="image/*,.pdf" onChange={(ev) => { const picked = ev.target.files; if (picked && picked.length && proofUploadBlocked()) { F.toastMsg(DRIVE_REQUIRED_MSG); ev.target.value = ''; return; } set(k, [...fl, ...filesToProofs('form', picked)]); }} style={css('display:none')} /></label><span style={css(`font-size:10.5px;color:${fl.length ? '#2F6F4E' : '#B23A2E'}`)}>{fl.length ? fl.map((q) => q.name).join(', ') : 'Nothing attached yet'}</span><span style={css(`margin-left:auto;font-size:10px;color:${proofUploadBlocked() ? '#B23A2E' : '#5B6478'};white-space:nowrap`)}>{storageLabel()}</span></div>}
               {isOpts && <div style={css('display:flex;flex-wrap:wrap;gap:4px')}>{seg(x as string[], f.vals[k] || (x as string[])[0], (v) => set(k, v))}</div>}
             </div>
           ); })}

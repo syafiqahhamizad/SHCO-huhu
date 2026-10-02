@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../../../context/AppContext';
-import type { LeaveApplication } from '../../../types';
+import type { ClaimAttachment, LeaveApplication } from '../../../types';
+import { DRIVE_REQUIRED_MSG, isUploadReady, prepareStorage, storeLeaveDocument, useStorageLabel, validateClaimFile } from '../../../services/fileStorageService';
 import { isMine } from '../../../lib/identity';
 import { card, cardTitle, ddmmyyyy, isoOf, labelWrap, LEAVE_COLORS, LEAVE_TYPES, getPublicHolidays } from './staffPortalShared';
 
@@ -22,6 +23,18 @@ export const StaffLeaveTab: React.FC<Props> = ({ myLeaves, used, me }) => {
   const [lv, setLv] = useState({ type: 'Annual', from: '', to: '', half: 'Full day', pic: '', mc: '' });
   const setL = (p: Partial<typeof lv>) => setLv((s) => ({ ...s, ...p }));
   const [dragOn, setDragOn] = useState(false);
+  const [mcFile, setMcFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const storage = useStorageLabel();
+  /** Keeps the picked supporting document; blocked (with the reason) when Drive is not set up or the file is not allowed. */
+  const pickMc = (f0?: File | null) => {
+    if (!f0) return;
+    if (!isUploadReady()) { showToast(DRIVE_REQUIRED_MSG); return; }
+    const problem = validateClaimFile(f0);
+    if (problem) { showToast(problem); return; }
+    setMcFile(f0);
+    setL({ mc: f0.name });
+  };
 
   // Court dates on matters this person is on (lawyer in charge, team lawyer or partner).
   const COURT = useMemo(() => {
@@ -80,16 +93,33 @@ export const StaffLeaveTab: React.FC<Props> = ({ myLeaves, used, me }) => {
           : 'Weekends and public holidays are not counted.';
   const wc = over || clash.length ? '#B23A2E' : '#5B6478';
 
-  const submit = () => {
+  const submit = async () => {
+    if (busy) return;
     if (!s || !e) return showToast('Choose your dates');
     if (e < s) return showToast('The “To” date is before “From”');
     if (!days) return showToast('No working days in those dates');
     if (over) return showToast('Not enough leave balance');
-    if (needMc && !lv.mc) return showToast('Please attach the supporting document');
+    if (needMc && !mcFile) return showToast('Please attach the supporting document');
     if (!lv.pic) return showToast('Choose the PIC covering your files');
     const end = lv.to || lv.from;
+    const id = 'LV-' + Date.now();
+    // The supporting document goes to the firm Google Drive (Leave/<YYYY>/<staff>/); only its
+    // metadata is kept on the leave record. Blocked until Drive storage is set up.
+    let attachment: ClaimAttachment | undefined;
+    if (needMc && mcFile) {
+      setBusy(true);
+      try {
+        await prepareStorage();
+        attachment = await storeLeaveDocument({ email: currentUser.email, staffId: currentUser.staffProfile?.staffId, name: currentUser.name }, mcFile, id);
+      } catch (err) {
+        setBusy(false);
+        return showToast('Not sent: ' + (err instanceof Error ? err.message : String(err)));
+      }
+      setBusy(false);
+    }
     addLeaveApplication({
-      id: 'LV-' + Date.now(),
+      id,
+      attachment,
       userId: currentUser.id,
       leaveType: lv.type as LeaveApplication['leaveType'],
       startDate: lv.from,
@@ -109,6 +139,7 @@ export const StaffLeaveTab: React.FC<Props> = ({ myLeaves, used, me }) => {
       linkTab: 'staffPortal',
     });
     setLv((x) => ({ ...x, from: '', to: '', half: 'Full day', pic: '', mc: '' }));
+    setMcFile(null);
     showToast('Leave request sent to your partner and ' + lv.pic);
   };
 
@@ -173,7 +204,7 @@ export const StaffLeaveTab: React.FC<Props> = ({ myLeaves, used, me }) => {
           <div style={{ padding: '10px 14px', background: '#16223A' }}><strong style={{ fontSize: 13, color: '#fff' }}>Apply for leave</strong></div>
           <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 9 }}>
             <label style={labelWrap}><span style={LBL}>Type of leave</span>
-              <select value={lv.type} onChange={(ev) => setL({ type: ev.target.value, mc: '' })} style={INP}>
+              <select value={lv.type} onChange={(ev) => { setL({ type: ev.target.value, mc: '' }); setMcFile(null); }} style={INP}>
                 {LEAVE_TYPES.map(([t]) => <option key={t} value={t}>{t}</option>)}
               </select>
             </label>
@@ -197,15 +228,16 @@ export const StaffLeaveTab: React.FC<Props> = ({ myLeaves, used, me }) => {
               <div
                 onDragOver={(ev) => { ev.preventDefault(); if (!dragOn) setDragOn(true); }}
                 onDragLeave={() => setDragOn(false)}
-                onDrop={(ev) => { ev.preventDefault(); const f0 = ev.dataTransfer.files && ev.dataTransfer.files[0]; setDragOn(false); if (f0) setL({ mc: f0.name }); }}
+                onDrop={(ev) => { ev.preventDefault(); const f0 = ev.dataTransfer.files && ev.dataTransfer.files[0]; setDragOn(false); pickMc(f0); }}
                 style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', border: '1.5px dashed ' + (dragOn ? '#16223A' : '#C9D3E0'), borderRadius: 8, background: dragOn ? '#EEF3F9' : '#FAFBFC', padding: '9px 11px' }}
               >
                 <span style={{ display: 'flex', flexDirection: 'column' }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: '#16223A' }}>{mcLabel}: drop here</span>
-                  <span style={{ fontSize: 10.5, color: lv.mc ? '#2F6F4E' : '#5B6478' }}>{lv.mc || 'photo or PDF'}</span>
+                  <span style={{ fontSize: 10.5, color: lv.mc ? '#2F6F4E' : '#5B6478' }}>{lv.mc || 'photo or PDF, up to 10 MB'}</span>
+                  <span style={{ fontSize: 10, color: storage.startsWith('Uploads blocked') ? '#B23A2E' : '#5B6478' }}>{storage}</span>
                 </span>
                 <label style={{ marginLeft: 'auto', border: '1px solid #DDE3EB', borderRadius: 6, padding: '5px 10px', fontSize: 10.5, fontWeight: 700, background: '#fff', color: '#16223A', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                  or choose file<input type="file" accept="image/*,.pdf" onChange={(ev) => { const f0 = ev.target.files && ev.target.files[0]; if (f0) setL({ mc: f0.name }); }} style={{ display: 'none' }} />
+                  or choose file<input type="file" accept="image/*,.pdf" onChange={(ev) => { const f0 = ev.target.files && ev.target.files[0]; ev.target.value = ''; pickMc(f0); }} style={{ display: 'none' }} />
                 </label>
               </div>
             )}
@@ -216,7 +248,7 @@ export const StaffLeaveTab: React.FC<Props> = ({ myLeaves, used, me }) => {
               </select>
             </label>
             <span style={{ fontSize: 10.5, lineHeight: 1.5, color: wc }}>{warn}</span>
-            <button type="button" onClick={submit} style={{ border: 0, borderRadius: 6, padding: '8px 12px', fontSize: 11.5, fontWeight: 700, background: '#16223A', color: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>Send to partner</button>
+            <button type="button" disabled={busy} onClick={() => { void submit(); }} style={{ border: 0, borderRadius: 6, padding: '8px 12px', fontSize: 11.5, fontWeight: 700, background: '#16223A', color: '#fff', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1, fontFamily: 'inherit' }}>{busy ? 'Uploading…' : 'Send to partner'}</button>
             <span style={{ fontSize: 10, lineHeight: 1.45, color: '#5B6478' }}>Once approved, it goes on the firm calendar so partners and your PIC can see it. You can add it to your own Google / Outlook calendar from “My leave”.</span>
           </div>
         </div>

@@ -1,29 +1,47 @@
 import { useEffect, useState } from 'react';
 import type { ClaimAttachment, FinanceProof, HrDocument } from '../types';
 import {
-  describeStorageError, getClaimAttachmentUrl, openClaimAttachment, uploadClaimAttachment, uploadHrFile, validateClaimFile,
+  describeStorageError, getClaimAttachmentUrl, openClaimAttachment, validateClaimFile,
 } from './firebaseStorageService';
 import {
   DRIVE_TOKEN_EVENT, downloadDriveFile, driveSafeName, driveViewUrl, ensureFolderPath, getDriveAccessToken, getDriveConfig, grantReader, hasValidDriveToken, isDriveConfigured, uploadToDrive,
 } from './googleDriveService';
 
 /**
- * One place that decides where uploaded files go.
+ * One place that decides where uploaded files go: the firm's Google Drive (Shared Drive), and
+ * nowhere else (firm decision, Oct 2026).
  *
- * - Google Drive (firm Shared Drive) once the Managing Partner has set it up in
- *   Firm & Practice Settings → Firm & Letterhead → Google Drive storage.
- * - Otherwise Firebase Storage, exactly as before.
- *
- * Records keep `path` for Firebase Storage files and `driveFileId` + `webViewLink` for Drive
- * files, so files uploaded before the switch still open.
+ * - Every upload goes to the Shared Drive the Managing Partner set up in Firm & Practice
+ *   Settings → Firm & Letterhead → Google Drive storage. Records keep only metadata
+ *   ({ name, driveFileId, webViewLink, size, contentType, uploadedAt, uploadedBy }).
+ * - When Drive is not set up, uploads are BLOCKED with DRIVE_REQUIRED_MSG. There is no
+ *   Firebase Storage fallback any more, and nothing new is kept as a data URL / base64 copy
+ *   (one exception: the letterhead header image, see storeLetterheadImage).
+ * - Legacy, read-only: records made before the switch may still carry a Firebase Storage
+ *   `path` / `storagePath`, or a `dataUrl`. Those still open (openStoredFile, useStoredImageUrl,
+ *   openLegacyDataUrl); nothing new is written that way.
  */
 
-export type StorageBackend = 'drive' | 'firebase';
-export const activeStorage = (): StorageBackend => (isDriveConfigured() ? 'drive' : 'firebase');
+/** Shown wherever an upload is attempted before Drive storage is set up. */
+export const DRIVE_REQUIRED_MSG = 'Set up Google Drive in Firm & Practice Settings → Firm & Letterhead before uploading.';
 
-/** "Saved to Google Drive · SHCO Portal" / "Saved to Firebase Storage". */
+/** Metadata kept on a record for one uploaded file. */
+export interface StoredFileMeta { name: string; driveFileId: string; webViewLink?: string; size: number; contentType: string; uploadedAt: string; uploadedBy: string }
+
+export type StorageBackend = 'drive' | 'none';
+export const activeStorage = (): StorageBackend => (isDriveConfigured() ? 'drive' : 'none');
+/** True once Drive storage is set up (uploads allowed). */
+export const isUploadReady = () => isDriveConfigured();
+
+/** Throws DRIVE_REQUIRED_MSG when Drive storage is not set up; returns the Drive config. */
+export const requireDrive = () => {
+  if (!isDriveConfigured()) throw new Error(DRIVE_REQUIRED_MSG);
+  return getDriveConfig();
+};
+
+/** "Saved to Google Drive · SHCO Portal", or the blocking message when Drive is not set up. */
 export const storageLabel = (): string => {
-  if (activeStorage() !== 'drive') return 'Saved to Firebase Storage';
+  if (activeStorage() !== 'drive') return 'Uploads blocked: ' + DRIVE_REQUIRED_MSG;
   const c = getDriveConfig();
   return 'Saved to Google Drive · ' + (c.rootFolderName || 'firm Shared Drive');
 };
@@ -44,81 +62,105 @@ export { validateClaimFile };
 const isPdf = (file: File) => file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
 const typeOf = (file: File) => file.type || (isPdf(file) ? 'application/pdf' : 'application/octet-stream');
 const yyyy = () => String(new Date().getFullYear());
+const errOf = (file: File, err: unknown) => new Error(file.name + ': ' + (err instanceof Error ? err.message : String(err)));
 
 /**
- * Warms up the Drive token from inside a click handler (so Google's small sign-in popup is
- * allowed by the browser) before any slower work starts. No-op when Drive is not in use.
+ * Checks Drive is set up, then warms up the Drive token from inside a click handler (so Google's
+ * small sign-in popup is allowed by the browser) before any slower work starts.
+ * Throws DRIVE_REQUIRED_MSG when Drive is not set up.
  */
 export async function prepareStorage(): Promise<void> {
-  if (activeStorage() === 'drive') await getDriveAccessToken();
+  requireDrive();
+  await getDriveAccessToken();
+}
+
+/** Uploads one file into `parts` under `baseId` (default: the firm root folder). */
+async function storeIn(parts: string[], file: File, uploadedBy: string, opts: { baseId?: string; name?: string; description?: string } = {}): Promise<StoredFileMeta> {
+  const problem = validateClaimFile(file);
+  if (problem) throw new Error(problem);
+  const c = requireDrive();
+  try {
+    const folder = await ensureFolderPath(opts.baseId || c.rootFolderId, parts);
+    const f = await uploadToDrive(folder, file, opts.name || file.name, typeOf(file), opts.description || ('Uploaded by ' + uploadedBy));
+    return { name: file.name, driveFileId: f.id, webViewLink: f.webViewLink, size: file.size, contentType: typeOf(file), uploadedAt: new Date().toISOString(), uploadedBy };
+  } catch (err) {
+    throw errOf(file, err);
+  }
 }
 
 /* ------------------------------------------------------------------ claims */
 
-/**
- * A claim / payment-request receipt. Drive: `Claims/<YYYY>/<form no.>/`. Firebase:
- * `confidential/claims/{userId}/{recordId}/…` (unchanged).
- */
+/** A claim / payment-request receipt. Drive: `Claims/<YYYY>/<form no.>/`. */
 export async function storeClaimReceipt(opts: { userId: string; recordId: string; formNo: string; file: File; uploadedBy: string }): Promise<ClaimAttachment> {
-  const { file } = opts;
-  const problem = validateClaimFile(file);
-  if (problem) throw new Error(problem);
-  if (activeStorage() !== 'drive') return uploadClaimAttachment(opts.userId, opts.recordId, file);
-  const c = getDriveConfig();
-  try {
-    const folder = await ensureFolderPath(c.rootFolderId, ['Claims', yyyy(), opts.formNo || opts.recordId]);
-    const f = await uploadToDrive(folder, file, opts.recordId + ' - ' + file.name, typeOf(file), 'Receipt for ' + opts.recordId + ' (' + (opts.formNo || '') + ') uploaded by ' + opts.uploadedBy);
-    return { name: file.name, driveFileId: f.id, webViewLink: f.webViewLink, size: file.size, contentType: typeOf(file), uploadedAt: new Date().toISOString(), uploadedBy: opts.uploadedBy };
-  } catch (err) {
-    throw new Error(file.name + ': ' + (err instanceof Error ? err.message : String(err)));
-  }
+  return storeIn(['Claims', yyyy(), opts.formNo || opts.recordId], opts.file, opts.uploadedBy, {
+    name: opts.recordId + ' - ' + opts.file.name,
+    description: 'Receipt for ' + opts.recordId + ' (' + (opts.formNo || '') + ') uploaded by ' + opts.uploadedBy,
+  });
 }
 
 /* ------------------------------------------------------------------ HR */
 
 export interface HrStaffRef { email: string; staffId?: string; name: string }
+const staffFolderName = (staff: HrStaffRef) => [staff.staffId, staff.name].filter(Boolean).join(' ') || staff.email || 'Unknown staff';
 
 /**
  * An HR document or staff photo. Drive: `HR/<Staff ID> <Display name>/` inside the HR folder
  * (if the owner set a separate one) or the root folder. When `shareWithStaff` is true the staff
  * member gets reader access to that one file, so they can open it from their own record even
- * if they are not a member of the HR Shared Drive. Firebase: unchanged.
+ * if they are not a member of the HR Shared Drive.
  */
 export async function storeHrFile(staff: HrStaffRef, file: File, uploadedBy: string, opts: { shareWithStaff?: boolean } = {}): Promise<Omit<HrDocument, 'type'> & { shareWarning?: string }> {
-  const problem = validateClaimFile(file);
-  if (problem) throw new Error(problem);
-  const uploadedAt = new Date().toISOString();
-  if (activeStorage() !== 'drive') {
-    const up = await uploadHrFile(staff.email, file);
-    return { ...up, uploadedAt, uploadedBy };
+  const c = requireDrive();
+  const up = c.hrFolderId
+    ? await storeIn([staffFolderName(staff)], file, uploadedBy, { baseId: c.hrFolderId, description: 'HR file for ' + staff.name + ' uploaded by ' + uploadedBy })
+    : await storeIn(['HR', staffFolderName(staff)], file, uploadedBy, { description: 'HR file for ' + staff.name + ' uploaded by ' + uploadedBy });
+  let shareWarning: string | undefined;
+  if (opts.shareWithStaff && staff.email) {
+    try { await grantReader(up.driveFileId, staff.email); } catch (e) { shareWarning = 'Saved, but ' + staff.name + ' could not be given access to open it (' + (e instanceof Error ? e.message : String(e)) + ').'; }
   }
-  const c = getDriveConfig();
-  const folderName = [staff.staffId, staff.name].filter(Boolean).join(' ') || staff.email || 'Unknown staff';
-  try {
-    const folder = c.hrFolderId
-      ? await ensureFolderPath(c.hrFolderId, [folderName])
-      : await ensureFolderPath(c.rootFolderId, ['HR', folderName]);
-    const f = await uploadToDrive(folder, file, file.name, typeOf(file), 'HR file for ' + staff.name + ' uploaded by ' + uploadedBy);
-    let shareWarning: string | undefined;
-    if (opts.shareWithStaff && staff.email) {
-      try { await grantReader(f.id, staff.email); } catch (e) { shareWarning = 'Saved, but ' + staff.name + ' could not be given access to open it (' + (e instanceof Error ? e.message : String(e)) + ').'; }
-    }
-    return { name: file.name, driveFileId: f.id, webViewLink: f.webViewLink, size: file.size, contentType: typeOf(file), uploadedAt, uploadedBy, shareWarning };
-  } catch (err) {
-    throw new Error(file.name + ': ' + (err instanceof Error ? err.message : String(err)));
-  }
+  return { ...up, shareWarning };
+}
+
+/**
+ * A leave supporting document (MC, discharge note, exam slip…) uploaded by the staff member
+ * themselves. Drive: `Leave/<YYYY>/<Staff ID> <Name>/` under the firm root (not the HR folder,
+ * which may be partners-only), so every staff member can upload their own.
+ */
+export async function storeLeaveDocument(staff: HrStaffRef, file: File, leaveId: string): Promise<StoredFileMeta> {
+  return storeIn(['Leave', yyyy(), staffFolderName(staff)], file, staff.name, {
+    name: leaveId + ' - ' + file.name,
+    description: 'Leave supporting document for ' + leaveId + ' uploaded by ' + staff.name,
+  });
 }
 
 /* ------------------------------------------------------------------ finance proofs */
 
-/** A bank-in slip / payment proof. Drive only: `Finance proofs/<YYYY>/`. */
+/** A bank-in slip / payment proof. Drive: `Finance proofs/<YYYY>/`. */
 export async function storeFinanceProof(file: File, uploadedBy: string, ref?: string): Promise<Pick<FinanceProof, 'driveFileId' | 'webViewLink' | 'uploadedBy'>> {
-  const problem = validateClaimFile(file);
-  if (problem) throw new Error(problem);
-  const c = getDriveConfig();
-  const folder = await ensureFolderPath(c.rootFolderId, ['Finance proofs', yyyy()]);
-  const f = await uploadToDrive(folder, file, (ref ? ref + ' - ' : '') + file.name, typeOf(file), 'Finance proof uploaded by ' + uploadedBy);
-  return { driveFileId: f.id, webViewLink: f.webViewLink, uploadedBy };
+  const up = await storeIn(['Finance proofs', yyyy()], file, uploadedBy, { name: (ref ? ref + ' - ' : '') + file.name, description: 'Finance proof uploaded by ' + uploadedBy });
+  return { driveFileId: up.driveFileId, webViewLink: up.webViewLink, uploadedBy };
+}
+
+/* ------------------------------------------------------------------ clients (KYC / CDD) */
+
+/** Drive folder name for a client: "<name> (<client id>)". */
+export const clientFolderName = (name: string, id: string) => driveSafeName([name, id ? '(' + id + ')' : ''].filter(Boolean).join(' ')).slice(0, 120);
+
+/** A client's KYC / CDD document (IC, SSM extract, proof of address…). Drive: `Clients/<name (id)>/KYC/`. */
+export async function storeClientKycFile(client: { id: string; name: string }, file: File, uploadedBy: string): Promise<StoredFileMeta> {
+  return storeIn(['Clients', clientFolderName(client.name, client.id), 'KYC'], file, uploadedBy, { description: 'KYC document for ' + client.name + ' (' + client.id + ') uploaded by ' + uploadedBy });
+}
+
+/* ------------------------------------------------------------------ firm letterhead */
+
+/**
+ * The original letterhead header image for a branch. Drive: `Firm/Letterhead/`.
+ * Exception to "metadata only": documents are printed / turned into PDFs in an iframe without
+ * a Drive token, so the caller ALSO keeps a small compressed data-URL copy in Firm Settings for
+ * rendering. The Drive copy is the original of record.
+ */
+export async function storeLetterheadImage(branchName: string, file: File, uploadedBy: string): Promise<StoredFileMeta> {
+  return storeIn(['Firm', 'Letterhead'], file, uploadedBy, { name: branchName + ' - ' + file.name, description: 'Letterhead header for ' + branchName + ' uploaded by ' + uploadedBy });
 }
 
 /* ------------------------------------------------------------------ matter files */
@@ -128,7 +170,7 @@ export const matterFolderName = (ref: string, title?: string) => driveSafeName([
 
 /**
  * Creates (or finds) the matter's own folder in the firm Shared Drive: `Matters/<ref - title>/`.
- * Drive only — returns null when Drive is not set up in Firm Settings.
+ * Returns null when Drive is not set up in Firm Settings.
  */
 export async function ensureMatterFolder(ref: string, title?: string): Promise<{ id: string; url: string } | null> {
   if (activeStorage() !== 'drive') return null;
@@ -137,33 +179,19 @@ export async function ensureMatterFolder(ref: string, title?: string): Promise<{
   return { id, url: 'https://drive.google.com/drive/folders/' + encodeURIComponent(id) };
 }
 
+/** `storagePath` is legacy (Firebase Storage, read-only); new files always have driveFileId. */
 export interface StoredMatterFile { name: string; driveFileId?: string; webViewLink?: string; storagePath?: string; size: number; contentType: string; uploadedAt: string; uploadedBy: string }
 
 /**
  * A file kept on a matter (filing / service proof, correspondence, documents).
  * Drive: `<matter folder>/<sub>/` — the matter's own folder when it has one, else
- * `Matters/<ref - title>/<sub>/` under the firm root. Firebase (Drive not set up):
- * `confidential/claims/matters/<ref>_<sub>/…`, which firm staff can read under storage.rules.
+ * `Matters/<ref - title>/<sub>/` under the firm root.
  */
 export async function storeMatterFile(opts: { ref: string; title?: string; folderId?: string; sub: 'Filing' | 'Service' | 'Correspondence' | 'Documents'; file: File; uploadedBy: string }): Promise<StoredMatterFile> {
-  const { file } = opts;
-  const problem = validateClaimFile(file);
-  if (problem) throw new Error(problem);
-  const uploadedAt = new Date().toISOString();
-  if (activeStorage() !== 'drive') {
-    const up = await uploadClaimAttachment('matters', String(opts.ref || 'file').replace(/\//g, '-') + '_' + opts.sub, file);
-    return { name: file.name, storagePath: up.path, size: file.size, contentType: typeOf(file), uploadedAt, uploadedBy: opts.uploadedBy };
-  }
-  const c = getDriveConfig();
-  try {
-    const folder = opts.folderId
-      ? await ensureFolderPath(opts.folderId, [opts.sub])
-      : await ensureFolderPath(c.rootFolderId, ['Matters', matterFolderName(opts.ref, opts.title), opts.sub]);
-    const f = await uploadToDrive(folder, file, file.name, typeOf(file), opts.sub + ' for ' + opts.ref + ' uploaded by ' + opts.uploadedBy);
-    return { name: file.name, driveFileId: f.id, webViewLink: f.webViewLink, size: file.size, contentType: typeOf(file), uploadedAt, uploadedBy: opts.uploadedBy };
-  } catch (err) {
-    throw new Error(file.name + ': ' + (err instanceof Error ? err.message : String(err)));
-  }
+  const description = opts.sub + ' for ' + opts.ref + ' uploaded by ' + opts.uploadedBy;
+  return opts.folderId
+    ? storeIn([opts.sub], opts.file, opts.uploadedBy, { baseId: opts.folderId, description })
+    : storeIn(['Matters', matterFolderName(opts.ref, opts.title), opts.sub], opts.file, opts.uploadedBy, { description });
 }
 
 /* ------------------------------------------------------------------ opening */
@@ -177,7 +205,7 @@ export const sameStoredFile = (a: StoredFileRef, b: StoredFileRef) =>
 
 /**
  * Opens a stored file in a new tab. Drive files open their Drive page (Drive checks the
- * viewer is allowed); older Firebase Storage files use a download URL as before.
+ * viewer is allowed); legacy Firebase Storage files use a download URL (read-only support).
  * Returns an error message, or null on success.
  */
 export async function openStoredFile(f: StoredFileRef): Promise<string | null> {
@@ -192,10 +220,37 @@ export async function openStoredFile(f: StoredFileRef): Promise<string | null> {
 }
 
 /**
+ * Opens a legacy file that was kept inline as a data URL (old KYC / case documents, before
+ * uploads moved to Drive). Read-only support: shown in a new tab through a Blob URL, since
+ * browsers block navigating to data: URLs directly. Returns an error message, or null.
+ */
+export function openLegacyDataUrl(dataUrl: string, name = 'document'): string | null {
+  const m = /^data:([^;,]*)(;base64)?,(.*)$/s.exec(dataUrl || '');
+  if (!m) return 'This file could not be read.';
+  try {
+    const raw = m[2] ? atob(m[3]) : decodeURIComponent(m[3]);
+    const bytes = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([bytes], { type: m[1] || 'application/octet-stream' }));
+    const win = window.open(url, '_blank', 'noopener');
+    if (!win) {
+      const a = document.createElement('a');
+      a.href = url; a.download = name; a.rel = 'noopener';
+      document.body.appendChild(a); a.click(); a.remove();
+    }
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    return null;
+  } catch {
+    return 'This file could not be read.';
+  }
+}
+
+/**
  * Image URL for a stored image (staff photo). Drive images are fetched with the viewer's
  * Drive token and shown through an object URL (Drive links do not render in <img> without
  * auth). Loading a photo never opens Google's sign-in popup on its own: if there is no Drive
  * token yet this session, `needsDrive` is true and `connect()` (call it from a click) gets one.
+ * Legacy Firebase Storage photos (`path`) still load through a download URL.
  * `url` is null (show the initial avatar) whenever the image cannot be loaded.
  */
 export const useStoredImageUrl = (f?: StoredFileRef | null): { url: string | null; needsDrive: boolean; connect: () => void } => {

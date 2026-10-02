@@ -62,9 +62,9 @@ export const DriveStorageCard = ({ C }: { C: SettingsCtx }) => {
   };
 
   const switchOff = () => {
-    if (!window.confirm('Switch new uploads back to Firebase Storage? Files already saved to Google Drive stay there and still open from their records.')) return;
-    C.save({ driveRootFolderId: '', driveRootFolderName: '', driveLastTest: undefined }, 'Drive Storage Changed', 'Switched back to Firebase Storage');
-    C.msg('New uploads now go to Firebase Storage');
+    if (!window.confirm('Turn off Google Drive storage? Every upload in the portal (claims, HR, KYC, matter files, finance proofs, letterhead) will be BLOCKED until Drive is set up again. Files already saved to Google Drive stay there and still open from their records.')) return;
+    C.save({ driveRootFolderId: '', driveRootFolderName: '', driveLastTest: undefined }, 'Drive Storage Changed', 'Google Drive storage turned off (uploads blocked)');
+    C.msg('Google Drive storage turned off. Uploads are blocked until it is set up again');
   };
 
   const exportAll = async () => {
@@ -99,9 +99,9 @@ export const DriveStorageCard = ({ C }: { C: SettingsCtx }) => {
 
   const last = s.driveLastTest;
   const status: { color: string; bg: string; text: string } = !cfg.clientId && !cfg.rootFolderId
-    ? { color: '#5B6478', bg: '#F6F8FA', text: 'Not set up · new uploads go to Firebase Storage' }
+    ? { color: '#5B6478', bg: '#F6F8FA', text: 'Not set up · uploads are blocked until Google Drive is set up' }
     : !on
-      ? { color: '#8A6534', bg: '#FBF2E9', text: 'Half set up · add ' + (!cfg.rootFolderId ? 'the Shared Drive folder' : 'the OAuth client ID') + ' · new uploads still go to Firebase Storage' }
+      ? { color: '#8A6534', bg: '#FBF2E9', text: 'Half set up · add ' + (!cfg.rootFolderId ? 'the Shared Drive folder' : 'the OAuth client ID') + ' · uploads are blocked until this is finished' }
       : last && !last.ok
         ? { color: '#B23A2E', bg: '#FBEDE9', text: 'Last test failed (' + when(last.at) + '): ' + last.message + ' · new uploads try Google Drive and will fail until this is fixed' }
         : last && last.ok
@@ -111,7 +111,7 @@ export const DriveStorageCard = ({ C }: { C: SettingsCtx }) => {
   return (
     <>
       <div style={css('grid-column:1 / -1;' + S.card)}>
-        <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Google Drive storage</strong><span style={css('margin-left:8px;font-size:10.5px;color:#5B6478')}>claim receipts, HR documents, staff photos, finance proofs and backups · kept in the firm’s Shared Drive</span></div>
+        <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Google Drive storage</strong><span style={css('margin-left:8px;font-size:10.5px;color:#5B6478')}>every upload in the portal: claim receipts, HR documents, staff photos, leave documents, client KYC, matter files, finance proofs, letterhead and backups · kept in the firm’s Shared Drive</span></div>
         <div style={css(`padding:8px 14px;font-size:11px;font-weight:700;color:${status.color};background:${status.bg};border-bottom:1px solid #EEF1F5`)}>{status.text}</div>
         <div style={css('display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;padding:12px 14px')}>
           <div style={css('display:flex;flex-direction:column;gap:9px;min-width:0')}>
@@ -126,7 +126,7 @@ export const DriveStorageCard = ({ C }: { C: SettingsCtx }) => {
             </label>
             <div style={css('display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:2px')}>
               <button type="button" disabled={!on || testing} onClick={() => void test()} style={css(S.darkBtn + (!on || testing ? ';opacity:.5;cursor:default' : ''))}>{testing ? 'Testing…' : 'Test connection'}</button>
-              {!!cfg.rootFolderId && <button type="button" onClick={switchOff} style={css(S.lightBtn)}>Switch back to Firebase Storage</button>}
+              {!!cfg.rootFolderId && <button type="button" onClick={switchOff} style={css(S.lightBtn)}>Turn off Drive storage</button>}
               <span style={css('font-size:10.5px;color:#5B6478')}>The test writes a tiny file to Backups/, reads it and moves it to trash.</span>
             </div>
           </div>
@@ -140,7 +140,7 @@ export const DriveStorageCard = ({ C }: { C: SettingsCtx }) => {
               <li>Optional, recommended: a second Shared Drive <strong>“SHCO HR”</strong> with only partners / admin as members, pasted into “HR folder”, so staff cannot browse each other’s HR files. Each staff member is given view access to their own photo and personal documents.</li>
               <li>Click <strong>Test connection</strong>. Each person is asked once by Google to allow Drive access the first time they upload or open a Drive file.</li>
             </ol>
-            <p style={css('margin:6px 0 0;color:#5B6478')}>No Cloud Functions, service accounts or public links are used; files are never shared outside the firm, so the Workspace’s Domain Restricted Sharing policy is not affected. Files uploaded before the switch stay in Firebase Storage and still open.</p>
+            <p style={css('margin:6px 0 0;color:#5B6478')}>No Cloud Functions, service accounts or public links are used; files are never shared outside the firm, so the Workspace’s Domain Restricted Sharing policy is not affected. Files uploaded before the switch to Drive stay in Firebase Storage (read-only) and still open; nothing new is written there.</p>
           </details>
         </div>
       </div>

@@ -230,9 +230,15 @@ export interface FirmBranch {
   name: string;
   hq?: boolean;
   address: string;
-  /** Uploaded letterhead header image (small data URL) and its original file name. */
+  /**
+   * Uploaded letterhead header image: a small compressed data URL kept here ONLY as a render
+   * cache (print / PDF iframes cannot fetch from Drive), and its original file name.
+   * The original is stored in Google Drive (Firm/Letterhead/): letterheadDriveFileId / link.
+   */
   letterheadImage?: string;
   letterheadFileName?: string;
+  letterheadDriveFileId?: string;
+  letterheadWebViewLink?: string;
 }
 
 export interface PurposeEmail {

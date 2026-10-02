@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { CaseDocument } from '../../../../types';
 import { exportToWordDoc } from '../../../../lib/exportUtils';
-import { prepareStorage, storeMatterFile, openStoredFile, useStorageLabel } from '../../../../services/fileStorageService';
+import { prepareStorage, storeMatterFile, openLegacyDataUrl, openStoredFile, useStorageLabel } from '../../../../services/fileStorageService';
 import { css, S, Card } from '../caseUi';
 import { courtOf, daysFrom, fmt, isoOf, lawyerOf } from '../caseModel';
 import { histEntry, newId, type WF } from '../wf';
@@ -54,7 +54,8 @@ export const LettersTab: React.FC<{ w: WF }> = ({ w }) => {
   const openDoc = async (d: CaseDocument & { driveFileId?: string; storagePath?: string }) => {
     if (d.driveFileId || d.storagePath) { const err = await openStoredFile({ driveFileId: d.driveFileId, webViewLink: d.driveUrl, path: d.storagePath }); if (err) w.toast(err); return; }
     if (d.driveUrl) { window.open(d.driveUrl, '_blank', 'noopener'); return; }
-    if (d.dataUrl) { const win = window.open(); if (win) win.document.write(`<iframe src="${d.dataUrl}" style="border:0;width:100%;height:100%"></iframe>`); return; }
+    // Legacy (read-only): documents kept inline before uploads moved to Google Drive.
+    if (d.dataUrl) { const err = openLegacyDataUrl(d.dataUrl, d.name); if (err) w.toast(err); return; }
     w.toast('Only the name of this document was kept — there is no stored copy.');
   };
 

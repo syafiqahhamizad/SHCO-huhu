@@ -9,7 +9,6 @@ import {
   Building2,
   AlertCircle,
   MapPin,
-  Sparkles,
   Check,
   ShieldCheck,
   FileCheck,
@@ -17,7 +16,6 @@ import {
   Briefcase,
   RotateCcw,
   AlertTriangle,
-  Zap,
 } from 'lucide-react';
 
 export interface CorporateEntityOption {
@@ -429,7 +427,7 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { clients, cases, addClient, showToast, getNextSequenceId } = useApp();
+  const { clients, cases, addClient, showToast, getNextSequenceId, currentUser } = useApp();
 
   // Form State
   const [type, setType] = useState<'Individual' | 'Corporate'>('Individual');
@@ -439,8 +437,8 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({
   const [phone, setPhone] = useState('');
   const [streetAddress, setStreetAddress] = useState('');
   const [postcode, setPostcode] = useState('');
-  const [city, setCity] = useState('Kuala Lumpur');
-  const [state, setState] = useState('Selangor');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
   const [country, setCountry] = useState('Malaysia');
 
   // Corporate Specifics
@@ -462,9 +460,8 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({
 
   // Conflict Screening State & Real-time Search Input
   const [conflictSearchInput, setConflictSearchInput] = useState('');
-  const [conflictStatus, setConflictStatus] = useState<'Clear' | 'Flagged' | 'Pending Partner Review'>('Clear');
-  const [conflictNotes, setConflictNotes] = useState('');
-  const [screenedBy, setScreenedBy] = useState('Puan Syafiqah Hamizad');
+  // Whoever registers the client ran the registration-time conflict screen.
+  const screenedBy = currentUser?.name || '';
 
   // Validation Errors & Confirmation States
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -498,7 +495,8 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({
     };
   }, [isOpen, name, email, phone, streetAddress, postcode, registrationNo, taxSstNo, contactPersonName, contactPersonDesignation, icNo, occupation, emergencyContactName, emergencyContactPhone, notes]);
 
-  // Trigger SSM lookup mock API validation as user types SSM Registration No.
+  // Format check only, as the user types the registration no. This does NOT look the entity up
+  // with SSM (there is no SSM connection); staff verify with an SSM e-Info extract under KYC.
   useEffect(() => {
     if (type !== 'Corporate') {
       setSsmValidation(null);
@@ -514,7 +512,7 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({
     setSsmValidation({
       isSearching: true,
       isVerified: false,
-      statusText: 'Querying SSM e-Search Registry Portal...',
+      statusText: 'Checking format…',
     });
 
     const timer = setTimeout(() => {
@@ -530,7 +528,7 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({
         setSsmValidation({
           isSearching: false,
           isVerified: true,
-          statusText: 'Verified Record • Suruhanjaya Syarikat Malaysia',
+          statusText: 'Format looks right (not checked against SSM)',
         });
       } else {
         setSsmValidation({
@@ -558,8 +556,8 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({
     setPhone('');
     setStreetAddress('');
     setPostcode('');
-    setCity('Kuala Lumpur');
-    setState('Selangor');
+    setCity('');
+    setState('');
     setCountry('Malaysia');
     setEntityCategory('Sdn Bhd');
     setRegistrationNo('');
@@ -623,98 +621,6 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({
     clearFieldError('taxSstNo');
     clearFieldError('contactPersonName');
     clearFieldError('contactPersonDesignation');
-  };
-
-  const handleAutoFetchTaxId = (regNoInput?: string) => {
-    if (type === 'Individual') {
-      const cleanIc = (regNoInput !== undefined ? regNoInput : icNo).trim();
-      if (!cleanIc) {
-        showToast('Please enter NRIC or Passport Number first.', 'info');
-        return;
-      }
-      const digits = cleanIc.replace(/\D/g, '');
-      const derivedTin = digits.length >= 6 ? `IG ${digits}` : `IG 850714145231`;
-      setTaxSstNo(derivedTin);
-      clearFieldError('taxSstNo');
-      showToast(`Linked LHDN Resident Individual Tax File (${derivedTin}) for NRIC #${cleanIc}`, 'success');
-      return;
-    }
-
-    const rawReg = (regNoInput !== undefined ? regNoInput : registrationNo).trim();
-    if (!rawReg) {
-      showToast('Please enter an SSM Registration Number first.', 'info');
-      return;
-    }
-
-    const digitsOnly = rawReg.replace(/\D/g, '');
-    const numPart = digitsOnly.length >= 5 ? digitsOnly.slice(-10) : '2024010988';
-
-    let derivedTin = '';
-    let derivedSst = '';
-
-    if (entityCategory === 'Sdn Bhd' || entityCategory === 'Berhad') {
-      derivedTin = `C ${numPart.padEnd(10, '0')}`;
-      derivedSst = `W10-1808-${numPart.slice(-8)}`;
-    } else if (entityCategory === 'Enterprise' || entityCategory === 'Sole Proprietorship') {
-      derivedTin = `OG ${numPart.padEnd(10, '0')}`;
-      derivedSst = `W10-1808-${numPart.slice(-8)}`;
-    } else if (entityCategory === 'LLP') {
-      derivedTin = `PT ${numPart.padEnd(8, '0')}`;
-      derivedSst = `W10-1808-${numPart.slice(-8)}`;
-    } else if (entityCategory === 'Partnership') {
-      derivedTin = `D ${numPart.padEnd(9, '0')}`;
-    } else if (entityCategory === 'Society/Association' || entityCategory === 'Cooperative') {
-      derivedTin = `E ${numPart.padEnd(8, '0')}`;
-    } else if (entityCategory === 'Foreign Entity') {
-      derivedTin = `F ${numPart.padEnd(10, '0')}`;
-    } else {
-      derivedTin = `C ${numPart.padEnd(10, '0')}`;
-      derivedSst = `W10-1808-${numPart.slice(-8)}`;
-    }
-
-    const fullTaxString = derivedSst ? `${derivedTin} / SST: ${derivedSst}` : derivedTin;
-    setTaxSstNo(fullTaxString);
-    clearFieldError('taxSstNo');
-    showToast(`Linked LHDN TIN (${derivedTin}) & SST Record for SSM #${rawReg}`, 'success');
-  };
-
-  const handleFillSampleData = () => {
-    setFormErrors({});
-    setHasSubmitted(false);
-    if (type === 'Individual') {
-      setSalutation('Dato\'');
-      setName('Ahmad Khairuddin bin Zulkifli');
-      setIcNo('850714-14-5231');
-      setNationality('Malaysian');
-      setOccupation('Managing Director');
-      setEmail('ahmad.khairuddin@example.com.my');
-      setPhone('+60 12-388 9911');
-      setStreetAddress('Suite 18-02, Level 18, Menara Apex, No. 12, Jalan Bukit Bintang');
-      setPostcode('50200');
-      setCity('Kuala Lumpur');
-      setState('W.P. Kuala Lumpur');
-      setCountry('Malaysia');
-      setEmergencyContactName('Datin Maryam Zulkifli');
-      setEmergencyContactPhone('+60 12-888 2233');
-      setNotes('High-net-worth individual client. Prefers updates via email and official WhatsApp.');
-    } else {
-      const config = getCorporateEntityConfig(entityCategory);
-      setName(config.sampleName);
-      setRegistrationNo(config.sampleRegNo);
-      setTaxSstNo(config.sampleTaxNo);
-      setContactPersonName(config.sampleRepName);
-      setContactPersonDesignation(config.sampleRepDesignation);
-      setEmail(`legal@${config.sampleName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com.my`);
-      setPhone('+60 3-2168 8800');
-      setStreetAddress('Level 25, Menara Nusantara, No. 88, Jalan Ampang');
-      setPostcode('50450');
-      setCity('Kuala Lumpur');
-      setState('W.P. Kuala Lumpur');
-      setCountry('Malaysia');
-      setEmergencyContactName('Puan Salmah Mansor (Company Secretary)');
-      setEmergencyContactPhone('+60 3-2168 8801');
-      setNotes(`Corporate client (${config.shortCode}). All correspondence to be routed through Legal Department.`);
-    }
   };
 
   const clearFieldError = (fieldName: string) => {
@@ -846,7 +752,7 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({
       type: type,
       entityCategory: type === 'Corporate' ? entityCategory : undefined,
       registrationNo: type === 'Corporate' ? registrationNo.trim() : undefined,
-      taxSstNo: type === 'Corporate' ? taxSstNo.trim() : undefined,
+      taxSstNo: taxSstNo.trim() || undefined,
       contactPerson: type === 'Corporate' ? contactPersonName.trim() : name.trim(),
       contactPersonDesignation: type === 'Corporate' ? contactPersonDesignation.trim() : undefined,
       salutation: type === 'Individual' ? salutation : undefined,
@@ -863,22 +769,18 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({
       emergencyContactName: emergencyContactName.trim() || undefined,
       emergencyContactPhone: emergencyContactPhone.trim() || undefined,
       notes: notes.trim() || undefined,
+      // Registration-time screen against firm records, recorded under whoever registered the client.
       conflictCheck: {
-        status: liveConflicts.length > 0 ? (conflictStatus === 'Clear' ? 'Flagged' : conflictStatus) : conflictStatus,
-        notes: conflictNotes.trim() || (liveConflicts.length > 0 ? 'Potential conflict matches flagged during client registration.' : 'Screening completed upon client registration. No adverse conflicts found.'),
-        checkedBy: screenedBy || 'Puan Syafiqah Hamizad',
+        status: liveConflicts.length > 0 ? 'Flagged' : 'Clear',
+        notes: liveConflicts.length > 0 ? 'Potential conflict matches flagged during client registration.' : 'Screened against firm client and case records at registration. No matches found.',
+        checkedBy: screenedBy || 'Not recorded',
         checkedDate: new Date().toISOString().split('T')[0],
       },
       autoConflictMatches: liveConflicts,
-      kyc: [
-        {
-          id: `KYC-${Date.now()}-1`,
-          name: `Master Identification - ${name.trim()}`,
-          type: type === 'Corporate' ? 'SSM Corporate ROC Extract' : 'Identity (NRIC/Passport)',
-          uploadedDate: new Date().toISOString().split('T')[0],
-          driveFolder: `Firm Repository / Clients / ${autoId}`,
-        },
-      ],
+      // No placeholder KYC entry: documents are added (to Google Drive) from the client's KYC tab.
+      kyc: [],
+      status: 'Pending KYC',
+      createdAt: new Date().toISOString(),
     };
 
     addClient(newClient);
@@ -911,14 +813,6 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleFillSampleData}
-              className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-[#16223A] font-bold text-[11px] border border-amber-300 rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-              <span>Auto-Fill Demo</span>
-            </button>
             <button
               type="button"
               onClick={handleResetClick}
@@ -1179,13 +1073,6 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({
                     <label className="font-bold text-slate-700 block text-[10.5px] uppercase">
                       LHDN Tax Identification (TIN)
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => handleAutoFetchTaxId()}
-                      className="text-[9.5px] font-bold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-1.5 py-0.2 rounded border border-blue-200 cursor-pointer"
-                    >
-                      Auto-TIN
-                    </button>
                   </div>
                   <input
                     type="text"
@@ -1194,67 +1081,29 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({
                       setTaxSstNo(e.target.value);
                       clearFieldError('taxSstNo');
                     }}
-                    placeholder="IG 850714145231 or SG / OG..."
+                    placeholder="e.g. IG / SG / OG followed by the number"
                     className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg font-mono"
                   />
                   <div className="mt-1 space-y-0.5">
                     <div className="flex items-center justify-between text-[9px]">
                       <span className="text-slate-500 font-medium">IG: Resident Individual | SG: Salaried | OG: Business</span>
-                      <div className="flex gap-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const digits = icNo.replace(/\D/g, '') || '850714145231';
-                            setTaxSstNo(`IG ${digits}`);
-                            clearFieldError('taxSstNo');
-                          }}
-                          className="font-bold text-emerald-800 hover:text-[#16223A] bg-emerald-50 hover:bg-emerald-100 px-1 py-0.2 rounded border border-emerald-300 cursor-pointer"
-                          title="IG = Resident Individual Tax File"
-                        >
-                          +IG
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const digits = icNo.replace(/\D/g, '') || '850714145231';
-                            setTaxSstNo(`SG ${digits}`);
-                            clearFieldError('taxSstNo');
-                          }}
-                          className="font-bold text-slate-700 hover:text-[#16223A] bg-slate-100 hover:bg-slate-200 px-1 py-0.2 rounded border border-slate-300 cursor-pointer"
-                          title="SG = Salaried Employee Tax File"
-                        >
-                          +SG
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const digits = icNo.replace(/\D/g, '') || '850714145231';
-                            setTaxSstNo(`OG ${digits}`);
-                            clearFieldError('taxSstNo');
-                          }}
-                          className="font-bold text-slate-700 hover:text-[#16223A] bg-slate-100 hover:bg-slate-200 px-1 py-0.2 rounded border border-slate-300 cursor-pointer"
-                          title="OG = Non-Company Business Income Tax File"
-                        >
-                          +OG
-                        </button>
-                      </div>
                     </div>
                     {taxSstNo.trim().toUpperCase().startsWith('IG') && (
                       <p className="text-[9px] text-emerald-700 font-semibold flex items-center gap-1">
                         <Check className="w-2.5 h-2.5 text-emerald-600" />
-                        <span>LHDN Validated: Resident Individual Tax File (IG)</span>
+                        <span>IG prefix: Resident Individual Tax File (not checked with LHDN)</span>
                       </p>
                     )}
                     {taxSstNo.trim().toUpperCase().startsWith('SG') && (
                       <p className="text-[9px] text-blue-700 font-semibold flex items-center gap-1">
                         <Check className="w-2.5 h-2.5 text-blue-600" />
-                        <span>LHDN Validated: Salaried Employee File (SG)</span>
+                        <span>SG prefix: Salaried Employee File (not checked with LHDN)</span>
                       </p>
                     )}
                     {taxSstNo.trim().toUpperCase().startsWith('OG') && (
                       <p className="text-[9px] text-purple-700 font-semibold flex items-center gap-1">
                         <Check className="w-2.5 h-2.5 text-purple-600" />
-                        <span>LHDN Validated: Individual Business Income File (OG)</span>
+                        <span>OG prefix: Individual Business Income File (not checked with LHDN)</span>
                       </p>
                     )}
                   </div>
@@ -1373,13 +1222,13 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({
                     {ssmValidation?.isSearching && (
                       <span className="text-[9.5px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 flex items-center gap-1 animate-pulse">
                         <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping" />
-                        <span>SSM Lookup...</span>
+                        <span>Checking…</span>
                       </span>
                     )}
                     {ssmValidation?.isVerified && (
                       <span className="text-[9.5px] font-extrabold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1 shadow-2xs">
                         <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                        <span>Verified</span>
+                        <span>Format OK</span>
                       </span>
                     )}
                   </div>
@@ -1389,11 +1238,6 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({
                     onChange={(e) => {
                       setRegistrationNo(e.target.value);
                       clearFieldError('registrationNo');
-                    }}
-                    onBlur={() => {
-                      if (!taxSstNo.trim() && registrationNo.trim().length >= 4) {
-                        handleAutoFetchTaxId(registrationNo);
-                      }
                     }}
                     placeholder={currentEntityConfig.regNoPlaceholder}
                     className={`w-full text-xs p-2 bg-white border rounded-lg font-mono transition-all ${
@@ -1412,7 +1256,7 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({
                   ) : ssmValidation?.isVerified ? (
                     <p className="text-[9.5px] text-emerald-700 font-semibold mt-1 flex items-center gap-1">
                       <Check className="w-3 h-3 text-emerald-600 shrink-0" />
-                      <span>Match Confirmed in SSM Corporate Records</span>
+                      <span>Format OK. Not checked against SSM: file an SSM e-Info extract under KYC.</span>
                     </p>
                   ) : ssmValidation?.statusText && !ssmValidation.isSearching ? (
                     <p className="text-[9.5px] text-amber-700 font-medium mt-0.5 flex items-center gap-1">
@@ -1429,15 +1273,6 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({
                     <label className="font-bold text-slate-700 block text-[10.5px] uppercase">
                       {currentEntityConfig.taxLabel} {currentEntityConfig.validationRules.taxNoRequired && '*'}
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => handleAutoFetchTaxId()}
-                      className="text-[10px] font-bold text-amber-800 hover:text-[#16223A] bg-amber-100 hover:bg-amber-200 px-1.5 py-0.5 rounded flex items-center gap-1 transition-colors cursor-pointer"
-                      title="Auto-query & link LHDN MyInvois Tax Identification Number & SST Registry"
-                    >
-                      <Zap className="w-3 h-3 text-amber-600 fill-amber-600" />
-                      <span>Auto-Fetch</span>
-                    </button>
                   </div>
                   <input
                     type="text"

@@ -17,7 +17,7 @@ import * as SD from '../../../lib/financeDocs';
 import { statutoryForPayslip, STATUTORY_VERSION } from '../../../lib/statutory';
 import { finRoleKey, finTabsFor, FIN_TABS, type FinTab } from '../../../lib/financeAccess';
 import {
-  GLA, MONTHS, MON, SC, addrOf, cashAccountGL, daysSince, dShort, expenseGL, fd, filesToProofs, findCase, initials,
+  GLA, MONTHS, MON, SC, addrOf, cashAccountGL, daysSince, dShort, expenseGL, fd, DRIVE_REQUIRED_MSG, filesToProofs, findCase, proofUploadBlocked, initials,
   invoiceToDoc, inPeriod, isoOf, itemAmount, linesToItems, monthEnd, num0, parseDate, periodKey, picColor, proofLink, proofSig, proofUploadResults, proofUrl, setProofUploader, subscribeProofUploads,
   pvDebitGL, quotationToDoc, receiptAccount, receiptToDoc, recordSstRate, recordTotals, rememberProofUrls, rm, rm2, todayIso, type Lookups,
 } from './financeModel';
@@ -505,6 +505,7 @@ export function useFinanceController(initialTab: FinTab) {
   const markPaid = (item: PayItem, file?: File | null) => {
     if (!file) return;
     if (!canPrepare) { toastMsg('Payments are made and recorded by Accounts.'); return; }
+    if (proofUploadBlocked()) { toastMsg(DRIVE_REQUIRED_MSG); return; }
     const at = new Date().toISOString(), date = todayIso();
     const [proof] = filesToProofs(item.kind + ':' + item.id, [file]);
     if (item.kind === 'travel') { const t = travelClaims.find((x) => x.id === item.id); app.updateTravelClaim(item.id, { paidAt: at, paidProof: proof }); postGL([{ date, docType: 'PV', docNo: item.id, accountSet: 'OFFICE', debit: GLA.other, credit: GLA.office, amount: item.amount, clientId: '', fileRef: t?.fileRef || '', description: `Staff claim paid: ${t?.claimant || ''} ${item.id}` }]); }
@@ -579,6 +580,7 @@ export function useFinanceController(initialTab: FinTab) {
   /* ------------------------------ cash book ------------------------------ */
   const attachTo = (kind: string, id: string) => (files: FileList | null) => {
     const owner = kind + ':' + id;
+    if (files && files.length && proofUploadBlocked()) { toastMsg(DRIVE_REQUIRED_MSG); return; }
     const nf = filesToProofs(kind === 'receipt' ? id : owner, files);
     if (!nf.length) return;
     if (kind === 'receipt') { const r = receipts.find((x) => x.id === id); if (r) app.updateReceipt(id, { proofs: [...(r.proofs || []), ...nf] }); }

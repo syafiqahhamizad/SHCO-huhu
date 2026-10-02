@@ -1,14 +1,18 @@
-import { getDownloadURL, getStorage, ref, uploadBytes } from 'firebase/storage';
+import { getDownloadURL, getStorage, ref } from 'firebase/storage';
 import { firebaseApp } from './firebaseAuthService';
 import type { ClaimAttachment } from '../types';
-import { emailToAccessKey } from './accessListService';
 
 /**
- * Firebase Storage for claim / payment-request receipts.
+ * Firebase Storage — LEGACY, READ-ONLY.
  *
- * Uses the default bucket of the already-initialised Firebase app
- * (firebaseConfig.storageBucket in firebaseAuthService.ts). Files live under
- * `confidential/**`, which storage.rules limits to signed-in firm staff.
+ * All uploads now go to the firm's Google Drive (see fileStorageService.ts). This module only
+ * opens files uploaded before the switch (claim receipts under `confidential/claims/**`,
+ * matter files under `confidential/claims/matters/**`, HR files / staff photos under
+ * `confidential/hr/**`). Nothing in the app writes to Firebase Storage any more, and
+ * storage.rules deny all writes.
+ *
+ * It also keeps the shared upload validation (images or PDF, max 10 MB) used by every
+ * Drive upload.
  */
 export const firebaseStorage = getStorage(firebaseApp);
 
@@ -24,22 +28,12 @@ export const validateClaimFile = (file: File): string | null => {
   return null;
 };
 
-const safeFileName = (name: string) =>
-  (name || 'file')
-    .normalize('NFKD')
-    .replace(/[^\w.\-]+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(-120) || 'file';
-
-const safeSegment = (s: string) => String(s || 'unknown').replace(/[^\w\-]+/g, '_');
-
 /** Turns a Firebase Storage error into something a staff member can act on. */
 export const describeStorageError = (err: unknown): string => {
   const code = String((err as { code?: string })?.code || '');
   switch (code) {
     case 'storage/unauthorized':
-      return 'Permission denied by Firebase Storage. Your account is not allowed to open or store this file; ask the Managing Partner to check your role in Users & Roles (the access list must show “published”).';
+      return 'Permission denied by Firebase Storage. Your account is not allowed to open this older file; ask the Managing Partner to check your role in Users & Roles (the access list must show “published”).';
     case 'storage/unauthenticated':
       return 'You are not signed in to Firebase. Sign out and sign in again with your @shcolaw.com Google account, then retry.';
     case 'storage/object-not-found':
@@ -47,64 +41,24 @@ export const describeStorageError = (err: unknown): string => {
     case 'storage/bucket-not-found':
     case 'storage/project-not-found':
     case 'storage/no-default-bucket':
-      return 'Firebase Storage is not set up for this project yet. Ask the admin to enable Storage in the Firebase console.';
-    case 'storage/quota-exceeded':
-      return 'Firebase Storage quota exceeded. Ask the admin to check the Firebase plan.';
+      return 'Firebase Storage is not available for this project, so this older file cannot be opened.';
     case 'storage/retry-limit-exceeded':
     case 'storage/canceled':
-      return 'The upload did not finish (network problem). Check your connection and try again.';
+      return 'The file did not load (network problem). Check your connection and try again.';
     default:
-      return (err instanceof Error && err.message) || 'Upload failed for an unknown reason.';
+      return (err instanceof Error && err.message) || 'The file could not be opened for an unknown reason.';
   }
 };
 
-/**
- * Uploads one receipt to `confidential/claims/{userId}/{recordId}/{timestamp}-{safeFileName}`.
- * Throws (with a readable message) if validation or the upload fails.
- */
-export async function uploadClaimAttachment(userId: string, recordId: string, file: File): Promise<ClaimAttachment> {
-  const problem = validateClaimFile(file);
-  if (problem) throw new Error(problem);
-  const contentType = file.type || (isPdf(file) ? 'application/pdf' : 'application/octet-stream');
-  const path = 'confidential/claims/' + safeSegment(userId) + '/' + safeSegment(recordId) + '/' + Date.now() + '-' + safeFileName(file.name);
-  try {
-    const result = await uploadBytes(ref(firebaseStorage, path), file, { contentType, customMetadata: { originalName: file.name } });
-    return { name: file.name, path: result.metadata.fullPath, size: file.size, contentType };
-  } catch (err) {
-    throw new Error(file.name + ': ' + describeStorageError(err));
-  }
-}
+export const getClaimAttachmentUrl = (path: string) => getDownloadURL(ref(firebaseStorage, path));
 
 /**
- * Uploads one HR document (or staff photo) to
- * `confidential/hr/{emailKey}/{timestamp}-{safeFileName}`, where emailKey is the staff
- * member's access-list key (lowercase email, '.' → ','). storage.rules match that folder to
- * the signed-in person, so they can read their own files; the owner and admins read/write
- * everyone's. (Older files under `confidential/hr/{userId}/` stay readable by admins.)
- * Same rules as claim receipts: images or PDF, max 10 MB. Returns the stored path.
- */
-export async function uploadHrFile(staffEmail: string, file: File): Promise<{ name: string; path: string }> {
-  const problem = validateClaimFile(file);
-  if (problem) throw new Error(problem);
-  if (!staffEmail || !staffEmail.includes('@')) throw new Error('This staff member has no email on file, so their HR files cannot be stored yet.');
-  const contentType = file.type || (isPdf(file) ? 'application/pdf' : 'application/octet-stream');
-  const path = 'confidential/hr/' + emailToAccessKey(staffEmail) + '/' + Date.now() + '-' + safeFileName(file.name);
-  try {
-    const result = await uploadBytes(ref(firebaseStorage, path), file, { contentType, customMetadata: { originalName: file.name } });
-    return { name: file.name, path: result.metadata.fullPath };
-  } catch (err) {
-    throw new Error(file.name + ': ' + describeStorageError(err));
-  }
-}
-
-export const getClaimAttachmentUrl =(path: string) => getDownloadURL(ref(firebaseStorage, path));
-
-/**
- * Opens a stored file in a new tab. The tab is opened synchronously (inside the click)
- * so popup blockers allow it, then pointed at the download URL once it resolves.
+ * Opens an older Firebase Storage file in a new tab. The tab is opened synchronously (inside
+ * the click) so popup blockers allow it, then pointed at the download URL once it resolves.
  * Returns an error message, or null on success.
  */
 export async function openClaimAttachment(a: Pick<ClaimAttachment, 'path'>): Promise<string | null> {
+  if (!a.path) return 'This file has no stored copy (only its name was kept).';
   const win = window.open('', '_blank');
   try {
     const url = await getClaimAttachmentUrl(a.path);
