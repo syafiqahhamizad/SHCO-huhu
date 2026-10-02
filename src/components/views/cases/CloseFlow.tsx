@@ -43,9 +43,9 @@ export const RequestCloseModal: React.FC<{ w: WF; onClose: () => void }> = ({ w,
   const act: Record<string, [string, () => void] | undefined> = {
     Tasks: ['Open tasks', () => { onClose(); w.setTab('tasks'); }],
     'Court dates': ['Open court', () => { onClose(); w.setTab('court'); }],
-    'Final bill': w.seeFin ? ['Open Billing', () => { setCurrentView('billing'); }] : undefined,
-    'Invoices paid': w.seeFin ? ['Open Billing', () => { setCurrentView('billing'); }] : undefined,
-    'Client account': w.seeFin ? ['Refund in Client Account', () => { setCurrentView('retainers'); }] : undefined,
+    'Final bill': w.canOpenFin('billing') ? ['Open Billing', () => { setCurrentView('billing'); }] : undefined,
+    'Invoices paid': w.canOpenFin('billing') ? ['Open Billing', () => { setCurrentView('billing'); }] : undefined,
+    'Client account': w.canOpenFin('retainers') ? ['Refund in Client Account', () => { setCurrentView('retainers'); }] : undefined,
   };
   const send = () => {
     if (!outcome) { w.toast('Choose the outcome'); return; }

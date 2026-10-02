@@ -11,14 +11,14 @@ export const ComprehensiveDashboardView: React.FC = () => {
   const app = useApp() as any;
   const {
     cases = [], clients = [], deadlines = [], timeEntries = [], expenses = [], users = [], leads = [],
-    setCurrentView, setCurrentCaseId,
+    setCurrentView, setCurrentCaseId, setCaseSubTab,
   } = app;
 
   const [unbilledFilter, setUnbilledFilter] = useState<'All' | 'Time entries' | 'Disbursements' | 'Vouchers'>('All');
 
   const today = new Date().toISOString().slice(0, 10);
   const weekEnd = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
-  const openMatter = (id: string) => { setCurrentCaseId(id); setCurrentView('cases'); };
+  const openMatter = (id: string, sub = 'overview') => { setCaseSubTab(sub); setCurrentCaseId(id); setCurrentView('cases'); };
 
   const activeMatters = cases.filter((c: any) => c.status === 'Active');
   const dormantFiles = cases.filter((c: any) => c.status === 'Pending');
@@ -182,7 +182,7 @@ export const ComprehensiveDashboardView: React.FC = () => {
               <button type="button" onClick={() => setCurrentView('hearings')} className="cursor-pointer text-[11px] font-bold text-white">All →</button>
             </div>
             {weekHearings.slice(0, 6).map((h: any) => (
-              <button type="button" key={h.id} onClick={() => openMatter(h.caseId)} className="flex w-full items-center justify-between gap-3 border-b border-[#F0F2F5] px-4 py-2.5 text-left last:border-0 hover:bg-[#F6F8FA]">
+              <button type="button" key={h.id} onClick={() => openMatter(h.caseId, 'court')} className="flex w-full items-center justify-between gap-3 border-b border-[#F0F2F5] px-4 py-2.5 text-left last:border-0 hover:bg-[#F6F8FA]">
                 <div><p className="text-[12px] font-bold">{h.title || h.purpose}</p><p className="mt-0.5 text-[10.5px] text-[#5B6478]">{dateLabel(h.date)} · {h.ref}</p></div>
                 <span className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ backgroundColor: '#F1EBF6', color: palette.purple }}>{h.type || 'Hearing'}</span>
               </button>
@@ -207,7 +207,7 @@ export const ComprehensiveDashboardView: React.FC = () => {
           <div className="overflow-hidden rounded-xl border border-[#DDE3EB] bg-white">
             <div className="flex items-center justify-between border-b border-[#DDE3EB] px-4 py-2.5 text-[13px] font-bold text-[#16223A]">
               <span>Recently accessed matters · firm-wide</span>
-              <button type="button" onClick={() => setCurrentView('cases')} className="cursor-pointer text-[11px] font-bold text-[#8A6D3B]">All →</button>
+              <button type="button" onClick={() => { setCurrentCaseId(null); setCurrentView('cases'); }} className="cursor-pointer text-[11px] font-bold text-[#8A6D3B]">All →</button>
             </div>
             {[...cases].filter((c: any) => c.lastAccessed).sort((a: any, b: any) => String(b.lastAccessed).localeCompare(String(a.lastAccessed))).slice(0, 6).map((c: any) => (
               <button type="button" key={c.id} onClick={() => openMatter(c.id)} className="flex w-full items-center justify-between gap-3 border-b border-[#F0F2F5] px-4 py-2.5 text-left last:border-0 hover:bg-[#F6F8FA]">

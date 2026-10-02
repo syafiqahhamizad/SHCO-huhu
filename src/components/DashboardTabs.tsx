@@ -53,7 +53,7 @@ export const DASHBOARD_TAB_VIEWS = [
 ] as const;
 
 export const DashboardTabs: React.FC<DashboardTabsProps> = ({ myDashboardCount }) => {
-  const { currentView, setCurrentView } = useApp() as any;
+  const { currentView, setCurrentView, canViewModule } = useApp() as any;
 
   const tabs = [
     {
@@ -78,7 +78,7 @@ export const DashboardTabs: React.FC<DashboardTabsProps> = ({ myDashboardCount }
       action: () => setCurrentView('firmDashboard'),
       active: currentView === 'firmDashboard',
     },
-  ];
+  ].filter((t) => canViewModule(t.key));
 
   return (
     <section aria-label="Dashboard sections" className="flex flex-wrap items-center gap-2 rounded-xl border border-[#E1DCCF] bg-white p-2 shadow-[0_1px_2px_rgba(22,34,58,.05)]">

@@ -75,7 +75,7 @@ export const OfficeAccountTab = ({ F }: { F: FinanceCtrl }) => {
     <div style={css('display:flex;flex-direction:column;gap:16px')}>
       <section style={css('display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px')}>
         {banks.map((b) => (
-          <div key={b.key} role="button" tabIndex={0} title="Open bank accounts & reconciliation" onClick={() => F.app.setCurrentView('bankAccounts')} style={css('border-radius:12px;border:1px solid #DDE3EB;background:#fff;padding:14px 16px;display:flex;flex-direction:column;gap:5px;cursor:pointer')}>
+          <div key={b.key} role="button" tabIndex={0} title="Open bank accounts & reconciliation" onClick={() => (F.app.canViewModule('bankAccounts') ? F.app.setCurrentView('bankAccounts') : F.toastMsg('Bank accounts & reconciliation are not available for your role.'))} style={css('border-radius:12px;border:1px solid #DDE3EB;background:#fff;padding:14px 16px;display:flex;flex-direction:column;gap:5px;cursor:pointer')}>
             <span style={css('display:flex;align-items:center;gap:6px')}><span style={css('font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#5B6478')}>{b.kind}</span><span style={css(`margin-left:auto;font-size:10px;font-weight:700;color:${b.rc}`)}>{b.rec}</span></span>
             <span style={css('font-size:12px;font-weight:700;color:#16223A')}>{b.name}</span>
             <span style={css('font-family:ui-serif, Georgia, serif;font-size:21px;font-weight:700;color:#16223A')}>{b.bal}</span>

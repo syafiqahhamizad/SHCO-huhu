@@ -10,7 +10,7 @@ import {
   Archive,
 } from 'lucide-react';
 import { RecycleBinModal } from './RecycleBinModal';
-import { isFinanceView } from '../lib/financeAccess';
+import { canSeeFinanceView, finRoleKey, isFinanceView } from '../lib/financeAccess';
 
 export const Header: React.FC = () => {
   const {
@@ -19,11 +19,15 @@ export const Header: React.FC = () => {
     setGlobalSearch,
     setCurrentView,
     setCurrentCaseId,
+    setCaseSubTab,
     cases = [],
     clients = [],
     invoices = [],
     quotations = [],
     currentUser,
+    currentRole,
+    isAdmin,
+    canViewModule,
     currentCaseId,
     notifications = [],
     unreadNotificationsCount = 0,
@@ -49,19 +53,36 @@ export const Header: React.FC = () => {
     const matters = cases
       .filter((c: any) => [c.ref, c.title, c.clientName, c.practiceArea].some((v: any) => String(v || '').toLowerCase().includes(query)))
       .slice(0, 5);
-    const clientsList = clients
+    const clientsList = !canViewModule('clients') ? [] : clients
       .filter((c: any) => [c.name, c.id, c.email, c.phone].some((v: any) => String(v || '').toLowerCase().includes(query)))
       .slice(0, 5);
-    const documents = [
+    // Quotations / invoices open Billing — only for people who can use it.
+    const documents = !canSeeFinanceView('billing', finRoleKey(currentRole, currentUser, isAdmin)) ? [] : [
       ...quotations.filter((q: any) => [q.id, q.clientName, q.fileRef].some((v: any) => String(v || '').toLowerCase().includes(query))).map((q: any) => ({ id: q.id, label: q.id, sub: q.clientName || 'Quotation', view: 'billing' })),
       ...invoices.filter((i: any) => [i.id, i.partyName, i.fileRef].some((v: any) => String(v || '').toLowerCase().includes(query))).map((i: any) => ({ id: i.id, label: i.id, sub: i.partyName || 'Invoice', view: 'billing' })),
     ].slice(0, 5);
     return { matters, clientsList, documents };
-  }, [query, cases, clients, quotations, invoices]);
+  }, [query, cases, clients, quotations, invoices, currentRole, currentUser, isAdmin, canViewModule]);
 
   const hasResults = searchResults.matters.length > 0 || searchResults.clientsList.length > 0 || searchResults.documents.length > 0;
 
+  // A notification about a file opens that file on the matching tab (hearing → Court, tag → Tasks);
+  // anything else opens the page named in linkTab.
+  const openNotification = (n: { linkTab?: string; linkId?: string }) => {
+    const kase = n.linkId ? cases.find((c: any) => c.id === n.linkId) : undefined;
+    if (kase) {
+      setCaseSubTab(n.linkTab === 'hearings' ? 'court' : n.linkTab === 'tasks' ? 'tasks' : 'overview');
+      setCurrentCaseId(kase.id);
+      setCurrentView('cases');
+    } else if (n.linkTab) {
+      setCurrentCaseId(null);
+      setCurrentView(n.linkTab);
+    } else return;
+    setIsNotifOpen(false);
+  };
+
   const goToMatter = (caseId: string) => {
+    setCaseSubTab('overview');
     setCurrentCaseId(caseId);
     setCurrentView('cases');
     setIsSearchOpen(false);
@@ -378,10 +399,7 @@ export const Header: React.FC = () => {
                         key={n.id}
                         onClick={() => {
                           markNotificationAsRead(n.id);
-                          if (n.linkTab) {
-                            setCurrentView(n.linkTab);
-                            setIsNotifOpen(false);
-                          }
+                          openNotification(n);
                         }}
                         className={`p-3 text-left hover:bg-amber-50/50 cursor-pointer transition-all flex gap-2.5 items-start ${
                           !n.read ? 'bg-amber-50/80 border-l-2 border-[#3D6B9C]' : 'bg-white'

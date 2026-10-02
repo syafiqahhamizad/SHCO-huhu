@@ -21,7 +21,7 @@ import {
 
 /* ================= 1. HEARINGS VIEW ================= */
 export const HearingsView: React.FC = () => {
-  const { cases, setCurrentCaseId, setCurrentView } = useApp();
+  const { cases, setCurrentCaseId, setCurrentView, setCaseSubTab } = useApp();
   const todayStr = new Date().toISOString().slice(0, 10);
 
   const allHearings: { caseRef: string; caseId: string; date: string; time: string; purpose: string; status: string; clientRole?: string }[] = [];
@@ -71,6 +71,7 @@ export const HearingsView: React.FC = () => {
                 <tr
                   key={i}
                   onClick={() => {
+                    setCaseSubTab('court');
                     setCurrentCaseId(h.caseId);
                     setCurrentView('cases');
                   }}
@@ -384,7 +385,7 @@ interface ActionHistoryLog {
 }
 
 export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCaseId }) => {
-  const { cases, users, currentUser, currentPartnerCode, isAdmin, updateCase, setCurrentCaseId, setCurrentView, showToast, addNotification, addDeadline, addCaseActivityLog } = useApp();
+  const { cases, users, currentUser, currentPartnerCode, isAdmin, updateCase, setCurrentCaseId, setCurrentView, setCaseSubTab, showToast, addNotification, addDeadline, addCaseActivityLog } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [selectedLawyer, setSelectedLawyer] = useState<string>('ALL');
@@ -1130,6 +1131,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                       href="#"
                       onClick={(e) => {
                         e.preventDefault();
+                        setCaseSubTab('tasks');
                         setCurrentCaseId(caseId);
                         setCurrentView('cases');
                       }}
@@ -1248,6 +1250,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                       href="#"
                       onClick={(e) => {
                         e.preventDefault();
+                        setCaseSubTab('tasks');
                         setCurrentCaseId(caseId);
                         setCurrentView('cases');
                       }}
@@ -1366,6 +1369,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                       href="#"
                       onClick={(e) => {
                         e.preventDefault();
+                        setCaseSubTab('tasks');
                         setCurrentCaseId(caseId);
                         setCurrentView('cases');
                       }}
@@ -1482,6 +1486,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                       href="#"
                       onClick={(e) => {
                         e.preventDefault();
+                        setCaseSubTab('tasks');
                         setCurrentCaseId(caseId);
                         setCurrentView('cases');
                       }}
@@ -1569,6 +1574,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                           href="#"
                           onClick={(e) => {
                             e.preventDefault();
+                            setCaseSubTab('status');
                             setCurrentCaseId(cs.id);
                             setCurrentView('cases');
                           }}
@@ -2073,7 +2079,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
 
 /* ================= 6. DEADLINES VIEW ================= */
 export const DeadlinesView: React.FC = () => {
-  const { deadlines, cases, setCurrentCaseId, setCurrentView } = useApp();
+  const { deadlines, cases, setCurrentCaseId, setCurrentView, setCaseSubTab } = useApp();
   const todayStr = new Date().toISOString().slice(0, 10);
 
   return (
@@ -2107,6 +2113,7 @@ export const DeadlinesView: React.FC = () => {
                   key={d.id}
                   onClick={() => {
                     if (cs) {
+                      setCaseSubTab('tasks');
                       setCurrentCaseId(cs.id);
                       setCurrentView('cases');
                     }

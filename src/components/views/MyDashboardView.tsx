@@ -42,6 +42,7 @@ import { palette, tint, tintText } from '../../lib/designTokens';
 import { useConfirmation } from '../../hooks/useConfirmation';
 import { localIso, parseLocal, toLocalMonth } from '../../lib/localDate';
 import { caseFinder, isIssued, owedBalance, paidByInvoice } from '../../lib/financeMetrics';
+import { canSeeFinanceView, finRoleKey, isFinanceView } from '../../lib/financeAccess';
 
 type Bucket = 'overdue' | 'today' | 'week' | 'later';
 type FilterValue = 'all' | Bucket | 'hearing' | 'waiting' | 'unbilled';
@@ -155,8 +156,10 @@ export const MyDashboardView: React.FC = () => {
     addMeeting,
     currentUser,
     currentRole,
+    isAdmin,
     setCurrentView,
     setCurrentCaseId,
+    setCaseSubTab,
     updateCase,
     updateUserStaffProfile,
     showToast,
@@ -333,7 +336,7 @@ export const MyDashboardView: React.FC = () => {
           caseId: t.caseId,
           dueDate: t.date || '',
           status: 'Pending approval',
-          view: 'time',
+          view: 'cases',
         });
       });
 
@@ -550,8 +553,21 @@ export const MyDashboardView: React.FC = () => {
     updateUserStaffProfile(currentUser.id, { ...(currentUser.staffProfile || {}), targets: { ...targets, ...patch } } as any);
   };
 
+  const finRk = finRoleKey(currentRole, currentUser, isAdmin);
+  const canOpen = (view: string) => !isFinanceView(view) || canSeeFinanceView(view, finRk);
+  // Working File tab each kind of row belongs on.
+  const CASE_TAB: Partial<Record<Stream, string>> = { task: 'tasks', hearing: 'court', signature: 'letters', matter: 'overview', unbilled: 'time', approval: 'time' };
+  const openCase = (caseId: string, sub = 'overview') => {
+    setCaseSubTab(sub);
+    setCurrentCaseId(caseId);
+    setCurrentView('cases');
+  };
   const openMatter = (r: Row) => {
-    if (r.caseId) setCurrentCaseId(r.caseId);
+    // Rows for a file open that file on the right tab; finance rows open Accounts & Finance only
+    // for people who can use it (others get the file's own Time / Money view instead).
+    if (r.caseId && (r.view === 'cases' || !canOpen(r.view))) { openCase(r.caseId, CASE_TAB[r.stream] || 'overview'); return; }
+    if (!canOpen(r.view)) return;
+    setCurrentCaseId(null);
     setCurrentView(r.view);
   };
 
@@ -980,7 +996,7 @@ export const MyDashboardView: React.FC = () => {
               type="button"
               onClick={() => {
                 if (k.filter) toggleFilter(k.filter);
-                else if (k.onClickView) setCurrentView(k.onClickView);
+                else if (k.onClickView && canOpen(k.onClickView)) { setCurrentCaseId(null); setCurrentView(k.onClickView); }
               }}
               className="flex min-h-[142px] flex-col gap-2 rounded-xl p-4 text-left text-white shadow-lg ring-1 ring-black/5"
               style={{ backgroundColor: k.color, boxShadow: ring !== 'none' ? `${ring}, 0 10px 15px -3px rgba(0,0,0,.1)` : undefined }}
@@ -1226,7 +1242,7 @@ export const MyDashboardView: React.FC = () => {
             <div className="flex items-center gap-2 bg-[#F6F8FA] px-3.5 py-2.5 text-[10.5px] text-[#5B6478]">
               <CheckCircle2 className="h-3.5 w-3.5 text-[#2F6F4E]" />
               <span>{list === 'matter' ? `${rows.length} open matter items` : '0 open items'}</span>
-              <button type="button" onClick={() => setCurrentView(list === 'matter' ? 'tasks' : 'logs')} className="ml-auto font-bold text-[#8A6D3B]">
+              <button type="button" onClick={() => (list === 'matter' ? setCurrentView('tasks') : window.open('https://tasks.google.com/', '_blank', 'noopener'))} className="ml-auto font-bold text-[#8A6D3B]">
                 {list === 'matter' ? 'All matter tasks ->' : 'Open in Google Tasks ->'}
               </button>
             </div>
@@ -1237,7 +1253,7 @@ export const MyDashboardView: React.FC = () => {
             <div className="flex items-center gap-2 border-b border-[#DDE3EB] px-3.5 py-2.5">
               <Clock className="h-3.5 w-3.5 text-[#8A6D3B]" />
               <strong className="font-serif text-[14px] text-[#16223A]">Recently accessed</strong>
-              <button type="button" onClick={() => setCurrentView('cases')} className="ml-auto text-[10.5px] font-bold text-[#8A6D3B]">My matters -&gt;</button>
+              <button type="button" onClick={() => { setCurrentCaseId(null); setCurrentView('cases'); }} className="ml-auto text-[10.5px] font-bold text-[#8A6D3B]">My matters -&gt;</button>
             </div>
             {recent.length === 0 ? (
               <p className="px-4 py-6 text-center text-[11px] text-slate-400">No recently accessed matters.</p>
@@ -1247,10 +1263,7 @@ export const MyDashboardView: React.FC = () => {
                   <button
                     key={c.id}
                     type="button"
-                    onClick={() => {
-                      setCurrentCaseId(c.id);
-                      setCurrentView('cases');
-                    }}
+                    onClick={() => openCase(c.id)}
                     className="border-t border-[#F0F2F5] px-3.5 py-2 text-left hover:bg-[#F6F8FA]"
                     style={{ borderTop: i < 2 ? 'none' : undefined }}
                   >

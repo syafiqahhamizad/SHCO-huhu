@@ -106,7 +106,8 @@ export const StaffLeaveTab: React.FC<Props> = ({ myLeaves, used, me }) => {
       title: 'Leave request · ' + currentUser.name,
       message: currentUser.name + ' applied for ' + lv.type + ' leave ' + ddmmyyyy(lv.from) + (end !== lv.from ? ' – ' + ddmmyyyy(end) : '') + ' (' + days + ' day' + (days === 1 ? '' : 's') + '). PIC covering files: ' + lv.pic + '.' + (clash.length ? ' Clash: ' + clash.join(' · ') + '.' : ''),
       type: 'system',
-      linkTab: 'staffPortal',
+      // Partners approve leave under My Dashboard → Needs your decision.
+      linkTab: 'dashboard',
     });
     setLv((x) => ({ ...x, from: '', to: '', half: 'Full day', pic: '', mc: '' }));
     showToast('Leave request sent to your partner and ' + lv.pic);

@@ -3,6 +3,7 @@ import { useApp } from '../../../context/AppContext';
 import type { Case, Client, PartnerCode } from '../../../types';
 import { DEFAULT_PRACTICE_SETTINGS, getPracticeSettings } from '../../../services/templateService';
 import { builtInFeeTemplates } from '../../../lib/financeDocs';
+import { canSeeFinanceView, finRoleKey } from '../../../lib/financeAccess';
 import { css } from './caseUi';
 import { iso, partiesOf, stamp, staffOf, type Person } from './caseModel';
 
@@ -344,7 +345,7 @@ export const NewFilePage: React.FC = () => {
           <div style={css('width:100%;margin-top:10px;border:1px solid #DDE3EB;border-radius:10px;text-align:left')}>
             <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5;font-family:Georgia,serif;font-size:14px;font-weight:700')}>What happens next</div>
             {([
-              ['Quotation', fee ? 'Make it from the ' + A.name + ' fee template in Billing & Collections' : 'Make it in Billing & Collections', 'Not made yet', () => { close(); setCurrentView('billing'); }, 'Open Billing'],
+              ['Quotation', fee ? 'Make it from the ' + A.name + ' fee template in Billing & Collections' : 'Make it in Billing & Collections', 'Not made yet', canSeeFinanceView('billing', finRoleKey(currentRole, currentUser, isAdmin)) ? () => { close(); setCurrentView('billing'); } : null, 'Open Billing'],
               ['Engagement letter', 'E-signature is not connected yet. Print it and get it signed.', 'Not sent', null, ''],
               ['File cover', 'Print and put on the physical file (in the file: Print file cover)', 'To do', goFile, 'Go to file'],
             ] as [string, string, string, (() => void) | null, string][]).map(([t, d, s, act, a]) => (

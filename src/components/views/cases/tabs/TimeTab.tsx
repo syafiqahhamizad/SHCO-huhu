@@ -9,7 +9,7 @@ import { newId, type WF } from '../wf';
  * requests (Expense / TravelClaim records on this file) — nothing is keyed in twice. */
 export const TimeTab: React.FC<{ w: WF }> = ({ w }) => {
   const { addTimeEntry, timeEntries = [], setCurrentView } = useApp();
-  const { c, staff, me, seeFin, money, ro } = w;
+  const { c, staff, me, money, ro } = w;
   const lastRate = (name: string) => {
     const mine = timeEntries.filter((t) => t.feeEarner === name && Number(t.rate) > 0).sort((a, b) => (isoOf(a.date) < isoOf(b.date) ? 1 : -1));
     return mine[0] ? Number(mine[0].rate) : 0;
@@ -52,7 +52,7 @@ export const TimeTab: React.FC<{ w: WF }> = ({ w }) => {
           <strong style={css('font-family:Georgia, serif;font-size:15px;color:#16223A')}>Time &amp; costs</strong>
           <span style={css(S.sub)}>Time is logged here. Costs come in from approved claims and PVs, so nothing is keyed in twice.</span>
           <div style={css('margin-left:auto;display:flex;gap:8px;flex-wrap:wrap')}>
-            {seeFin && <button type="button" onClick={() => { setCurrentView('billing'); w.toast('Billing & Collections opened. Bill unbilled work for ' + c.ref + ' from Work not billed'); }} style={css(S.btnSec)}>Bill unbilled items</button>}
+            {w.canOpenFin('billing') && <button type="button" onClick={() => { setCurrentView('billing'); w.toast('Billing & Collections opened. Bill unbilled work for ' + c.ref + ' from Work not billed'); }} style={css(S.btnSec)}>Bill unbilled items</button>}
             {!ro && <button type="button" onClick={() => setOpen(!open)} style={css(S.btnPri)}>+ Log time</button>}
             <button type="button" onClick={() => setCurrentView('reimbursements')} style={css(S.btnSec)}>+ Claim a cost →</button>
           </div>

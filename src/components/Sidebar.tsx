@@ -55,7 +55,7 @@ interface NavGroup {
 }
 
 // Firm decisions on top of the design-pack menu: no "AI Agent" (AI was removed from the app);
-// no "Service Log" (no route exists yet); "Referral" dropped from the menu (route kept);
+// no "Courts & Judges" (removed); "Referral" dropped from the menu (route kept);
 // "Users & Roles" lives inside Firm & Practice Settings.
 const NAV_GROUPS: NavGroup[] = [
   {

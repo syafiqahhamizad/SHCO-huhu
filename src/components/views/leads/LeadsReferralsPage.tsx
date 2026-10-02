@@ -226,6 +226,7 @@ export const LeadsReferralsPage: React.FC = () => {
     getNextSequenceId,
     openNewCaseWithPrefill,
     setCurrentCaseId,
+    setCaseSubTab,
     setCurrentView,
     showToast,
     logAuditEvent,
@@ -717,6 +718,7 @@ export const LeadsReferralsPage: React.FC = () => {
   const openFile = (lv: LV) => {
     const c = fileCaseOf(lv.raw, lv.clientId);
     if (c) {
+      setCaseSubTab('overview');
       setCurrentCaseId(c.id);
       setCurrentView('cases');
       return;

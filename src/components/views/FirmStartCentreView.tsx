@@ -55,6 +55,7 @@ import {
   Video,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { canSeeFinanceView, finRoleKey, isFinanceView } from '../../lib/financeAccess';
 import { FirmAnnouncement, FirmAnnouncementCategory } from '../../types';
 
 interface QuickLink {
@@ -72,7 +73,6 @@ interface LauncherTile {
   view: string;
   icon: React.ElementType;
   bg: string;
-  module?: string;
 }
 
 const TONE = {
@@ -153,18 +153,15 @@ const QUICK_LINK_GROUPS: QuickLinkGroup[] = [
 const SMALL_TILES: LauncherTile[] = [
   { label: 'Practice', view: 'cases', icon: Scale, bg: '#3D6B9C' },
   { label: 'Calendar', view: 'calendar', icon: CalendarDays, bg: '#2F6F4E' },
-  { label: 'Billing', view: 'billing', icon: FileSpreadsheet, bg: '#B2542F', module: 'invoices' },
-  { label: 'Claims', view: 'reimbursements', icon: Receipt, bg: '#8A6D3B', module: 'reimbursements' },
-  { label: 'Accounting', view: 'accountingCentre', icon: Building2, bg: '#2E7D7A', module: 'accountingCentre' },
-  // 'clientAccount' isn't a real view or module key — silently fell back to the
-  // always-visible 'dashboard' module, so this tile showed to every role regardless of
-  // Client Trust Account access. 'retainers' is the real, correctly-gated one.
-  { label: 'Trust Account', view: 'retainers', icon: ShieldCheck, bg: '#1F7A5C', module: 'retainers' },
-  { label: 'Staff Portal', view: 'staff-portal', icon: UserCog, bg: '#6B3D8C', module: 'staffPortal' },
+  { label: 'Billing', view: 'billing', icon: FileSpreadsheet, bg: '#B2542F' },
+  { label: 'Claims', view: 'reimbursements', icon: Receipt, bg: '#8A6D3B' },
+  { label: 'Accounting', view: 'accountingCentre', icon: Building2, bg: '#2E7D7A' },
+  { label: 'Trust Account', view: 'retainers', icon: ShieldCheck, bg: '#1F7A5C' },
+  { label: 'Staff Portal', view: 'staff-portal', icon: UserCog, bg: '#6B3D8C' },
   { label: 'Client Portal', view: 'client-portal', icon: UserCheck, bg: '#16223A' },
-  { label: 'Firm Inventory', view: 'inventory', icon: Package, bg: '#4C5A72', module: 'inventory' },
+  { label: 'Firm Inventory', view: 'inventory', icon: Package, bg: '#4C5A72' },
   // TODO: point Library at a dedicated view once one exists; it currently opens the Law Library tab of Inventory.
-  { label: 'Library', view: 'inventory', icon: BookMarked, bg: '#16223A', module: 'inventory' },
+  { label: 'Library', view: 'inventory', icon: BookMarked, bg: '#16223A' },
   // TODO: point these at a pre-filtered Case Registry view once status-filter deep-linking exists; for now both open Cases like Practice.
   { label: 'Dormant Files', view: 'cases', icon: Moon, bg: '#8A6D3B' },
   { label: 'Closed Files', view: 'cases', icon: Archive, bg: '#5B6478' },
@@ -194,6 +191,9 @@ export const FirmStartCentreView: React.FC = () => {
     deleteAnnouncement,
     setCurrentView,
     setIsNewCaseModalOpen,
+    setCurrentCaseId,
+    currentRole,
+    isAdmin,
     canViewModule,
     firmStartCentrePages,
     canEditFirmStartCentre,
@@ -240,7 +240,7 @@ export const FirmStartCentreView: React.FC = () => {
   const canEditStartCentre = canEditFirmStartCentre;
 
   React.useEffect(() => { localStorage.setItem('shco_firm_start_quick_links', JSON.stringify(quickLinkGroups.map(({ title, links }) => ({ title, links: links.map(({ label, url }) => ({ label, url })) })))); }, [quickLinkGroups]);
-  React.useEffect(() => { localStorage.setItem('shco_firm_start_modules', JSON.stringify(launcherTiles.map(({ label, view, bg, module }) => ({ label, view, bg, module })))); }, [launcherTiles]);
+  React.useEffect(() => { localStorage.setItem('shco_firm_start_modules', JSON.stringify(launcherTiles.map(({ label, view, bg }) => ({ label, view, bg })))); }, [launcherTiles]);
   React.useEffect(() => { localStorage.setItem('shco_firm_start_shelves', JSON.stringify(shelves.map(({ title, detail }) => ({ title, detail })))); }, [shelves]);
   const [announcementOpen, setAnnouncementOpen] = React.useState(false);
   const [announcementDraft, setAnnouncementDraft] = React.useState({
@@ -296,8 +296,12 @@ export const FirmStartCentreView: React.FC = () => {
   const count = (status: string) => presence.filter((p) => p.status === status).length;
 
   const initials = (name: string) => name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
-  const canOpen = (module?: string) => !module || !canViewModule || canViewModule(module);
-  const tiles = launcherTiles.filter((tile) => canOpen(tile.module));
+  // A tile shows only to people who can open its page: finance pages follow lib/financeAccess,
+  // everything else the same module check App.tsx uses.
+  const finRk = finRoleKey(currentRole, currentUser, isAdmin);
+  const canOpen = (view: string) => (isFinanceView(view) ? canSeeFinanceView(view, finRk) : !canViewModule || canViewModule(view));
+  const tiles = launcherTiles.filter((tile) => canOpen(tile.view));
+  const openTile = (view: string) => { setCurrentCaseId(null); setCurrentView(view); };
 
   return (
     <div className="w-full space-y-5 pb-8 text-xs">
@@ -459,7 +463,7 @@ export const FirmStartCentreView: React.FC = () => {
             <div className="grid grid-cols-4 gap-2.5 sm:grid-cols-8">
               {tiles.map(({ label, view, icon: Icon, bg }) => (
                 <div key={label} className={`relative ${['Firm Inventory', 'Library', 'Dormant Files', 'Closed Files'].includes(label) ? 'col-span-2' : ''}`} title={`Opens app view: ${view}`}>
-                  <button type="button" onClick={() => setCurrentView(view)} style={{ backgroundColor: bg }} className="!text-white flex min-h-[82px] w-full cursor-pointer flex-col gap-2 rounded-xl bg-transparent p-3.5 text-left text-white transition hover:-translate-y-0.5 hover:shadow-lg">
+                  <button type="button" onClick={() => openTile(view)} style={{ backgroundColor: bg }} className="!text-white flex min-h-[82px] w-full cursor-pointer flex-col gap-2 rounded-xl bg-transparent p-3.5 text-left text-white transition hover:-translate-y-0.5 hover:shadow-lg">
                     <Icon className="h-5 w-5" />
                     <strong className="text-xs font-bold leading-tight !text-white">{label}</strong>
                     {canEditStartCentre && editMode && <span className="text-[9px] font-semibold !text-white/80">Target: {view}</span>}

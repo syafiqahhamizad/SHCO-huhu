@@ -13,6 +13,8 @@ export interface WF {
   /** Role 'Assistant' is treated as the design's "Clerk": no Money tab / money strip. */
   isClerk: boolean;
   seeFin: boolean;
+  /** Whether this person can open that Accounts & Finance page (lib/financeAccess). */
+  canOpenFin: (view: string) => boolean;
   /** Closed / archived files are read-only until a partner reopens them. */
   ro: boolean;
   parties: MatterParty[];
