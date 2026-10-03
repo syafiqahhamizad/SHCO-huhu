@@ -101,6 +101,18 @@ const MainContent: React.FC = () => {
     );
   }
 
+  // Client Portal: the client-facing page has its own shell (no firm Sidebar / Header).
+  if ((currentView === 'clientPortal' || currentView === 'client-portal') && canViewModule('clientPortal')) {
+    return (
+      <>
+        <Suspense fallback={<div style={{ minHeight: '100vh', background: '#F4F1EA' }} />}>
+          <ClientPortalView />
+        </Suspense>
+        <Toast />
+      </>
+    );
+  }
+
   const renderView = () => {
     // Finance & Accounts decides access itself (Managing Partner & Accounts: all tabs; Partners:
     // Billing, Client Account, Approvals; Reviewer: Client Account + Books) — see lib/financeAccess.
@@ -154,9 +166,6 @@ const MainContent: React.FC = () => {
         return <MyDashboardView />;
       case 'firmDashboard':
         return <ComprehensiveDashboardView />;
-      case 'clientPortal':
-      case 'client-portal':
-        return <ClientPortalView />;
       case 'staffPortal':
       case 'staff-portal':
         return <StaffPortalView />;

@@ -59,6 +59,12 @@ export const LettersTab: React.FC<{ w: WF }> = ({ w }) => {
     w.toast('Only the name of this document was kept — there is no stored copy.');
   };
 
+  const toggleShare = (d: CaseDocument) => {
+    const on = !d.sharedWithClient;
+    w.save({ documents: (c.documents || []).map((x) => (x.id === d.id ? { ...x, sharedWithClient: on } : x)), activityLogs: [histEntry((on ? 'Shared with client: ' : 'No longer shared with client: ') + d.name, me, 'Document Upload'), ...(c.activityLogs || [])] });
+    w.toast(on ? 'Shared: the client sees it in the Client Portal' : 'No longer shown in the Client Portal');
+  };
+
   return (
     <div style={css('display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:16px;align-items:start')}>
       <Card>
@@ -80,10 +86,13 @@ export const LettersTab: React.FC<{ w: WF }> = ({ w }) => {
           {!ro && <label style={css('margin-left:auto;' + S.btnPri + (busy ? ';opacity:.5' : ''))}><input type="file" style={css('display:none')} onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void upload(file); }} />{busy ? 'Uploading…' : '+ Upload document'}</label>}
         </div>
         {docs.map((d) => (
-          <div key={d.id} style={css('display:grid;grid-template-columns:minmax(0,1fr) 160px 110px;gap:12px;align-items:center;' + S.row)}>
+          <div key={d.id} style={css('display:grid;grid-template-columns:minmax(0,1fr) 160px 110px 150px;gap:12px;align-items:center;' + S.row)}>
             <button type="button" onClick={() => void openDoc(d)} style={css('border:0;background:none;padding:0;text-align:left;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:600;color:#16223A;text-decoration:underline')}>{d.name}</button>
             <span style={css('color:#4A5468')}>{d.category}</span>
             <span style={css('color:#4A5468')}>{fmt(d.uploadedDate)}</span>
+            <label title="Shared documents show in the Client Portal › Documents" style={css('display:flex;align-items:center;gap:6px;font-size:12px;color:' + (d.sharedWithClient ? '#1F5A3B' : '#4A5468') + ';cursor:' + (ro ? 'default' : 'pointer'))}>
+              <input type="checkbox" checked={!!d.sharedWithClient} disabled={ro} onChange={() => toggleShare(d)} />Share with client
+            </label>
           </div>
         ))}
         {!docs.length && <div style={css(S.empty)}>No documents on this file yet.</div>}
