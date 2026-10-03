@@ -89,8 +89,10 @@ service cloud.firestore {
 
     match /practiceSystem/sharedState {
       // Per-module/per-action restrictions (Reviewer read-only, etc.) are enforced
-      // client-side via canViewModule/hasModulePermission; the Client Portal only reads.
-      allow read: if isFirmUser() || isClientUser();
+      // client-side via canViewModule/hasModulePermission. Clients must NOT read this doc:
+      // it holds every client, file, finance and staff record. Client sign-in waits for the
+      // database split, where each client reads only their own records.
+      allow read: if isFirmUser();
       allow write: if isFirmUser();
     }
 
