@@ -275,6 +275,9 @@ export const avatarOf = (staff: Person[], name?: string) => {
 };
 export const partnerNames = (c: Case, staff: Person[]) => (c.partners || []).map((code) => staff.find((p) => p.code === code)?.name || code);
 export const lawyerOf = (c: Case) => (c.lawyerInCharge || '').split(',')[0].trim() || (c.lawyers || [])[0] || '';
+/** Every lawyer on the file, lead first (from lawyerInCharge, then the lawyers list). */
+export const lawyersOf = (c: Case): string[] =>
+  Array.from(new Set([...(c.lawyerInCharge || '').split(','), ...(c.lawyers || [])].map((n) => n.trim()).filter(Boolean)));
 
 /* ------------------------------------------------------------------ matching records to the file */
 
