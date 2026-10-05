@@ -73,27 +73,120 @@ service cloud.firestore {
       );
     }
 
-    function legacyClientUser() {
-      return isSignedIn() && !(hasEmail() && isListed()) && request.auth.token.get('role', '') == 'client';
-    }
-
     function isFirmUser() {
       return isOwner() ||
         listedActiveWithRole(['partner', 'lawyer', 'assistant', 'accountant', 'reviewer']) ||
         legacyFirmUser();
     }
 
-    function isClientUser() {
-      return listedActiveWithRole(['client']) || legacyClientUser();
+    // ---- Database split (firm/main/...). Layout and tiers: src/services/firmData.ts.
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function isListedAdmin() {
+      let users = accessUsers();
+      let key = accessKey();
+      return emailVerified() && key in users &&
+        users[key].get('active', false) == true && users[key].get('admin', false) == true;
+    }
+
+    function isAdminOrOwner() {
+      return isOwner() || isListedAdmin();
+    }
+
+    function metaPath() {
+      return /databases/$(database)/documents/firm/main;
+    }
+
+    function splitStarted() {
+      return exists(metaPath());
+    }
+
+    function splitDone() {
+      return splitStarted() && get(metaPath()).data.get('state', '') == 'done';
+    }
+
+    // firm  — every firm user;  books — partners, accountants, reviewers (read), admins, owner;
+    // hr    — partners, accountants, admins, owner, or the person's own document;
+    // users — everyone reads; admins write; people may update their own non-sensitive fields.
+    function tierOf(col) {
+      return col in ['manualJournals', 'bankAccounts', 'bankReconciliationEntries', 'trustAuditLogs', 'generalLedger', 'clientAccountChecks'] ? 'books'
+        : col in ['payslips', 'staffPrivate'] ? 'hr'
+        : col == 'users' ? 'users'
+        : col == 'config' ? 'config'
+        : col in ['leads', 'clients', 'cases', 'quotations', 'referralPartners', 'paymentVouchers', 'travelClaims', 'receipts',
+                  'deadlines', 'invoices', 'payments', 'retainers', 'attendanceRecords', 'leaveApplications', 'meetings', 'programmes',
+                  'notifications', 'lawFirmRegistry', 'deletedRecords', 'timeEntries', 'expenses', 'announcements', 'auditLogs',
+                  'firmStartCentrePages', 'inventoryItems', 'logs'] ? 'firm'
+        : 'none';
+    }
+
+    function booksReader() {
+      return isAdminOrOwner() || listedActiveWithRole(['partner', 'accountant', 'reviewer']);
+    }
+
+    function booksWriter() {
+      return isAdminOrOwner() || listedActiveWithRole(['partner', 'accountant']);
+    }
+
+    function hrStaff() {
+      return isAdminOrOwner() || listedActiveWithRole(['partner', 'accountant']);
+    }
+
+    function ownDoc(data) {
+      return data.get('_ownerEmail', '') == myEmail();
+    }
+
+    match /firm/main {
+      // Split status. Only the owner starts / finishes the one-time move.
+      allow read: if isFirmUser();
+      allow create, update: if isOwner();
+      allow delete: if false;
+    }
+
+    match /firm/main/{col}/{docId} {
+      allow read: if (splitDone() || isOwner()) && (
+        (tierOf(col) in ['firm', 'users', 'config'] && isFirmUser()) ||
+        (tierOf(col) == 'books' && booksReader()) ||
+        (tierOf(col) == 'hr' && (hrStaff() || (isFirmUser() && ownDoc(resource.data))))
+      );
+
+      // While the move is running only the owner writes; afterwards each tier's writers.
+      allow create, update, delete: if (!splitDone() && isOwner()) || (splitDone() && (
+        (tierOf(col) == 'firm' && isFirmUser()) ||
+        (tierOf(col) == 'books' && booksWriter()) ||
+        (tierOf(col) == 'hr' && hrStaff()) ||
+        (tierOf(col) == 'config' && (docId in ['rolesMatrix', 'customRoles'] ? isOwner() : isFirmUser())) ||
+        (tierOf(col) == 'users' && isAdminOrOwner())
+      ));
+
+      // Your own private staff profile (personal details, emergency contact …).
+      allow create, update: if splitDone() && col == 'staffPrivate' && isFirmUser() &&
+        ownDoc(request.resource.data) && (resource == null || ownDoc(resource.data));
+
+      // Your own user record (or anyone's, for partners / accounts keeping employee records):
+      // everything except role, admin, status, e-mail and permissions.
+      allow update: if splitDone() && col == 'users' && isFirmUser() &&
+        (resource.data.get('email', '').lower() == myEmail() || hrStaff()) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'email', 'role', 'isAdmin', 'isSuperAdmin', 'status', 'navOverrides', 'code']);
+
+      // Adding yourself to the roster at first sign-in, with the role the owner gave you.
+      allow create: if splitDone() && col == 'users' && isFirmUser() &&
+        request.resource.data.get('email', '').lower() == myEmail() &&
+        request.resource.data.get('isAdmin', false) != true &&
+        request.resource.data.get('isSuperAdmin', false) != true &&
+        accessKey() in accessUsers() &&
+        request.resource.data.get('role', '').lower() == accessUsers()[accessKey()].get('role', '');
     }
 
     match /practiceSystem/sharedState {
       // Per-module/per-action restrictions (Reviewer read-only, etc.) are enforced
       // client-side via canViewModule/hasModulePermission. Clients must NOT read this doc:
-      // it holds every client, file, finance and staff record. Client sign-in waits for the
-      // database split, where each client reads only their own records.
-      allow read: if isFirmUser();
-      allow write: if isFirmUser();
+      // it holds every client, file, finance and staff record.
+      // After the database split this document is a frozen backup only the owner can read.
+      allow read: if isOwner() || (isFirmUser() && !splitStarted());
+      allow write: if isFirmUser() && !splitStarted();
     }
 
     match /practiceSystem/access {

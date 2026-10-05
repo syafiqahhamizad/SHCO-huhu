@@ -2,7 +2,10 @@ import { withoutStarterTasks } from '../lib/legacyCleanup';
 import { isForMe, isReadBy, notificationEmail, resolveRecipients } from '../lib/notify';
 import { queueEmail } from '../services/mailQueueService';
 import { canViewAs } from '../components/views/settings/permissionModel';
-import { readCloudState, subscribeToCloudState, writeCloudState, type CloudState } from '../services/firestoreSyncService';
+import { readCloudState, setCloudMode, subscribeToCloudState, writeCloudState, type CloudState } from '../services/firestoreSyncService';
+import { findSplitUserByEmail, migrateToCollections, readSplitState } from '../services/collectionSync';
+import { useFirmDataSync } from './useFirmDataSync';
+import type { ConfigKey } from '../services/firmData';
 import { applyCloudPracticeSettings, getPracticeSettings, savePracticeSettings, type PracticeSettings } from '../services/templateService';
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
 import {
@@ -702,6 +705,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const local = users.find((u) => u.email.toLowerCase() === email);
     if (local) return local;
     try {
+      // After the database split the roster is its own collection (the old document is owner-only).
+      const split = await findSplitUserByEmail(email);
+      if (split) return split as unknown as User;
       const cloud = await readCloudState();
       const cloudUsers = Array.isArray(cloud?.users) ? (cloud!.users as User[]) : [];
       return cloudUsers.find((u) => (u.email || '').toLowerCase() === email);
@@ -1696,6 +1702,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [cloudSyncReady, setCloudSyncReady] = useState(false);
   const [cloudAccessNotice, setCloudAccessNotice] = useState<string | null>(null);
   const [cloudSyncAttempt, setCloudSyncAttempt] = useState(0);
+  // True once the firm's data lives in per-record collections (the database split).
+  const [firmSplit, setFirmSplit] = useState(false);
   const retryCloudSync = () => setCloudSyncAttempt((n) => n + 1);
 
   useEffect(() => {
@@ -2593,6 +2601,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const sync = async () => {
       try {
+        // Database split: once done, everything comes from the per-record collections.
+        let split = await readSplitState();
+        if (cancelled) return;
+        if (split === 'none' && isVerifiedOwnerSession()) {
+          // The Managing Partner's first sign-in after the update moves the data across once.
+          setCloudAccessNotice('Upgrading the firm’s data to the new secure storage… please keep this page open.');
+          const counts = await migrateToCollections(() => readCloudState(), firebaseAuth.currentUser?.email || 'owner', (m) => setCloudAccessNotice('Upgrading the firm’s data… ' + m));
+          console.info('Database split done', counts);
+          split = 'done';
+        }
+        if (split === 'migrating') {
+          setCloudAccessNotice('The firm’s data is being upgraded to the new secure storage. This page will continue by itself in a moment.');
+          window.setTimeout(() => { if (!cancelled) setCloudSyncAttempt((n) => n + 1); }, 8000);
+          return;
+        }
+        if (split === 'done') {
+          setCloudMode('split');
+          setCloudAccessNotice(null);
+          setFirmSplit(true); // useFirmDataSync takes over and sets cloudSyncReady when loaded
+          return;
+        }
         const cloudState = await readCloudState();
         if (cancelled) return;
 
@@ -2652,7 +2681,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [isAuthenticated, cloudSyncAttempt]);
 
   useEffect(() => {
-    if (!cloudSyncReady) return;
+    if (!cloudSyncReady || firmSplit) return;
     void writeCloudState({
       leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims,
       receipts, deadlines, invoices, payments, retainers, users, attendanceRecords,
@@ -2667,7 +2696,75 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCloudSyncReady(false);
       setIsAuthenticated(false);
     });
-  }, [cloudSyncReady, leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims, receipts, deadlines, invoices, payments, retainers, users, attendanceRecords, leaveApplications, meetings, programmes, notifications, lawFirmRegistry, sequenceCounters, deletedRecords, rolesMatrix, customRoles, timeEntries, expenses, generalLedger, logs, announcements, auditLogs, firmStartCentrePages, bankAccounts, trustAuditLogs, inventoryItems, bankReconciliationEntries, clientAccountChecks, payslips, manualJournals]);
+  }, [cloudSyncReady, firmSplit, leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims, receipts, deadlines, invoices, payments, retainers, users, attendanceRecords, leaveApplications, meetings, programmes, notifications, lawFirmRegistry, sequenceCounters, deletedRecords, rolesMatrix, customRoles, timeEntries, expenses, generalLedger, logs, announcements, auditLogs, firmStartCentrePages, bankAccounts, trustAuditLogs, inventoryItems, bankReconciliationEntries, clientAccountChecks, payslips, manualJournals]);
+
+  // ---------------------------------------------------------------------------------------
+  // Database split: per-record collections with role-based access (see useFirmDataSync).
+  // ---------------------------------------------------------------------------------------
+  const splitSetters: Record<string, (v: never[]) => void> = {
+    leads: setLeads,
+    clients: setClients,
+    cases: setCases,
+    quotations: setQuotations,
+    referralPartners: setReferralPartners,
+    paymentVouchers: setPaymentVouchers,
+    travelClaims: setTravelClaims,
+    receipts: setReceipts,
+    deadlines: setDeadlines,
+    invoices: setInvoices,
+    payments: setPayments,
+    retainers: setRetainers,
+    attendanceRecords: setAttendanceRecords,
+    leaveApplications: setLeaveApplications,
+    meetings: setMeetings,
+    programmes: setProgrammes,
+    notifications: setNotifications,
+    lawFirmRegistry: setLawFirmRegistry,
+    deletedRecords: setDeletedRecords,
+    timeEntries: setTimeEntries,
+    expenses: setExpenses,
+    announcements: setAnnouncements,
+    auditLogs: setAuditLogs,
+    firmStartCentrePages: setFirmStartCentrePages,
+    inventoryItems: setInventoryItems,
+    logs: setLogs,
+    manualJournals: setManualJournals,
+    bankAccounts: setBankAccounts,
+    bankReconciliationEntries: setBankReconciliationEntries,
+    trustAuditLogs: setTrustAuditLogs,
+    generalLedger: setGeneralLedger,
+    clientAccountChecks: setClientAccountChecks,
+    payslips: setPayslips,
+    users: setUsers,
+  } as unknown as Record<string, (v: never[]) => void>;
+  const DELETED_TYPE: Record<string, DeletedRecord['entityType']> = {
+    leads: 'Lead', clients: 'Client', cases: 'Case', quotations: 'Quotation', paymentVouchers: 'Payment Voucher', receipts: 'Receipt', invoices: 'Invoice', lawFirmRegistry: 'Law Firm',
+  };
+  useFirmDataSync({
+    enabled: isAuthenticated && !SAFE_PREVIEW_MODE && firmSplit,
+    myEmail: (firebaseAuth.currentUser?.email || '').toLowerCase(),
+    lists: { leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims, receipts, deadlines, invoices, payments, retainers, attendanceRecords, leaveApplications, meetings, programmes, notifications, lawFirmRegistry, deletedRecords, timeEntries, expenses, announcements, auditLogs, firmStartCentrePages, inventoryItems, logs, manualJournals, bankAccounts, bankReconciliationEntries, trustAuditLogs, generalLedger, clientAccountChecks, payslips, users } as unknown as Record<string, Record<string, unknown>[]>,
+    setList: (key, list) => splitSetters[key]?.(list as never[]),
+    config: { sequenceCounters, rolesMatrix, customRoles },
+    setConfig: (name: ConfigKey, value) => {
+      if (name === 'sequenceCounters' && value && typeof value === 'object') setSequenceCounters(value as SequenceCounters);
+      else if (name === 'rolesMatrix' && value && typeof value === 'object') setRolesMatrix(value as RolePermissionsMatrix);
+      else if (name === 'customRoles' && Array.isArray(value)) setCustomRoles(value as string[]);
+      else if (name === 'practiceSettings' && value && typeof value === 'object') applyCloudPracticeSettings(value as PracticeSettings);
+    },
+    incoming: (key, list) => {
+      const t = DELETED_TYPE[key];
+      let out = list;
+      if (t) {
+        const gone = new Set(deletedRecords.filter((d) => d.entityType === t).map((d) => d.recordId));
+        out = out.filter((r) => !gone.has(String(r.id)));
+      }
+      if (key === 'cases') out = withoutStarterTasks(out as unknown as Case[]) as unknown as Record<string, unknown>[];
+      return out;
+    },
+    onReady: () => setCloudSyncReady(true),
+    onRefused: (msg) => showToast(msg),
+  });
 
   // ---------------------------------------------------------------------------------------
   // Owner-managed access list (practiceSystem/access)

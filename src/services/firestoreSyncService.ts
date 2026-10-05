@@ -31,7 +31,19 @@ const stateRef = doc(db, 'practiceSystem', 'sharedState');
 
 export type CloudState = Record<string, unknown>;
 
+/**
+ * 'legacy': everything in the single document practiceSystem/sharedState.
+ * 'split':  per-record collections under firm/main (collectionSync.ts). Set once at sign-in.
+ */
+let cloudMode: 'legacy' | 'split' = 'legacy';
+export const setCloudMode = (m: 'legacy' | 'split') => { cloudMode = m; };
+
+/** Everything this person may read, in the single-document shape (backups, roster lookups). */
 export async function readCloudState(): Promise<CloudState | null> {
+  if (cloudMode === 'split') {
+    const { readAllAsState } = await import('./collectionSync');
+    return readAllAsState();
+  }
   const snapshot = await getDoc(stateRef);
   return snapshot.exists() ? (snapshot.data() as CloudState) : null;
 }
@@ -47,6 +59,15 @@ export function subscribeToCloudState(onChange: (state: CloudState) => void, onE
 }
 
 export async function writeCloudState(state: CloudState): Promise<void> {
+  if (cloudMode === 'split') {
+    // Lists are saved record by record by useFirmDataSync; only settings documents come here.
+    const { writeConfig } = await import('./collectionSync');
+    const { CONFIG_KEYS } = await import('./firmData');
+    await Promise.all(Object.entries(state)
+      .filter(([k, v]) => (CONFIG_KEYS as readonly string[]).includes(k) && v !== undefined)
+      .map(([k, v]) => writeConfig(k as (typeof CONFIG_KEYS)[number], v)));
+    return;
+  }
   const sanitizedState = JSON.parse(JSON.stringify(state)) as CloudState;
   // Replace each top-level field whole (a plain `merge: true` deep-merges nested maps, so keys
   // deleted inside e.g. practiceSettings.publicHolidays came back). Fields not sent are untouched.
