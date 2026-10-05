@@ -7,7 +7,7 @@ import { activeStorage, ensureMatterFolder, prepareStorage } from '../../../serv
 import { css } from './caseUi';
 import { canSeeFinanceView, finRoleKey } from '../../../lib/financeAccess';
 import {
-  courtOf, deriveMatchKey, fmt, isDone, lawyerOf, matterMoney, openedOf, partiesOf, partnerNames, practiceOf, rm, short, stageIndexOf, stagesFor, staffOf, todayIso,
+  courtOf, deriveMatchKey, fmt, isDone, lawyerOf, matterMoney, openedOf, partiesOf, partnerNames, practiceOf, rm, staffOf, todayIso,
 } from './caseModel';
 import { histEntry, newId, type WF } from './wf';
 import { OverviewTab } from './tabs/OverviewTab';
@@ -124,16 +124,11 @@ export const WorkingFile: React.FC<{ c: Case }> = ({ c }) => {
   const w: WF = { c, saveWith, meId, staff, me, meCode, isPartner, isClerk, seeFin, canOpenFin, ro, parties, money, save, toast, setTab, openTask, openWeekly: () => setModal('weekly'), courtChange, setCourtChange };
 
   const court = courtOf(c);
-  const stages = stagesFor(practiceOf(c));
-  const at = stageIndexOf(c);
-  const { cur, due } = weeklyInfo(c);
-  const lastUp = [...(c.clientUpdates || [])].sort((a, b) => (a.at < b.at ? 1 : -1))[0];
   const nClients = parties.filter((p) => p.side === 'client' && !p.dischargedOn).length;
   const nOpp = parties.filter((p) => p.side === 'opposing').length;
   const nFirms = parties.filter((p) => p.side === 'solicitor' && !p.dischargedOn).length;
   const pNames = partnerNames(c, staff);
   const openTasks = (c.tasks || []).filter((t) => !isDone(t)).length;
-  const isCourtStage = /Litigation|Syariah|Family|Employment|Criminal/.test(practiceOf(c)) || at >= 0;
   const st = ST[c.status] || ST.Closed;
 
   const createDrive = async () => {
@@ -187,23 +182,6 @@ export const WorkingFile: React.FC<{ c: Case }> = ({ c }) => {
         <button type="button" onClick={() => setModal('cover')} style={css(btn)}>Print file cover</button>
         {!ro && <button type="button" onClick={() => setModal('close')} style={css(btn)}>{c.closeRequest?.status === 'Pending' ? 'Close requested' : 'Request to close'}</button>}
         {!ro && <button type="button" onClick={() => setModal('del')} title={isPartner ? 'Partners only. Removes the file from all lists.' : 'Sends a deletion request to the partner in charge'} style={css('flex-shrink:0;border:1px solid #E7C3BE;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:700;background:#fff;color:#8E2A20;cursor:pointer;font-family:inherit')}>{isPartner ? 'Delete matter' : c.deletionRequest ? 'Deletion requested' : 'Request deletion'}</button>}
-        <div style={css('flex-basis:100%;display:flex;flex-direction:column;gap:10px;padding-top:14px;border-top:1px solid #EEF1F5')}>
-          <div style={css('display:flex;align-items:center;gap:10px;flex-wrap:wrap')}>
-            <span style={css('font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#4A5468')}>{isCourtStage && /Litigation|Syariah|Family|Employment|Criminal/.test(practiceOf(c)) ? 'Case status' : 'Matter status'}</span>
-            <strong style={css('font-size:13px;color:#16223A')}>{stages[at]}</strong>
-            <span style={css(`padding:2px 9px;border-radius:10px;font-size:11.5px;font-weight:700;background:${due.bg};color:${due.fg}`)}>{due.label}</span>
-            <span style={css('font-size:12px;color:#4A5468')}>Client last updated {lastUp ? short(lastUp.at) + ' (' + lastUp.deliveryStatus + ')' : 'never'}</span>
-            <button type="button" onClick={() => setTab('status')} style={css('margin-left:auto;border:1px solid #C9D1DC;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>{cur ? 'Status →' : 'Do weekly update →'}</button>
-          </div>
-          <div style={css('display:flex;gap:4px')}>
-            {stages.map((label, i) => (
-              <div key={label} style={css('flex:1 1 0;display:flex;flex-direction:column;gap:6px;min-width:0')}>
-                <div style={css(`height:6px;border-radius:3px;background:${i < at ? '#1F5A3B' : i === at ? '#16223A' : '#DDE3EB'}`)} />
-                <span style={css(`font-size:11.5px;font-weight:${i === at ? 800 : 500};color:${i <= at ? '#16223A' : '#4A5468'};line-height:1.3`)}>{label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
 
       <ClosedBanner key={c.status + (c.closedDate || "")} w={w} canReopen={isPartner} onPrint={() => setModal('cover')} />

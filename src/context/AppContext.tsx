@@ -1,3 +1,4 @@
+import { withoutStarterTasks } from '../lib/legacyCleanup';
 import { readCloudState, subscribeToCloudState, writeCloudState, type CloudState } from '../services/firestoreSyncService';
 import { applyCloudPracticeSettings, getPracticeSettings, savePracticeSettings, type PracticeSettings } from '../services/templateService';
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
@@ -662,7 +663,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const startUserPreview = (userId: string) => {
     const target = users.find((user) => user.id === userId);
-    if (!target || (!currentUser.isAdmin && !currentUser.isSuperAdmin) || previewOrigin.current) return false;
+    // Super Admin only: "View as" shows everything the other person can see, so an Admin
+    // previewing the Managing Partner would see the firm's finance.
+    const isSuper = Boolean(currentUser.isSuperAdmin) || (currentUser.email || '').toLowerCase() === 'syafiqahhamizad@shcolaw.com';
+    if (!target || !isSuper || previewOrigin.current) return false;
     previewOrigin.current = { user: currentUser, role: currentRole, partnerCode: currentPartnerCode, isAdmin };
     setCurrentUser(target);
     setCurrentRole(target.role);
@@ -1240,7 +1244,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [cases, setCases] = useState<Case[]>(() => {
-    return readStored(STORAGE_KEY + '_cases', operationalFallback(INITIAL_CASES));
+    return withoutStarterTasks(readStored(STORAGE_KEY + '_cases', operationalFallback(INITIAL_CASES)));
   });
 
   const [quotations, setQuotations] = useState<Quotation[]>(() => {
@@ -2554,7 +2558,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       if (Array.isArray(state.leads)) setLeads((state.leads as Lead[]).filter((lead) => isActive('Lead', lead)));
       if (Array.isArray(state.clients)) setClients((state.clients as Client[]).filter((client) => isActive('Client', client)));
-      if (Array.isArray(state.cases)) setCases((state.cases as Case[]).filter((caseObj) => isActive('Case', caseObj)));
+      if (Array.isArray(state.cases)) setCases(withoutStarterTasks((state.cases as Case[]).filter((caseObj) => isActive('Case', caseObj))));
       if (Array.isArray(state.quotations)) setQuotations((state.quotations as Quotation[]).filter((quotation) => isActive('Quotation', quotation)));
       if (Array.isArray(state.referralPartners)) setReferralPartners(state.referralPartners as ReferralPartner[]);
       if (Array.isArray(state.paymentVouchers)) setPaymentVouchers((state.paymentVouchers as PaymentVoucher[]).filter((voucher) => isActive('Payment Voucher', voucher)));
