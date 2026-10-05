@@ -2875,7 +2875,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addActivityLog = (action: string, details: string) => {
     const newLog: ActivityLog = {
       ts: new Date().toISOString().slice(0, 16).replace('T', ' '),
-      user: currentPartnerCode,
+      // The real person, by name (not the partner menu, and not the person shown in "View as").
+      user: (previewOrigin.current?.user || currentUser).name || currentPartnerCode,
       action,
       details,
     };
