@@ -8,7 +8,7 @@ import { histEntry, type WF } from './wf';
 import { rebuildRef } from '../../../lib/caseRef';
 
 export const EditMatterModal: React.FC<{ w: WF; onClose: () => void }> = ({ w, onClose }) => {
-  const { currentUser, isAdmin, renameCaseRef } = useApp();
+  const { currentUser, isAdmin, renameCaseRef, addNotification } = useApp();
   const { c, staff } = w;
   const s = getPracticeSettings();
   const areas = (s.practiceAreas && s.practiceAreas.length ? s.practiceAreas : DEFAULT_PRACTICE_SETTINGS.practiceAreas) || [];
@@ -49,6 +49,9 @@ export const EditMatterModal: React.FC<{ w: WF; onClose: () => void }> = ({ w, o
     };
     const what = 'Matter details updated: ' + diff.map((k) => L[k] + (k === 'title' || k === 'drive' ? '' : ' → ' + (k === 'opened' ? fmt(ed.opened) : k === 'partners' ? ed.partners.join(', ') : String((ed as Record<string, unknown>)[k]) || '—'))).join(', ') + (ed.why.trim() ? ' (' + ed.why.trim() + ')' : '');
     w.save({ ...patch, activityLogs: [histEntry(what, w.me), ...(c.activityLogs || [])] });
+    // Tell whoever was newly put in charge (bell + e-mail).
+    const newPeople = [...ed.partners.filter((p) => !init.partners.includes(p)), ...(ed.lawyer && ed.lawyer !== init.lawyer ? [ed.lawyer] : [])];
+    if (newPeople.length) addNotification({ title: 'File assigned to you: ' + c.ref, message: w.me + ' put you in charge of ' + c.ref + ' (' + ed.title.trim() + ').', type: 'system', linkTab: 'cases', linkId: c.id, to: newPeople });
     onClose();
     w.toast(what);
   };
