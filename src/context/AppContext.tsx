@@ -1,3 +1,4 @@
+import { withoutStarterTasks } from '../lib/legacyCleanup';
 import { readCloudState, subscribeToCloudState, writeCloudState, type CloudState } from '../services/firestoreSyncService';
 import { applyCloudPracticeSettings, getPracticeSettings, savePracticeSettings, type PracticeSettings } from '../services/templateService';
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
@@ -315,7 +316,6 @@ interface AppContextType {
 
   // Actions
   resetClientPassword: (clientIdentifier: string, newPass: string) => { success: boolean; message: string };
-  redeemInvitation: (codeOrEmail: string, newPasswordInput: string) => { success: boolean; message: string };
   addBankAccount: (acc: Omit<BankAccount, 'id'>) => void;
   updateBankAccount: (id: string, updates: Partial<BankAccount>) => void;
   archiveBankAccount: (id: string) => void;
@@ -658,7 +658,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const startUserPreview = (userId: string) => {
     const target = users.find((user) => user.id === userId);
-    if (!target || (!currentUser.isAdmin && !currentUser.isSuperAdmin) || previewOrigin.current) return false;
+    // Super Admin only: "View as" shows everything the other person can see, so an Admin
+    // previewing the Managing Partner would see the firm's finance.
+    const isSuper = Boolean(currentUser.isSuperAdmin) || (currentUser.email || '').toLowerCase() === 'syafiqahhamizad@shcolaw.com';
+    if (!target || !isSuper || previewOrigin.current) return false;
     previewOrigin.current = { user: currentUser, role: currentRole, partnerCode: currentPartnerCode, isAdmin };
     setCurrentUser(target);
     setCurrentRole(target.role);
@@ -990,56 +993,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  const redeemInvitation = (codeOrEmail: string, newPasswordInput: string): { success: boolean; message: string } => {
-    const term = codeOrEmail.trim().toLowerCase();
-    const userMatch = users.find(
-      (u) => u.email.toLowerCase() === term || u.id.toLowerCase() === term || u.name.toLowerCase().includes(term)
-    );
-    const clientMatch = clients.find(
-      (c) => c.email.toLowerCase() === term || c.id.toLowerCase() === term || c.name.toLowerCase().includes(term)
-    );
-
-    if (!userMatch && !clientMatch) {
-      return { success: false, message: 'Invalid or expired invitation token or email address.' };
-    }
-
-    if (userMatch) {
-      setUsers((prev) =>
-        prev.map((u) => (u.id === userMatch.id ? { ...u, status: 'Active', clientPassword: newPasswordInput } : u))
-      );
-      setCurrentUser({ ...userMatch, status: 'Active', clientPassword: newPasswordInput });
-      setCurrentRole(userMatch.role);
-      setIsAdmin(userMatch.isAdmin);
-      setIsAuthenticated(true);
-      setCurrentView(userMatch.role === 'Client' ? 'clientPortal' : 'firmStartCentre');
-      showToast(`Invitation redeemed! Welcome, ${userMatch.name}.`);
-      return { success: true, message: `Welcome ${userMatch.name}! Your account password has been activated.` };
-    }
-
-    if (clientMatch) {
-      const clientUser: User = {
-        id: clientMatch.id,
-        name: clientMatch.name,
-        email: clientMatch.email || `${clientMatch.id.toLowerCase()}@client.shcolaw.com`,
-        role: 'Client',
-        isAdmin: false,
-        isSuperAdmin: false,
-        status: 'Active',
-        clientPassword: newPasswordInput,
-      };
-      setUsers((prev) => [...prev, clientUser]);
-      setCurrentUser(clientUser);
-      setCurrentRole('Client');
-      setIsAdmin(false);
-      setIsAuthenticated(true);
-      setCurrentView('clientPortal');
-      showToast(`Invitation redeemed! Welcome to Client Portal, ${clientMatch.name}.`);
-      return { success: true, message: `Welcome ${clientMatch.name}! Your Client Portal account is active.` };
-    }
-
-    return { success: false, message: 'Unable to process invitation redemption.' };
-  };
-
   // Super Admin privilege control - ONLY Syafiqah Hamizad can assign or modify Admin/Super Admin rights
   const updateUserRoleAndAdmin = (
     targetUserId: string,
@@ -1286,7 +1239,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [cases, setCases] = useState<Case[]>(() => {
-    return readStored(STORAGE_KEY + '_cases', operationalFallback(INITIAL_CASES));
+    return withoutStarterTasks(readStored(STORAGE_KEY + '_cases', operationalFallback(INITIAL_CASES)));
   });
 
   const [quotations, setQuotations] = useState<Quotation[]>(() => {
@@ -2600,7 +2553,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       if (Array.isArray(state.leads)) setLeads((state.leads as Lead[]).filter((lead) => isActive('Lead', lead)));
       if (Array.isArray(state.clients)) setClients((state.clients as Client[]).filter((client) => isActive('Client', client)));
-      if (Array.isArray(state.cases)) setCases((state.cases as Case[]).filter((caseObj) => isActive('Case', caseObj)));
+      if (Array.isArray(state.cases)) setCases(withoutStarterTasks((state.cases as Case[]).filter((caseObj) => isActive('Case', caseObj))));
       if (Array.isArray(state.quotations)) setQuotations((state.quotations as Quotation[]).filter((quotation) => isActive('Quotation', quotation)));
       if (Array.isArray(state.referralPartners)) setReferralPartners(state.referralPartners as ReferralPartner[]);
       if (Array.isArray(state.paymentVouchers)) setPaymentVouchers((state.paymentVouchers as PaymentVoucher[]).filter((voucher) => isActive('Payment Voucher', voucher)));
@@ -3467,7 +3420,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         loginClientPassword,
         loginExternalUser,
         logoutUser,
-        redeemInvitation,
         updateUserRoleAndAdmin,
         accessListStatus,
         publishAccessListNow,

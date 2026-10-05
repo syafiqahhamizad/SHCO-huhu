@@ -199,8 +199,10 @@ export const Header: React.FC = () => {
 
   // Navigation shell header (design pack `SHCO Header.dc.html`): title block + tools only.
   // No page actions, no user chip, no sign out — those live in the page toolbar / sidebar footer.
+  // Navy is set inline, not via bg-[#16223A]: index.css whitens dark text under that class, which made the
+  // white search results, notifications and recycle bin unreadable (white on white).
   return (
-    <header className="sticky top-0 z-20 box-border rounded-2xl border border-[#16223A] bg-[#16223A] text-[#F6F8FA] px-4 sm:px-6 py-3 flex flex-row flex-wrap items-center justify-start gap-x-6 gap-y-2.5 shadow-[0_12px_24px_-16px_rgba(22,34,58,.8)] font-sans">
+    <header style={{ background: '#16223A' }} className="sticky top-0 z-20 box-border rounded-2xl border border-[#16223A] text-[#F6F8FA] px-4 sm:px-6 py-3 flex flex-row flex-wrap items-center justify-start gap-x-6 gap-y-2.5 shadow-[0_12px_24px_-16px_rgba(22,34,58,.8)] font-sans">
       <div className="min-w-0 flex-[1_1_280px]">
         {info.crumb && (
           <button

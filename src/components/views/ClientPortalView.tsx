@@ -1,1069 +1,603 @@
-import React, { useState } from 'react';
-import { useApp } from '../../context/AppContext';
+/**
+ * Client Portal (design pack design_handoff_clients › Client Portal.dc.html).
+ *
+ * The client-facing page: no firm Sidebar/Header (App.tsx renders it full screen), warm
+ * background, firm wordmark and Sign out. Everything shown is read from the real app data for
+ * the selected client — files, hearings, deadlines, client updates the Working File sent,
+ * documents staff marked "Share with client", invoices / receipts / client-account entries
+ * and the legal team. Nothing is invented: missing data shows an empty state.
+ *
+ * Staff preview (any signed-in staff member): amber bar with a client switcher, and nothing is
+ * sent — every upload / send action is disabled. Real client sign-in is NOT enabled here.
+ */
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  FileText,
-  Download,
-  Eye,
-  Send,
-  Lock,
-  Calendar,
-  CheckCircle2,
-  FolderOpen,
-  Receipt,
-  User,
-  Building2,
-  MessageSquare,
-  TrendingUp,
-  Activity,
-  ArrowRight,
-  Info,
-  ChevronDown,
-  ChevronUp,
+  CalendarPlus, Download, Eye, FileText, Gavel, Info, LogOut, Mail, MessageCircle, Receipt as ReceiptIcon, Scale, Send, Upload,
 } from 'lucide-react';
-import { DocPreviewModal } from '../modals/DocPreviewModal';
+import { useApp } from '../../context/AppContext';
+import type { Case, CaseDocument, Client, Hearing, Invoice, Receipt, Retainer, Task, User } from '../../types';
+import { css, invoiceToDoc, quotationToDoc, receiptToDoc, type Lookups } from './finance/financeModel';
+import { courtOf, isDeadline, isDone, isoOf, lawyerOf, practiceOf, stageKey, stageMessage, staffOf, stagesFor, todayIso } from './cases/caseModel';
+import { round2 } from '../../lib/financeCalc';
+import { isIssued, owedBalance, paidByInvoice } from '../../lib/financeMetrics';
+import { courtEventTimes } from '../../lib/calendarEvent';
+import { whatsappLink } from '../../lib/whatsapp';
+import { docHtml, pdf, tableHtml } from '../../lib/financeDocs';
+import { getPracticeSettings } from '../../services/templateService';
+import { openLegacyDataUrl, openStoredFile, prepareStorage, storeFinanceProof, storeMatterFile } from '../../services/fileStorageService';
+
+export const PREVIEW_CLIENT_KEY = 'shco_portal_preview_client';
+
+const BG = '#F4F1EA';
+const PREVIEW_NOTE = 'Preview: nothing is sent';
+
+/* ------------------------------------------------------------------ formatting */
+
+const toDate = (s?: string) => {
+  if (!s) return null;
+  const v = String(s);
+  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(v) ? v + 'T00:00' : v.replace(' ', 'T'));
+  return isNaN(d.getTime()) ? null : d;
+};
+const fmt = (s: string | undefined, o: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' }) => { const d = toDate(s); return d ? d.toLocaleDateString('en-GB', o) : '—'; };
+const timeOf = (s?: string) => { const d = toDate(s); return d && /[T ]\d{2}:\d{2}/.test(String(s)) ? d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''; };
+const rm = (n: number) => 'RM ' + (Number(n) || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const daysTo = (iso: string) => { const d = toDate(iso); if (!d) return 0; const t = new Date(); t.setHours(0, 0, 0, 0); return Math.round((d.getTime() - t.getTime()) / 864e5); };
+const initialsOf = (name: string) => name.split(/\s+/).filter((w) => w && !/^(bin|binti|b\.|bt\.)$/i.test(w)).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+
+/** calendar.google.com "add event" template link (Asia/Kuala_Lumpur). Null when the date is invalid. */
+const gcalLink = (title: string, date: string, time: string | undefined, details: string, location: string): string | null => {
+  try {
+    const t = courtEventTimes(date, time || null, 120);
+    const f = (x: { date: string } | { dateTime: string }) => ('date' in x ? x.date.replace(/-/g, '') : x.dateTime.replace(/[-:]/g, ''));
+    return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent(title) + '&dates=' + f(t.start) + '/' + f(t.end)
+      + (t.allDay ? '' : '&ctz=Asia%2FKuala_Lumpur') + '&details=' + encodeURIComponent(details) + '&location=' + encodeURIComponent(location);
+  } catch {
+    return null;
+  }
+};
+
+/* ------------------------------------------------------------------ money */
+
+// TODO: switch to src/lib/moneyByFile.ts (single money source) once it lands.
+const clientMoney = (clientId: string, invoices: Invoice[], payments: { invoiceId: string; amount: number }[], retainers: Retainer[]) => {
+  const paid = paidByInvoice(payments);
+  const bills = invoices.filter((i) => i.clientId === clientId && isIssued(i));
+  const billed = round2(bills.reduce((s, i) => s + Number(i.total || 0), 0));
+  const owing = round2(bills.reduce((s, i) => s + owedBalance(i, paid.get(i.id) || 0), 0));
+  const ledger = retainers.filter((r) => r.clientId === clientId).slice().sort((a, b) => (isoOf(a.date) < isoOf(b.date) ? -1 : 1));
+  const held = round2(ledger.reduce((s, r) => s + (r.type === 'Deposit' ? Number(r.amount || 0) : -Number(r.amount || 0)), 0));
+  return { bills, billed, owing, paidTotal: round2(billed - owing), held, ledger, balOf: (i: Invoice) => owedBalance(i, paid.get(i.id) || 0) };
+};
+
+/* ------------------------------------------------------------------ progress (5 steps by practice) */
+
+/** Five client-facing steps per practice, and which step each Working File status stage falls in
+ * (index = stage in caseModel's stage list; 5 = all steps done). */
+const STEPS: Record<string, { labels: string[]; map: number[] }> = {
+  'Civil Litigation': { labels: ['File opened', 'Court papers filed', 'Exchange of papers', 'Hearing or trial', 'Decision'], map: [0, 1, 2, 2, 3, 4, 4] },
+  Conveyancing: { labels: ['SPA signed', 'Loan & stamping', 'Consent & transfer', 'Balance paid', 'Keys handed over'], map: [0, 1, 1, 2, 3, 4, 5] },
+  Corporate: { labels: ['Instructions', 'Due diligence', 'Drafting', 'Signing', 'Completion'], map: [0, 1, 2, 2, 3, 4, 5] },
+  Family: { labels: ['Instructions', 'Petition filed', 'Service & mediation', 'Hearing', 'Decree'], map: [0, 1, 2, 2, 3, 4, 5] },
+  Syariah: { labels: ['Instructions', 'Claim filed', 'Sulh (mediation)', 'Hearing', 'Judgment'], map: [0, 1, 2, 3, 4, 5] },
+  'Probate & Estates': { labels: ['Collect documents', 'Petition filed', 'Grant issued', 'Collect assets & pay debts', 'Distribution'], map: [0, 1, 2, 3, 3, 4, 5] },
+  Employment: { labels: ['Representation filed', 'Conciliation', 'Industrial Court', 'Hearing', 'Award'], map: [0, 1, 2, 3, 4, 5] },
+  Criminal: { labels: ['File opened', 'Charge & mention', 'Pre-trial', 'Trial', 'Decision'], map: [0, 1, 2, 3, 4, 4, 5] },
+};
+
+/** Current step (0–4, 5 = done) from the file's saved stage; null when the file has no stage data. */
+const stepOf = (c: Case): number | null => {
+  const def = STEPS[stageKey(practiceOf(c))];
+  if (c.status === 'Closed' || c.status === 'Archive') return 5;
+  const list = stagesFor(practiceOf(c));
+  let i = -1;
+  if (typeof c.statusStage === 'number' && c.statusStage >= 0) i = Math.min(c.statusStage, list.length - 1);
+  else if (c.statusStageName) i = list.indexOf(c.statusStageName);
+  else if (c.stage) i = list.findIndex((x) => x.toLowerCase() === String(c.stage).toLowerCase());
+  return i >= 0 ? def.map[Math.min(i, def.map.length - 1)] : null;
+};
+const stageNameOf = (c: Case): string => {
+  const list = stagesFor(practiceOf(c));
+  if (typeof c.statusStage === 'number' && c.statusStage >= 0) return list[Math.min(c.statusStage, list.length - 1)];
+  return c.statusStageName || '';
+};
+
+/* ------------------------------------------------------------------ small pieces */
+
+const DOC_CAT: Record<string, [React.ElementType, string, string]> = {
+  'Court papers': [Scale, '#E4ECF5', '#2F4F7A'], Filing: [Scale, '#E4ECF5', '#2F4F7A'], Orders: [Gavel, '#F6EEDC', '#8A6D3B'],
+  Letters: [Mail, '#EEF1F5', '#4A5468'], Correspondence: [Mail, '#EEF1F5', '#4A5468'], Bills: [ReceiptIcon, '#E6EFE9', '#1F5A3B'], Agreements: [FileText, '#F1EBF6', '#6B3D8C'],
+};
+const KEY_TAG: Record<string, [string, string]> = { Court: ['#E4ECF5', '#2F4F7A'], Deadline: ['#F6EEDC', '#8A6D3B'], Done: ['#EEF1F5', '#4A5468'] };
+
+const isSentUpdate = (s: string) => s !== 'Prepared — not sent';
+
+interface Update { at: string; title: string; body: string; by: string; file: string }
+interface Ask { id: string; title: string; note: string; kind: 'sign' | 'note'; open?: () => void }
+
+/* ================================================================== view */
 
 export const ClientPortalView: React.FC = () => {
-  const { clients, cases, invoices, payments, retainers, showToast, currentUser, currentRole } = useApp();
+  const {
+    clients, cases, invoices, payments, receipts, retainers, quotations, users, currentUser, currentRole, logoutUser, setCurrentView, updateInvoice, updateCase,
+  } = useApp();
 
-  // Selected client ID for client portal access mode
-  const [selectedClientId, setSelectedClientId] = useState<string>(clients[0]?.id || 'HQ-C001');
-  const [activeTab, setActiveTab] = useState<'matters' | 'status' | 'documents' | 'financials'>('matters');
-  const [docCategoryFilter, setDocCategoryFilter] = useState<string>('ALL');
-  const [docSearchQuery, setDocSearchQuery] = useState<string>('');
-  const [docPreviewId, setDocPreviewId] = useState<string | null>(null);
+  const isClientLogin = currentRole === 'Client';
+  const preview = !isClientLogin;
 
-  // State for expanded chronology/activity log per case
-  const [expandedChronologyCaseId, setExpandedChronologyCaseId] = useState<string | null>(null);
+  const [cid, setCid] = useState<string>(() => {
+    try { return sessionStorage.getItem(PREVIEW_CLIENT_KEY) || ''; } catch { return ''; }
+  });
+  const [tab, setTab] = useState<'home' | 'files' | 'docs' | 'bills' | 'msgs'>('home');
+  const [cat, setCat] = useState('All');
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState('');
+  const tm = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(tm.current), []);
+  const msg = (m: string) => { setToast(m); window.clearTimeout(tm.current); tm.current = window.setTimeout(() => setToast(''), 2600); };
 
-  // Helper to determine stage percentage, current active milestone, and plain-English explanation
-  const getStageDetails = (stageStr: string = '') => {
-    const stageLower = stageStr.toLowerCase();
-    if (
-      stageLower.includes('closed') ||
-      stageLower.includes('decree') ||
-      stageLower.includes('judgment') ||
-      stageLower.includes('execution') ||
-      stageLower.includes('completed')
-    ) {
-      return {
-        percent: 100,
-        stepIndex: 5,
-        stageName: 'Judgement & Decree / Closed',
-        description:
-          'Judgement or Final Decree issued by the Court. Implementation, cost settlements, or enforcement proceedings in progress.',
-        nextStepText: 'Matter fully resolved. File undergoing closing audit and SAR 1990 archiving.',
-        actionRequired: false,
-      };
-    }
-    if (
-      stageLower.includes('trial') ||
-      stageLower.includes('hearing') ||
-      stageLower.includes('submissions') ||
-      stageLower.includes('decision')
-    ) {
-      return {
-        percent: 80,
-        stepIndex: 4,
-        stageName: 'Trial & Main Hearing Phase',
-        description:
-          'Active Trial or Main Hearing stage before the Judge/Registrar. Advocates presenting oral arguments, witness examinations, and written submissions.',
-        nextStepText: 'Awaiting formal Court Decision or Judgment date.',
-        actionRequired: false,
-      };
-    }
-    if (
-      stageLower.includes('pre-trial') ||
-      stageLower.includes('ptcm') ||
-      stageLower.includes('discovery') ||
-      stageLower.includes('application') ||
-      stageLower.includes('interlocutory')
-    ) {
-      return {
-        percent: 60,
-        stepIndex: 3,
-        stageName: 'Pre-Trial Proceedings & Discovery',
-        description:
-          'Pre-Trial Case Management (PTCM) and Interlocutory Discovery. Exchanging witness statements, agreed bundle of documents, and pre-trial issues.',
-        nextStepText: 'Fixing of Trial dates and pre-trial clarification before the Judge.',
-        actionRequired: true,
-      };
-    }
-    if (
-      stageLower.includes('pleading') ||
-      stageLower.includes('filing') ||
-      stageLower.includes('cause paper') ||
-      stageLower.includes('summons') ||
-      stageLower.includes('claim')
-    ) {
-      return {
-        percent: 40,
-        stepIndex: 2,
-        stageName: 'Pleadings & Document Exchange',
-        description:
-          'Court papers (Statement of Claim, Defence, Counterclaim, Reply) are being drafted, verified, and served on opposing parties.',
-        nextStepText: 'Closure of pleadings followed by Pre-Trial Case Management direction.',
-        actionRequired: true,
-      };
-    }
-    return {
-      percent: 20,
-      stepIndex: 1,
-      stageName: 'File Intake & Conflict Check',
-      description:
-        'File opened, conflict check cleared, retainer confirmed, and initial fact-gathering and legal research underway.',
-      nextStepText: 'Finalising Cause Papers / Writ / Summons for filing at Court.',
-      actionRequired: false,
+  const sortedClients = useMemo(() => clients.slice().sort((a, b) => a.name.localeCompare(b.name)), [clients]);
+  const client: Client | undefined = isClientLogin
+    ? clients.find((x) => x.id === currentUser.id || (!!x.email && x.email.toLowerCase() === (currentUser.email || '').toLowerCase()))
+    : clients.find((x) => x.id === cid) || sortedClients[0];
+
+  const pickClient = (id: string) => {
+    setCid(id); setTab('home'); setCat('All'); setDraft('');
+    try { sessionStorage.setItem(PREVIEW_CLIENT_KEY, id); } catch { /* storage blocked */ }
+  };
+
+  const signOut = () => { if (preview) msg('Preview: the client would be signed out'); else logoutUser(); };
+
+  const lk: Lookups = useMemo(() => ({
+    clientById: new Map(clients.map((c) => [c.id, c] as [string, Client])),
+    clientByName: new Map(clients.map((c) => [c.name.toLowerCase(), c] as [string, Client])),
+    caseById: new Map(cases.map((c) => [c.id, c] as [string, Case])),
+    caseByRef: new Map(cases.map((c) => [c.ref, c] as [string, Case])),
+  }), [clients, cases]);
+
+  /* -------------------------------------------- derived for the selected client */
+
+  const files = useMemo(() => {
+    if (!client) return [];
+    return cases.filter((c) => {
+      if (c.status === 'Archive') return false;
+      const ids = String(c.clientId || '').split(',').map((s) => s.trim());
+      return ids.includes(client.id) || (c.clientsList || []).some((p) => p.clientId === client.id || p.id === client.id);
+    }).sort((a, b) => (a.status === 'Closed' ? 1 : 0) - (b.status === 'Closed' ? 1 : 0));
+  }, [cases, client]);
+  const openFiles = files.filter((f) => f.status !== 'Closed');
+  const many = files.length > 1;
+
+  const staff = useMemo(() => staffOf(users), [users]);
+  const userByName = (name: string): User | undefined => {
+    const n = name.trim().toLowerCase();
+    return users.find((u) => u.role !== 'Client' && (u.name.toLowerCase() === n || (u.code || '').toLowerCase() === n));
+  };
+
+  if (!client) {
+    return (
+      <Shell preview={preview} clientOpts={sortedClients} cid="" pickClient={pickClient} back={() => setCurrentView('clients')} name={currentUser.name} email={currentUser.email} signOut={signOut} toast={toast}>
+        <section style={css('border-radius:16px;background:#fff;border:1px solid #E4DED2;padding:28px 22px;font-size:13px;color:#4A5468;text-align:center')}>
+          {isClientLogin ? 'We could not find your client record. Please contact the firm.' : 'No clients registered yet. Register a client in Clients to preview their portal.'}
+        </section>
+      </Shell>
+    );
+  }
+
+  const vis = client.portal?.visibility;
+  const see = { progress: vis?.progress ?? true, documents: vis?.documents ?? true, bills: vis?.bills ?? true, statement: vis?.statement ?? true, messages: vis?.messages ?? true };
+
+  /* next court date */
+  const today = todayIso();
+  const upcoming = openFiles.flatMap((f) => (f.hearings || []).filter((h) => h.status === 'Scheduled' && isoOf(h.date) >= today).map((h) => ({ f, h })))
+    .sort((a, b) => (isoOf(a.h.date) + (a.h.time || '') < isoOf(b.h.date) + (b.h.time || '') ? -1 : 1));
+  const nx = upcoming[0];
+  const attendTxt = (h: Hearing) => (h.clientAttendanceRequired === 'Compulsory' ? 'You need to attend.' : h.clientAttendanceRequired === 'Optional' ? 'You may attend if you wish.' : h.clientAttendanceRequired === 'Not Required' ? 'You do not need to attend.' : 'Your lawyer will tell you if you need to attend.');
+
+  /* updates the Working File actually sent (e-mail / WhatsApp), plus older portal updates */
+  const updates: Update[] = [
+    ...files.flatMap((f) => (f.clientUpdates || []).filter((u) => isSentUpdate(u.deliveryStatus)).map((u) => ({ at: u.emailSentAt || u.whatsappOpenedAt || u.at, title: u.title, body: u.message, by: u.by || '', file: f.title }))),
+    ...(client.portalUpdates || []).map((u) => ({ at: u.date, title: u.title, body: u.message, by: '', file: '' })),
+  ].sort((a, b) => (String(a.at) < String(b.at) ? 1 : -1));
+  const latestOn = (f: Case) => (f.clientUpdates || []).filter((u) => isSentUpdate(u.deliveryStatus)).sort((a, b) => (a.at < b.at ? 1 : -1))[0];
+
+  /* what we need from the client */
+  const asks: Ask[] = [
+    ...quotations.filter((q) => q.status === 'Sent' && (q.partyId === client.id || (!q.partyId && q.clientName === client.name))).map((q) => ({
+      id: 'q-' + q.id, kind: 'sign' as const, title: (q.documentType === 'Proforma' ? 'Review our proforma ' : 'Review and sign our quotation ') + q.id,
+      note: 'Sent ' + fmt(q.documentSentDate || q.date) + ' · sets out our fees and scope',
+      open: () => { const d = quotationToDoc(q, lk, 'Sent'); pdf(d.no, docHtml(d)); },
+    })),
+    ...openFiles.filter((f) => { const w = (f.weeklyStatus || [])[0]; return w && w.flag === 'Waiting on client'; }).map((f) => ({
+      id: 'w-' + f.id, kind: 'note' as const, title: 'Your lawyer is waiting for something from you', note: f.title + ' · please message or call your lawyer',
+    })),
+  ];
+  const left = asks.length;
+
+  /* legal team: lawyer in charge + partners on the open files */
+  const team: { name: string; role: string; color: string; phone?: string; email?: string }[] = [];
+  openFiles.forEach((f) => {
+    const add = (name: string, role: string) => {
+      if (!name || team.some((t) => t.name.toLowerCase() === name.toLowerCase())) return;
+      const u = userByName(name); const p = staff.find((s) => s.name === (u?.name || name));
+      team.push({ name: u?.name || name, role, color: p?.color || '#3D6B9C', phone: u?.staffProfile?.phone, email: u?.email });
     };
-  };
-
-  const getDaysRemaining = (dateStr?: string) => {
-    if (!dateStr) return null;
-    const target = new Date(dateStr);
-    if (isNaN(target.getTime())) return null;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const diffTime = target.getTime() - today.getTime();
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  };
-  // Inquiry Modal state
-  const [isInquiryModalOpen, setIsInquiryModalOpen] = useState<boolean>(false);
-  const [inquirySubject, setInquirySubject] = useState<string>('Request Status Update on Matter');
-  const [inquiryMessage, setInquiryMessage] = useState<string>('');
-
-  const loggedInClient =
-    currentUser.role === 'Client' || currentRole === 'Client'
-      ? clients.find(
-          (c) =>
-            c.email.toLowerCase() === (currentUser.email || '').toLowerCase() ||
-            c.id === currentUser.id ||
-            c.name.toLowerCase().includes((currentUser.name || '').toLowerCase())
-        )
-      : null;
-
-  const currentClient = loggedInClient || clients.find((c) => c.id === selectedClientId) || clients[0];
-
-  // Cases for this client
-  const clientCases = cases.filter(
-    (cs) => cs.clientId === currentClient?.id || (cs.clientName || '').toLowerCase().includes((currentClient?.name || '').toLowerCase())
-  );
-
-  // Financials for this client
-  const clientInvoices = invoices.filter((inv) => inv.clientId === currentClient?.id);
-  const totalBilled = clientInvoices.reduce((sum, inv) => sum + (inv.total || inv.amount || 0), 0);
-
-  const clientPayments = payments.filter((p) => clientInvoices.some((inv) => inv.id === p.invoiceId));
-  const totalPaid = clientPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
-
-  const totalOutstanding = Math.max(0, totalBilled - totalPaid);
-
-  const clientRetainers = retainers.filter((r) => r.clientId === currentClient?.id);
-  const trustBalance = clientRetainers.reduce((sum, r) => {
-    if (r.type === 'Deposit') return sum + r.amount;
-    if (r.type === 'Apply' || r.type === 'Refund') return sum - r.amount;
-    return sum;
-  }, 0);
-
-  // Shared documents from all client cases
-  const allSharedDocuments = clientCases.flatMap((cs) => {
-    const docs = cs.documents || [];
-    return docs.map((doc) => ({
-      ...doc,
-      caseRef: cs.ref,
-      caseTitle: cs.title,
-    }));
+    add(lawyerOf(f), 'Lawyer in charge');
+    (f.partners || []).forEach((code) => { const p = staff.find((s) => s.code === code); if (p) add(p.name, 'Partner'); });
   });
+  const firstLawyer = team[0];
 
-  const filteredDocuments = allSharedDocuments.filter((doc) => {
-    const docCat = (doc.category || '').toLowerCase();
-    const docCatFilter = (docCategoryFilter || '').toLowerCase();
-    const matchesCategory =
-      docCategoryFilter === 'ALL' ||
-      docCat.includes(docCatFilter);
-    const searchQuery = (docSearchQuery || '').toLowerCase();
-    const docName = (doc.name || '').toLowerCase();
-    const docRef = (doc.caseRef || '').toLowerCase();
-    const matchesQuery =
-      !docSearchQuery ||
-      docName.includes(searchQuery) ||
-      docRef.includes(searchQuery);
-    return matchesCategory && matchesQuery;
-  });
+  /* money */
+  const m = clientMoney(client.id, invoices, payments, retainers);
+  const dueBill = m.bills.filter((i) => m.balOf(i) > 0.005 && i.dueDate).sort((a, b) => (isoOf(a.dueDate) < isoOf(b.dueDate) ? -1 : 1))[0];
+  const settings = getPracticeSettings();
+  const bank = (settings.bankAccounts || []).find((b) => b.isActive !== false && b.isDefaultOffice) || (settings.bankAccounts || []).find((b) => b.isActive !== false && b.accountType === 'Office Operating');
+  const firmPhone = (settings.phone || '').split('/')[0].trim();
 
-  const handleDownloadDoc = (docName: string, caseRef: string) => {
-    const fileContent = `========================================================\nSYAFIQAH HAMIZAD & CO ADVOCATES & SOLICITORS\nCLIENT PORTAL SHARED DOCUMENT\n========================================================\nDocument Name: ${docName}\nMatter Ref: ${caseRef}\nClient: ${currentClient?.name}\nDate Exported: ${new Date().toLocaleDateString('en-MY')}\n========================================================\nThis document is issued under Advocate-Client Privilege (Section 126 Evidence Act 1950).\n`;
-    const blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${docName.replace(/\s+/g, '_')}_${caseRef.replace(/\//g, '-')}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    showToast(`Downloaded shared document [${docName}] for matter ${caseRef}`);
+  const receiptsOf = (inv: Invoice): Receipt[] => receipts.filter((r) => r.invoiceId === inv.id || (r.forNo === inv.id && r.accountSet !== 'CLIENT'));
+
+  /* documents shared with the client */
+  const docs = files.flatMap((f) => (f.documents || []).filter((d) => d.sharedWithClient).map((d) => ({ d, f })))
+    .sort((a, b) => (isoOf(a.d.uploadedDate) < isoOf(b.d.uploadedDate) ? 1 : -1));
+  const cats = ['All', ...Array.from(new Set(docs.map((x) => x.d.category || 'Other')))];
+  const openDoc = async (d: CaseDocument) => {
+    if (d.driveFileId || d.storagePath) { const err = await openStoredFile({ driveFileId: d.driveFileId, webViewLink: d.driveUrl, path: d.storagePath }); if (err) msg(err); return; }
+    if (d.driveUrl) { window.open(d.driveUrl, '_blank', 'noopener'); return; }
+    if (d.dataUrl) { const err = openLegacyDataUrl(d.dataUrl, d.name); if (err) msg(err); return; }
+    msg('This document has no stored copy. Please ask your lawyer.');
   };
 
-  const handleSendInquiry = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsInquiryModalOpen(false);
-    setInquiryMessage('');
-    showToast(`Inquiry sent to Assigned Lawyer for ${currentClient?.name}!`);
+  /* actions that send something: disabled in staff preview */
+  const sendDoc = async (file: File) => {
+    if (preview) { msg(PREVIEW_NOTE); return; }
+    const f = openFiles[0];
+    if (!f) { msg('You have no open file to send this to. Please e-mail your lawyer.'); return; }
+    setBusy(true);
+    try {
+      await prepareStorage();
+      const st = await storeMatterFile({ ref: f.ref, title: f.title, folderId: f.gdriveFolderId, sub: 'Documents', file, uploadedBy: client.name + ' (client portal)' });
+      updateCase(f.id, { documents: [{ id: 'DOC-' + Date.now(), name: st.name, category: 'From client', uploadedDate: isoOf(st.uploadedAt), driveUrl: st.webViewLink, mimeType: st.contentType, driveFileId: st.driveFileId }, ...(f.documents || [])] });
+      msg(file.name + ' sent to your lawyer');
+    } catch (e) { msg('Not sent: ' + (e instanceof Error ? e.message : String(e))); }
+    setBusy(false);
   };
+  const uploadSlip = async (inv: Invoice, file: File) => {
+    if (preview) { msg(PREVIEW_NOTE); return; }
+    setBusy(true);
+    try {
+      await prepareStorage();
+      const up = await storeFinanceProof(file, client.name + ' (client portal)', inv.id);
+      updateInvoice(inv.id, { clientPaymentSlips: [...(inv.clientPaymentSlips || []), { name: file.name, driveFileId: up.driveFileId || '', webViewLink: up.webViewLink, uploadedAt: new Date().toISOString(), uploadedBy: client.name }] });
+      msg('Slip received. Our accounts team will confirm');
+    } catch (e) { msg('Not sent: ' + (e instanceof Error ? e.message : String(e))); }
+    setBusy(false);
+  };
+
+  /* -------------------------------------------- tabs */
+
+  const tabsDef: [typeof tab, string][] = [
+    ['home', 'Overview'],
+    ...(see.progress ? [['files', many ? 'My files (' + files.length + ')' : 'My file'] as [typeof tab, string]] : []),
+    ...(see.documents ? [['docs', 'Documents'] as [typeof tab, string]] : []),
+    ...(see.bills ? [['bills', 'Bills & payments'] as [typeof tab, string]] : []),
+    ...(see.messages ? [['msgs', 'Messages'] as [typeof tab, string]] : []),
+  ];
+  const cur = tabsDef.some(([k]) => k === tab) ? tab : 'home';
+
+  const short = client.type === 'Corporate' ? (client.contactPerson || client.name) : [client.salutation, client.name].filter(Boolean).join(' ');
+  const greetSub = left ? 'There ' + (left === 1 ? 'is 1 thing' : 'are ' + left + ' things') + ' we need from you. Everything else is in hand.' : 'Nothing is needed from you right now. Here is where things stand.';
+
+  const disabledNote = <span style={css('font-size:11px;color:#8A6D3B')}>{PREVIEW_NOTE}</span>;
+  const btnOff = preview ? ';opacity:.5;cursor:not-allowed' : '';
 
   return (
-    <div className="space-y-6 text-xs pb-10">
-      {/* Client Mode Control Bar */}
-      <div className="bg-[#16223A] text-white p-4 rounded-xl shadow-md border border-[#A9814A]/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="bg-amber-400 text-[#16223A] font-extrabold text-[10px] px-2 py-0.5 rounded uppercase tracking-wider flex items-center gap-1">
-              <Lock className="w-3 h-3" />
-              Read-Only Client Access Mode
-            </span>
-            <span className="text-[10px] text-amber-200/80 font-mono">
-              Sec 126 Evidence Act 1950 Confidentiality
-            </span>
+    <Shell preview={preview} clientOpts={sortedClients} cid={client.id} pickClient={pickClient} back={() => setCurrentView('clients')} name={client.name} email={client.email} signOut={signOut} toast={toast}>
+      <div style={css('display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px 24px')}>
+        <div style={css('flex:1 1 420px;min-width:0')}>
+          <h1 style={css('margin:0;font-family:Georgia,serif;font-size:28px;line-height:1.2;font-weight:700;color:#16223A;text-wrap:pretty')}>Selamat datang, {short}</h1>
+          <p style={css('margin:6px 0 0;font-size:13.5px;line-height:1.5;color:#4A5468')}>{greetSub}</p>
+        </div>
+        {see.messages && <button type="button" onClick={() => setTab('msgs')} style={css('display:flex;align-items:center;gap:7px;border:0;border-radius:10px;padding:10px 16px;font-size:13px;font-weight:700;background:#16223A;color:#fff;cursor:pointer')}><MessageCircle size={15} color="#FFFFFF" />Ask your lawyer</button>}
+      </div>
+
+      <nav style={css('display:flex;gap:6px;flex-wrap:wrap')}>
+        {tabsDef.map(([k, label]) => {
+          const on = cur === k; const badge = k === 'home' ? left : 0;
+          return <button key={k} type="button" onClick={() => setTab(k)} style={css(`display:flex;align-items:center;gap:7px;border-radius:9999px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border:1px solid ${on ? '#16223A' : '#E4DED2'};background:${on ? '#16223A' : '#fff'};color:${on ? '#fff' : '#16223A'}`)}>{label}{badge > 0 && !on && <span style={css('font-size:10.5px;font-weight:800;padding:0 7px;border-radius:9999px;background:#B23A2E;color:#fff')}>{badge}</span>}</button>;
+        })}
+      </nav>
+
+      {/* ---------------------------------------------------------------- Overview */}
+      {cur === 'home' && (
+        <div style={css('display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:16px;align-items:start')}>
+          <div style={css('display:flex;flex-direction:column;gap:16px')}>
+            {nx && (() => {
+              const { f, h } = nx; const court0 = courtOf(f); const court = { ...court0, name: /^n\/?a\b/i.test(court0.name) ? '' : court0.name }; const d = daysTo(isoOf(h.date));
+              const link = gcalLink('Court: ' + h.purpose, isoOf(h.date), h.time, f.title + (court.name ? '\n' + court.name : ''), court.name);
+              return (
+                <section style={css('border-radius:16px;background:#16223A;color:#fff;padding:20px 22px;display:flex;flex-direction:column;gap:14px')}>
+                  <span style={css('font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#8FB3DE')}>Next court date</span>
+                  <div style={css('display:flex;align-items:center;gap:16px;flex-wrap:wrap')}>
+                    <div style={css('width:72px;flex-shrink:0;border-radius:12px;background:#fff;color:#16223A;text-align:center;overflow:hidden')}><div style={css('background:#B23A2E;color:#fff;font-size:11px;font-weight:800;padding:3px 0;letter-spacing:.06em')}>{fmt(h.date, { month: 'short' }).toUpperCase()}</div><div style={css('font-family:Georgia,serif;font-size:30px;font-weight:700;line-height:1.15;padding:4px 0 6px')}>{fmt(h.date, { day: 'numeric' })}</div></div>
+                    <div style={css('display:flex;flex-direction:column;gap:4px;min-width:0;flex:1 1 200px')}>
+                      <strong style={css('font-family:Georgia,serif;font-size:18px;line-height:1.3')}>{h.purpose}</strong>
+                      <span style={css('font-size:12.5px;color:#C9D3E0')}>{fmt(h.date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}{h.time ? ' · ' + h.time : ''}</span>
+                      {court.name && <span style={css('font-size:12.5px;color:#C9D3E0')}>{court.name}</span>}
+                    </div>
+                    <span style={css('font-size:12px;font-weight:700;padding:5px 11px;border-radius:9999px;background:#E6EFE9;color:#1F5A3B')}>{d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : 'In ' + d + ' days'}</span>
+                  </div>
+                  <div style={css('display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:10px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12)')}>
+                    <Info size={16} color="#8FB3DE" style={{ flexShrink: 0, marginTop: 1 }} />
+                    <span style={css('font-size:12.5px;line-height:1.5;color:#E8EDF3')}><strong style={css('color:#fff')}>{attendTxt(h)}</strong> {h.hearingReasonNote || ''}</span>
+                  </div>
+                  <div style={css('display:flex;gap:8px;flex-wrap:wrap')}>
+                    {link && <a href={link} target="_blank" rel="noopener noreferrer" style={css('display:flex;align-items:center;gap:6px;border-radius:8px;padding:8px 13px;font-size:12.5px;font-weight:700;background:#8FB3DE;color:#16223A;text-decoration:none')}><CalendarPlus size={14} color="#16223A" />Add to Google Calendar</a>}
+                    <span style={css('align-self:center;font-size:11.5px;color:#8FA0B8')}>{f.title}</span>
+                  </div>
+                </section>
+              );
+            })()}
+
+            <section style={css('border-radius:16px;background:#fff;border:1px solid #E4DED2;overflow:hidden')}>
+              <div style={css('display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid #EFEAE0')}><strong style={css('font-family:Georgia,serif;font-size:16px;color:#16223A')}>What we need from you</strong>{left > 0 && <span style={css('font-size:11px;font-weight:800;padding:1px 8px;border-radius:9999px;background:#F6EEDC;color:#8A6D3B')}>{left} to do</span>}</div>
+              {asks.map((a) => (
+                <div key={a.id} style={css('display:flex;align-items:center;gap:12px;padding:13px 18px;border-bottom:1px solid #F3EFE7')}>
+                  <span style={css('width:22px;height:22px;flex-shrink:0;border-radius:9999px;display:grid;place-items:center;border:2px solid #C9BFAE;background:#fff')} />
+                  <span style={css('display:flex;flex-direction:column;gap:2px;flex:1;min-width:0')}><span style={css('font-size:13px;font-weight:700;color:#16223A')}>{a.title}</span><span style={css('font-size:11.5px;color:#6B6458')}>{a.note}</span></span>
+                  {a.kind === 'sign' && a.open && <button type="button" onClick={a.open} style={css('flex-shrink:0;border:0;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;background:#16223A;color:#fff;cursor:pointer')}>Review &amp; sign</button>}
+                </div>
+              ))}
+              {!asks.length && <div style={css('padding:16px 18px;font-size:12.5px;color:#1F5A3B')}>Nothing needed right now. We'll let you know if that changes.</div>}
+            </section>
           </div>
 
-          {(currentClient?.portalUpdates || []).length > 0 && (
-            <section className="mt-5 rounded-xl border border-[#E1DCCF] bg-white p-5 shadow-xs">
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <h3 className="font-serif text-base font-bold text-[#16223A]">Latest Firm Updates</h3>
-                  <p className="text-[11px] text-slate-500">Recent billing and matter updates shared with you.</p>
+          <div style={css('display:flex;flex-direction:column;gap:16px')}>
+            <section style={css('border-radius:16px;background:#fff;border:1px solid #E4DED2;overflow:hidden')}>
+              <div style={css('padding:14px 18px;border-bottom:1px solid #EFEAE0')}><strong style={css('font-family:Georgia,serif;font-size:16px;color:#16223A')}>Latest updates</strong><span style={css('margin-left:8px;font-size:11.5px;color:#6B6458')}>also sent to you by WhatsApp and e-mail</span></div>
+              {updates.slice(0, 5).map((u, i) => (
+                <div key={i} style={css('display:grid;grid-template-columns:62px minmax(0,1fr);gap:12px;padding:12px 18px;border-bottom:1px solid #F3EFE7')}>
+                  <span style={css('display:flex;flex-direction:column;line-height:1.25')}><strong style={css('font-size:13px;color:#16223A')}>{fmt(u.at, { day: 'numeric', month: 'short' })}</strong><span style={css('font-size:11px;color:#6B6458')}>{fmt(u.at, { year: 'numeric' })}</span></span>
+                  <span style={css('display:flex;flex-direction:column;gap:3px;min-width:0')}><span style={css('font-size:13px;font-weight:700;color:#16223A')}>{u.title}</span><span style={css('font-size:12px;line-height:1.5;color:#4A5468;white-space:pre-line')}>{u.body}</span>{many && u.file && <span style={css('font-size:11px;color:#8A6D3B')}>{u.file}</span>}</span>
                 </div>
-                <span className="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-bold text-emerald-800">Portal synced</span>
-              </div>
-              <div className="space-y-2">
-                {(currentClient?.portalUpdates || []).slice(0, 5).map((update) => (
-                  <div key={update.id} className="rounded-lg border border-slate-100 bg-[#FAF8F2] p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-xs font-bold text-[#16223A]">{update.title}</span>
-                      <span className="text-[10px] text-slate-500">{new Date(update.date).toLocaleString()}</span>
+              ))}
+              {!updates.length && <div style={css('padding:16px 18px;font-size:12.5px;color:#6B6458')}>No updates yet. Your lawyer's updates will appear here.</div>}
+            </section>
+
+            {see.bills && (
+              <section style={css('border-radius:16px;background:#fff;border:1px solid #E4DED2;padding:16px 18px;display:flex;flex-direction:column;gap:12px')}>
+                <strong style={css('font-family:Georgia,serif;font-size:16px;color:#16223A')}>Your account</strong>
+                <div style={css('display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px')}>
+                  <div style={css(`padding:12px 14px;border-radius:10px;background:${m.owing > 0 ? '#FBF1EF' : '#EFF5F1'}`)}><span style={css('display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6B6458')}>To pay</span><strong style={css(`display:block;margin-top:3px;font-family:Georgia,serif;font-size:22px;color:${m.owing > 0 ? '#8E2A20' : '#1F5A3B'}`)}>{rm(m.owing)}</strong><span style={css('font-size:11px;color:#6B6458')}>{m.owing > 0 ? (dueBill ? 'due ' + fmt(dueBill.dueDate) : 'outstanding') : m.bills.length ? 'all bills paid' : 'no bills yet'}</span></div>
+                  {see.statement && <div style={css('padding:12px 14px;border-radius:10px;background:#EEF3F9')}><span style={css('display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6B6458')}>We hold for you</span><strong style={css('display:block;margin-top:3px;font-family:Georgia,serif;font-size:22px;color:#2F4F7A')}>{rm(m.held)}</strong><span style={css('font-size:11px;color:#6B6458')}>in our client account</span></div>}
+                </div>
+                <button type="button" onClick={() => setTab('bills')} style={css('align-self:flex-start;border:1px solid #16223A;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer')}>See bills &amp; pay</button>
+              </section>
+            )}
+
+            <section style={css('border-radius:16px;background:#fff;border:1px solid #E4DED2;overflow:hidden')}>
+              <div style={css('padding:14px 18px;border-bottom:1px solid #EFEAE0')}><strong style={css('font-family:Georgia,serif;font-size:16px;color:#16223A')}>Your legal team</strong></div>
+              {team.map((p) => {
+                const wa = whatsappLink(p.phone, '');
+                return (
+                  <div key={p.name} style={css('display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid #F3EFE7')}>
+                    <span style={css(`width:36px;height:36px;flex-shrink:0;border-radius:9999px;display:grid;place-items:center;font-size:12px;font-weight:800;color:#fff;background:${p.color}`)}>{initialsOf(p.name)}</span>
+                    <span style={css('display:flex;flex-direction:column;gap:1px;flex:1;min-width:0')}><strong style={css('font-size:13px;color:#16223A')}>{p.name}</strong><span style={css('font-size:11.5px;color:#6B6458')}>{p.role}</span></span>
+                    {wa && <a href={wa} target="_blank" rel="noopener noreferrer" title="WhatsApp" style={css('display:grid;place-items:center;width:34px;height:34px;border-radius:8px;border:1px solid #E4DED2')}><MessageCircle size={15} color="#1F5A3B" /></a>}
+                    {p.email && <a href={'mailto:' + p.email} title="E-mail" style={css('display:grid;place-items:center;width:34px;height:34px;border-radius:8px;border:1px solid #E4DED2')}><Mail size={15} color="#3D6B9C" /></a>}
+                  </div>
+                );
+              })}
+              {!team.length && <div style={css('padding:12px 18px;font-size:12.5px;color:#6B6458')}>Your legal team will be shown here once a file is opened for you.</div>}
+              <div style={css('padding:10px 18px;font-size:11.5px;color:#6B6458')}>Office hours Mon to Fri, 9am to 6pm{firmPhone ? ' · ' + firmPhone : ''}</div>
+            </section>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------------------- My file(s) */}
+      {cur === 'files' && (
+        <div style={css('display:flex;flex-direction:column;gap:16px')}>
+          {files.map((f) => {
+            const def = STEPS[stageKey(practiceOf(f))]; const step = stepOf(f); const court = courtOf(f);
+            const meta = [/^n\/?a\b/i.test(court.name) ? '' : court.name, court.suit ? 'Suit no. ' + court.suit : '', f.clientRole ? 'you are the ' + f.clientRole : ''].filter(Boolean).join(' · ') || practiceOf(f);
+            const lu = latestOn(f); const sn = stageNameOf(f);
+            const now = lu ? lu.message : sn ? (s => s.charAt(0).toUpperCase() + s.slice(1))(stageMessage(sn)) : 'We will post an update here once your lawyer sends one.';
+            const nowBy = lu ? 'Updated ' + fmt(lu.emailSentAt || lu.whatsappOpenedAt || lu.at) + (lu.by ? ' by ' + lu.by : '') : '';
+            const nh = (f.hearings || []).filter((h) => h.status === 'Scheduled' && isoOf(h.date) >= today).sort((a, b) => (isoOf(a.date) < isoOf(b.date) ? -1 : 1))[0];
+            const next = f.status === 'Closed' ? 'Your file is closed. Thank you for your instructions.' : nh ? nh.purpose + ' on ' + fmt(nh.date) + '. ' + attendTxt(nh) : 'Your lawyer will let you know the next step.';
+            const kd: { d: string; what: string; tag: 'Court' | 'Deadline' | 'Done' }[] = [
+              ...(f.hearings || []).filter((h) => h.status === 'Scheduled' || h.status === 'Completed').map((h) => ({ d: isoOf(h.date), what: h.purpose, tag: (h.status === 'Completed' || isoOf(h.date) < today ? 'Done' : 'Court') as 'Court' | 'Done' })),
+              ...(f.tasks || []).filter((t: Task) => isDeadline(t) && t.dueDate).map((t) => ({ d: isoOf(t.dueDate), what: t.title, tag: (isDone(t) ? 'Done' : 'Deadline') as 'Deadline' | 'Done' })),
+            ].filter((k) => k.d);
+            const up = kd.filter((k) => k.tag !== 'Done').sort((a, b) => (a.d < b.d ? -1 : 1));
+            const done = kd.filter((k) => k.tag === 'Done').sort((a, b) => (a.d < b.d ? 1 : -1));
+            const dates = [...up, ...done].slice(0, 8);
+            return (
+              <section key={f.id} style={css('border-radius:16px;background:#fff;border:1px solid #E4DED2;overflow:hidden')}>
+                <div style={css('padding:18px 22px;border-bottom:1px solid #EFEAE0;display:flex;flex-wrap:wrap;gap:8px 20px;align-items:flex-start')}>
+                  <div style={css('flex:1 1 380px;min-width:0;display:flex;flex-direction:column;gap:5px')}>
+                    <span style={css('font-family:ui-monospace,monospace;font-size:11.5px;font-weight:700;color:#8A6D3B')}>{f.ref}</span>
+                    <strong style={css('font-family:Georgia,serif;font-size:20px;line-height:1.3;color:#16223A')}>{f.title}</strong>
+                    <span style={css('font-size:12.5px;color:#4A5468')}>{meta}</span>
+                  </div>
+                  <span style={css(`font-size:11.5px;font-weight:700;padding:4px 11px;border-radius:9999px;background:${f.status === 'Closed' ? '#EEF1F5' : '#E6EFE9'};color:${f.status === 'Closed' ? '#4A5468' : '#1F5A3B'}`)}>{f.status}</span>
+                </div>
+                <div style={css('padding:20px 22px 8px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px')}>
+                  {def.labels.map((label, i) => {
+                    const isDoneStep = step !== null && i < step, isCur = step !== null && i === step;
+                    return (
+                      <div key={label} style={css('display:flex;flex-direction:column;gap:8px')}>
+                        <div style={css(`height:6px;border-radius:9999px;background:${isDoneStep ? '#1F5A3B' : isCur ? '#8A6D3B' : '#E4DED2'}`)} />
+                        <span style={css('display:flex;align-items:center;gap:6px')}><span style={css(`width:20px;height:20px;flex-shrink:0;border-radius:9999px;display:grid;place-items:center;font-size:10.5px;font-weight:800;background:${isDoneStep ? '#1F5A3B' : isCur ? '#8A6D3B' : '#fff'};color:${isDoneStep || isCur ? '#fff' : '#6B6458'};border:1.5px solid ${isDoneStep ? '#1F5A3B' : isCur ? '#8A6D3B' : '#C9BFAE'}`)}>{isDoneStep ? '✓' : String(i + 1)}</span><span style={css(`font-size:12px;line-height:1.3;font-weight:${isCur ? '800' : '600'};color:${isCur ? '#16223A' : isDoneStep ? '#4A5468' : '#6B6458'}`)}>{label}</span></span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={css('display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;padding:14px 22px 20px')}>
+                  <div style={css('padding:14px 16px;border-radius:12px;background:#FAF7F1;border:1px solid #EFEAE0;display:flex;flex-direction:column;gap:5px')}><span style={css('font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8A6D3B')}>Where we are</span><span style={css('font-size:13px;line-height:1.55;color:#16223A;white-space:pre-line')}>{now}</span>{nowBy && <span style={css('font-size:11px;color:#6B6458')}>{nowBy}</span>}</div>
+                  <div style={css('padding:14px 16px;border-radius:12px;background:#F2F6FA;border:1px solid #DFE7F0;display:flex;flex-direction:column;gap:5px')}><span style={css('font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#2F4F7A')}>What happens next</span><span style={css('font-size:13px;line-height:1.55;color:#16223A')}>{next}</span></div>
+                </div>
+                <div style={css('border-top:1px solid #EFEAE0')}>
+                  <div style={css('padding:12px 22px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#6B6458')}>Key dates</div>
+                  {dates.map((k, i) => (
+                    <div key={i} style={css('display:grid;grid-template-columns:110px minmax(0,1fr) auto;gap:12px;align-items:center;padding:9px 22px;border-top:1px solid #F3EFE7')}>
+                      <span style={css(`font-size:12.5px;font-weight:700;color:${k.tag === 'Done' ? '#6B6458' : '#16223A'}`)}>{fmt(k.d)}</span>
+                      <span style={css('font-size:12.5px;color:#16223A')}>{k.what}</span>
+                      <span style={css(`font-size:11px;font-weight:700;padding:2px 9px;border-radius:9999px;background:${KEY_TAG[k.tag][0]};color:${KEY_TAG[k.tag][1]}`)}>{k.tag}</span>
                     </div>
-                    <p className="mt-1 text-[11px] text-slate-600">{update.message}</p>
+                  ))}
+                  {!dates.length && <div style={css('padding:9px 22px 14px;border-top:1px solid #F3EFE7;font-size:12.5px;color:#6B6458')}>No dates fixed yet.</div>}
+                </div>
+              </section>
+            );
+          })}
+          {!files.length && <section style={css('border-radius:16px;background:#fff;border:1px solid #E4DED2;padding:22px;font-size:13px;color:#6B6458')}>No files open yet.</section>}
+        </div>
+      )}
+
+      {/* ---------------------------------------------------------------- Documents */}
+      {cur === 'docs' && (
+        <section style={css('border-radius:16px;background:#fff;border:1px solid #E4DED2;overflow:hidden')}>
+          <div style={css('display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid #EFEAE0')}>
+            <strong style={css('font-family:Georgia,serif;font-size:16px;color:#16223A')}>Documents</strong>
+            <div style={css('display:flex;gap:4px;flex-wrap:wrap')}>{cats.map((k) => { const on = cat === k; return <button key={k} type="button" onClick={() => setCat(k)} style={css(`border-radius:9999px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid ${on ? '#16223A' : '#E4DED2'};background:${on ? '#16223A' : '#fff'};color:${on ? '#fff' : '#16223A'}`)}>{k}</button>; })}</div>
+            <span style={css('margin-left:auto;display:flex;align-items:center;gap:8px')}>
+              {preview && disabledNote}
+              <label style={css('display:flex;align-items:center;gap:6px;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;background:#16223A;color:#fff;cursor:pointer' + btnOff + (busy ? ';opacity:.5' : ''))}><Upload size={13} color="#FFFFFF" />Send us a document<input type="file" disabled={preview || busy} onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void sendDoc(file); }} style={css('display:none')} /></label>
+            </span>
+          </div>
+          {docs.filter((x) => cat === 'All' || (x.d.category || 'Other') === cat).map(({ d, f }) => {
+            const [Ic, ibg, ic] = DOC_CAT[d.category] || DOC_CAT.Letters;
+            return (
+              <div key={f.id + d.id} style={css('display:grid;grid-template-columns:34px minmax(0,1fr) 120px 96px auto;gap:12px;align-items:center;padding:11px 18px;border-bottom:1px solid #F3EFE7')}>
+                <span style={css(`width:34px;height:34px;border-radius:8px;display:grid;place-items:center;background:${ibg}`)}><Ic size={16} color={ic} /></span>
+                <span style={css('display:flex;flex-direction:column;gap:2px;min-width:0')}><span style={css('font-size:13px;font-weight:700;color:#16223A')}>{d.name}</span><span style={css('font-size:11px;color:#6B6458')}>{many ? f.title : f.ref}</span></span>
+                <span style={css('font-size:11.5px;color:#4A5468')}>{d.category}</span>
+                <span style={css('font-size:11.5px;color:#6B6458')}>{fmt(d.uploadedDate)}</span>
+                <button type="button" onClick={() => void openDoc(d)} style={css('display:flex;align-items:center;gap:5px;border:1px solid #E4DED2;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;background:#fff;color:#16223A;cursor:pointer')}><Download size={13} color="#3D6B9C" />Download</button>
+              </div>
+            );
+          })}
+          {!docs.length && <div style={css('padding:16px 18px;font-size:12.5px;color:#6B6458')}>No documents shared with you yet. Your lawyer will share documents here.</div>}
+          <div style={css('padding:10px 18px;background:#FAF7F1;font-size:11.5px;color:#6B6458')}>Documents are confidential between you and the firm (s. 126 Evidence Act 1950). Please don't forward them without asking us.</div>
+        </section>
+      )}
+
+      {/* ---------------------------------------------------------------- Bills & payments */}
+      {cur === 'bills' && (
+        <div style={css('display:flex;flex-direction:column;gap:16px')}>
+          <div style={css('display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px')}>
+            {[
+              { k: 'Billed so far', v: rm(m.billed), sub: m.bills.length + (m.bills.length === 1 ? ' bill' : ' bills'), c: '#16223A' },
+              { k: 'Paid', v: rm(m.paidTotal), sub: m.paidTotal > 0 ? 'thank you' : 'nothing paid yet', c: '#1F5A3B' },
+              { k: 'To pay', v: rm(m.owing), sub: m.owing > 0 ? (dueBill ? 'due ' + fmt(dueBill.dueDate) : 'outstanding') : 'nothing due', c: m.owing > 0 ? '#8E2A20' : '#16223A' },
+              ...(see.statement && m.ledger.length ? [{ k: 'We hold for you', v: rm(m.held), sub: 'client account', c: '#2F4F7A' }] : []),
+            ].map((s) => <div key={s.k} style={css('display:flex;flex-direction:column;gap:4px;padding:14px 16px;border-radius:14px;border:1px solid #E4DED2;background:#fff')}><span style={css('font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#6B6458')}>{s.k}</span><strong style={css(`font-family:Georgia,serif;font-size:22px;color:${s.c}`)}>{s.v}</strong><span style={css('font-size:11.5px;color:#6B6458')}>{s.sub}</span></div>)}
+          </div>
+          <section style={css('border-radius:16px;background:#fff;border:1px solid #E4DED2;overflow:hidden')}>
+            <div style={css('display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid #EFEAE0')}><strong style={css('font-family:Georgia,serif;font-size:16px;color:#16223A')}>Bills</strong>{preview && <span style={css('margin-left:auto')}>{disabledNote}</span>}</div>
+            {m.bills.slice().sort((a, b) => (isoOf(a.date) < isoOf(b.date) ? 1 : -1)).map((inv) => {
+              const bal = m.balOf(inv); const isPaid = bal <= 0.005; const checking = !isPaid && (inv.clientPaymentSlips || []).length > 0;
+              const status = checking ? 'Checking payment' : isPaid ? 'Paid' : 'To pay';
+              const [sbg, sfg] = checking ? ['#E4ECF5', '#2F4F7A'] : isPaid ? ['#E6EFE9', '#1F5A3B'] : ['#F6E4E1', '#8E2A20'];
+              const rc = receiptsOf(inv);
+              const kase = lk.caseById.get(inv.caseId) || lk.caseByRef.get(inv.caseId) || (inv.fileRef ? lk.caseByRef.get(inv.fileRef) : undefined);
+              const view = () => { const d = invoiceToDoc(inv, lk, status); pdf(d.no, docHtml(d)); };
+              return (
+                <div key={inv.id} style={css('display:grid;grid-template-columns:120px minmax(0,1fr) 110px 100px auto;gap:12px;align-items:center;padding:12px 18px;border-bottom:1px solid #F3EFE7')}>
+                  <button type="button" onClick={view} style={css('justify-self:start;border:0;background:none;padding:0;font-family:ui-monospace,monospace;font-size:12px;font-weight:700;color:#3D6B9C;cursor:pointer;text-decoration:underline')}>{inv.id}</button>
+                  <span style={css('display:flex;flex-direction:column;gap:2px;min-width:0')}><span style={css('font-size:13px;font-weight:700;color:#16223A')}>{inv.subject || inv.matter || kase?.title || 'Legal fees'}</span><span style={css('font-size:11px;color:#6B6458')}>Issued {fmt(inv.issuedAt || inv.date, { day: 'numeric', month: 'short' })}{!isPaid && inv.dueDate ? ' · due ' + fmt(inv.dueDate, { day: 'numeric', month: 'short' }) : ''}{!isPaid && bal < Number(inv.total || 0) - 0.005 ? ' · ' + rm(bal) + ' left' : ''}</span></span>
+                  <strong style={css('text-align:right;font-size:13px;color:#16223A')}>{rm(Number(inv.total || 0))}</strong>
+                  <span style={css(`justify-self:start;font-size:11px;font-weight:700;padding:2px 9px;border-radius:9999px;background:${sbg};color:${sfg}`)}>{status}</span>
+                  <span style={css('justify-self:end;display:flex;gap:6px')}>
+                    {!isPaid && !checking && <label title={preview ? PREVIEW_NOTE : 'Upload your bank transfer slip'} style={css('border:1px solid #E4DED2;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;background:#fff;color:#16223A;cursor:pointer' + btnOff)}>Upload slip<input type="file" disabled={preview || busy} onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void uploadSlip(inv, file); }} style={css('display:none')} /></label>}
+                    {rc.length > 0 && <button type="button" onClick={() => rc.forEach((r) => { const d = receiptToDoc(r, lk, []); pdf(d.no, docHtml(d)); })} style={css('border:1px solid #E4DED2;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;background:#fff;color:#16223A;cursor:pointer')}>Receipt</button>}
+                  </span>
+                </div>
+              );
+            })}
+            {!m.bills.length && <div style={css('padding:16px 18px;font-size:12.5px;color:#6B6458')}>No bills yet.</div>}
+            <div style={css('padding:10px 18px;background:#FAF7F1;font-size:11.5px;color:#6B6458')}>
+              {bank ? <>Transfer to {bank.accountName}, {bank.bankName.replace(/\s+Berhad$/i, '')} {bank.accountNo}, and upload the slip. Official receipt is issued within 1 working day.</> : <>Please ask us for our bank details, then upload the slip here.</>} Online payment (FPX / DuitNow) is not available yet.
+            </div>
+          </section>
+          {see.statement && m.ledger.length > 0 && (() => {
+            let bal = 0;
+            const rows = m.ledger.map((r) => { const amt = r.type === 'Deposit' ? Number(r.amount || 0) : -Number(r.amount || 0); bal = round2(bal + amt); return { r, amt, bal }; });
+            const monthName = new Date().toLocaleDateString('en-GB', { month: 'long' });
+            const stmt = () => pdf('Client account statement ' + client.name, tableHtml('Client account statement · ' + client.name, 'To ' + fmt(today), ['Date', 'Details', 'Amount (RM)', 'Balance (RM)'], rows.map((x) => [fmt(x.r.date), x.r.remarks || x.r.type, (x.amt < 0 ? '-' : '') + Math.abs(x.amt).toFixed(2), x.bal.toFixed(2)])));
+            return (
+              <section style={css('border-radius:16px;background:#fff;border:1px solid #E4DED2;overflow:hidden')}>
+                <div style={css('display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid #EFEAE0')}><strong style={css('font-family:Georgia,serif;font-size:16px;color:#16223A')}>Money we hold for you</strong><span style={css('font-size:11.5px;color:#6B6458')}>client account, kept separate from the firm's money</span><button type="button" onClick={stmt} style={css('margin-left:auto;display:flex;align-items:center;gap:5px;border:1px solid #E4DED2;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;background:#fff;color:#16223A;cursor:pointer')}><Download size={13} color="#3D6B9C" />{monthName} statement</button></div>
+                {rows.map(({ r, amt, bal: b }) => (
+                  <div key={r.id} style={css('display:grid;grid-template-columns:90px minmax(0,1fr) 110px 110px;gap:12px;align-items:center;padding:10px 18px;border-bottom:1px solid #F3EFE7')}>
+                    <span style={css('font-size:12px;color:#6B6458')}>{fmt(r.date, { day: 'numeric', month: 'short' })}</span><span style={css('font-size:12.5px;color:#16223A')}>{r.remarks || r.type}</span><span style={css(`text-align:right;font-size:12.5px;font-weight:600;color:${amt < 0 ? '#8E2A20' : '#1F5A3B'}`)}>{(amt < 0 ? '− ' : '+ ') + rm(Math.abs(amt))}</span><span style={css('text-align:right;font-size:12.5px;font-weight:700;color:#16223A')}>{rm(b)}</span>
                   </div>
                 ))}
-              </div>
-            </section>
-          )}
-          <h2 className="font-serif text-xl font-bold text-white flex items-center gap-2">
-            Client Portal — {currentClient?.name}
-          </h2>
-          <p className="text-xs text-slate-300 mt-0.5">
-            Transparent real-time matter tracking, shared case files, and privileged client statements.
-          </p>
+              </section>
+            );
+          })()}
         </div>
+      )}
 
-        {/* Designated Client Switcher Dropdown */}
-        <div className="bg-white/10 p-2.5 rounded-lg border border-white/20 w-full md:w-auto shrink-0">
-          <label className="text-[10px] uppercase font-bold text-amber-300 block mb-1">
-            Select Designated Client Account:
-          </label>
-          <select
-            value={selectedClientId}
-            onChange={(e) => {
-              setSelectedClientId(e.target.value);
-              showToast(`Switched client portal view to ${clients.find((c) => c.id === e.target.value)?.name}`);
-            }}
-            className="w-full md:w-64 bg-slate-900 text-white font-bold text-xs p-1.5 rounded border border-amber-400/50 focus:outline-none"
-          >
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} ({c.id})
-              </option>
+      {/* ---------------------------------------------------------------- Messages */}
+      {cur === 'msgs' && (
+        <section style={css('border-radius:16px;background:#fff;border:1px solid #E4DED2;overflow:hidden;display:flex;flex-direction:column')}>
+          <div style={css('display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid #EFEAE0')}><strong style={css('font-family:Georgia,serif;font-size:16px;color:#16223A')}>Messages</strong><span style={css('font-size:11.5px;color:#6B6458')}>{firstLawyer ? 'with ' + firstLawyer.name + ' (' + firstLawyer.role.toLowerCase() + ')' : 'with your legal team'}</span></div>
+          <div style={css('display:flex;flex-direction:column;gap:12px;padding:18px;background:#FAF7F1;max-height:460px;overflow:auto')}>
+            {updates.slice().reverse().map((u, i) => (
+              <div key={i} style={css('display:flex;flex-direction:column;gap:3px;max-width:78%;align-self:flex-start')}>
+                <span style={css('font-size:11px;color:#6B6458;align-self:flex-start')}>{u.by || 'Syafiqah Hamizad & Co'} · {fmt(u.at, { day: 'numeric', month: 'short' })}{timeOf(u.at) ? ', ' + timeOf(u.at) : ''}</span>
+                <div style={css('padding:10px 14px;border-radius:14px;font-size:13px;line-height:1.5;background:#fff;color:#16223A;border:1px solid #E4DED2;white-space:pre-line')}><strong>{u.title}</strong>{'\n'}{u.body}</div>
+              </div>
             ))}
-          </select>
-        </div>
-      </div>
-
-      {/* Client Overview Header Card */}
-      <div className="bg-white border border-[#E1DCCF] rounded-xl p-5 shadow-xs grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="space-y-1 md:col-span-1 border-r border-slate-100 pr-4">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Client Identity</div>
-          <div className="font-bold text-[#16223A] text-sm flex items-center gap-1.5">
-            {currentClient?.type === 'Corporate' ? (
-              <Building2 className="w-4 h-4 text-[#A9814A]" />
-            ) : (
-              <User className="w-4 h-4 text-[#A9814A]" />
-            )}
-            <span>{currentClient?.name}</span>
+            {!updates.length && <span style={css('font-size:12.5px;color:#6B6458')}>No messages yet.</span>}
           </div>
-          <div className="text-[11px] font-mono text-slate-500">ID: {currentClient?.id}</div>
-          <div className="text-[11px] text-slate-600 mt-1">
-            📞 {currentClient?.phone} | ✉️ {currentClient?.email}
-          </div>
-        </div>
-
-        <div className="space-y-1 md:col-span-1 border-r border-slate-100 pr-4">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Active Legal Matters</div>
-          <div className="font-serif text-2xl font-bold text-[#16223A]">{clientCases.length}</div>
-          <div className="text-[11px] text-slate-500">
-            {clientCases.map((c) => c.ref).join(', ') || 'No active matters'}
-          </div>
-        </div>
-
-        <div className="space-y-1 md:col-span-1 border-r border-slate-100 pr-4">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Shared Documents</div>
-          <div className="font-serif text-2xl font-bold text-[#16223A]">{allSharedDocuments.length}</div>
-          <div className="text-[11px] text-emerald-800 font-semibold">Available for One-Click Download</div>
-        </div>
-
-        <div className="space-y-1 md:col-span-1 flex flex-col justify-between">
-          <div>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Firm Support &amp; Inquiry</div>
-            <div className="text-[11px] font-bold text-[#16223A] mt-0.5">Messrs Syafiqah Hamizad &amp; Co</div>
-            <div className="text-[10.5px] text-slate-500">Assigned Partner: Syafiqah Hamizad</div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setIsInquiryModalOpen(true)}
-            className="w-full bg-[#2F6F4E] hover:bg-emerald-800 text-white font-bold py-1.5 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs mt-2"
-          >
-            <MessageSquare className="w-3.5 h-3.5" />
-            <span>Request Status Update</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Navigation Sub-Tabs */}
-      <div className="flex items-center gap-2 border-b border-[#E1DCCF] pb-2">
-        <button
-          type="button"
-          onClick={() => setActiveTab('matters')}
-          className={`px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
-            activeTab === 'matters'
-              ? 'bg-[#16223A] text-white shadow-xs'
-              : 'bg-white border border-[#E1DCCF] text-slate-700 hover:bg-slate-50'
-          }`}
-        >
-          <FolderOpen className="w-4 h-4 text-amber-400" />
-          <span>My Active Matters ({clientCases.length})</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('status')}
-          className={`px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
-            activeTab === 'status'
-              ? 'bg-[#16223A] text-white shadow-xs'
-              : 'bg-white border border-[#E1DCCF] text-slate-700 hover:bg-slate-50'
-          }`}
-        >
-          <Activity className="w-4 h-4 text-amber-400" />
-          <span>Case Status Log</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('documents')}
-          className={`px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
-            activeTab === 'documents'
-              ? 'bg-[#16223A] text-white shadow-xs'
-              : 'bg-white border border-[#E1DCCF] text-slate-700 hover:bg-slate-50'
-          }`}
-        >
-          <FileText className="w-4 h-4 text-amber-400" />
-          <span>Shared Case Documents ({allSharedDocuments.length})</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('financials')}
-          className={`px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
-            activeTab === 'financials'
-              ? 'bg-[#16223A] text-white shadow-xs'
-              : 'bg-white border border-[#E1DCCF] text-slate-700 hover:bg-slate-50'
-          }`}
-        >
-          <Receipt className="w-4 h-4 text-amber-400" />
-          <span>Financial Statements &amp; Receipts</span>
-        </button>
-      </div>
-
-      {/* ================= TAB 1: MY ACTIVE MATTERS ================= */}
-      {activeTab === 'matters' && (
-        <div className="space-y-5">
-          {clientCases.length === 0 ? (
-            <div className="bg-white border border-[#E1DCCF] rounded-xl p-8 text-center text-slate-500">
-              <FolderOpen className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-              <p className="font-bold text-slate-700">No active legal matters found for this client account.</p>
-              <p className="text-xs text-slate-500 mt-1">
-                Please contact Messrs Syafiqah Hamizad &amp; Co to link your matter files.
-              </p>
+          <div style={css('display:flex;flex-direction:column;gap:10px;padding:14px 18px;border-top:1px solid #EFEAE0')}>
+            <div style={css('display:flex;gap:6px;flex-wrap:wrap')}>{['Can I have an update?', 'Can we meet this week?', 'I have a question about my bill'].map((q) => <button key={q} type="button" onClick={() => setDraft(q)} style={css('border:1px solid #E4DED2;border-radius:9999px;padding:5px 12px;font-size:12px;font-weight:600;background:#fff;color:#16223A;cursor:pointer')}>{q}</button>)}</div>
+            <div style={css('display:flex;gap:8px;align-items:flex-end')}>
+              <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={2} placeholder="Write to your lawyer…" style={css('flex:1;border:1px solid #E4DED2;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.5;color:#16223A;resize:vertical;outline-color:#3D6B9C;font-family:inherit')} />
+              <button type="button" disabled title={preview ? PREVIEW_NOTE : 'Portal messages are not connected yet'} style={css('display:flex;align-items:center;gap:6px;border:0;border-radius:10px;padding:11px 16px;font-size:13px;font-weight:700;background:#16223A;color:#fff;opacity:.5;cursor:not-allowed')}><Send size={14} color="#FFFFFF" />Send</button>
             </div>
-          ) : (
-            clientCases.map((cs) => {
-              const assignedLawyers = cs.lawyerInCharge
-                ? cs.lawyerInCharge.split(',').map((s) => s.trim())
-                : ['Syafiqah Hamizad'];
-
-              const stageDetails = getStageDetails(cs.stage);
-              const daysToHearing = getDaysRemaining(cs.nextHearing);
-              const isChronologyExpanded = expandedChronologyCaseId === cs.id;
-
-              // Combined chronological activity log
-              const activityHistory = [
-                ...(cs.courtDiary || []).map((cd) => ({
-                  type: 'Court Appearance',
-                  date: cd.date,
-                  title: `Court Session: ${cd.matter || 'Case Management'}`,
-                  detail: cd.caseStatus || cd.courtDirections || cd.instructions,
-                  badge: 'Court Diary',
-                })),
-                ...(cs.hearings || []).map((h) => ({
-                  type: 'Hearing',
-                  date: h.date,
-                  title: `Hearing Purpose: ${h.purpose}`,
-                  detail: h.outcome ? `Outcome: ${h.outcome}` : `Scheduled at ${h.time}`,
-                  badge: h.status,
-                })),
-                ...(cs.documents || []).map((d) => ({
-                  type: 'Document Filed',
-                  date: d.uploadedDate,
-                  title: `Document Shared: ${d.name}`,
-                  detail: `Folder: ${d.category}`,
-                  badge: 'Document',
-                })),
-                ...(cs.meetingNotes || []).map((m) => ({
-                  type: 'Client Consultation',
-                  date: m.date,
-                  title: `Meeting Note`,
-                  detail: m.decisions || m.meetingNotes,
-                  badge: 'Consultation',
-                })),
-              ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-              return (
-                <div key={cs.id} className="bg-white border border-[#E1DCCF] rounded-xl shadow-sm overflow-hidden">
-                  {/* Case Card Header */}
-                  <div className="bg-[#16223A] text-white p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="bg-amber-400 text-[#16223A] font-mono font-extrabold text-xs px-2.5 py-0.5 rounded shadow-2xs">
-                          {cs.ref}
-                        </span>
-                        <span className="text-[10px] bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded uppercase">
-                          {cs.type}
-                        </span>
-                        <span className="text-[10px] bg-emerald-900 text-emerald-200 font-bold px-2 py-0.5 rounded border border-emerald-500/30 flex items-center gap-1">
-                          <Activity className="w-3 h-3 text-emerald-400 animate-pulse" />
-                          <span>Stage: {stageDetails.stageName}</span>
-                        </span>
-                      </div>
-                      <h3 className="font-serif text-xl font-bold text-white mt-1">{cs.title}</h3>
-                      <p className="text-xs text-slate-300 flex items-center gap-2">
-                        <span>Court Branch: <strong>{cs.court}</strong></span>
-                        <span>•</span>
-                        <span>Client Role: <strong className="text-amber-200">{cs.clientRole || 'Plaintiff / Applicant'}</strong></span>
-                      </p>
-                    </div>
-
-                    {/* Next Hearing Countdown Banner */}
-                    {cs.nextHearing ? (
-                      <div className="bg-gradient-to-r from-rose-950 via-slate-900 to-rose-900 border border-rose-500/50 p-3 rounded-xl text-rose-100 flex items-center gap-3 shrink-0 shadow-sm">
-                        <Calendar className="w-5 h-5 text-rose-300 shrink-0" />
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[9px] uppercase font-extrabold text-rose-300 tracking-wider">Next Court Appearance</span>
-                            {daysToHearing !== null && (
-                              <span className={`text-[9.5px] font-bold px-1.5 py-0.2 rounded ${daysToHearing <= 3 ? 'bg-rose-500 text-white animate-bounce' : 'bg-rose-900/80 text-rose-200'}`}>
-                                {daysToHearing === 0 ? 'TODAY' : daysToHearing > 0 ? `In ${daysToHearing} Days` : 'Past Date'}
-                              </span>
-                            )}
-                          </div>
-                          <div className="font-bold text-sm text-white">{cs.nextHearing}</div>
-                          <div className="text-[10px] text-rose-200/90 font-medium mt-0.5">
-                            Attendance: <span className="font-bold text-amber-300">Not Compulsory for Client</span> (Advocates Attending)
-                          </div>
-                        </div>
-                        <a
-                          href={`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(
-                            `Court Hearing: ${cs.title} [${cs.ref}]`
-                          )}&dates=${cs.nextHearing.replace(/-/g, '')}T090000Z/${cs.nextHearing.replace(
-                            /-/g,
-                            ''
-                          )}T110000Z&details=${encodeURIComponent(`Court: ${cs.court}\nRef: ${cs.ref}`)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="ml-1 px-2.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10.5px] rounded-lg transition-colors flex items-center gap-1 shadow-2xs"
-                        >
-                          <span>📅 Add Calendar</span>
-                        </a>
-                      </div>
-                    ) : (
-                      <div className="bg-slate-800/80 border border-slate-700 p-2.5 rounded-lg text-slate-300 text-xs">
-                        <span className="text-[10px] uppercase font-bold text-slate-400 block">Next Court Event</span>
-                        <span className="font-semibold text-slate-200">Awaiting Court Case Management Fix Date</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Simple Progress Summary */}
-                  <div className="bg-slate-900 text-white p-4 border-b border-slate-800">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center gap-2">
-                        <TrendingUp className="w-4 h-4 text-amber-400" />
-                        <span className="text-xs font-bold text-amber-200 uppercase tracking-wider">
-                          Step {stageDetails.stepIndex} of 5: {stageDetails.stageName}
-                        </span>
-                      </div>
-                      <span className="text-sm font-extrabold font-mono text-amber-300 bg-amber-950/80 px-2.5 py-0.5 rounded border border-amber-500/40">
-                        {stageDetails.percent}% Complete
-                      </span>
-                    </div>
-
-                    {/* Progress Bar Track */}
-                    <div className="w-full bg-slate-800 h-3 rounded-full overflow-hidden p-0.5 border border-slate-700">
-                      <div
-                        className="bg-gradient-to-r from-amber-500 via-emerald-500 to-emerald-400 h-full rounded-full transition-all duration-500 shadow-sm"
-                        style={{ width: `${stageDetails.percent}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Plain-Language Explanation of Current Stage */}
-                  <div className="p-4 bg-amber-50/70 border-b border-amber-200/80 flex items-start gap-3">
-                    <Info className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
-                    <div className="space-y-1">
-                      <div className="text-xs font-bold text-amber-950 flex items-center gap-2">
-                        <span>Current Phase Focus: <strong>{stageDetails.stageName}</strong></span>
-                      </div>
-                      <p className="text-xs text-slate-800 leading-relaxed font-sans">
-                        {stageDetails.description}
-                      </p>
-                      <div className="text-[11px] text-amber-900 font-semibold pt-1 flex items-center gap-1.5">
-                        <ArrowRight className="w-3.5 h-3.5 text-amber-700" />
-                        <span><strong>Next Expected Milestone:</strong> {stageDetails.nextStepText}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Case Content Details Grid */}
-                  <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-5">
-                    {/* Column 1: Latest Status Note & Action Items */}
-                    <div className="md:col-span-2 space-y-4">
-                      {/* Live Status Note from Advocates */}
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1 flex items-center gap-1">
-                          <MessageSquare className="w-3.5 h-3.5 text-[#A9814A]" />
-                          <span>Latest Progress Memorandum from Lawyer in Charge:</span>
-                        </span>
-                        <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-sans text-xs text-slate-800 leading-relaxed shadow-2xs">
-                          {cs.notes ||
-                            'Pleadings are successfully closed. Our legal team is currently preparing the Bundle of Documents and Witness Statements for your review and endorsement before the upcoming Pre-Trial Case Management.'}
-                        </div>
-                      </div>
-
-                      {/* Client Action Items / Document Endorsement Needed */}
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5 flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-[#2F6F4E]" />
-                          <span>Pending Action Items &amp; Client Tasks:</span>
-                        </span>
-                        <div className="space-y-1.5">
-                          {(cs.tasks || []).length === 0 ? (
-                            <div className="p-3 bg-emerald-50/50 border border-emerald-200/60 rounded-xl text-emerald-900 text-xs flex items-center gap-2 font-medium">
-                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                              <span>No action required from client at this moment. Law firm is actively handling court filings.</span>
-                            </div>
-                          ) : (
-                            (cs.tasks || []).map((t) => (
-                              <div
-                                key={t.id}
-                                className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 ${
-                                  t.status === 'Completed'
-                                    ? 'bg-slate-50 border-slate-200'
-                                    : 'bg-amber-50/80 border-amber-300 text-amber-950 shadow-2xs'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2.5">
-                                  <span
-                                    className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                                      t.status === 'Completed' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'
-                                    }`}
-                                  />
-                                  <div>
-                                    <span
-                                      className={`font-bold text-xs block ${
-                                        t.status === 'Completed' ? 'line-through text-slate-400' : 'text-slate-900'
-                                      }`}
-                                    >
-                                      {t.title}
-                                    </span>
-                                    <span className="text-[10px] text-slate-500 font-medium">
-                                      Assigned To: {t.assignedTo} | Status: {t.status}
-                                    </span>
-                                  </div>
-                                </div>
-                                <span className="text-[10.5px] font-mono font-bold text-slate-600 shrink-0 bg-white px-2 py-0.5 rounded border border-slate-200">
-                                  Due: {t.dueDate}
-                                </span>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Expandable Case Chronology & Activity Feed */}
-                      <div className="pt-2">
-                        <button
-                          type="button"
-                          onClick={() => setExpandedChronologyCaseId(isChronologyExpanded ? null : cs.id)}
-                          className="w-full p-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 font-bold text-xs rounded-xl flex items-center justify-between transition-colors cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2">
-                            <Activity className="w-4 h-4 text-[#A9814A]" />
-                            <span>View Detailed Case Chronology &amp; Court Activity Feed ({activityHistory.length} Updates)</span>
-                          </div>
-                          {isChronologyExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                        </button>
-
-                        {isChronologyExpanded && (
-                          <div className="mt-3 p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 animate-fadeIn">
-                            <div className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-                              📜 Historical Court Updates &amp; Matter Timeline:
-                            </div>
-                            {activityHistory.length === 0 ? (
-                              <p className="text-xs text-slate-500 italic">No historical court records logged yet.</p>
-                            ) : (
-                              <div className="relative border-l-2 border-slate-300 ml-3 pl-4 space-y-3">
-                                {activityHistory.map((act, aIdx) => (
-                                  <div key={aIdx} className="relative group">
-                                    <div className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-[#16223A] border-2 border-white" />
-                                    <div className="p-2.5 bg-white rounded-lg border border-slate-200 shadow-2xs space-y-1">
-                                      <div className="flex items-center justify-between gap-2">
-                                        <span className="font-bold text-xs text-[#16223A]">{act.title}</span>
-                                        <span className="text-[10px] font-mono font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-                                          {act.date}
-                                        </span>
-                                      </div>
-                                      <p className="text-[11.5px] text-slate-700 leading-snug">{act.detail}</p>
-                                      <span className="inline-block text-[9px] font-bold uppercase tracking-wider bg-amber-50 text-amber-900 border border-amber-200 px-1.5 py-0.2 rounded">
-                                        {act.badge}
-                                      </span>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Column 2: Assigned Legal Team & Quick Matter Documents */}
-                    <div className="space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-200 h-fit">
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-2">
-                          👨‍⚖️ Designated Advocates In Charge:
-                        </span>
-                        <div className="space-y-2">
-                          {assignedLawyers.map((lawyer, lIdx) => (
-                            <div
-                              key={lIdx}
-                              className="p-2.5 bg-white rounded-xl border border-slate-200 flex items-center justify-between shadow-2xs"
-                            >
-                              <div className="flex items-center gap-2">
-                                <div className="w-7 h-7 rounded-full bg-[#16223A] text-amber-400 font-bold text-xs flex items-center justify-center border border-amber-400/40">
-                                  {lawyer.slice(0, 2).toUpperCase()}
-                                </div>
-                                <div>
-                                  <span className="font-bold text-xs text-[#16223A] block">{lawyer}</span>
-                                  <span className="text-[10px] text-slate-500">Messrs Syafiqah Hamizad &amp; Co</span>
-                                </div>
-                              </div>
-                              <span className="text-[9.5px] font-bold text-amber-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                                Advocate
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="pt-3 border-t border-slate-200">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-2">
-                          📁 Shared Court Documents:
-                        </span>
-                        <div className="space-y-1.5">
-                          {(cs.documents || []).length === 0 ? (
-                            <p className="text-xs text-slate-400 italic">No shared documents uploaded yet.</p>
-                          ) : (
-                            (cs.documents || []).slice(0, 4).map((d) => (
-                              <div
-                                key={d.id}
-                                className="p-2 bg-white rounded-lg border border-slate-200 flex items-center justify-between gap-2 shadow-2xs"
-                              >
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <FileText className="w-3.5 h-3.5 text-[#A9814A] shrink-0" />
-                                  <span className="truncate font-semibold text-[11px] text-slate-800">{d.name}</span>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDownloadDoc(d.name, cs.ref)}
-                                  className="text-emerald-800 hover:text-emerald-900 font-bold text-[10px] flex items-center gap-0.5 shrink-0 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 transition-colors cursor-pointer"
-                                >
-                                  <Download className="w-3 h-3" />
-                                  <span>Get</span>
-                                </button>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="pt-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveTab('documents');
-                            setDocSearchQuery(cs.ref);
-                          }}
-                          className="w-full py-2 bg-white hover:bg-slate-100 border border-slate-300 text-[#16223A] font-bold text-xs rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-                        >
-                          <FolderOpen className="w-3.5 h-3.5 text-amber-600" />
-                          <span>Open All Shared Documents</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
+            <span style={css('font-size:11px;color:#6B6458')}>
+              {preview ? 'Preview: nothing is sent. ' : ''}Sending from the portal is not connected yet{firstLawyer?.email ? <>: please <a href={'mailto:' + firstLawyer.email + (draft.trim() ? '?body=' + encodeURIComponent(draft.trim()) : '')}>e-mail {firstLawyer.name}</a></> : ''}{whatsappLink(firstLawyer?.phone, '') ? <> or <a href={whatsappLink(firstLawyer?.phone, draft.trim()) || '#'} target="_blank" rel="noopener noreferrer">WhatsApp</a></> : ''}. For anything urgent on a court day, call the office.
+            </span>
+          </div>
+        </section>
       )}
-
-      {/* ================= TAB: CASE STATUS LOG ================= */}
-      {activeTab === 'status' && (
-        <div className="space-y-4">
-          {clientCases.length === 0 ? (
-            <div className="bg-white border border-[#E1DCCF] rounded-xl p-8 text-center text-slate-500">
-              <Activity className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-              <p className="font-bold text-slate-700">No matter status logs available yet.</p>
-            </div>
-          ) : (
-            clientCases.map((cs) => {
-              const statusLogs = (cs.activityLogs || [])
-                .filter((log) => log.type === 'Status Update')
-                .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-              return (
-                <div key={cs.id} className="bg-white border border-[#E1DCCF] rounded-xl shadow-sm p-4 space-y-3">
-                  <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-2">
-                    <span className="bg-amber-100 text-[#16223A] font-mono font-extrabold text-xs px-2.5 py-0.5 rounded">
-                      {cs.ref}
-                    </span>
-                    <span className="font-serif font-bold text-[#16223A]">{cs.title}</span>
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Current Status</span>
-                    <p className="text-xs text-slate-800 leading-relaxed">{cs.notes || 'No status update recorded yet.'}</p>
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">What Happens Next</span>
-                    <p className="text-xs text-slate-800 leading-relaxed">{cs.nextAction || 'No next action recorded yet.'}</p>
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Past Updates</span>
-                    {statusLogs.length === 0 ? (
-                      <p className="text-xs text-slate-400 italic">No status updates logged yet.</p>
-                    ) : (
-                      <ul className="text-xs text-slate-700 space-y-1.5">
-                        {statusLogs.map((log) => (
-                          <li key={log.id} className="flex justify-between gap-3 border-b border-slate-50 pb-1.5">
-                            <span>{log.description}</span>
-                            <span className="text-slate-400 font-mono shrink-0">{log.timestamp}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      )}
-
-      {/* ================= TAB 2: SHARED DOCUMENTS REPOSITORY ================= */}
-      {activeTab === 'documents' && (
-        <div className="space-y-4">
-          <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs space-y-3">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div>
-                <h3 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-[#A9814A]" />
-                  Shared Document Vault — One-Click Download
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Access court pleadings, affidavits, orders, and official notices shared directly by your legal team.
-                </p>
-              </div>
-
-              {/* Document Search */}
-              <input
-                type="text"
-                placeholder="Search shared files..."
-                value={docSearchQuery}
-                onChange={(e) => setDocSearchQuery(e.target.value)}
-                className="w-full sm:w-60 text-xs p-2 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:border-[#A9814A]"
-              />
-            </div>
-
-            {/* Folder Filters */}
-            <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-100">
-              {['ALL', 'Cause Papers', 'Orders', 'Correspondence', 'Billing'].map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setDocCategoryFilter(cat)}
-                  className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
-                    docCategoryFilter === cat
-                      ? 'bg-[#16223A] text-white'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
-                >
-                  {cat === 'ALL' ? '📂 All Files' : `📁 ${cat}`}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Document Table */}
-          <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-[#16223A] text-white uppercase text-[10.5px] font-bold tracking-wider">
-                  <th className="p-3">Document Name</th>
-                  <th className="p-3">Category Folder</th>
-                  <th className="p-3">Matter Ref</th>
-                  <th className="p-3">Date Shared</th>
-                  <th className="p-3 text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredDocuments.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="p-8 text-center text-slate-500">
-                      No shared documents found in this category.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredDocuments.map((doc, idx) => (
-                    <tr key={idx} className="hover:bg-amber-50/50 transition-colors">
-                      <td className="p-3 font-bold text-[#16223A] flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-[#A9814A] shrink-0" />
-                        <span>{doc.name}</span>
-                      </td>
-                      <td className="p-3 font-semibold text-slate-600">
-                        <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded border border-slate-200 text-[10.5px]">
-                          {doc.category}
-                        </span>
-                      </td>
-                      <td className="p-3 font-mono font-bold text-amber-900">{doc.caseRef}</td>
-                      <td className="p-3 font-mono text-slate-500">{doc.uploadedDate}</td>
-                      <td className="p-3 text-center flex items-center justify-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setDocPreviewId(doc.id || 'DOC-PREVIEW')}
-                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded text-[10.5px] flex items-center gap-1 cursor-pointer"
-                        >
-                          <Eye className="w-3 h-3 text-slate-600" />
-                          <span>Preview</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDownloadDoc(doc.name, doc.caseRef)}
-                          className="px-2.5 py-1 bg-[#2F6F4E] hover:bg-emerald-800 text-white font-bold rounded text-[10.5px] flex items-center gap-1 cursor-pointer shadow-2xs transition-colors"
-                        >
-                          <Download className="w-3 h-3" />
-                          <span>Download</span>
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ================= TAB 3: FINANCIAL STATEMENTS & RECEIPTS ================= */}
-      {activeTab === 'financials' && (
-        <div className="space-y-5">
-          {/* Summary Metric Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Billed Fees</div>
-              <div className="font-serif text-2xl font-bold text-[#16223A] mt-1">
-                RM {totalBilled.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
-              </div>
-              <div className="text-[10.5px] text-slate-500 mt-0.5">Across {clientInvoices.length} Tax Invoices</div>
-            </div>
-
-            <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Amount Paid</div>
-              <div className="font-serif text-2xl font-bold text-emerald-800 mt-1">
-                RM {totalPaid.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
-              </div>
-              <div className="text-[10.5px] text-emerald-700 mt-0.5">Official Receipts Issued</div>
-            </div>
-
-            <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Net Balance Due</div>
-              <div
-                className={`font-serif text-2xl font-bold mt-1 ${
-                  totalOutstanding > 0 ? 'text-rose-800' : 'text-slate-700'
-                }`}
-              >
-                RM {totalOutstanding.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
-              </div>
-              <div className="text-[10.5px] text-slate-500 mt-0.5">
-                {totalOutstanding > 0 ? 'Outstanding Tax Invoices' : 'Fully Settled'}
-              </div>
-            </div>
-
-            <div className="bg-white border border-[#E1DCCF] p-4 rounded-xl shadow-xs">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                Client Trust Balance (SAR 1990)
-              </div>
-              <div className="font-serif text-2xl font-bold text-[#A9814A] mt-1">
-                RM {trustBalance.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
-              </div>
-              <div className="text-[10.5px] text-amber-900 mt-0.5">Held in Client Trust Account</div>
-            </div>
-          </div>
-
-          {/* Invoices List */}
-          <div className="bg-white border border-[#E1DCCF] rounded-xl overflow-hidden shadow-xs">
-            <div className="bg-[#16223A] text-white p-3 font-serif font-bold text-sm flex items-center justify-between">
-              <span>Tax Invoices Billed to {currentClient?.name}</span>
-              <span className="text-xs font-sans font-normal text-slate-300">
-                Official Bill of Costs &amp; Disbursements
-              </span>
-            </div>
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-100 text-slate-700 uppercase text-[10px] font-bold border-b border-slate-200">
-                  <th className="p-3">Invoice No</th>
-                  <th className="p-3">Issue Date</th>
-                  <th className="p-3">Due Date</th>
-                  <th className="p-3 text-right">Amount (RM)</th>
-                  <th className="p-3">Status</th>
-                  <th className="p-3 text-center">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {clientInvoices.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="p-6 text-center text-slate-500">
-                      No tax invoices billed to this client account yet.
-                    </td>
-                  </tr>
-                ) : (
-                  clientInvoices.map((inv) => (
-                    <tr key={inv.id} className="hover:bg-slate-50">
-                      <td className="p-3 font-mono font-bold text-[#16223A]">{inv.id}</td>
-                      <td className="p-3 font-mono text-slate-600">{inv.date}</td>
-                      <td className="p-3 font-mono text-slate-600">{inv.dueDate}</td>
-                      <td className="p-3 text-right font-mono font-bold text-[#16223A]">
-                        RM {(inv.total || inv.amount).toLocaleString('en-MY', { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="p-3">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${
-                            inv.status === 'Paid'
-                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                              : 'bg-rose-100 text-rose-800 border border-rose-300'
-                          }`}
-                        >
-                          {inv.status}
-                        </span>
-                      </td>
-                      <td className="p-3 text-center">
-                        <button
-                          type="button"
-                          onClick={() => setDocPreviewId(inv.id)}
-                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded text-[10.5px] cursor-pointer"
-                        >
-                          Preview Statement
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Doc Preview Modal */}
-      {docPreviewId && (
-        <DocPreviewModal type="invoice" docId={docPreviewId} onClose={() => setDocPreviewId(null)} />
-      )}
-
-      {/* Lawyer Inquiry Modal */}
-      {isInquiryModalOpen && (
-        <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 border border-[#E1DCCF]">
-            <h3 className="font-serif text-lg font-bold text-[#16223A] mb-3 flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-[#A9814A]" />
-              Request Status Update from Assigned Lawyers
-            </h3>
-            <form onSubmit={handleSendInquiry} className="space-y-3 text-xs">
-              <div>
-                <label className="font-bold text-slate-700 block uppercase mb-1">Subject</label>
-                <input
-                  type="text"
-                  required
-                  value={inquirySubject}
-                  onChange={(e) => setInquirySubject(e.target.value)}
-                  className="w-full font-bold"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block uppercase mb-1">Your Message / Request</label>
-                <textarea
-                  rows={4}
-                  required
-                  placeholder="e.g. Kindly provide an update regarding the hearing date for our interlocutory application..."
-                  value={inquiryMessage}
-                  onChange={(e) => setInquiryMessage(e.target.value)}
-                  className="w-full"
-                />
-              </div>
-
-              <div className="p-2.5 bg-amber-50 border border-amber-200 text-amber-900 rounded text-[11px]">
-                🔒 <strong>Advocate-Client Privilege:</strong> Your message is transmitted directly to Messrs Syafiqah Hamizad &amp; Co advocates in charge.
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsInquiryModalOpen(false)}
-                  className="px-4 py-2 border border-[#E1DCCF] text-slate-700 rounded-md font-semibold cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-[#16223A] hover:bg-[#1F2E4D] text-white rounded-md font-semibold cursor-pointer flex items-center gap-1.5"
-                >
-                  <Send className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Send Request to Lawyer</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
+    </Shell>
   );
 };
+
+/* ================================================================== shell (preview bar + top bar) */
+
+const Shell: React.FC<{
+  preview: boolean; clientOpts: Client[]; cid: string; pickClient: (id: string) => void; back: () => void;
+  name: string; email: string; signOut: () => void; toast: string; children: React.ReactNode;
+}> = ({ preview, clientOpts, cid, pickClient, back, name, email, signOut, toast, children }) => (
+  <div data-screen-label="Client portal" style={css(`min-height:100vh;background:${BG};font-size:13px;display:flex;flex-direction:column;font-family:Inter,system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased;color:#16223A`)}>
+    {preview && (
+      <div style={css('display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:9px 24px;background:#8A6D3B;color:#fff;font-size:12px')}>
+        <Eye size={15} color="#FFFFFF" />
+        <strong>Staff preview</strong><span style={css('color:#F6EEDC')}>You are seeing exactly what the client sees. Nothing here is sent.</span>
+        <label style={css('display:flex;align-items:center;gap:6px;margin-left:auto')}><span style={css('color:#F6EEDC')}>Client</span><select value={cid} onChange={(e) => pickClient(e.target.value)} style={css('border:0;border-radius:6px;padding:4px 8px;font-size:12px;font-weight:700;color:#16223A;max-width:260px')}>{clientOpts.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select></label>
+        <button type="button" onClick={back} style={css('border:0;background:none;padding:0;color:#fff;font-size:12px;text-decoration:underline;cursor:pointer;font-family:inherit')}>Back to client profile</button>
+      </div>
+    )}
+    <header style={css('background:#fff;border-bottom:1px solid #E4DED2')}>
+      <div style={css('max-width:1120px;margin:0 auto;padding:12px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap')}>
+        <img src="/assets/sh-wordmark.png" alt="Syafiqah Hamizad & Co" style={css('height:38px;width:auto;display:block')} />
+        <span style={css('font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#8A6D3B;border-left:1px solid #E4DED2;padding-left:14px')}>Client portal</span>
+        <div style={css('margin-left:auto;display:flex;align-items:center;gap:12px')}>
+          <span style={css('display:flex;flex-direction:column;align-items:flex-end;line-height:1.3')}><strong style={css('font-size:12.5px;color:#16223A')}>{name}</strong><span style={css('font-size:11px;color:#6B6458')}>{email}</span></span>
+          <button type="button" onClick={signOut} style={css('display:flex;align-items:center;gap:6px;border:1px solid #E4DED2;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;background:#fff;color:#16223A;cursor:pointer')}><LogOut size={14} color="#3D6B9C" />Sign out</button>
+        </div>
+      </div>
+    </header>
+    <main style={css('flex:1;width:100%;max-width:1120px;margin:0 auto;padding:28px 24px 56px;display:flex;flex-direction:column;gap:20px')}>
+      {children}
+    </main>
+    {toast && <div style={css('position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:80;border-radius:8px;padding:10px 16px;background:#16223A;color:#fff;font-size:13px;font-weight:600')}>{toast}</div>}
+  </div>
+);

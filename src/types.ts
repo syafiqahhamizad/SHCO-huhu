@@ -300,6 +300,8 @@ export interface CaseDocument {
   /** Stored copy in Google Drive (driveFileId). storagePath = legacy Firebase Storage copy, read-only. */
   driveFileId?: string;
   storagePath?: string;
+  /** Staff ticked "Share with client": the document shows in the Client Portal. Absent = not shared. */
+  sharedWithClient?: boolean;
 }
 
 export interface OpposingSolicitorRecord {
@@ -963,6 +965,9 @@ export interface Invoice {
   sourceItems?: { time?: string[]; expenses?: string[]; travel?: string[] };
   /** Date the invoice was issued (status left Draft). */
   issuedAt?: string;
+  /** Payment slips the client uploaded from the Client Portal (Drive: Finance proofs/<YYYY>/).
+   * The bill shows "Checking payment" until Accounts records the payment. */
+  clientPaymentSlips?: { name: string; driveFileId: string; webViewLink?: string; uploadedAt: string; uploadedBy: string }[];
 }
 
 export interface Payment {

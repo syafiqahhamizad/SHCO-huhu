@@ -32,7 +32,7 @@ export const PageToolbar: React.FC = () => {
     setFirmStartCentreEditMode,
   } = useApp();
 
-  const canPreviewUsers = Boolean(currentUser?.isAdmin || currentUser?.isSuperAdmin);
+  const canPreviewUsers = Boolean(currentUser?.isSuperAdmin) || (currentUser?.email || '').toLowerCase() === 'syafiqahhamizad@shcolaw.com';
   const showRoleSwitcher = Boolean(currentUser?.isSuperAdmin) && !isUserPreview;
   const showEditContent = currentView === 'firmStartCentre' && canEditFirmStartCentre;
 
