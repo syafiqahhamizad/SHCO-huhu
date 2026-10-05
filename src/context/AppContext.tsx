@@ -1,4 +1,4 @@
-import { casesWithoutSalutations, clientsWithoutSalutations, withoutStarterTasks } from '../lib/legacyCleanup';
+import { casesWithoutSalutations, clientsWithoutSalutations, recordsWithoutSalutations, withoutStarterTasks } from '../lib/legacyCleanup';
 import { isForMe, isReadBy, notificationEmail, resolveRecipients } from '../lib/notify';
 import { queueEmail } from '../services/mailQueueService';
 import { canViewAs } from '../components/views/settings/permissionModel';
@@ -2549,13 +2549,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (Array.isArray(state.leads)) setLeads((state.leads as Lead[]).filter((lead) => isActive('Lead', lead)));
       if (Array.isArray(state.clients)) setClients(clientsWithoutSalutations((state.clients as Client[]).filter((client) => isActive('Client', client))));
       if (Array.isArray(state.cases)) setCases(casesWithoutSalutations(withoutStarterTasks((state.cases as Case[]).filter((caseObj) => isActive('Case', caseObj)))));
-      if (Array.isArray(state.quotations)) setQuotations((state.quotations as Quotation[]).filter((quotation) => isActive('Quotation', quotation)));
-      if (Array.isArray(state.referralPartners)) setReferralPartners(state.referralPartners as ReferralPartner[]);
-      if (Array.isArray(state.paymentVouchers)) setPaymentVouchers((state.paymentVouchers as PaymentVoucher[]).filter((voucher) => isActive('Payment Voucher', voucher)));
+      if (Array.isArray(state.quotations)) setQuotations(recordsWithoutSalutations('quotations', (state.quotations as Quotation[]).filter((quotation) => isActive('Quotation', quotation))));
+      if (Array.isArray(state.referralPartners)) setReferralPartners(recordsWithoutSalutations('referralPartners', state.referralPartners as ReferralPartner[]));
+      if (Array.isArray(state.paymentVouchers)) setPaymentVouchers(recordsWithoutSalutations('paymentVouchers', (state.paymentVouchers as PaymentVoucher[]).filter((voucher) => isActive('Payment Voucher', voucher))));
       if (Array.isArray(state.travelClaims)) setTravelClaims(state.travelClaims as TravelClaim[]);
-      if (Array.isArray(state.receipts)) setReceipts((state.receipts as Receipt[]).filter((receipt) => isActive('Receipt', receipt)));
+      if (Array.isArray(state.receipts)) setReceipts(recordsWithoutSalutations('receipts', (state.receipts as Receipt[]).filter((receipt) => isActive('Receipt', receipt))));
       if (Array.isArray(state.deadlines)) setDeadlines(state.deadlines as Deadline[]);
-      if (Array.isArray(state.invoices)) setInvoices((state.invoices as Invoice[]).filter((invoice) => isActive('Invoice', invoice)));
+      if (Array.isArray(state.invoices)) setInvoices(recordsWithoutSalutations('invoices', (state.invoices as Invoice[]).filter((invoice) => isActive('Invoice', invoice))));
       if (Array.isArray(state.payments)) setPayments(state.payments as Payment[]);
       if (Array.isArray(state.retainers)) setRetainers(state.retainers as Retainer[]);
       // Passwords never live in the shared data; drop any left by old versions (saved back on the next sync).
@@ -2761,6 +2761,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       if (key === 'cases') out = casesWithoutSalutations(withoutStarterTasks(out as unknown as Case[])) as unknown as Record<string, unknown>[];
       if (key === 'clients') out = clientsWithoutSalutations(out as unknown as Client[]) as unknown as Record<string, unknown>[];
+      out = recordsWithoutSalutations(key, out);
       return out;
     },
     onReady: () => setCloudSyncReady(true),
@@ -3018,7 +3019,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`Client "${clientToDelete.name}" moved to Recycle Bin.`);
   };
 
-  const addCase = async (caseObj: Case) => {
+  const addCase = async (input: Case) => {
+    const [caseObj] = casesWithoutSalutations([input]); // no Mr / Ms … on client or opposing names
     if (!hasModulePermission('cases', 'a')) {
       showToast('Access denied: you do not have matter creation permission.');
       return;
@@ -3159,7 +3161,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               to: ['case:' + c.id],
             });
           }
-          return { ...c, ...updates };
+          return casesWithoutSalutations([{ ...c, ...updates }])[0];
         }
         return c;
       });
@@ -3269,7 +3271,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`Quotation ${id} updated.`);
   };
 
-  const addReferralPartner = (rp: ReferralPartner) => {
+  const addReferralPartner = (input: ReferralPartner) => {
+    const [rp] = recordsWithoutSalutations('referralPartners', [input]);
     setReferralPartners((prev) => [rp, ...prev]);
     addActivityLog('Referral Registered', `${rp.name} (${rp.type})`);
     showToast('Referral Partner recorded successfully');

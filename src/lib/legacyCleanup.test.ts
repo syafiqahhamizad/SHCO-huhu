@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Case, Client, Task } from '../types';
-import { casesWithoutSalutations, clientsWithoutSalutations, stripSalutation, withoutStarterTasks } from './legacyCleanup';
+import { casesWithoutSalutations, clientsWithoutSalutations, recordsWithoutSalutations, stripSalutation, withoutStarterTasks } from './legacyCleanup';
 
 const task = (over: Partial<Task>): Task => ({ id: 't', title: 'Prepare initial pleadings checklist', status: 'Not Started', ...over } as Task);
 const file = (tasks: Task[]): Case => ({ id: 'CS-1', ref: 'X', title: 'Test v Test', tasks } as unknown as Case);
@@ -36,5 +36,21 @@ describe('salutations', () => {
     expect(c.name).toBe('Ali'); expect('salutation' in c).toBe(false);
     const [k] = casesWithoutSalutations([{ id: 'K', clientName: 'Ms. Lee', clientsList: [{ id: 'C1', name: 'Mrs. Lee' }] } as unknown as Case]);
     expect(k.clientName).toBe('Lee'); expect(k.clientsList?.[0].name).toBe('Lee');
+  });
+});
+
+describe('salutations on other records', () => {
+  it('documents and partners', () => {
+    expect(recordsWithoutSalutations('quotations', [{ clientName: 'Mr. Ali' }])[0]).toEqual({ clientName: 'Ali' });
+    expect(recordsWithoutSalutations('receipts', [{ receivedFrom: 'Puan Siti', payee: 'Acme Sdn Bhd' }])[0]).toEqual({ receivedFrom: 'Siti', payee: 'Acme Sdn Bhd' });
+    expect(recordsWithoutSalutations('referralPartners', [{ name: 'Ms. Lee', contact: '012' }])[0]).toEqual({ name: 'Lee', contact: '012' });
+  });
+  it('history is never changed', () => {
+    const logs = [{ recordTitle: 'Mr. Ali' }];
+    expect(recordsWithoutSalutations('auditLogs', logs)).toBe(logs);
+  });
+  it('opposing parties on files', () => {
+    const [k] = casesWithoutSalutations([{ id: 'K', opposingParty: 'Encik Ahmad', opposingParties: ['Encik Ahmad'], opposingPartiesList: [{ id: 'O', name: 'Encik Ahmad' }] } as unknown as Case]);
+    expect(k.opposingParty).toBe('Ahmad'); expect(k.opposingParties).toEqual(['Ahmad']); expect(k.opposingPartiesList?.[0].name).toBe('Ahmad');
   });
 });
