@@ -3,7 +3,7 @@ import { useApp } from '../../../context/AppContext';
 import type { Case, PartnerCode } from '../../../types';
 import { DEFAULT_PRACTICE_SETTINGS, getPracticeSettings } from '../../../services/templateService';
 import { css, S, Modal } from './caseUi';
-import { fmt, isDone, lawyersOf, openedOf, practiceOf, rm, stagesFor, todayIso } from './caseModel';
+import { fmt, isDone, isFileHandler, lawyersOf, openedOf, practiceOf, rm, stagesFor, todayIso } from './caseModel';
 import { histEntry, type WF } from './wf';
 import { rebuildRef } from '../../../lib/caseRef';
 
@@ -71,13 +71,12 @@ export const EditMatterModal: React.FC<{ w: WF; onClose: () => void }> = ({ w, o
         </div>
         <div style={css('grid-column:1/-1;display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>Lawyers in charge</span>
           <div style={css('display:flex;gap:6px;flex-wrap:wrap')}>
-            {[...staff.map((p) => p.name), ...ed.lawyers.filter((n) => !staff.some((p) => p.name === n))].map((name) => {
-              const i = ed.lawyers.indexOf(name);
-              const on = i >= 0;
-              return <button key={name} type="button" onClick={() => setEd({ ...ed, lawyers: on ? ed.lawyers.filter((x) => x !== name) : [...ed.lawyers, name] })} style={css(`border-radius:8px;padding:6px 11px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;background:${on ? '#16223A' : '#fff'};color:${on ? '#fff' : '#16223A'};border:1px solid ${on ? '#16223A' : '#C9D1DC'}`)}>{name}{i === 0 ? ' · lead' : ''}</button>;
+            {[...staff.filter(isFileHandler).map((p) => p.name), ...ed.lawyers.filter((n) => !staff.some((p) => isFileHandler(p) && p.name === n))].map((name) => {
+              const on = ed.lawyers.includes(name);
+              return <button key={name} type="button" onClick={() => setEd({ ...ed, lawyers: on ? ed.lawyers.filter((x) => x !== name) : [...ed.lawyers, name] })} style={css(`border-radius:8px;padding:6px 11px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;background:${on ? '#16223A' : '#fff'};color:${on ? '#fff' : '#16223A'};border:1px solid ${on ? '#16223A' : '#C9D1DC'}`)}>{name}</button>;
             })}
           </div>
-          <span style={css('font-size:11.5px;color:#5B6478')}>Pick one or more. The first one picked is the lead lawyer (used in the file number); untick and tick again to change the order.</span>
+          <span style={css('font-size:11.5px;color:#5B6478')}>Pick one or more.</span>
         </div>
         <label style={css('display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>Date opened{firmAdmin ? '' : ' (admin only)'}</span><input type="date" disabled={!firmAdmin} value={ed.opened} onChange={(e) => setEd({ ...ed, opened: e.target.value })} style={css(inp)} /></label>
         <div style={css('grid-column:1/-1;display:flex;flex-direction:column;gap:5px')}>

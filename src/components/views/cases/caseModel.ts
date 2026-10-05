@@ -257,6 +257,9 @@ const codeFor = (u: Pick<User, 'name' | 'code'>) => {
   return ((w[0]?.[0] || '') + (w[1]?.[0] || '')).toUpperCase() || '—';
 };
 
+/** Who can handle a file: active partners, lawyers and assistants (not accounts, reviewers or clients). */
+export const isFileHandler = (p: Pick<Person, 'role'>) => ['Partner', 'Lawyer', 'Assistant'].includes(p.role);
+
 export const staffOf = (users: User[] = []): Person[] =>
   users.filter((u) => u.status !== 'Inactive' && u.role !== 'Client').map((u, i) => {
     const code = codeFor(u);

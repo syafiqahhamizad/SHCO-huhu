@@ -6,7 +6,7 @@ import { builtInFeeTemplates } from '../../../lib/financeDocs';
 import { canSeeFinanceView, finRoleKey } from '../../../lib/financeAccess';
 import { css } from './caseUi';
 import { activeStorage, ensureMatterFolder, prepareStorage } from '../../../services/fileStorageService';
-import { iso, partiesOf, stamp, staffOf, type Person } from './caseModel';
+import { iso, isFileHandler, partiesOf, stamp, staffOf, type Person } from './caseModel';
 
 /* Practice-specific intake (design: New File Form.dc.html). Values are the firm's own choice
  * lists; text fields only carry placeholders — nothing is pre-filled with sample data. */
@@ -190,7 +190,7 @@ export const NewFilePage: React.FC = () => {
   const pqq = pq.toLowerCase().trim();
   const pList = partnerList.filter((p) => !pqq || p.name.toLowerCase().includes(pqq) || p.code.toLowerCase().includes(pqq));
   const lqq = (lq || '').toLowerCase().trim();
-  const lawyerOpts: Person[] = staff.filter((p) => !partners.includes(p.code) && /lawyer|associate|partner|legal/i.test(p.role + ' lawyer'));
+  const lawyerOpts: Person[] = staff.filter((p) => !partners.includes(p.code) && isFileHandler(p));
   const lList = lawyerOpts.filter((p) => !lqq || p.name.toLowerCase().includes(lqq) || p.code.toLowerCase().includes(lqq));
   const cqq = (cq || '').toLowerCase().trim();
   const matches = clients.filter((c) => !cqq || [c.name, c.icNo, c.icNumber, c.registrationNo].join(' ').toLowerCase().includes(cqq)).slice(0, 30);
