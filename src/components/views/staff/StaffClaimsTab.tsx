@@ -363,6 +363,7 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
       type: 'invoice',
       linkTab: 'approvals',
       linkId: no,
+      to: [...apps, 'role:Accountant'],
     });
     addActivityLog(D ? 'Payment Request Submitted' : 'Claim Form Submitted', no + ' — ' + rm(tot) + ' (' + now.slice(0, 10) + ')');
     setForm((s) => ({ ...s, open: false, items: [], vendor: '', vbank: '', file: '', caseRef: null, fq: '', fOpen: false, pref: '' }));

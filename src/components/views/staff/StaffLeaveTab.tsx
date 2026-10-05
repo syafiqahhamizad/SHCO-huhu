@@ -138,6 +138,7 @@ export const StaffLeaveTab: React.FC<Props> = ({ myLeaves, used, me }) => {
       type: 'system',
       // Partners approve leave under My Dashboard → Needs your decision.
       linkTab: 'dashboard',
+      to: ['role:Partner', lv.pic],
     });
     setLv((x) => ({ ...x, from: '', to: '', half: 'Full day', pic: '', mc: '' }));
     setMcFile(null);

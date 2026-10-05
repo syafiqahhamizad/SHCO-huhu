@@ -50,7 +50,7 @@ export const RequestCloseModal: React.FC<{ w: WF; onClose: () => void }> = ({ w,
   const send = () => {
     if (!outcome) { w.toast('Choose the outcome'); return; }
     w.save({ closeRequest: { status: 'Pending', requestedBy: w.me, requestedAt: todayIso(), outcome, note: note.trim() || undefined, checklist: all } }, 'Close requested · ' + outcome + (left ? ' (' + left + ' item(s) still open)' : ''), 'Status Update');
-    addNotification({ title: 'Close request: ' + c.ref, message: w.me + ' asked to close ' + c.ref + ' (' + c.title + ') · ' + outcome + (left ? ' · ' + left + ' item(s) still open' : '') + '. Open the file to approve or send back.', type: 'system', linkTab: 'cases', linkId: c.id });
+    addNotification({ title: 'Close request: ' + c.ref, message: w.me + ' asked to close ' + c.ref + ' (' + c.title + ') · ' + outcome + (left ? ' · ' + left + ' item(s) still open' : '') + '. Open the file to approve or send back.', type: 'system', linkTab: 'cases', linkId: c.id, to: ['partners:' + c.id] });
     onClose();
     w.toast(left ? 'Sent to ' + to + ' with ' + left + ' item(s) still open' : 'Close request sent to ' + to);
   };
@@ -107,13 +107,13 @@ export const CloseRequestPanel: React.FC<{ w: WF; canApprove: boolean; onEdit: (
     const today = todayIso();
     const destroy = new Date(); destroy.setFullYear(destroy.getFullYear() + 7);
     w.save({ status: 'Closed', closedDate: today, closedBy: w.me, closeOutcome: r.outcome, destroyAfter: c.destroyAfter || destroy.toISOString().slice(0, 10), closeRequest: { ...r, status: 'Approved', decidedBy: w.me, decidedAt: today, checklist: live } }, 'Close approved by ' + w.me + ' · ' + r.outcome + '. File closed', 'Status Update');
-    addNotification({ title: 'File closed: ' + c.ref, message: w.me + ' approved closing ' + c.ref + ' (' + r.outcome + ').', type: 'system', linkTab: 'cases', linkId: c.id });
+    addNotification({ title: 'File closed: ' + c.ref, message: w.me + ' approved closing ' + c.ref + ' (' + r.outcome + ').', type: 'system', linkTab: 'cases', linkId: c.id, to: ['case:' + c.id] });
     w.toast('File closed. Add the archive box details below');
   };
   const sendBack = () => {
     if (!back.trim()) { w.toast('Write the reason first'); return; }
     w.save({ closeRequest: { ...r, status: 'Sent back', decidedBy: w.me, decidedAt: todayIso(), sendBackReason: back.trim() } }, 'Close request sent back: ' + back.trim(), 'Status Update');
-    addNotification({ title: 'Close request sent back: ' + c.ref, message: w.me + ': ' + back.trim(), type: 'system', linkTab: 'cases', linkId: c.id });
+    addNotification({ title: 'Close request sent back: ' + c.ref, message: w.me + ': ' + back.trim(), type: 'system', linkTab: 'cases', linkId: c.id, to: ['case:' + c.id] });
     setBack('');
     w.toast('Sent back to ' + r.requestedBy);
   };

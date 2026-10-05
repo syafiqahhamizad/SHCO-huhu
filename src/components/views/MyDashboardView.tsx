@@ -152,6 +152,7 @@ export const MyDashboardView: React.FC = () => {
     users,
     leaveApplications,
     updateLeaveApplication,
+    addNotification,
     updateQuotation,
     meetings,
     addMeeting,
@@ -871,9 +872,9 @@ export const MyDashboardView: React.FC = () => {
         docName: l.attachment?.name,
         docUrl: l.attachment ? driveViewUrl(l.attachment) : undefined,
         primaryLabel: 'Approve',
-        onPrimary: () => updateLeaveApplication(l.id, { status: 'Approved', reviewedBy: currentUser?.name, reviewedAt: nowIso }),
+        onPrimary: () => { updateLeaveApplication(l.id, { status: 'Approved', reviewedBy: currentUser?.name, reviewedAt: nowIso }); addNotification({ title: 'Leave approved', message: (currentUser?.name || 'Your partner') + ' approved your leave ' + l.startDate + (l.endDate && l.endDate !== l.startDate ? ' – ' + l.endDate : '') + '.', type: 'system', linkTab: 'staffPortal', to: [l.userId || '', applicant] }); },
         secondaryLabel: 'Reject',
-        onSecondary: () => updateLeaveApplication(l.id, { status: 'Rejected', reviewedBy: currentUser?.name, reviewedAt: nowIso }),
+        onSecondary: () => { updateLeaveApplication(l.id, { status: 'Rejected', reviewedBy: currentUser?.name, reviewedAt: nowIso }); addNotification({ title: 'Leave not approved', message: (currentUser?.name || 'Your partner') + ' did not approve your leave ' + l.startDate + (l.endDate && l.endDate !== l.startDate ? ' – ' + l.endDate : '') + '. Speak to them for details.', type: 'system', linkTab: 'staffPortal', to: [l.userId || '', applicant] }); },
       });
     });
 

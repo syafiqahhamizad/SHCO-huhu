@@ -443,6 +443,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
       type: 'system',
       linkTab: 'tasks',
       linkId: caseId,
+      to: [targetName],
     });
   };
 

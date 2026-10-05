@@ -1395,6 +1395,12 @@ export interface NotificationItem {
   read: boolean;
   linkTab?: string;
   linkId?: string;
+  /** User ids this is for. Missing = everyone (older notifications). */
+  to?: string[];
+  /** User ids who have read it (per person; `read` is only used for older notifications). */
+  readBy?: string[];
+  /** Name of the person whose action raised it. */
+  from?: string;
 }
 
 export type BankAccountType = 'Trust' | 'Office';

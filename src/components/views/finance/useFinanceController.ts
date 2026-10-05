@@ -489,6 +489,7 @@ export function useFinanceController(initialTab: FinTab) {
       else if (item.kind === 'writeoff') { const inv = invoices.find((i) => i.id === item.id); if (inv?.writeOffRequest) app.updateInvoice(inv.id, { writeOffRequest: { ...inv.writeOffRequest, status: 'Rejected', decidedBy: me, decidedAt: at } }); }
       else if (item.kind === 'referral') saveSettings({ referralFeeApprovals: { ...(settings.referralFeeApprovals || {}), [period]: { status: 'Rejected', by: me, at, total: item.amount } } });
       setDecided((d) => ({ ...d, [item.key]: { d: 'no', item } }));
+      if (item.kind !== 'referral' && item.by && item.by !== 'System') app.addNotification({ title: 'Rejected: ' + item.title, message: me + ' rejected ' + item.title + ' (' + rm2(item.amount) + ').', type: 'invoice', linkTab: 'reimbursements', linkId: item.id, to: [item.by] });
       toastMsg(item.title + ' rejected');
       return;
     }
@@ -544,6 +545,7 @@ export function useFinanceController(initialTab: FinTab) {
     } else if (item.kind === 'referral') saveSettings({ referralFeeApprovals: { ...(settings.referralFeeApprovals || {}), [period]: { status: 'Approved', by: me, at, total: item.amount } } });
     setDecided((d) => ({ ...d, [item.key]: { d: 'ok', item } }));
     toastMsg(item.title + ' approved');
+    if (item.kind !== 'referral' && item.by && item.by !== 'System') app.addNotification({ title: 'Approved: ' + item.title, message: sigs.map((s) => s.name).join(' + ') + ' approved ' + item.title + ' (' + rm2(item.amount) + '). Accounts will arrange payment.', type: 'invoice', linkTab: 'reimbursements', linkId: item.id, to: [item.by, 'role:Accountant'] });
   };
 
   /* ------------------------------ approved · to pay ------------------------------ */

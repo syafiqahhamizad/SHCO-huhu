@@ -109,7 +109,7 @@ export const DeleteMatterModal: React.FC<{ w: WF; onClose: () => void }> = ({ w,
     if (typed.trim() !== c.ref) { w.toast('File no. does not match'); return; }
     if (!isPartner) {
       w.save({ deletionRequest: { by: w.me, at: todayIso(), reason: why } }, 'Deletion requested: ' + why);
-      addNotification({ title: 'Deletion request: ' + c.ref, message: w.me + ' asked to delete ' + c.ref + ' (' + why + ').', type: 'system', linkTab: 'cases', linkId: c.id });
+      addNotification({ title: 'Deletion request: ' + c.ref, message: w.me + ' asked to delete ' + c.ref + ' (' + why + ').', type: 'system', linkTab: 'cases', linkId: c.id, to: ['partners:' + c.id] });
       onClose();
       w.toast('Deletion request sent to the partner in charge: ' + why);
       return;

@@ -1,8 +1,10 @@
 import { withoutStarterTasks } from '../lib/legacyCleanup';
+import { isForMe, isReadBy, notificationEmail, resolveRecipients } from '../lib/notify';
+import { queueEmail } from '../services/mailQueueService';
 import { canViewAs } from '../components/views/settings/permissionModel';
 import { readCloudState, subscribeToCloudState, writeCloudState, type CloudState } from '../services/firestoreSyncService';
 import { applyCloudPracticeSettings, getPracticeSettings, savePracticeSettings, type PracticeSettings } from '../services/templateService';
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
 import {
   ACCESS_OWNER_EMAIL,
   accessRoleToAppRole,
@@ -292,7 +294,7 @@ interface AppContextType {
   unreadNotificationsCount: number;
   markNotificationAsRead: (id: string) => void;
   markAllNotificationsAsRead: () => void;
-  addNotification: (notif: Omit<NotificationItem, 'id' | 'timestamp' | 'read'>) => void;
+  addNotification: (notif: Omit<NotificationItem, 'id' | 'timestamp' | 'read' | 'to' | 'readBy'> & { to?: string[] }) => void;
   announcements: FirmAnnouncement[];
   addAnnouncement: (announcement: Omit<FirmAnnouncement, 'id' | 'createdAt' | 'createdBy'>) => boolean;
   deleteAnnouncement: (announcementId: string) => boolean;
@@ -1298,7 +1300,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ]));
   });
 
-  const unreadNotificationsCount = notifications.filter((n) => !n.read).length;
+  const myNotifications = useMemo(() => notifications.filter((n) => isForMe(n, currentUser.id)).map((n) => ({ ...n, read: isReadBy(n, currentUser.id) })), [notifications, currentUser.id]);
+  const unreadNotificationsCount = myNotifications.filter((n) => !n.read).length;
 
   const [announcements, setAnnouncements] = useState<FirmAnnouncement[]>(() =>
     readStored(STORAGE_KEY + '_firmAnnouncements', INITIAL_FIRM_ANNOUNCEMENTS)
@@ -1565,22 +1568,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Recycle Bin emptied. All deleted records permanently purged.');
   };
 
+  // Read state is per person for addressed notifications; older ones keep their shared flag.
+  const markRead = (n: NotificationItem): NotificationItem =>
+    n.to ? ((n.readBy || []).includes(currentUser.id) ? n : { ...n, readBy: [...(n.readBy || []), currentUser.id] }) : { ...n, read: true };
+
   const markNotificationAsRead = (id: string) => {
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    setNotifications((prev) => prev.map((n) => (n.id === id ? markRead(n) : n)));
   };
 
   const markAllNotificationsAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setNotifications((prev) => prev.map((n) => (isForMe(n, currentUser.id) ? markRead(n) : n)));
   };
 
-  const addNotification = (notif: Omit<NotificationItem, 'id' | 'timestamp' | 'read'>) => {
+  /**
+   * Raises a notification for the people in `to` (see resolveRecipients for the tokens): it shows
+   * in their bell, and each gets the same message by e-mail from the firm's address.
+   */
+  const addNotification = (notif: Omit<NotificationItem, 'id' | 'timestamp' | 'read' | 'to' | 'readBy'> & { to?: string[] }) => {
+    const recipients = resolveRecipients(notif.to || ['role:Partner'], users, cases, currentUser.id);
+    if (!recipients.length) return;
     const newNotif: NotificationItem = {
       ...notif,
-      id: `NOTIF-${Date.now()}`,
+      id: `NOTIF-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       timestamp: new Date().toISOString().slice(0, 16).replace('T', ' '),
       read: false,
+      to: recipients.map((u) => u.id),
+      readBy: [],
+      from: currentUser.name,
     };
-    setNotifications((prev) => [newNotif, ...prev]);
+    // Keep the shared list bounded (the firm's data lives in one document).
+    setNotifications((prev) => [newNotif, ...prev].slice(0, 400));
+    if (SAFE_PREVIEW_MODE) return;
+    const mail = notificationEmail(newNotif, window.location.origin);
+    recipients.forEach((u) => {
+      if (/@shcolaw\.com$/i.test(u.email || '')) {
+        queueEmail(u.email.toLowerCase(), mail, currentUser.email || currentUser.name).catch((e) => console.warn('E-mail not queued for ' + u.email, e));
+      }
+    });
   };
 
   useEffect(() => {
@@ -3069,6 +3093,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               type: 'hearing',
               linkTab: 'hearings',
               linkId: c.id,
+              to: ['case:' + c.id],
             });
           }
           return { ...c, ...updates };
@@ -3252,6 +3277,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addPayment = (p: Payment) => {
     setPayments((prev) => [p, ...prev]);
+    const paidInv = invoices.find((inv) => inv.id === p.invoiceId);
     setInvoices((prevInvs) => prevInvs.map((inv) => {
       if (inv.id !== p.invoiceId) return inv;
       const collected = payments
@@ -3266,6 +3292,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       type: 'invoice',
       linkTab: 'billing',
       linkId: p.invoiceId,
+      to: [...(paidInv?.caseId ? ['partners:' + paidInv.caseId] : ['role:Partner']), 'role:Accountant'],
     });
     addActivityLog('Payment Recorded', `${p.id} against ${p.invoiceId}`);
     showToast('Payment recorded & invoice updated');
@@ -3498,7 +3525,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         emptyTrashRecycleBin,
         auditLogs,
         logAuditEvent,
-        notifications,
+        notifications: myNotifications,
         unreadNotificationsCount,
         markNotificationAsRead,
         markAllNotificationsAsRead,

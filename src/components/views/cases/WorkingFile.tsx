@@ -110,6 +110,7 @@ export const WorkingFile: React.FC<{ c: Case }> = ({ c }) => {
     save({ tasks: [...(c.tasks || []), task] }, (kind === 'Task' ? 'Task added: ' : 'Deadline added: ') + task.title, 'Milestone Completion');
     setTaskForm(again ? { draft: { ...blankTaskDraft(base.assignedTo), caseId: c.id, kind: 'Task', syncGoogle: false } } : null);
     if (d.syncGoogle) void syncTask(w, task);
+    if (task.assignedTo && task.assignedTo !== me) app.addNotification({ title: (kind === 'Task' ? 'New task: ' : 'New deadline: ') + task.title, message: me + ' gave you ' + (kind === 'Task' ? 'a task' : 'a deadline') + ' on ' + c.ref + ' (' + c.title + ')' + (task.dueDate ? ', due ' + task.dueDate : '') + '.', type: 'system', linkTab: 'tasks', linkId: c.id, to: [task.assignedTo] });
     toast((kind === 'Task' ? 'Task' : 'Deadline') + ' added · shows in ' + base.assignedTo.split(' ')[0] + "'s My Work and this file");
   };
   const deleteTask = () => {
