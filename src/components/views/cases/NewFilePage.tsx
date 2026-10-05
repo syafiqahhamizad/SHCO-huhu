@@ -5,6 +5,7 @@ import { DEFAULT_PRACTICE_SETTINGS, getPracticeSettings } from '../../../service
 import { builtInFeeTemplates } from '../../../lib/financeDocs';
 import { canSeeFinanceView, finRoleKey } from '../../../lib/financeAccess';
 import { css } from './caseUi';
+import { activeStorage, ensureMatterFolder, prepareStorage } from '../../../services/fileStorageService';
 import { iso, partiesOf, stamp, staffOf, type Person } from './caseModel';
 
 /* Practice-specific intake (design: New File Form.dc.html). Values are the firm's own choice
@@ -38,7 +39,7 @@ export const NewFilePage: React.FC = () => {
   const {
     clients = [], cases = [], users = [], currentUser, currentRole, isAdmin, newCasePrefill, setNewCasePrefill,
     setIsNewCaseModalOpen, setIsRegisterClientModalOpen, setCurrentCaseId, setCaseSubTab, setCurrentView,
-    addCase, getNextSequenceId, incrementSequenceCounter, showToast,
+    addCase, updateCase, getNextSequenceId, incrementSequenceCounter, showToast,
   } = useApp();
   const settings = getPracticeSettings();
   const areas = (settings.practiceAreas && settings.practiceAreas.length ? settings.practiceAreas : DEFAULT_PRACTICE_SETTINGS.practiceAreas) || [];
@@ -169,6 +170,18 @@ export const NewFilePage: React.FC = () => {
     addCase(kase);
     incrementSequenceCounter('case');
     setDone(kase);
+    // Every new file gets its Google Drive folder straight away (Shared Drive › Matters).
+    if (activeStorage() === 'drive') {
+      void (async () => {
+        try {
+          await prepareStorage();
+          const f = await ensureMatterFolder(kase.ref, kase.title);
+          if (f) updateCase(kase.id, { gdriveFolderId: f.id, gdriveFolderUrl: f.url });
+        } catch (e) {
+          showToast('File opened, but the Drive folder was not created: ' + (e instanceof Error ? e.message : String(e)) + '. Use "Create Drive folder" on the file.');
+        }
+      })();
+    }
   };
 
   const goFile = () => { if (!done) return; close(); setCaseSubTab('overview'); setCurrentCaseId(done.id); };

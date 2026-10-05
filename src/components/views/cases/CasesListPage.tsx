@@ -6,6 +6,7 @@ import { extractMatterRunningNumber } from '../../../services/matterService';
 import { useConfirmation } from '../../../hooks/useConfirmation';
 import { RecycleBinModal } from '../../RecycleBinModal';
 import { css } from './caseUi';
+import { activeStorage, ensureMatterFolder, prepareStorage } from '../../../services/fileStorageService';
 import { fileAge, lawyerOf, openedOf, partiesOf, practiceOf, staffOf } from './caseModel';
 
 const ST: Record<string, [string, string]> = { Active: ['#E6EFE9', '#2F6F4E'], Pending: ['#FBF2E9', '#8A6D3B'], Closed: ['#EEF1F5', '#5B6478'], Archive: ['#FBEDE9', '#B23A2E'] };
@@ -13,11 +14,12 @@ const COL: Record<string, string> = { Active: '#2F6F4E', Pending: '#8A6D3B', Clo
 
 /** Cases List (design: Cases List.dc.html). Real cases only — scoped like the old registry. */
 export const CasesListPage: React.FC = () => {
-  const { cases = [], clients = [], users = [], currentUser, currentPartnerCode, isAdmin, deletedRecords = [], setCurrentCaseId, setCaseSubTab, setIsNewCaseModalOpen, deleteCase, showToast } = useApp();
+  const { cases = [], clients = [], users = [], currentUser, currentPartnerCode, isAdmin, deletedRecords = [], setCurrentCaseId, setCaseSubTab, setIsNewCaseModalOpen, deleteCase, updateCase, showToast } = useApp();
   const { confirm, ConfirmationModal } = useConfirmation();
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
   const [pic, setPic] = useState('ALL');
+  const [folderRun, setFolderRun] = useState<string | null>(null);
   const [closeOnly, setCloseOnly] = useState(false);
   const [binOpen, setBinOpen] = useState(false);
   const staff = useMemo(() => staffOf(users), [users]);
@@ -54,7 +56,7 @@ export const CasesListPage: React.FC = () => {
   const partners = staff.filter((p) => p.isPartner);
   const lawyers = Array.from(new Set(cases.flatMap((c) => [...(c.lawyers || []), lawyerOf(c)]).filter(Boolean))).filter((n) => !partners.some((p) => p.name === n));
   const binCount = deletedRecords.filter((r) => r.entityType === 'Case').length;
-  const cols = 'minmax(215px,250px) minmax(200px,1.6fr) minmax(120px,1fr) minmax(130px,1fr) 80px 96px' + (isFirmAdmin ? ' 32px' : '');
+  const cols = 'minmax(215px,250px) minmax(200px,1.6fr) minmax(120px,1fr) minmax(130px,1fr) 80px 96px 74px' + (isFirmAdmin ? ' 32px' : '');
   const hasFilters = !!(q || status || pic !== 'ALL' || closeOnly);
 
   const open = (c: Case) => { setCaseSubTab('overview'); setCurrentCaseId(c.id); };
@@ -68,6 +70,25 @@ export const CasesListPage: React.FC = () => {
     if (!ok) return;
     deleteCase(c.id);
     showToast(c.ref + ' moved to recycle bin');
+  };
+
+  // Files opened before Drive was set up: create their folders in one go (admins).
+  const noFolder = cases.filter((c) => !c.gdriveFolderUrl && c.status !== 'Archive');
+  const createMissingFolders = async () => {
+    const todo = [...noFolder];
+    let made = 0;
+    try {
+      await prepareStorage();
+      for (const c of todo) {
+        setFolderRun('Creating Drive folders… ' + (made + 1) + ' of ' + todo.length);
+        const f = await ensureMatterFolder(c.ref, c.title);
+        if (f) { updateCase(c.id, { gdriveFolderId: f.id, gdriveFolderUrl: f.url }); made++; }
+      }
+      showToast(made + ' Drive folder' + (made === 1 ? '' : 's') + ' created.');
+    } catch (e) {
+      showToast('Stopped after ' + made + ' folder' + (made === 1 ? '' : 's') + ': ' + (e instanceof Error ? e.message : String(e)));
+    }
+    setFolderRun(null);
   };
 
   return (
@@ -99,6 +120,13 @@ export const CasesListPage: React.FC = () => {
         </button>
       )}
 
+      {isFirmAdmin && activeStorage() === 'drive' && noFolder.length > 0 && (
+        <button type="button" disabled={!!folderRun} onClick={createMissingFolders} style={css('display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;border:1px solid #C9D6E6;background:#F3F7FB;font-size:12.5px;color:#16223A;cursor:pointer;text-align:left;font-family:inherit')}>
+          <strong>{folderRun || noFolder.length + ' file' + (noFolder.length > 1 ? 's have' : ' has') + ' no Google Drive folder yet.'}</strong>
+          {!folderRun && <span style={css('color:#4A5468')}>Click to create them all in Shared Drive › Matters.</span>}
+        </button>
+      )}
+
       <div style={css('display:flex;flex-wrap:wrap;align-items:center;gap:12px;background:#fff;border:1px solid #DDE3EB;padding:10px 12px;border-radius:10px')}>
         <div style={css('display:flex;align-items:center;gap:6px;border:1px solid #DDE3EB;border-radius:8px;padding:6px 10px;background:#F6F8FA;width:300px')}><Search style={css('width:14px;height:14px;color:#5B6478')} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="File no., title, client or court case no." style={css('flex:1;min-width:0;border:0;outline:0;font-size:12px;color:#16223A;background:transparent')} /></div>
         <label style={css('display:flex;align-items:center;gap:6px')}><span style={css('font-size:10px;font-weight:700;text-transform:uppercase;color:#5B6478')}>Status</span>
@@ -120,9 +148,9 @@ export const CasesListPage: React.FC = () => {
       </div>
 
       <div style={css('background:#fff;border:1px solid #DDE3EB;border-radius:12px;overflow-x:auto')}>
-        <div style={css('min-width:1040px')}>
+        <div style={css('min-width:1120px')}>
           <div style={css(`display:grid;grid-template-columns:${cols};gap:12px;padding:11px 14px;background:#16223A;color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;border-radius:11px 11px 0 0`)}>
-            <span>File no.</span><span>Title · client</span><span>Practice area</span><span>Partner · lawyer</span><span>File age</span><span>Status</span>{isFirmAdmin && <span />}
+            <span>File no.</span><span>Title · client</span><span>Practice area</span><span>Partner · lawyer</span><span>File age</span><span>Status</span><span>Drive</span>{isFirmAdmin && <span />}
           </div>
           {list.map((c) => {
             const st = ST[c.status] || ST.Closed;
@@ -139,6 +167,9 @@ export const CasesListPage: React.FC = () => {
                   <span style={css(`font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;background:${st[0]};color:${st[1]}`)}>{c.status}</span>
                   {pendingClose(c) && <span style={css('font-size:9.5px;font-weight:800;color:#8A6D3B')}>Close requested</span>}
                 </span>
+                {c.gdriveFolderUrl
+                  ? <a href={c.gdriveFolderUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} title="Open this file's Google Drive folder" style={css('justify-self:start;font-size:11px;font-weight:700;color:#2F4F7A;white-space:nowrap')}>Open ↗</a>
+                  : <span title="No Drive folder yet. Open the file and use Create Drive folder." style={css('font-size:11px;color:#94A3B8')}>—</span>}
                 {isFirmAdmin && (
                   <button type="button" onClick={(e) => del(e, c)} title="Delete file (wrongly entered)" className="hover:!bg-[#FBEDE9] hover:!border-[#F1C9C1]" style={css('justify-self:end;display:grid;place-items:center;width:28px;height:28px;border-radius:7px;border:1px solid transparent;background:transparent;cursor:pointer')}><Trash2 style={css('width:14px;height:14px;color:#B23A2E')} /></button>
                 )}
