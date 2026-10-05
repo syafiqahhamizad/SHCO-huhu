@@ -153,6 +153,14 @@ export async function storeClientKycFile(client: { id: string; name: string }, f
   return storeIn(['Clients', clientFolderName(client.name, client.id), 'KYC'], file, uploadedBy, { description: 'KYC document for ' + client.name + ' (' + client.id + ') uploaded by ' + uploadedBy });
 }
 
+/** Creates (or finds) the client's KYC folder, `Clients/<name (id)>/KYC/`. Null when Drive is not set up. */
+export async function ensureClientKycFolder(client: { id: string; name: string }): Promise<{ id: string; url: string } | null> {
+  if (activeStorage() !== 'drive') return null;
+  const c = getDriveConfig();
+  const id = await ensureFolderPath(c.rootFolderId, ['Clients', clientFolderName(client.name, client.id), 'KYC']);
+  return { id, url: 'https://drive.google.com/drive/folders/' + encodeURIComponent(id) };
+}
+
 /* ------------------------------------------------------------------ firm letterhead */
 
 /**

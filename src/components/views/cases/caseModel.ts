@@ -8,8 +8,8 @@
 import type {
   Case, Client, Expense, Invoice, MatterParty, Payment, Quotation, Retainer, Task, TimeEntry, TravelClaim, User, ServiceRecord,
 } from '../../../types';
-import { invoiceComposition, round2 } from '../../../lib/financeCalc';
-import { invoiceOnCase, isIssued, owedBalance } from '../../../lib/financeMetrics';
+import { round2 } from '../../../lib/financeCalc';
+import { moneyForFile } from '../../../lib/moneyByFile';
 import { isApprovedForBilling } from '../../../lib/billingEngine';
 
 /* ------------------------------------------------------------------ tokens */
@@ -289,46 +289,9 @@ export interface MoneyInputs {
 }
 
 export const matterMoney = (c: Case, m: MoneyInputs) => {
-  const invs = m.invoices.filter((i) => invoiceOnCase(i, c));
-  const issued = invs.filter(isIssued);
-  const paidOf = (id: string) => m.payments.filter((p) => p.invoiceId === id).reduce((s, p) => s + Number(p.amount || 0), 0);
-  const bills = invs.filter((i) => i.status !== 'Voided').map((inv) => {
-    const comp = invoiceComposition(inv);
-    const paid = round2(paidOf(inv.id) + (isIssued(inv) ? Number(inv.depositApplied || 0) : 0));
-    const bal = isIssued(inv) ? owedBalance(inv, paidOf(inv.id)) : 0;
-    const status = !isIssued(inv) ? inv.status : bal <= 0.005 ? 'Paid' : paid > 0 ? 'Part-paid' : inv.status === 'Partial' ? 'Part-paid' : inv.status;
-    return { id: inv.id, date: inv.date, fees: round2(comp.fees + comp.reimb), disb: comp.disb, sst: comp.sst, total: Number(inv.total || 0), paid, bal, status, issued: isIssued(inv), inv };
-  });
-  const billed = round2(issued.reduce((s, i) => s + Number(i.total || 0), 0));
-  const received = round2(bills.filter((b) => b.issued).reduce((s, b) => s + b.paid, 0));
-  const outstanding = round2(bills.filter((b) => b.issued).reduce((s, b) => s + b.bal, 0));
-
-  const ret = m.retainers.filter((r) => onFile(c, r.caseId));
-  const sortedRet = [...ret].sort((a, b) => (isoOf(a.date) < isoOf(b.date) ? -1 : isoOf(a.date) > isoOf(b.date) ? 1 : 0));
-  let run = 0;
-  const clientLedger = sortedRet.map((r) => {
-    const cr = r.type === 'Deposit' ? Number(r.amount || 0) : 0;
-    const dr = r.type === 'Deposit' ? 0 : Number(r.amount || 0);
-    run = round2(run + cr - dr);
-    return { date: r.date, doc: r.voucherNo || r.id, desc: r.remarks || r.type, dr, cr, bal: run };
-  });
-  const clientBalance = run;
-
-  const officeRows: { date: string; doc: string; desc: string; dr: number; cr: number }[] = [];
-  issued.forEach((inv) => {
-    officeRows.push({ date: inv.issuedAt || inv.date, doc: inv.id, desc: 'Bill: ' + (inv.subject || inv.matter || 'professional fees, disbursements & SST'), dr: Number(inv.total || 0), cr: 0 });
-    if (Number(inv.depositApplied || 0) > 0) officeRows.push({ date: inv.issuedAt || inv.date, doc: inv.id, desc: 'Deposit received applied', dr: 0, cr: Number(inv.depositApplied || 0) });
-    if (Number(inv.writtenOff || 0) > 0) officeRows.push({ date: inv.writeOffRequest?.decidedAt || inv.date, doc: inv.id, desc: 'Written off', dr: 0, cr: Number(inv.writtenOff || 0) });
-    m.payments.filter((p) => p.invoiceId === inv.id).forEach((p) => officeRows.push({ date: p.date, doc: p.id, desc: 'Received: ' + (p.method || 'payment') + ' for ' + inv.id, dr: 0, cr: Number(p.amount || 0) }));
-  });
-  officeRows.sort((a, b) => (isoOf(a.date) < isoOf(b.date) ? -1 : isoOf(a.date) > isoOf(b.date) ? 1 : 0));
-  let orun = 0;
-  const officeLedger = officeRows.map((r) => { orun = round2(orun + r.dr - r.cr); return { ...r, bal: orun }; });
-
-  const quotes = m.quotations.filter((q) => q.documentType !== 'Proforma' && (onFile(c, q.caseId, q.fileRef)) && q.status !== 'Declined');
-  const accepted = quotes.filter((q) => q.status === 'Accepted');
-  const agreedSrc = accepted.length ? accepted : quotes;
-  const agreed = round2(agreedSrc.reduce((s, q) => s + Number(q.total || 0), 0));
+  // Agreed / billed / received / outstanding / client account: the single money source.
+  const fm = moneyForFile(c, m);
+  const { bills, billed, received, outstanding, clientLedger, clientBalance, officeLedger, agreed, quotes, accepted } = fm;
 
   // Work not billed — same rule as Accounts & Finance (billable, not billed / written off, approved).
   const te = m.timeEntries.filter((t) => onFile(c, t.caseId));

@@ -49,12 +49,12 @@ export const scanClientConflicts = (
     }
   });
 
-  // 2. Scan against Active Cases (Opposing parties & Matter titles)
+  // 2. Scan against every file (opposing parties in all their recorded forms & matter titles)
   allCases.forEach((cs) => {
-    const oppParty = (cs.opposingParty || '').toLowerCase();
     const caseTitle = (cs.title || '').toLowerCase();
+    const opp = opposingPartiesOf(cs).find((p) => queryName.length >= 3 && p.toLowerCase().includes(queryName));
 
-    if (queryName.length >= 3 && oppParty.includes(queryName)) {
+    if (opp) {
       matches.push({
         label: `⚠️ ADVERSE PARTY CONFLICT (${cs.ref})`,
         detail: `Client name "${clientData.name}" is listed as the Opposing Party/Defendant in Matter ${cs.ref} ("${cs.title}")`,
@@ -70,3 +70,51 @@ export const scanClientConflicts = (
   return matches;
 };
 
+
+/** Every opposing party name on a file: the Working File parties list, the legacy list / names
+ * ("1st Defendant: Name" entries) and the single opposingParty field. */
+export const opposingPartiesOf = (cs: Case): string[] => {
+  const names = [
+    ...(cs.caseParties || []).filter((p) => p.side === 'opposing').map((p) => p.name),
+    ...(cs.opposingPartiesList || []).map((p) => p.name),
+    ...(cs.opposingParties || []).map((e) => { const s = String(e || ''); const k = s.indexOf(':'); return k > -1 ? s.slice(k + 1) : s; }),
+    cs.opposingParty || '',
+  ].map((n) => String(n || '').trim()).filter((n) => n && n !== 'N/A');
+  return [...new Set(names)];
+};
+
+const SKIP = ['bin', 'binti', 'bt', 'bte', 'a/l', 'a/p', 'sdn', 'bhd', 'berhad', 'the', 'and'];
+const idKey = (s?: string) => String(s || '').replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
+
+/**
+ * Clients › Register new client: the as-you-type conflict check (design `Clients.dc.html`).
+ * Matches the name (whole, or at least two significant words) and the NRIC / SSM no. against
+ * existing clients and the opposing parties on every file. Returns plain sentences.
+ */
+export const registrationConflicts = (q: { name: string; idNo?: string }, clients: Client[], cases: Case[]): string[] => {
+  const norm = (x: string) => String(x || '').toLowerCase().replace(/['’`]/g, '').replace(/[^a-z0-9@]+/g, ' ').trim();
+  const n = norm(q.name);
+  const id = idKey(q.idNo);
+  const words = n.split(' ').filter((w) => w.length > 3 && !SKIP.includes(w));
+  const nameHit = (x: string) => {
+    if (n.length < 4) return false;
+    const l = norm(x);
+    if (!l) return false;
+    if (l.includes(n) || (l.length >= 4 && n.includes(l))) return true;
+    return words.length > 0 && words.filter((w) => l.includes(w)).length >= Math.min(2, words.length);
+  };
+  const out: string[] = [];
+  cases.forEach((cs) => {
+    const oppIds = [...(cs.caseParties || []).filter((p) => p.side === 'opposing').map((p) => p.idNo), ...(cs.opposingPartiesList || []).map((p) => p.icOrRegNo)].map(idKey).filter((x) => x.length >= 5);
+    opposingPartiesOf(cs).forEach((p) => {
+      if (nameHit(p)) out.push(`${p} is the opposing party in ${cs.title || cs.ref} (${cs.ref}).`);
+    });
+    if (id.length >= 5 && oppIds.includes(id) && !out.some((o) => o.includes(`(${cs.ref})`))) out.push(`NRIC / SSM no. ${q.idNo} belongs to an opposing party in ${cs.title || cs.ref} (${cs.ref}).`);
+  });
+  clients.forEach((c) => {
+    const cid = idKey(c.icNo || c.icNumber || c.registrationNo);
+    if (nameHit(c.name)) out.push(`${c.name} is already a client (${c.id}).`);
+    else if (id.length >= 5 && cid === id) out.push(`NRIC / SSM no. ${q.idNo} is already on client ${c.name} (${c.id}).`);
+  });
+  return [...new Set(out)];
+};

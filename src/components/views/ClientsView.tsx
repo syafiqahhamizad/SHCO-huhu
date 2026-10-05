@@ -1,1585 +1,650 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { useApp } from '../../context/AppContext';
-import { Client, ClientCdd, KycDoc } from '../../types';
-import { scanClientConflicts } from '../../lib/conflictUtils';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  clientFolderName, DRIVE_REQUIRED_MSG, isUploadReady, openLegacyDataUrl, openStoredFile, prepareStorage, storeClientKycFile, useStorageLabel, validateClaimFile,
+  CircleCheck, CircleDashed, Clock, Download, Eye, Folder, Key, Lock, Mail, MessageCircle, Plus, Search, ShieldCheck, Trash2, TriangleAlert, Upload, Users,
+} from 'lucide-react';
+import { useApp } from '../../context/AppContext';
+import type { Case, Client, ClientHistoryEntry, CorporateEntityCategory, KycDoc } from '../../types';
+import { NewClientModal } from '../NewClientModal';
+import { css } from './finance/financeModel';
+import { canSeeFinanceView, finRoleKey } from '../../lib/financeAccess';
+import { casesOfClient, isOpenFile, moneyForClient, moneyForFile, type MoneySources } from '../../lib/moneyByFile';
+import { parseDate } from '../../lib/financeCalc';
+import { exportToCsv } from '../../lib/exportUtils';
+import { whatsappLink } from '../../lib/whatsapp';
+import {
+  DRIVE_REQUIRED_MSG, clientFolderName, ensureClientKycFolder, isUploadReady, openLegacyDataUrl, openStoredFile, prepareStorage, storeClientKycFile, validateClaimFile,
 } from '../../services/fileStorageService';
+import {
+  KYC_PILL, P, clientsNav, conflictOf, conflictPill, ddmmyyyy, idNoOf, initials, kycOverall, kycRowsOf, otherKycDocs, portalOf, portalPill, rmWhole as rm, useSelectedClientId,
+  type KycReqKey, type Pill, type PortalStatus, type PortalVisibility,
+} from './clients/clientModel';
 
-/** Text input / textarea that saves once on blur (one audit line per change, not per keystroke). */
-type CommitProps = { value: string; onCommit: (v: string) => void; className?: string; placeholder?: string; type?: string; rows?: number; 'aria-label'?: string };
-const CommitField: React.FC<CommitProps & { multiline?: boolean }> = ({ value, onCommit, multiline, rows, ...rest }) => {
+/**
+ * Clients — design pack `Clients.dc.html` (COPY, DO NOT REDESIGN). Inline styles are the
+ * design's own, copied through css(). Everything shown comes from real records (useApp());
+ * money comes from lib/moneyByFile (the same source as Billing › Fees by file and the Working
+ * File › Money tab). Nothing is typed in twice and no totals are stored.
+ */
+
+const LABEL = 'font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#5B6478';
+const INPUT = 'width:100%;border:1px solid #DDE3EB;border-radius:6px;padding:7px 9px;font-size:12px;color:#16223A;background:#fff;outline-color:#3D6B9C';
+const CARD_HEAD = 'padding:12px 16px;border-bottom:1px solid #EEF1F5';
+const H = 'font-family:Georgia,serif;font-size:14.5px;color:#16223A';
+const pillCss = (p: { bg: string; fg: string }) => css(`justify-self:start;font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;background:${p.bg};color:${p.fg}`);
+const MONO = 'ui-monospace, monospace';
+const ENTITY_TYPES: CorporateEntityCategory[] = ['Sdn Bhd', 'Berhad', 'Enterprise', 'Sole Proprietorship', 'Partnership', 'LLP', 'Society/Association', 'Foreign Corp', 'Government / Statutory Body', 'Cooperative (Koperasi)'];
+const FILE_PILL: Record<string, { bg: string; fg: string }> = { Active: P.g, Pending: P.a, Closed: P.n, Archive: P.r };
+const HIST_C: Record<string, string> = { edit: '#3D6B9C', kyc: '#8A6D3B', conflict: '#8E2A20', portal: '#2F4F7A', file: '#16223A' };
+
+/** Input / textarea that saves once on blur (one History line per change, not per keystroke). */
+const CommitField: React.FC<{ value: string; onCommit: (v: string) => void; multiline?: boolean; style: React.CSSProperties; placeholder?: string; readOnly?: boolean; 'aria-label'?: string }> = ({ value, onCommit, multiline, readOnly, ...rest }) => {
   const [draft, setDraft] = useState(value);
   const focused = useRef(false);
   useEffect(() => { if (!focused.current) setDraft(value); }, [value]);
   const common = {
-    ...rest,
-    value: draft,
+    ...rest, value: draft, readOnly,
     onFocus: () => { focused.current = true; },
     onBlur: () => { focused.current = false; if (draft !== value) onCommit(draft); },
   };
   return multiline
-    ? <textarea rows={rows} {...common} onChange={(e) => setDraft(e.target.value)} />
+    ? <textarea rows={2} {...common} onChange={(e) => setDraft(e.target.value)} />
     : <input {...common} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />;
 };
 
-/** Where a KYC document's file is: Drive (current), inline data URL (legacy), legacy Storage path, or nowhere. */
-const kycStorageOf = (k: KycDoc): 'drive' | 'legacy-inline' | 'none' => (k.driveFileId || k.webViewLink ? 'drive' : k.dataUrl ? 'legacy-inline' : 'none');
-import {
-  Users,
-  Upload,
-  Folder,
-  ArrowLeft,
-  ShieldAlert,
-  Download,
-  CheckCircle2,
-  X,
-  UserPlus,
-  Building2,
-  Briefcase,
-  Search,
-  Filter,
-  User,
-  Trash2,
-  AlertTriangle,
-  Lock,
-  ShieldCheck,
-  Info,
-  Send,
-  Key,
-} from 'lucide-react';
-import { exportToCsv } from '../../lib/exportUtils';
+type Tier = 'fin' | 'partner' | 'lawyer';
+type Tab = 'profile' | 'files' | 'money' | 'kyc' | 'portal' | 'history';
 
 export const ClientsView: React.FC = () => {
+  const app = useApp();
   const {
-    clients,
-    cases,
-    updateClient,
-    deleteClient,
-    sendClientPortalInvite,
-    currentRole,
-    isAdmin,
-    currentUser,
-    users = [],
-    auditLogs = [],
-    setCurrentView,
-    setCurrentCaseId,
-    setCaseSubTab,
-    showToast,
-    setIsRegisterClientModalOpen,
-  } = useApp();
+    clients = [], cases = [], invoices = [], payments = [], retainers = [], quotations = [], receipts = [], auditLogs = [],
+    updateClient, deleteClient, currentRole, currentUser, isAdmin, setCurrentView, setCurrentCaseId, setCaseSubTab, showToast, openNewCaseWithPrefill,
+  } = app;
+  const src: MoneySources = useMemo(() => ({ invoices, payments, retainers, quotations, receipts }), [invoices, payments, retainers, quotations, receipts]);
+  const rk = finRoleKey(currentRole, currentUser, isAdmin);
+  const tier: Tier = rk === 'M' || rk === 'A' ? 'fin' : rk === 'P' ? 'partner' : 'lawyer';
+  const me = currentUser?.name || 'Staff';
 
-  const createPortalLogin = async (clientId: string) => {
-    const result = await sendClientPortalInvite(clientId);
-    if (!result.success) return;
-    window.alert(result.message ||
-      `Client Portal login created.\n\nEmail: ${result.email}\nTemporary password: ${result.tempPass}\n\nNo email has been sent. Give these details to the client privately (e.g. WhatsApp). They sign in at portal.shcolaw.com → Client Access.`
-    );
-  };
+  const selId = useSelectedClientId();
+  useEffect(() => () => clientsNav.set(null), []);
+  const [tab, setTab] = useState<Tab>('profile');
+  const [q, setQ] = useState('');
+  const [type, setType] = useState<'All' | 'Individual' | 'Corporate'>('All');
+  const [card, setCard] = useState('');
+  const [reg, setReg] = useState(false);
+  const open = (id: string, t: Tab = 'profile') => { setTab(t); clientsNav.set(id); };
 
-  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
-  const [subTab, setSubTab] = useState<'profile' | 'kyc' | 'cases' | 'history'>('profile');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<string>('All');
+  const sel = selId ? clients.find((c) => c.id === selId) : undefined;
+  const modal = reg && <NewClientModal isOpen onClose={() => setReg(false)} onSaved={(id) => { open(id, 'kyc'); showToast('Client registered. Upload KYC documents next'); }} />;
 
-  // Deletion State
-  const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
-  const [showPermissionDeniedModal, setShowPermissionDeniedModal] = useState(false);
-
-  // Conflict Modal State
-  const [conflictClient, setConflictClient] = useState<Client | null>(null);
-  const [ccStatus, setCcStatus] = useState<'Clear' | 'Flagged' | 'Pending Partner Review'>('Clear');
-  const [ccBy, setCcBy] = useState(currentUser?.name || '');
-  const [ccNotes, setCcNotes] = useState('');
-  // Who can record a conflict determination: the firm's partners (from the user list), plus
-  // whoever is signed in and anyone already recorded on this client.
-  const reviewerNames = Array.from(new Set([
-    ...users.filter((u) => u.role === 'Partner' && u.status !== 'Inactive').map((u) => u.name),
-    currentUser?.name || '',
-    conflictClient?.conflictCheck?.checkedBy || '',
-  ].filter(Boolean)));
-
-  const handleOpenConflictModal = (e: React.MouseEvent | null, c: Client) => {
-    if (e) e.stopPropagation();
-    setConflictClient(c);
-    setCcStatus(c.conflictCheck?.status || 'Clear');
-    setCcBy(c.conflictCheck?.checkedBy || currentUser?.name || '');
-    setCcNotes(c.conflictCheck?.notes || '');
-  };
-
-  const handleSaveClientConflictCheck = () => {
-    if (!conflictClient) return;
-    updateClient(conflictClient.id, {
-      conflictCheck: {
-        status: ccStatus,
-        notes: ccNotes.trim() || 'Conflict check determination saved.',
-        checkedBy: ccBy,
-        checkedDate: new Date().toISOString().split('T')[0],
-      },
-    });
-    showToast(`Conflict status for "${conflictClient.name}" updated to: ${ccStatus}`);
-    setConflictClient(null);
-  };
-
-  // KYC Upload Form
-  const [isKycModalOpen, setIsKycModalOpen] = useState(false);
-  const [kycName, setKycName] = useState('');
-  const [kycType, setKycType] = useState('Identity (NRIC/Passport)');
-  const [kycFile, setKycFile] = useState<File | null>(null);
-
-  const selectedClient = clients.find((c) => c.id === selectedClientId);
-  const clientCases = cases.filter((cs) => {
-    if (!selectedClient) return false;
-    if (cs.clientId) {
-      const ids = cs.clientId.split(',').map((id) => id.trim());
-      if (ids.includes(selectedClient.id)) return true;
-    }
-    if (cs.clientsList && cs.clientsList.some((cl) => cl.id === selectedClient.id || (cl.name && selectedClient.name && cl.name.toLowerCase() === selectedClient.name.toLowerCase()))) {
-      return true;
-    }
-    if (cs.clientName && selectedClient.name) {
-      const normCsClient = cs.clientName.toLowerCase();
-      const normSelClient = selectedClient.name.toLowerCase();
-      if (normCsClient.includes(normSelClient) || normSelClient.includes(normCsClient)) {
-        return true;
-      }
-    }
-    return false;
-  });
-
-  const canDelete = isAdmin || currentRole === 'Partner' || currentRole === 'Admin';
-
-  // --- Handlers ---
-  const handleDeleteClick = (e: React.MouseEvent, client: Client) => {
-    e.stopPropagation();
-    if (!canDelete) {
-      setShowPermissionDeniedModal(true);
-      return;
-    }
-    setClientToDelete(client);
-  };
-
-  const handleConfirmDelete = () => {
-    if (!clientToDelete) return;
-    if (!canDelete) {
-      showToast('Permission Denied: Only Admins and Partners can delete client records.');
-      setClientToDelete(null);
-      return;
-    }
-    deleteClient(clientToDelete.id);
-    if (selectedClientId === clientToDelete.id) {
-      setSelectedClientId(null);
-    }
-    setClientToDelete(null);
-  };
-
-  // KYC documents go to the firm Google Drive: Clients/<name (id)>/KYC/. Only metadata is kept on
-  // the client record. Blocked (with the reason) until Drive storage is set up in Firm Settings.
-  const [kycBusy, setKycBusy] = useState(false);
-  const storageLabel = useStorageLabel();
-  const openKycModal = () => {
-    if (!isUploadReady()) { showToast(DRIVE_REQUIRED_MSG); return; }
-    setIsKycModalOpen(true);
-  };
-  const handleSaveKyc = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedClient || !kycFile) {
-      showToast('Select a KYC document before saving.');
-      return;
-    }
-    if (!isUploadReady()) { showToast(DRIVE_REQUIRED_MSG); return; }
-    const problem = validateClaimFile(kycFile);
-    if (problem) { showToast(problem); return; }
-    const client = selectedClient;
-    setKycBusy(true);
-    try {
-      await prepareStorage();
-      const up = await storeClientKycFile({ id: client.id, name: client.name }, kycFile, currentUser?.name || 'Staff');
-      const newKyc: KycDoc = {
-        id: `KYC-${Date.now()}`,
-        name: kycName.trim() || kycFile.name,
-        type: kycType,
-        uploadedDate: up.uploadedAt.split('T')[0],
-        driveFolder: `Clients/${clientFolderName(client.name, client.id)}/KYC`,
-        driveFileId: up.driveFileId,
-        webViewLink: up.webViewLink,
-        size: up.size,
-        contentType: up.contentType,
-        uploadedAt: up.uploadedAt,
-        uploadedBy: up.uploadedBy,
-      };
-      updateClient(client.id, { kyc: [...(client.kyc || []), newKyc] });
-      setKycName('');
-      setKycFile(null);
-      setIsKycModalOpen(false);
-      showToast(`KYC document "${newKyc.name}" saved to Google Drive for ${client.name}`);
-    } catch (err) {
-      showToast('Not uploaded: ' + (err instanceof Error ? err.message : String(err)));
-    } finally {
-      setKycBusy(false);
-    }
-  };
-
-  const openKyc = async (k: KycDoc) => {
-    if (kycStorageOf(k) === 'drive') {
-      const err = await openStoredFile({ driveFileId: k.driveFileId, webViewLink: k.webViewLink });
-      if (err) showToast(err);
-      return;
-    }
-    if (k.dataUrl) { const err = openLegacyDataUrl(k.dataUrl, k.name); if (err) showToast(err); return; }
-    showToast('Only the name of this document was recorded. There is no stored copy.');
-  };
-
-  const removeKyc = (k: KycDoc) => {
-    if (!selectedClient) return;
-    if (!window.confirm('Remove “' + k.name + '” from ' + selectedClient.name + '’s KYC list? The file itself stays in Google Drive.')) return;
-    updateClient(selectedClient.id, { kyc: (selectedClient.kyc || []).filter((x) => x.id !== k.id) });
-  };
-
-  const saveCdd = (patch: Partial<ClientCdd>) => {
-    if (!selectedClient) return;
-    updateClient(selectedClient.id, { cdd: { ...(selectedClient.cdd || {}), ...patch, updatedBy: currentUser?.name || '', updatedAt: new Date().toISOString() } });
-  };
-
-  const openCaseFile = (caseId: string | null) => {
-    setCaseSubTab('overview');
-    setCurrentCaseId(caseId);
-    setCurrentView('cases');
-  };
-
-  const handleExportClients = () => {
-    const data = clients.map((c) => ({
-      'Client ID': c.id,
-      'Client Name': c.name,
-      Classification: c.type,
-      'Entity Category': c.entityCategory || (c.type === 'Corporate' ? 'Sdn Bhd' : 'Individual'),
-      'Registration / NRIC No': c.registrationNo || c.icNo || c.icNumber || '—',
-      'Tax / SST No': c.taxSstNo || '—',
-      'Contact Person': c.contactPerson || c.name,
-      Designation: c.contactPersonDesignation || '—',
-      Phone: c.phone,
-      Email: c.email,
-      Tags: (c.tags || []).join(', ') || '—',
-      Status: c.status || 'Active',
-      Address: c.address,
-      'Emergency Contact': c.emergencyContactName
-        ? `${c.emergencyContactName} (${c.emergencyContactPhone})`
-        : c.emergencyContact || '—',
-      Notes: c.notes || '—',
-    }));
-    exportToCsv('SHCO_Client_Database', data);
-    showToast('Exported client database to CSV / Excel!');
-  };
-
-  const handleBackupClientsAndCases = () => {
-    handleExportClients();
-    exportToCsv('SHCO_Case_Database', cases.map((caseRecord) => ({
-      'Case ID': caseRecord.id,
-      'File Reference': caseRecord.ref,
-      'Case Title': caseRecord.title,
-      'Client ID': caseRecord.clientId,
-      'Client Name': caseRecord.clientName || clients.find((client) => client.id === caseRecord.clientId)?.name || '—',
-      Practice: caseRecord.practiceArea || caseRecord.type,
-      'Matter Code': caseRecord.matterCode || '—',
-      'File Opened Date': caseRecord.fileOpenedDate || caseRecord.createdDate || '—',
-      Status: caseRecord.status,
-      'Client Role': caseRecord.clientRole || '—',
-      'Partner(s) in Charge': (caseRecord.partners || []).join(', ') || '—',
-      'Lawyer / File Handler': caseRecord.lawyerInCharge || (caseRecord.lawyers || []).join(', ') || '—',
-      'Court Case No.': caseRecord.courtCaseNo || '—',
-      Court: caseRecord.court || '—',
-      Judge: caseRecord.judge || '—',
-      'Opposing Party': caseRecord.opposingParty || '—',
-      'Next Hearing': caseRecord.nextHearing || '—',
-      Notes: caseRecord.caseNotes || caseRecord.notes || '—',
-    })));
-    showToast('Downloaded client and case backups for Excel.');
-  };
-
-  // --- Filtering Logic ---
-  const filteredClients = clients.filter((c) => {
-    // Search matching
-    const search = searchTerm.toLowerCase().trim();
-    const matchesSearch =
-      !search ||
-      c.name.toLowerCase().includes(search) ||
-      c.id.toLowerCase().includes(search) ||
-      (c.registrationNo && c.registrationNo.toLowerCase().includes(search)) ||
-      (c.icNo && c.icNo.toLowerCase().includes(search)) ||
-      (c.icNumber && c.icNumber.toLowerCase().includes(search)) ||
-      (c.email && c.email.toLowerCase().includes(search)) ||
-      (c.phone && c.phone.includes(search)) ||
-      (c.contactPerson && c.contactPerson.toLowerCase().includes(search)) ||
-      (c.tags && c.tags.some((t) => t.toLowerCase().includes(search)));
-
-    if (!matchesSearch) return false;
-
-    // Entity structure filter
-    if (filterType !== 'All') {
-      if (filterType === 'Corporate' && c.type !== 'Corporate') return false;
-      if (filterType === 'Individual' && c.type !== 'Individual') return false;
-      if (
-        filterType !== 'Corporate' &&
-        filterType !== 'Individual' &&
-        c.entityCategory !== filterType
-      )
-        return false;
-    }
-
-    return true;
-  });
-
-  // Tag Color Helper
-  const getTagBadgeStyle = (tag: string) => {
-    switch (tag) {
-      case 'Retainer':
-        return 'bg-amber-100 text-amber-900 border-amber-300';
-      case 'Pro-bono':
-        return 'bg-emerald-100 text-emerald-900 border-emerald-300';
-      case 'Active':
-        return 'bg-blue-100 text-blue-900 border-blue-200';
-      case 'VIP':
-        return 'bg-purple-100 text-purple-900 border-purple-300';
-      case 'Corporate':
-        return 'bg-indigo-100 text-indigo-900 border-indigo-200';
-      case 'Litigation':
-        return 'bg-rose-100 text-rose-900 border-rose-200';
-      case 'Conveyancing':
-        return 'bg-teal-100 text-teal-900 border-teal-200';
-      default:
-        return 'bg-slate-100 text-slate-800 border-slate-300';
-    }
-  };
-
-  // Modals are shared by the client detail view and the directory view.
-  const modals = (
-    <>
-      {/* --- MANDATORY DELETE CONFIRMATION MODAL --- */}
-      {clientToDelete && (
-        <div className="fixed inset-0 bg-[#16223A]/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-rose-200 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-start gap-3">
-              <div className="p-3 bg-rose-100 text-rose-700 rounded-full shrink-0">
-                <AlertTriangle className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="font-serif text-base font-bold text-[#16223A]">
-                  Confirm Client Permanent Deletion
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Mandatory Firm Security Safeguard
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4 p-3 bg-rose-50/70 border border-rose-200 rounded-lg text-xs space-y-2 text-rose-900">
-              <p>
-                Are you sure you want to permanently delete the client record for:
-              </p>
-              <div className="p-2 bg-white rounded border border-rose-200 font-bold text-[#16223A]">
-                <p>{clientToDelete.name}</p>
-                <p className="font-mono text-[11px] text-slate-500 font-normal">
-                  Client ID: {clientToDelete.id} • {clientToDelete.type}
-                </p>
-              </div>
-              <p className="text-[11px] text-rose-700">
-                ⚠️ <strong>Warning:</strong> Deleting this client moves the record (particulars, contact points, KYC list and CDD) to the Recycle Bin and removes their portal login. KYC files stay in Google Drive. Registered legal matters and billing ledgers are kept.
-              </p>
-            </div>
-
-            <div className="mt-2 text-[10.5px] text-slate-500 flex items-center gap-1">
-              <Lock className="w-3 h-3 text-amber-700" />
-              <span>Authorized Operator: <strong>{currentUser?.name || currentRole}</strong> ({currentRole} Role)</span>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-4 mt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setClientToDelete(null)}
-                className="px-4 py-2 border border-[#DDE3EB] text-slate-700 hover:bg-slate-100 rounded-lg font-bold text-xs cursor-pointer transition-colors"
-              >
-                Cancel Keep Record
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-xs cursor-pointer shadow-md flex items-center gap-1.5 transition-colors"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Confirm Delete Client</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* --- PERMISSION DENIED MODAL --- */}
-      {showPermissionDeniedModal && (
-        <div className="fixed inset-0 bg-[#16223A]/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#DDE3EB]">
-            <div className="flex items-start gap-3">
-              <div className="p-3 bg-amber-100 text-amber-800 rounded-full shrink-0">
-                <Lock className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="font-serif text-base font-bold text-[#16223A]">
-                  Permission Restricted
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Firm Administrative Access Control
-                </p>
-              </div>
-            </div>
-
-            <p className="mt-4 text-xs text-slate-600 leading-relaxed">
-              Deleting client database profiles is strictly restricted to <strong>Firm Administrators</strong> and <strong>Partners</strong>. Your current role (<strong>{currentRole}</strong>) does not have deletion privileges for client master records.
-            </p>
-
-            <div className="flex justify-end pt-4 mt-4 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setShowPermissionDeniedModal(false)}
-                className="px-4 py-2 bg-[#16223A] text-amber-300 rounded-lg font-bold text-xs cursor-pointer"
-              >
-                Understood
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* --- KYC UPLOAD MODAL --- */}
-      {isKycModalOpen && selectedClient && (
-        <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#DDE3EB]">
-            <h3 className="font-serif text-base font-bold text-[#16223A] mb-3">Upload KYC Compliance Document</h3>
-            <form onSubmit={handleSaveKyc} className="space-y-3 text-xs">
-              <div>
-                <label className="font-bold text-slate-700 block uppercase mb-1">Document File</label>
-                <input
-                  type="file"
-                  required
-                  accept="image/*,.pdf"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0] || null;
-                    setKycFile(file);
-                    if (file && !kycName) setKycName(file.name);
-                  }}
-                  className="w-full"
-                />
-                <p className="text-[10px] text-slate-500 mt-1">Photo or PDF, up to 10 MB. Goes to Google Drive › Clients › {clientFolderName(selectedClient.name, selectedClient.id)} › KYC.</p>
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block uppercase mb-1">Document Name / Reference</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. NRIC copy (front and back)"
-                  value={kycName}
-                  onChange={(e) => setKycName(e.target.value)}
-                  className="w-full"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block uppercase mb-1">KYC Category</label>
-                <select value={kycType} onChange={(e) => setKycType(e.target.value)} className="w-full">
-                  <option value="Identity (NRIC/Passport)">Identity (NRIC/Passport)</option>
-                  <option value="SSM Corporate ROC Extract">SSM Corporate ROC Extract</option>
-                  <option value="Proof of Address (Utility Bill)">Proof of Address (Utility Bill)</option>
-                  <option value="Source of Funds Declaration">Source of Funds Declaration</option>
-                  <option value="Directors / Beneficial Owners (Form 49 / BO)">Directors / Beneficial Owners (Form 49 / BO)</option>
-                  <option value="Board Resolution / Authority">Board Resolution / Authority</option>
-                  <option value="PEP / Sanctions Screening Result">PEP / Sanctions Screening Result</option>
-                  <option value="Other KYC Document">Other KYC Document</option>
-                </select>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setIsKycModalOpen(false)}
-                  className="px-4 py-2 border border-[#DDE3EB] text-slate-700 hover:bg-slate-100 rounded-md font-semibold cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={kycBusy}
-                  className={`px-4 py-2 bg-[#16223A] hover:bg-[#16223A] text-white rounded-md font-semibold ${kycBusy ? 'opacity-60 cursor-wait' : 'cursor-pointer'}`}
-                >
-                  {kycBusy ? 'Uploading…' : 'Upload to Google Drive'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Conflict Review Modal (Leads Concept) */}
-      {conflictClient && (
-        <div className="fixed inset-0 bg-[#16223A]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#DDE3EB] space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-serif text-base font-bold text-[#16223A]">
-                Conflict of Interest Check — {conflictClient.name}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setConflictClient(null)}
-                className="text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-500">
-              Formal partner determination under Legal Profession Act 1976 and Bar Council Guidelines.
-            </p>
-
-            {/* Display live conflict matches */}
-            {scanClientConflicts(
-              { id: conflictClient.id, name: conflictClient.name, icNo: conflictClient.icNo, registrationNo: conflictClient.registrationNo, email: conflictClient.email },
-              clients,
-              cases
-            ).length > 0 ? (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 space-y-1">
-                <span className="font-bold flex items-center gap-1 text-[11.5px]">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                  <span>Cross-Registry Matches Flagged ({scanClientConflicts({ id: conflictClient.id, name: conflictClient.name, icNo: conflictClient.icNo, registrationNo: conflictClient.registrationNo, email: conflictClient.email }, clients, cases).length}):</span>
-                </span>
-                <ul className="list-disc list-inside font-mono text-[11px] space-y-0.5 pt-1">
-                  {scanClientConflicts(
-                    { id: conflictClient.id, name: conflictClient.name, icNo: conflictClient.icNo, registrationNo: conflictClient.registrationNo, email: conflictClient.email },
-                    clients,
-                    cases
-                  ).map((m, i) => (
-                    <li key={i}><strong>{m.label}:</strong> {m.detail}</li>
-                  ))}
-                </ul>
-              </div>
-            ) : (
-              <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800 flex items-center gap-2 font-semibold">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>No adverse party or registered client matches found.</span>
-              </div>
-            )}
-
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="font-bold text-slate-700 block uppercase text-[10.5px] mb-1">
-                  Conflict Determination
-                </label>
-                <select
-                  value={ccStatus}
-                  onChange={(e) => setCcStatus(e.target.value as any)}
-                  className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg font-bold text-[#16223A]"
-                >
-                  <option value="Clear">Clear (No conflict of interest)</option>
-                  <option value="Flagged">Flagged (Direct / Potential Conflict)</option>
-                  <option value="Pending Partner Review">Pending Partner Review</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block uppercase text-[10.5px] mb-1">
-                  Reviewed By Partner
-                </label>
-                <select
-                  value={ccBy}
-                  onChange={(e) => setCcBy(e.target.value)}
-                  className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg font-semibold text-[#16223A]"
-                >
-                  {reviewerNames.map((n) => <option key={n} value={n}>{n}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block uppercase text-[10.5px] mb-1">
-                  Partner Review Notes
-                </label>
-                <textarea
-                  rows={3}
-                  value={ccNotes}
-                  onChange={(e) => setCcNotes(e.target.value)}
-                  className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg"
-                  placeholder="Record conflict search checks, IC cross-checks, and partner reasoning..."
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setConflictClient(null)}
-                  className="px-4 py-2 border border-[#DDE3EB] text-slate-700 hover:bg-slate-100 rounded-md font-semibold text-xs cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveClientConflictCheck}
-                  className="px-4 py-2 bg-[#16223A] hover:bg-[#16223A] text-amber-300 rounded-md font-bold text-xs cursor-pointer shadow-sm"
-                >
-                  Save Determination
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
-
-  // --- CLIENT DETAIL VIEW ---
-  if (selectedClient) {
+  if (!sel) {
     return (
-      <div className="space-y-4 text-xs">
-        {/* Detail Header Bar */}
-        <div className="bg-white border border-[#DDE3EB] p-4 rounded-xl flex items-center justify-between shadow-xs">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setSelectedClientId(null)}
-              className="p-1.5 hover:bg-slate-100 text-slate-600 rounded-lg border border-[#DDE3EB] transition-colors cursor-pointer"
-              title="Back to Client Directory"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </button>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <CommitField
-                  value={selectedClient.name}
-                  onCommit={(v) => updateClient(selectedClient.id, { name: v })}
-                  className="font-serif text-base font-bold text-[#16223A] bg-transparent border-0 border-b border-transparent focus:border-[#3D6B9C] focus:ring-0 p-0"
-                  aria-label="Client official name"
-                />
-                <select
-                  value={selectedClient.type}
-                  onChange={(e) => updateClient(selectedClient.id, { type: e.target.value as Client['type'] })}
-                  className="px-2 py-0.5 bg-blue-100 text-blue-900 rounded text-[10px] font-bold border border-blue-200"
-                  aria-label="Client type"
-                >
-                  <option value="Individual">Individual</option>
-                  <option value="Corporate">Corporate</option>
-                </select>
-                <select
-                  value={selectedClient.status || 'Active'}
-                  onChange={(e) => updateClient(selectedClient.id, { status: e.target.value as Client['status'] })}
-                  className={`px-2 py-0.5 rounded text-[10px] font-bold border ${selectedClient.status === 'Pending KYC' ? 'bg-amber-100 text-amber-900 border-amber-300' : 'bg-slate-100 text-slate-800 border-slate-300'}`}
-                  aria-label="Client status"
-                  title="Set to Active once KYC / CDD is complete"
-                >
-                  <option value="Active">Active</option>
-                  <option value="Pending KYC">Pending KYC</option>
-                  <option value="Inactive">Inactive</option>
-                  <option value="Archived">Archived</option>
-                </select>
-                <span className="font-mono text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                  ID: {selectedClient.id}
-                </span>
-                {(selectedClient.tags || []).map((t) => (
-                  <span
-                    key={t}
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold border ${getTagBadgeStyle(t)}`}
-                  >
-                    #{t}
-                  </span>
-                ))}
-              </div>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Master Client Record • Registered Contact &amp; Statutory KYC Files
-              </p>
-            </div>
-          </div>
+      <>
+        <ClientList
+          clients={clients} cases={cases} src={src} q={q} setQ={setQ} type={type} setType={setType} card={card} setCard={setCard}
+          onOpen={(id) => open(id)} onReg={() => setReg(true)} showToast={showToast}
+        />
+        {modal}
+      </>
+    );
+  }
 
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => createPortalLogin(selectedClient.id)}
-              className="bg-[#16223A] hover:bg-[#16223A] text-amber-300 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer text-xs shadow-xs"
-              title="Create this client's Client Portal login (uses the email on their record)"
-            >
-              <Send className="w-3.5 h-3.5 text-amber-300" />
-              <span>Create Portal Login</span>
-            </button>
-            <button
-              onClick={(e) => handleDeleteClick(e, selectedClient)}
-              className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer text-xs"
-              title="Delete client profile"
-            >
-              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-              <span>Delete Client</span>
-            </button>
+  /* ------------------------------------------------------------------ profile */
+  const c = sel;
+  const isCo = c.type === 'Corporate';
+  const files = casesOfClient(c, cases);
+  const money = moneyForClient(c, cases, src);
+  const kycRows = kycRowsOf(c);
+  const log = (what: string, kind: ClientHistoryEntry['kind'] = 'edit'): ClientHistoryEntry[] => [{ at: new Date().toISOString(), by: me, what, kind }, ...(c.history || [])];
+  const save = (patch: Partial<Client>, what: string, kind: ClientHistoryEntry['kind'] = 'edit') => updateClient(c.id, { ...patch, history: log(what, kind) });
+  const openCase = (k: Case) => { setCaseSubTab('overview'); setCurrentCaseId(k.id); setCurrentView('cases'); };
+  const createdBy = auditLogs.find((a) => a.collection === 'CLIENTS' && a.recordId === c.id && a.action === 'CREATE')?.performedBy
+    || [...(c.history || [])].reverse().find((h) => /^Client registered/.test(h.what))?.by || '';
+  const since = ddmmyyyy(c.createdAt);
+  const wa = whatsappLink(c.phone, '');
+  const ccPill = conflictPill(c);
+  const ccState = conflictOf(c);
+  const canDelete = tier !== 'lawyer';
+  const del = () => {
+    if (files.some(isOpenFile)) { showToast('Cannot delete: this client has open files. Close or move them first.'); return; }
+    if (!window.confirm('Delete ' + c.name + ' (' + c.id + ')? The record moves to the Recycle Bin. KYC files stay in Google Drive.')) return;
+    deleteClient(c.id);
+    clientsNav.set(null);
+  };
+  const tabs: [Tab, string][] = [['profile', 'Profile'], ['files', `Files (${files.length})`], ['money', 'Money'], ['kyc', `KYC (${kycRows.filter((r) => r.state === 'Verified').length}/${kycRows.length})`], ['portal', 'Portal access'], ['history', 'History']];
+
+  return (
+    <div style={css('display:flex;flex-direction:column;gap:16px;font-size:12px;color:#16223A;font-family:Inter,system-ui,-apple-system,sans-serif')}>
+      <div style={css('border-radius:12px;border:1px solid #DDE3EB;background:#fff;padding:18px 20px;display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap')}>
+        <span style={css(`width:52px;height:52px;flex-shrink:0;border-radius:${isCo ? '10px' : '9999px'};display:grid;place-items:center;font-size:16px;font-weight:800;color:#fff;background:${isCo ? '#3D6B9C' : '#16223A'}`)}>{initials(c.name)}</span>
+        <div style={css('display:flex;flex-direction:column;gap:6px;min-width:0;flex:1 1 360px')}>
+          <strong style={css('font-family:Georgia,serif;font-size:21px;color:#16223A;line-height:1.25')}>{c.name}</strong>
+          <div style={css('display:flex;flex-wrap:wrap;gap:6px;align-items:center')}>
+            <span style={css('font-family:ui-monospace,monospace;font-size:10.5px;font-weight:700;color:#16223A;background:#F1F4F7;border:1px solid #DDE3EB;border-radius:5px;padding:2px 7px')}>{c.id}</span>
+            <span style={css('font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;background:#E4ECF5;color:#2F4F7A')}>{isCo ? 'Company · ' + (c.entityCategory || 'Company') : 'Individual'}</span>
+            {(c.tags || []).map((t) => <span key={t} style={css('font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;background:#FBF2E9;color:#8A6D3B;border:1px solid #E8D6B5')}>{t}</span>)}
           </div>
+          <span style={css('font-size:12px;color:#5B6478')}>{[since ? 'Client since ' + since : '', createdBy ? 'registered by ' + createdBy : '', files.length + (files.length === 1 ? ' file' : ' files')].filter(Boolean).join(' · ')}</span>
         </div>
-
-        {/* Sub Navigation Tabs */}
-        <div className="flex border-b border-[#DDE3EB] space-x-2">
-          <button
-            onClick={() => setSubTab('profile')}
-            className={`px-4 py-2 font-bold text-xs border-b-2 cursor-pointer transition-colors ${
-              subTab === 'profile'
-                ? 'border-[#16223A] text-[#16223A]'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            Client Profile Particulars
-          </button>
-          <button
-            onClick={() => setSubTab('kyc')}
-            className={`px-4 py-2 font-bold text-xs border-b-2 cursor-pointer transition-colors ${
-              subTab === 'kyc'
-                ? 'border-[#16223A] text-[#16223A]'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            KYC Compliance Documents ({selectedClient.kyc?.length || 0})
-          </button>
-          <button
-            onClick={() => setSubTab('cases')}
-            className={`px-4 py-2 font-bold text-xs border-b-2 cursor-pointer transition-colors ${
-              subTab === 'cases'
-                ? 'border-[#16223A] text-[#16223A]'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            Associated Cases &amp; Matters ({clientCases.length})
-          </button>
-          <button
-            onClick={() => setSubTab('history')}
-            className={`px-4 py-2 font-bold text-xs border-b-2 cursor-pointer transition-colors ${
-              subTab === 'history'
-                ? 'border-[#16223A] text-[#16223A]'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            Compliance &amp; History Audit Logs
-          </button>
+        <div style={css('display:flex;flex-wrap:wrap;gap:8px;align-items:center')}>
+          {wa ? <a href={wa} target="_blank" rel="noreferrer" style={css('display:flex;align-items:center;gap:6px;border:1px solid #DDE3EB;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;background:#fff;color:#16223A;text-decoration:none')}><MessageCircle size={14} color="#1F5A3B" />WhatsApp</a> : null}
+          {c.email ? <a href={'mailto:' + c.email} style={css('display:flex;align-items:center;gap:6px;border:1px solid #DDE3EB;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;background:#fff;color:#16223A;text-decoration:none')}><Mail size={14} color="#3D6B9C" />E-mail</a> : null}
+          <button type="button" onClick={() => { setCurrentCaseId(null); openNewCaseWithPrefill({ clientId: c.id, clientName: c.name }); setCurrentView('cases'); }} style={css('display:flex;align-items:center;gap:6px;border:0;border-radius:8px;padding:8px 13px;font-size:12px;font-weight:700;background:#16223A;color:#fff;cursor:pointer')}><Plus size={14} color="#FFFFFF" />Open new file</button>
+          {canDelete && <button type="button" onClick={del} title="Delete client (wrongly entered)" aria-label="Delete client" style={css('display:grid;place-items:center;width:34px;height:34px;border-radius:8px;border:1px solid #F1C9C1;background:#FBEDE9;cursor:pointer')}><Trash2 size={15} color="#B23A2E" /></button>}
         </div>
+      </div>
 
-        {/* Subtab 1: Client Profile Details */}
-        {subTab === 'profile' && (
-          <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-4">
-            {/* Conflict Screening Status Banner */}
-            <div className="p-3.5 bg-[#F6F8FA] border border-[#DDE3EB] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <ShieldCheck className="w-5 h-5 text-[#3D6B9C] shrink-0" />
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-[#16223A] uppercase text-xs">Conflict Check Status:</span>
-                    {selectedClient.conflictCheck?.status === 'Flagged' ? (
-                      <span className="px-2 py-0.5 bg-rose-100 text-rose-800 border border-rose-300 rounded text-[11px] font-bold inline-flex items-center gap-1">
-                        <AlertTriangle className="w-3.5 h-3.5 text-rose-700" />
-                        <span>Flagged Match</span>
-                      </span>
-                    ) : selectedClient.conflictCheck?.status === 'Pending Partner Review' ? (
-                      <span className="px-2 py-0.5 bg-blue-100 text-blue-900 border border-blue-200 rounded text-[11px] font-bold inline-flex items-center gap-1">
-                        <Info className="w-3.5 h-3.5 text-blue-700" />
-                        <span>Pending Partner Review</span>
-                      </span>
-                    ) : selectedClient.conflictCheck ? (
-                      <span className="px-2 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-200 rounded text-[11px] font-bold inline-flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Clear (No Conflict)</span>
-                      </span>
-                    ) : (
-                      <span className="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded text-[11px] font-bold inline-flex items-center gap-1">
-                        <Info className="w-3.5 h-3.5 text-amber-700" />
-                        <span>Not checked yet</span>
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    {selectedClient.conflictCheck
-                      ? <>Screened by <strong className="text-[#16223A]">{selectedClient.conflictCheck.checkedBy || '—'}</strong>{selectedClient.conflictCheck.checkedDate ? ' on ' + selectedClient.conflictCheck.checkedDate : ''} • {selectedClient.conflictCheck.notes || '—'}</>
-                      : 'No conflict determination has been recorded for this client.'}
-                  </p>
-                </div>
-              </div>
+      <div style={css('display:flex;gap:4px;border-bottom:1px solid #DDE3EB;overflow-x:auto')}>
+        {tabs.map(([k, label]) => <button key={k} type="button" onClick={() => setTab(k)} style={css(`white-space:nowrap;border:0;background:none;padding:9px 14px;margin-bottom:-1px;font-size:12.5px;font-weight:700;cursor:pointer;color:${tab === k ? '#16223A' : '#5B6478'};border-bottom:2px solid ${tab === k ? '#16223A' : 'transparent'}`)}>{label}</button>)}
+      </div>
 
-              <button
-                type="button"
-                onClick={(e) => handleOpenConflictModal(e, selectedClient)}
-                className="px-3 py-1.5 bg-[#16223A] hover:bg-[#16223A] text-amber-300 rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0"
-              >
-                Review / Update Determination
-              </button>
-            </div>
+      {tab === 'profile' && <ProfileTab c={c} ccPill={ccPill} ccState={ccState} tier={tier} save={save} />}
 
-            {/* Client Portal Access & Login Tracker Card */}
-            <div className="p-4 bg-[#16223A] text-white rounded-2xl border border-[#3D6B9C]/40 shadow-sm space-y-3">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-amber-400/20 text-amber-300 rounded-xl border border-amber-400/30">
-                    <Key className="w-5 h-5 text-amber-300" />
-                  </div>
-                  <div>
-                    <h4 className="font-serif font-bold text-sm text-amber-300 flex items-center gap-2">
-                      <span>Secure Client Portal Access &amp; Activity Tracking</span>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase border ${
-                        selectedClient.portalAccessEnabled
-                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                          : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                      }`}>
-                        {selectedClient.portalAccessEnabled ? 'Portal Active' : 'Invite Pending'}
-                      </span>
-                    </h4>
-                    <p className="text-xs text-slate-300">
-                      Allows client to log into their central client portal to view matter progress, invoices, and court dates.
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => createPortalLogin(selectedClient.id)}
-                  className="px-3.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-[#16223A] rounded-xl text-xs font-extrabold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 shadow-xs"
-                >
-                  <Send className="w-3.5 h-3.5 text-[#16223A]" />
-                  <span>Create Portal Login</span>
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-white/10 text-xs">
-                <div className="bg-white/5 p-2.5 rounded-xl border border-white/10">
-                  <span className="block text-[10px] text-slate-400 uppercase font-bold">Portal Access Email</span>
-                  <span className="font-bold text-slate-100">{selectedClient.email || 'No email registered'}</span>
-                </div>
-                <div className="bg-white/5 p-2.5 rounded-xl border border-white/10">
-                  <span className="block text-[10px] text-slate-400 uppercase font-bold">Last Invitation Sent</span>
-                  <span className="font-mono font-bold text-amber-300">
-                    {selectedClient.lastPortalInviteSent ? selectedClient.lastPortalInviteSent : 'Never Invited'}
-                  </span>
-                </div>
-                <div className="bg-white/5 p-2.5 rounded-xl border border-white/10">
-                  <span className="block text-[10px] text-slate-400 uppercase font-bold">Client Last Logged In</span>
-                  <span className="font-mono font-bold text-emerald-300">
-                    {selectedClient.lastLoginAt ? selectedClient.lastLoginAt : 'Not logged in yet'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Entity Classification Banner */}
-            {selectedClient.type === 'Corporate' ? (
-              <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-xl space-y-3">
-                <div className="font-serif font-bold text-[#16223A] flex items-center gap-1.5 text-xs">
-                  <Building2 className="w-4 h-4 text-[#3D6B9C]" />
-                  <span>Corporate Particulars &amp; SSM Registration Records</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                  <div>
-                    <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Structure Category</label>
-                    <select
-                      value={selectedClient.entityCategory || 'Sdn Bhd'}
-                      onChange={(e) => updateClient(selectedClient.id, { entityCategory: e.target.value as Client['entityCategory'] })}
-                      className="w-full text-xs font-semibold"
-                    >
-                      <option value="Sdn Bhd">Sdn Bhd</option>
-                      <option value="Berhad">Berhad</option>
-                      <option value="Enterprise">Enterprise</option>
-                      <option value="Sole Proprietorship">Sole Proprietorship</option>
-                      <option value="Partnership">Partnership</option>
-                      <option value="LLP">LLP</option>
-                      <option value="Society/Association">Society/Association</option>
-                      <option value="Foreign Corp">Foreign Corp</option>
-                      <option value="Government / Statutory Body">Government / Statutory Body</option>
-                      <option value="Cooperative (Koperasi)">Cooperative (Koperasi)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">SSM / ROC Registration No.</label>
-                    <CommitField
-                      value={selectedClient.registrationNo || ''}
-                      onCommit={(v) => updateClient(selectedClient.id, { registrationNo: v })}
-                      className="w-full text-xs font-mono font-semibold"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Corporate Tax / SST No.</label>
-                    <CommitField
-                      value={selectedClient.taxSstNo || ''}
-                      onCommit={(v) => updateClient(selectedClient.id, { taxSstNo: v })}
-                      className="w-full text-xs font-mono font-semibold"
-                    />
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="p-4 bg-blue-50/70 border border-blue-200 rounded-xl space-y-3">
-                <div className="font-serif font-bold text-[#16223A] flex items-center gap-1.5 text-xs">
-                  <User className="w-4 h-4 text-blue-700" />
-                  <span>Individual Client NRIC &amp; Personal Identification</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                  <div>
-                    <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">NRIC / Identification No.</label>
-                    <CommitField
-                      value={selectedClient.icNo || selectedClient.icNumber || ''}
-                      onCommit={(v) => updateClient(selectedClient.id, { icNo: v, icNumber: v })}
-                      className="w-full text-xs font-mono font-semibold"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Nationality</label>
-                    <CommitField
-                      value={selectedClient.nationality || ''}
-                      onCommit={(v) => updateClient(selectedClient.id, { nationality: v })}
-                      className="w-full text-xs font-semibold"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Occupation / Profession</label>
-                    <CommitField
-                      value={selectedClient.occupation || ''}
-                      onCommit={(v) => updateClient(selectedClient.id, { occupation: v })}
-                      className="w-full text-xs font-semibold"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* General Particulars Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Contact Person / Representative</label>
-                <CommitField
-                  type="text"
-                  value={selectedClient.contactPerson || ''}
-                  onCommit={(v) => updateClient(selectedClient.id, { contactPerson: v })}
-                  className="w-full text-xs font-semibold"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Designation / Role</label>
-                <CommitField
-                  type="text"
-                  value={selectedClient.contactPersonDesignation || ''}
-                  onCommit={(v) => updateClient(selectedClient.id, { contactPersonDesignation: v })}
-                  placeholder="e.g. Managing Director / Individual"
-                  className="w-full text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Telephone Number</label>
-                <CommitField
-                  type="text"
-                  value={selectedClient.phone || ''}
-                  onCommit={(v) => updateClient(selectedClient.id, { phone: v })}
-                  className="w-full text-xs font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Official Email Address</label>
-                <CommitField
-                  type="email"
-                  value={selectedClient.email || ''}
-                  onCommit={(v) => updateClient(selectedClient.id, { email: v })}
-                  className="w-full text-xs font-mono"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Registered Address / Billing Office</label>
-              <CommitField multiline
-                rows={2}
-                value={selectedClient.address || ''}
-                onCommit={(v) => updateClient(selectedClient.id, { address: v })}
-                className="w-full text-xs"
-              />
-            </div>
-
-            {/* Emergency Contact Fields */}
-            <div className="p-[#F6F8FA] p-4 border border-[#DDE3EB] rounded-xl space-y-3">
-              <div className="font-bold text-[#16223A] flex items-center gap-1.5 uppercase text-[10.5px]">
-                <ShieldAlert className="w-4 h-4 text-amber-600" />
-                <span>Emergency &amp; Secondary Contact Point</span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Contact Person Name / Next Friend</label>
-                  <CommitField
-                    type="text"
-                    value={selectedClient.emergencyContactName || ''}
-                    onCommit={(v) =>
-                      updateClient(selectedClient.id, {
-                        emergencyContactName: v,
-                        emergencyContact: `${v} (${selectedClient.emergencyContactPhone || ''})`,
-                      })
-                    }
-                    placeholder="Full Name"
-                    className="w-full text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Telephone Number</label>
-                  <CommitField
-                    type="text"
-                    value={selectedClient.emergencyContactPhone || ''}
-                    onCommit={(v) => updateClient(selectedClient.id, { emergencyContactPhone: v })}
-                    placeholder="01x-xxxxxxx / 03-xxxxxxx"
-                    className="w-full text-xs font-mono"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Special Client Instructions &amp; Retainer Notes</label>
-              <CommitField multiline
-                rows={3}
-                value={selectedClient.notes || ''}
-                onCommit={(v) => updateClient(selectedClient.id, { notes: v })}
-                className="w-full text-xs"
-                placeholder="Client preferences, board resolution conditions, special billing instructions..."
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Subtab 2: KYC / CDD */}
-        {subTab === 'kyc' && (
-          <div className="space-y-4">
-            {/* Customer due diligence (AMLA) */}
-            <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-3">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div>
-                  <h3 className="font-serif font-bold text-[#16223A]">Customer due diligence (AMLA)</h3>
-                  <p className="text-[11px] text-slate-500">Risk rating, PEP screening, source of funds and how identity was verified. Saved on the client record.</p>
-                </div>
-                <span className="text-[10.5px] text-slate-500">
-                  {selectedClient.cdd?.updatedAt ? 'Last updated ' + selectedClient.cdd.updatedAt.slice(0, 10) + (selectedClient.cdd.updatedBy ? ' by ' + selectedClient.cdd.updatedBy : '') : 'Not completed yet'}
-                </span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                <label className="block">
-                  <span className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Risk rating</span>
-                  <select value={selectedClient.cdd?.riskRating || ''} onChange={(e) => saveCdd({ riskRating: (e.target.value || undefined) as ClientCdd['riskRating'] })} className="w-full text-xs font-semibold">
-                    <option value="">Not rated</option>
-                    <option value="Low">Low</option>
-                    <option value="Medium">Medium</option>
-                    <option value="High">High</option>
-                  </select>
-                </label>
-                <label className="block">
-                  <span className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Politically exposed person (PEP)</span>
-                  <select value={selectedClient.cdd?.pep || 'Not checked'} onChange={(e) => saveCdd({ pep: e.target.value as ClientCdd['pep'] })} className="w-full text-xs font-semibold">
-                    <option value="Not checked">Not checked</option>
-                    <option value="No">No</option>
-                    <option value="Yes">Yes</option>
-                  </select>
-                </label>
-                <label className="flex items-center gap-2 pt-5">
-                  <input type="checkbox" checked={!!selectedClient.cdd?.enhancedDueDiligence} onChange={(e) => saveCdd({ enhancedDueDiligence: e.target.checked })} />
-                  <span className="font-semibold text-[#16223A]">Enhanced due diligence applied</span>
-                </label>
-                {selectedClient.cdd?.pep === 'Yes' && (
-                  <label className="block sm:col-span-3">
-                    <span className="font-bold text-slate-600 block uppercase text-[10px] mb-1">PEP details (position, relationship)</span>
-                    <CommitField value={selectedClient.cdd?.pepDetails || ''} onCommit={(v) => saveCdd({ pepDetails: v })} className="w-full text-xs" />
-                  </label>
-                )}
-                <label className="block">
-                  <span className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Source of funds</span>
-                  <CommitField value={selectedClient.cdd?.sourceOfFunds || ''} onCommit={(v) => saveCdd({ sourceOfFunds: v })} placeholder="e.g. salary, sale of property" className="w-full text-xs" />
-                </label>
-                <label className="block">
-                  <span className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Source of wealth</span>
-                  <CommitField value={selectedClient.cdd?.sourceOfWealth || ''} onCommit={(v) => saveCdd({ sourceOfWealth: v })} className="w-full text-xs" />
-                </label>
-                <label className="block">
-                  <span className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Purpose of the relationship</span>
-                  <CommitField value={selectedClient.cdd?.purposeOfRelationship || ''} onCommit={(v) => saveCdd({ purposeOfRelationship: v })} placeholder="e.g. purchase of property" className="w-full text-xs" />
-                </label>
-                <label className="block">
-                  <span className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Identity verified how</span>
-                  <CommitField value={selectedClient.cdd?.verificationMethod || ''} onCommit={(v) => saveCdd({ verificationMethod: v })} placeholder="e.g. original NRIC sighted" className="w-full text-xs" />
-                </label>
-                <label className="block">
-                  <span className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Verified by</span>
-                  <CommitField value={selectedClient.cdd?.verifiedBy || ''} onCommit={(v) => saveCdd({ verifiedBy: v })} placeholder={currentUser?.name || ''} className="w-full text-xs" />
-                </label>
-                <label className="block">
-                  <span className="font-bold text-slate-600 block uppercase text-[10px] mb-1">Verified on</span>
-                  <input type="date" value={selectedClient.cdd?.verifiedAt || ''} onChange={(e) => saveCdd({ verifiedAt: e.target.value })} className="w-full text-xs" />
-                </label>
-                <label className="block sm:col-span-3">
-                  <span className="font-bold text-slate-600 block uppercase text-[10px] mb-1">CDD notes</span>
-                  <CommitField multiline rows={2} value={selectedClient.cdd?.notes || ''} onCommit={(v) => saveCdd({ notes: v })} className="w-full text-xs" />
-                </label>
-              </div>
-            </div>
-
-            <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-4">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div>
-                  <h3 className="font-serif font-bold text-[#16223A]">KYC documents</h3>
-                  <p className="text-[11px] text-slate-500">Identity documents, SSM extracts, proof of address and source of funds. Files go to Google Drive › Clients › {clientFolderName(selectedClient.name, selectedClient.id)} › KYC.</p>
-                  <p className={`text-[10.5px] mt-0.5 ${isUploadReady() ? 'text-slate-500' : 'text-rose-700 font-semibold'}`}>{storageLabel}</p>
-                </div>
-                <button
-                  onClick={openKycModal}
-                  className="bg-[#16223A] hover:bg-[#16223A] text-amber-300 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer text-xs shadow-2xs"
-                >
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>Upload KYC Document</span>
-                </button>
-              </div>
-
-              <div className="divide-y divide-slate-100 border border-[#DDE3EB] rounded-lg overflow-hidden">
-                {(selectedClient.kyc || []).map((k) => {
-                  const where = kycStorageOf(k);
-                  return (
-                    <div key={k.id} className="p-3 flex items-center justify-between gap-3 hover:bg-[#F6F8FA]">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <Folder className="w-5 h-5 text-[#3D6B9C] shrink-0" />
-                        <div className="min-w-0">
-                          {where === 'none' ? (
-                            <p className="font-bold text-[#16223A] text-xs">{k.name}</p>
-                          ) : (
-                            <button type="button" onClick={() => { void openKyc(k); }} className="font-bold text-blue-800 underline hover:text-blue-950 text-xs text-left cursor-pointer">
-                              {k.name}
-                            </button>
-                          )}
-                          <p className="text-[10px] text-slate-500">{k.type} • Uploaded: {k.uploadedDate}{k.uploadedBy ? ' by ' + k.uploadedBy : ''}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${where === 'drive' ? 'bg-emerald-100 text-emerald-900 border-emerald-200' : where === 'legacy-inline' ? 'bg-amber-50 text-amber-900 border-amber-300' : 'bg-slate-100 text-slate-600 border-slate-300'}`}
-                          title={where === 'legacy-inline' ? 'Older upload kept inside the shared database. It still opens; upload it again to move it to Google Drive.' : undefined}>
-                          {where === 'drive' ? 'In Google Drive' : where === 'legacy-inline' ? 'Older copy (not in Drive)' : 'Name only, no file'}
-                        </span>
-                        <button type="button" onClick={() => removeKyc(k)} title="Remove from this list" className="p-1 rounded text-slate-400 hover:text-rose-700 hover:bg-rose-50 cursor-pointer">
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-                {(!selectedClient.kyc || selectedClient.kyc.length === 0) && (
-                  <div className="p-6 text-center text-slate-400">
-                    No KYC documents uploaded yet.
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Subtab 3: Associated Cases */}
-        {subTab === 'cases' && (
-          <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-serif font-bold text-[#16223A]">Active &amp; Historical Legal Cases</h3>
-              <button
-                onClick={() => openCaseFile(null)}
-                className="px-3 py-1.5 bg-[#16223A] hover:bg-[#16223A] text-amber-300 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
-              >
-                <Briefcase className="w-3.5 h-3.5 text-amber-300" />
-                <span>Go to Cases</span>
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              {clientCases.map((cs) => (
-                <div
-                  key={cs.id}
-                  onClick={() => openCaseFile(cs.id)}
-                  title="Open the working file"
-                  className="p-3 bg-[#F6F8FA] hover:bg-[#EEF1F5] border border-[#DDE3EB] rounded-lg flex items-center justify-between text-xs cursor-pointer transition-colors"
-                >
-                  <div>
-                    <span className="font-mono font-bold text-[#3D6B9C] mr-2">{cs.ref}</span>
-                    <span className="font-bold text-[#16223A]">{cs.title}</span>
-                  </div>
-                  <span className="px-2 py-0.5 bg-[#16223A] text-amber-300 rounded text-[10px] font-bold">
-                    {cs.status}
-                  </span>
-                </div>
-              ))}
-              {clientCases.length === 0 && (
-                <p className="text-slate-400 py-4 text-center">No legal cases opened for this client yet.</p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Subtab 4: Compliance & history (real records only) */}
-        {subTab === 'history' && (
-          <div className="bg-white border border-[#DDE3EB] p-5 rounded-xl shadow-xs space-y-4">
-            <div className="pb-3 border-b border-slate-100">
-              <h3 className="font-serif font-bold text-[#16223A] text-sm flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-[#3D6B9C]" />
-                <span>Compliance &amp; record history</span>
-              </h3>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                What is recorded for {selectedClient.name}: registration, conflict determination, KYC / CDD, and every change logged in the audit trail.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-              <div className="bg-[#F6F8FA] p-3 rounded-xl border border-[#DDE3EB]">
-                <span className="block text-[10px] text-slate-500 uppercase font-bold">Registered</span>
-                <span className="font-bold text-[#16223A]">{selectedClient.createdAt ? selectedClient.createdAt.slice(0, 10) : 'Date not recorded'}</span>
-                <span className="block text-[10.5px] text-slate-500">{selectedClient.type}{selectedClient.entityCategory ? ' · ' + selectedClient.entityCategory : ''}</span>
-              </div>
-              <div className="bg-[#F6F8FA] p-3 rounded-xl border border-[#DDE3EB]">
-                <span className="block text-[10px] text-slate-500 uppercase font-bold">Conflict check</span>
-                <span className="font-bold text-[#16223A]">{selectedClient.conflictCheck?.status || 'Not checked yet'}</span>
-                <span className="block text-[10.5px] text-slate-500">{selectedClient.conflictCheck ? (selectedClient.conflictCheck.checkedBy || '—') + (selectedClient.conflictCheck.checkedDate ? ' · ' + selectedClient.conflictCheck.checkedDate : '') : 'No determination recorded'}</span>
-              </div>
-              <div className="bg-[#F6F8FA] p-3 rounded-xl border border-[#DDE3EB]">
-                <span className="block text-[10px] text-slate-500 uppercase font-bold">KYC / CDD</span>
-                <span className="font-bold text-[#16223A]">{(selectedClient.kyc || []).length} document(s) · risk {selectedClient.cdd?.riskRating || 'not rated'}</span>
-                <span className="block text-[10.5px] text-slate-500">{selectedClient.cdd?.verifiedBy ? 'Verified by ' + selectedClient.cdd.verifiedBy + (selectedClient.cdd.verifiedAt ? ' · ' + selectedClient.cdd.verifiedAt : '') : 'Identity verification not recorded'}</span>
-              </div>
-            </div>
-
-            {(() => {
-              const trail = auditLogs.filter((a) => a.collection === 'CLIENTS' && a.recordId === selectedClient.id);
+      {tab === 'files' && (
+        <div style={css('border-radius:12px;border:1px solid #DDE3EB;background:#fff;overflow-x:auto')}>
+          <div style={css('min-width:940px')}>
+            <div style={css('display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid #EEF1F5')}><strong style={css(H)}>Files for this client</strong><span style={css('font-size:11px;color:#5B6478')}>click a file to open it</span><button type="button" onClick={() => { setCurrentCaseId(null); openNewCaseWithPrefill({ clientId: c.id, clientName: c.name }); setCurrentView('cases'); }} style={css('margin-left:auto;border:0;background:none;padding:0;font-size:11.5px;font-weight:600;color:#3D6B9C;cursor:pointer')}>+ Open new file</button></div>
+            <div style={css('display:grid;grid-template-columns:220px minmax(200px,1fr) 140px 150px 100px 80px;gap:12px;padding:8px 16px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>File no.</span><span>Title</span><span>Practice area</span><span>Partner · lawyer</span><span style={css('text-align:right')}>Owes us</span><span>Status</span></div>
+            {files.map((k) => {
+              const o = moneyForFile(k, src).outstanding;
+              const lawyer = (k.lawyerInCharge || '').split(',')[0].trim() || (k.lawyers || [])[0] || '';
               return (
-                <div className="border border-[#DDE3EB] rounded-lg overflow-hidden">
-                  <div className="px-3 py-2 bg-[#F6F8FA] border-b border-[#DDE3EB] text-[10px] font-bold uppercase tracking-wider text-slate-600">Audit trail ({trail.length})</div>
-                  {trail.length === 0 ? (
-                    <p className="p-4 text-center text-slate-400 text-xs">No changes logged for this client yet.</p>
-                  ) : (
-                    <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
-                      {trail.map((a) => (
-                        <div key={a.id} className="px-3 py-2 text-[11px] flex items-start justify-between gap-3">
-                          <span className="text-[#16223A]"><strong>{a.action}</strong> · {a.details}</span>
-                          <span className="text-[10px] font-mono text-slate-500 whitespace-nowrap">{a.timestamp} · {a.performedBy}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                <div key={k.id} onClick={() => openCase(k)} className="bg-white hover:bg-[#F6F8FA]" style={css('display:grid;grid-template-columns:220px minmax(200px,1fr) 140px 150px 100px 80px;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid #F0F2F5;cursor:pointer')}>
+                  <span style={css('justify-self:start;font-family:ui-monospace,monospace;font-size:10.5px;font-weight:700;color:#16223A;background:#F1F4F7;border:1px solid #DDE3EB;border-radius:5px;padding:3px 6px;white-space:nowrap')}>{k.ref}</span>
+                  <span style={css('font-size:12.5px;font-weight:700;color:#16223A')}>{k.title}</span>
+                  <span style={css('color:#1E293B')}>{k.practiceArea || k.type || '—'}</span>
+                  <span style={css('color:#5B6478')}>{[(k.partners || []).join(', '), lawyer].filter(Boolean).join(' · ') || '—'}</span>
+                  <span style={css(`text-align:right;font-weight:700;color:${o > 0 ? '#8E2A20' : '#5B6478'}`)}>{o > 0 ? rm(o) : '—'}</span>
+                  <span style={pillCss(FILE_PILL[k.status] || P.n)}>{k.status}</span>
                 </div>
               );
-            })()}
+            })}
+            {!files.length && <div style={css('padding:18px 16px;font-size:12px;color:#5B6478')}>No files for this client yet.</div>}
           </div>
-        )}
+        </div>
+      )}
 
-        {modals}
+      {tab === 'money' && MoneyPanel({ c, money, files, tier, rk })}
+      {tab === 'kyc' && KycTab({ c, tier, save })}
+      {tab === 'portal' && PortalTab({ c, save })}
+      {tab === 'history' && HistoryTab({ c, files })}
+      {modal}
+    </div>
+  );
+
+  /* ------------------------------------------------------------------ money (Clients › Money) */
+  function MoneyPanel({ c, money, files, tier, rk }: { c: Client; money: ReturnType<typeof moneyForClient>; files: Case[]; tier: Tier; rk: ReturnType<typeof finRoleKey> }) {
+    const isFin = tier === 'fin', isPartner = tier === 'partner', ledgerOk = isFin || isPartner;
+    const titleOf = (caseId?: string) => { const k = caseId ? files.find((f) => f.id === caseId || f.ref === caseId) : undefined; return k ? k.title : ''; };
+    const bills = money.bills.filter((b) => b.issued);
+    const out = money.outstanding;
+    const scope = files.length === 1 ? '1 file' : files.length + ' files';
+    const stats: { k: string; v: string; sub: string; c: string }[] = [
+      { k: 'Agreed fees', v: rm(money.agreed), sub: 'quotations / letters of engagement', c: '#16223A' },
+      { k: 'Billed', v: rm(money.billed), sub: bills.length + (bills.length === 1 ? ' invoice' : ' invoices') + ', incl. SST', c: '#16223A' },
+      { k: 'Received', v: rm(money.received), sub: 'official receipts issued', c: '#1F5A3B' },
+      { k: 'Outstanding', v: rm(out), sub: out > 0 ? 'owed to the firm' : 'nothing owed', c: out > 0 ? '#8E2A20' : '#16223A' },
+      ledgerOk ? { k: 'Client account', v: rm(money.clientAccount), sub: 'money we hold for this client', c: '#2F4F7A' } : { k: 'Client account', v: 'Restricted', sub: 'Partners and Accounts only', c: '#5B6478' },
+    ];
+    const remind = (no: string, bal: number) => {
+      const link = whatsappLink(c.phone, `Salam ${c.contactPerson || c.name}, a gentle reminder that invoice ${no} has ${rm(bal)} outstanding. Thank you.`);
+      if (!link) { showToast('Add a phone number to ' + c.name + ' first.'); return; }
+      window.open(link, '_blank', 'noopener');
+      save({}, 'Payment reminder for ' + no + ' opened in WhatsApp', 'edit');
+    };
+    return (
+      <div style={css('display:flex;flex-direction:column;gap:16px')}>
+        <div style={css('display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;font-size:11.5px;color:#5B6478')}><span>Totals across {scope}. Figures come from invoices, receipts and the client-account ledger in Finance; nothing is typed in here.</span>{canSeeFinanceView('billing', rk) && <button type="button" onClick={() => setCurrentView('billing')} style={css('margin-left:auto;border:0;background:none;padding:0;font-size:11.5px;font-weight:600;color:#3D6B9C;cursor:pointer')}>Open in Billing &amp; Collections</button>}</div>
+        <div style={css('display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px')}>
+          {stats.map((m) => <div key={m.k} style={css('display:flex;flex-direction:column;gap:4px;padding:12px 16px;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}><span style={css('font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#5B6478')}>{m.k}</span><strong style={css(`font-family:Georgia,serif;font-size:20px;color:${m.c}`)}>{m.v}</strong><span style={css('font-size:10.5px;color:#5B6478')}>{m.sub}</span></div>)}
+        </div>
+        <div style={css('border-radius:12px;border:1px solid #DDE3EB;background:#fff;overflow-x:auto')}>
+          <div style={css('min-width:860px')}>
+            <div style={css('display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid #EEF1F5')}><strong style={css(H)}>Bills &amp; receipts</strong><span style={css('font-size:11px;color:#5B6478')}>all files for this client, newest first</span></div>
+            <div style={css('display:grid;grid-template-columns:100px minmax(0,1.4fr) 86px 96px 96px 96px 120px;gap:10px;padding:8px 16px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>Invoice</span><span>For · file</span><span>Issued</span><span style={css('text-align:right')}>Amount</span><span style={css('text-align:right')}>Paid</span><span style={css('text-align:right')}>Balance</span><span></span></div>
+            {bills.map((b) => {
+              const k = b.caseId ? files.find((f) => f.id === b.caseId || f.ref === b.caseId) : files.find((f) => f.ref === b.inv.fileRef);
+              return (
+                <div key={b.id} style={css('display:grid;grid-template-columns:100px minmax(0,1.4fr) 86px 96px 96px 96px 120px;gap:10px;align-items:center;padding:9px 16px;border-bottom:1px solid #F0F2F5')}>
+                  <span style={css('display:flex;flex-direction:column;gap:2px')}><span style={css('font-family:ui-monospace,monospace;font-size:11px;font-weight:700;color:#3D6B9C')}>{b.id}</span><span style={css('font-size:9.5px;color:#5B6478')}>{b.receiptNos.join(', ')}</span></span>
+                  <span onClick={() => k && openCase(k)} style={css(`min-width:0;cursor:${k ? 'pointer' : 'default'}`)}><span style={css('display:block;font-size:12px;font-weight:600;color:#16223A')}>{b.what || 'Professional fees'}</span><span style={css('display:block;font-size:10.5px;color:#5B6478;white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{k ? k.title : b.inv.fileRef || ''}</span></span>
+                  <span style={css('font-size:11px;color:#5B6478')}>{ddmmyyyy(b.date)}</span>
+                  <span style={css('text-align:right;color:#16223A')}>{rm(b.total)}</span>
+                  <span style={css('text-align:right;color:#1F5A3B')}>{b.paid ? rm(b.paid) : '—'}</span>
+                  <span style={css(`text-align:right;font-weight:700;color:${b.bal > 0 ? '#8E2A20' : '#5B6478'}`)}>{b.bal > 0 ? rm(b.bal) : '—'}</span>
+                  <span style={css('justify-self:end;display:flex;gap:6px')}>
+                    {b.bal <= 0 && <span style={css('font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;background:#E6EFE9;color:#1F5A3B')}>Paid</span>}
+                    {b.bal > 0 && (isFin || isPartner) && <button type="button" onClick={() => remind(b.id, b.bal)} style={css('white-space:nowrap;border:1px solid #DDE3EB;border-radius:6px;padding:4px 9px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer')}>Remind</button>}
+                    {b.bal > 0 && isFin && <button type="button" onClick={() => setCurrentView('billing')} style={css('white-space:nowrap;border:0;border-radius:6px;padding:5px 9px;font-size:10.5px;font-weight:700;background:#16223A;color:#fff;cursor:pointer')}>Record payment</button>}
+                    {b.bal > 0 && !isFin && !isPartner && <span style={css('font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;background:#F6E4E1;color:#8E2A20')}>Unpaid</span>}
+                  </span>
+                </div>
+              );
+            })}
+            {!bills.length && <div style={css('padding:18px 16px;font-size:12px;color:#5B6478')}>No bills issued yet.</div>}
+          </div>
+        </div>
+        {ledgerOk ? (
+          <div style={css('border-radius:12px;border:1px solid #DDE3EB;background:#fff;overflow-x:auto')}>
+            <div style={css('min-width:760px')}>
+              <div style={css('display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid #EEF1F5')}><strong style={css(H)}>Client account</strong><span style={css('font-size:11px;color:#5B6478')}>money we hold for this client (Solicitors' Account Rules 1990)</span>{canSeeFinanceView('retainers', rk) && <button type="button" onClick={() => setCurrentView('retainers')} style={css('margin-left:auto;border:0;background:none;padding:0;font-size:11.5px;font-weight:600;color:#3D6B9C;cursor:pointer')}>Open ledger</button>}</div>
+              {money.ledger.map((l) => (
+                <div key={l.id} style={css('display:grid;grid-template-columns:90px minmax(0,1.5fr) 110px 110px 110px;gap:10px;align-items:center;padding:8px 16px;border-bottom:1px solid #F0F2F5')}>
+                  <span style={css('font-size:11px;color:#5B6478')}>{ddmmyyyy(l.date)}</span>
+                  <span style={css('min-width:0')}><span style={css('display:block;font-size:12px;color:#16223A')}>{l.desc}</span><span style={css('display:block;font-size:10.5px;color:#5B6478')}>{titleOf(l.caseId)}</span></span>
+                  <span style={css('font-size:10.5px;font-weight:600;color:#3D6B9C')}>{l.doc}</span>
+                  <span style={css(`text-align:right;font-size:12px;color:${l.amount < 0 ? '#8E2A20' : '#1F5A3B'}`)}>{(l.amount < 0 ? '− ' : '+ ') + rm(Math.abs(l.amount))}</span>
+                  <span style={css('text-align:right;font-size:12px;font-weight:700;color:#16223A')}>{rm(l.bal)}</span>
+                </div>
+              ))}
+              {!money.ledger.length && <div style={css('padding:18px 16px;font-size:12px;color:#5B6478')}>No money held for this client.</div>}
+            </div>
+          </div>
+        ) : (
+          <div style={css('display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:12px;border:1px dashed #C9D0DA;background:#fff;font-size:11.5px;color:#4A5468')}><Lock size={15} color="#5B6478" />Client account entries are visible to Partners and Accounts only. Ask the partner in charge if you need the balance.</div>
+        )}
       </div>
     );
   }
 
-  // --- MAIN CLIENTS DIRECTORY VIEW ---
+  /* ------------------------------------------------------------------ KYC */
+  function KycTab({ c, tier, save }: { c: Client; tier: Tier; save: (p: Partial<Client>, what: string, kind?: ClientHistoryEntry['kind']) => void }) {
+    const rows = kycRowsOf(c);
+    const all = kycOverall(c);
+    const others = otherKycDocs(c);
+    const folder = clientFolderName(c.name, c.id);
+    const view = async (k: KycDoc) => {
+      if (k.driveFileId || k.webViewLink) { const err = await openStoredFile({ driveFileId: k.driveFileId, webViewLink: k.webViewLink }); if (err) showToast(err); return; }
+      if (k.dataUrl) { const err = openLegacyDataUrl(k.dataUrl, k.name); if (err) showToast(err); return; }
+      showToast('Only the name of this document was recorded. There is no stored copy.');
+    };
+    const upload = async (key: KycReqKey, label: string, file: File) => {
+      if (!isUploadReady()) { showToast(DRIVE_REQUIRED_MSG); return; }
+      const problem = validateClaimFile(file);
+      if (problem) { showToast(problem); return; }
+      try {
+        await prepareStorage();
+        const up = await storeClientKycFile({ id: c.id, name: c.name }, file, me);
+        const doc: KycDoc = {
+          id: 'KYC-' + Date.now(), name: file.name, type: label, uploadedDate: up.uploadedAt.slice(0, 10), driveFolder: 'Clients/' + folder + '/KYC',
+          driveFileId: up.driveFileId, webViewLink: up.webViewLink, size: up.size, contentType: up.contentType, uploadedAt: up.uploadedAt, uploadedBy: up.uploadedBy,
+          requirement: key, status: 'To verify',
+        };
+        save({ kyc: [...(c.kyc || []), doc] }, 'KYC uploaded: ' + label + ' (' + file.name + ')', 'kyc');
+        showToast(file.name + ' saved to Drive. Waiting for verification');
+      } catch (err) {
+        showToast('Not uploaded: ' + (err instanceof Error ? err.message : String(err)));
+      }
+    };
+    const verify = (doc: KycDoc, label: string) => {
+      const at = new Date().toISOString();
+      save({ kyc: (c.kyc || []).map((k) => (k.id === doc.id ? { ...k, status: 'Verified' as const, verifiedBy: me, verifiedAt: at } : k)) }, 'KYC verified: ' + label, 'kyc');
+      showToast(label + ' verified');
+    };
+    const openDrive = async () => {
+      if (!isUploadReady()) { showToast(DRIVE_REQUIRED_MSG); return; }
+      const w = window.open('', '_blank');
+      try {
+        await prepareStorage();
+        const f = await ensureClientKycFolder({ id: c.id, name: c.name });
+        if (!f) throw new Error(DRIVE_REQUIRED_MSG);
+        if (w) w.location.href = f.url; else window.open(f.url, '_blank', 'noopener');
+      } catch (err) {
+        w?.close();
+        showToast(err instanceof Error ? err.message : String(err));
+      }
+    };
+    const icon = (s: string, fg: string) => s === 'Verified' ? <CircleCheck size={18} color={fg} /> : s === 'Missing' ? <CircleDashed size={18} color={fg} /> : s === 'Expired' ? <TriangleAlert size={18} color={fg} /> : <Clock size={18} color={fg} />;
+    const cdd = c.cdd || {};
+    const cddRows: [string, string | undefined][] = [['Risk rating', cdd.riskRating], ['PEP', cdd.pep], ['PEP details', cdd.pepDetails], ['Source of funds', cdd.sourceOfFunds], ['Source of wealth', cdd.sourceOfWealth], ['Purpose', cdd.purposeOfRelationship], ['Verified how', cdd.verificationMethod], ['Verified by', [cdd.verifiedBy, ddmmyyyy(cdd.verifiedAt)].filter(Boolean).join(' · ')], ['Enhanced due diligence', cdd.enhancedDueDiligence ? 'Yes' : undefined], ['Notes', cdd.notes]];
+    const cddShown = cddRows.filter(([, v]) => !!v);
+    return (
+      <div style={css('display:flex;flex-direction:column;gap:16px')}>
+        <div style={css('border-radius:12px;border:1px solid #DDE3EB;background:#fff;overflow:hidden')}>
+          <div style={css('display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid #EEF1F5')}><strong style={css(H)}>KYC documents</strong><span style={pillCss(all)}>{all.t}</span><span style={css('font-size:11px;color:#5B6478')}>{rows.some((r) => r.state !== 'Verified') ? 'Finish before the next file is opened' : 'All required documents verified'}</span><button type="button" onClick={openDrive} style={css('margin-left:auto;display:flex;align-items:center;gap:6px;border:1px solid #DDE3EB;border-radius:8px;padding:6px 11px;font-size:11.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer')}><Folder size={14} color="#3D6B9C" />Open Drive folder</button></div>
+          {rows.map((r) => {
+            const p = KYC_PILL[r.state];
+            const dt = r.doc ? ddmmyyyy(r.doc.uploadedAt || r.doc.uploadedDate) : '';
+            const canUpload = r.state === 'Missing' || r.state === 'Expired';
+            return (
+              <div key={r.key} style={css('display:grid;grid-template-columns:28px minmax(0,1fr) 110px 120px 200px;gap:12px;align-items:center;padding:11px 16px;border-bottom:1px solid #F0F2F5')}>
+                {icon(r.state, p.fg)}
+                <span style={css('min-width:0')}><span style={css('display:block;font-size:12px;font-weight:700;color:#16223A')}>{r.label}</span><span style={css('display:block;font-size:10.5px;color:#5B6478')}>{r.hint}</span></span>
+                <span style={pillCss(p)}>{p.t}</span>
+                <span style={css('font-size:11px;color:#5B6478')}>{dt ? (r.state === 'To verify' ? 'Uploaded ' : r.state === 'Expired' ? 'Dated ' : '') + dt : '—'}</span>
+                <span style={css('justify-self:end;display:flex;gap:6px')}>
+                  {canUpload && <label title={isUploadReady() ? undefined : DRIVE_REQUIRED_MSG} onClick={(e) => { if (!isUploadReady()) { e.preventDefault(); showToast(DRIVE_REQUIRED_MSG); } }} style={css('display:flex;align-items:center;gap:5px;border:0;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;background:#16223A;color:#fff;cursor:pointer')}><Upload size={12} color="#FFFFFF" />Upload<input type="file" accept="image/*,.pdf" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void upload(r.key, r.label, f); }} style={css('display:none')} /></label>}
+                  {r.state === 'To verify' && tier !== 'lawyer' && r.doc && <button type="button" onClick={() => verify(r.doc!, r.label)} style={css('border:1px solid #1F5A3B;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;background:#E6EFE9;color:#1F5A3B;cursor:pointer;white-space:nowrap')}>Mark verified</button>}
+                  {(r.state === 'Verified' || r.state === 'To verify') && r.doc && <button type="button" onClick={() => view(r.doc!)} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;background:#fff;color:#16223A;cursor:pointer')}>View</button>}
+                </span>
+              </div>
+            );
+          })}
+          {others.map((k) => (
+            <div key={k.id} style={css('display:grid;grid-template-columns:28px minmax(0,1fr) 110px 120px 200px;gap:12px;align-items:center;padding:11px 16px;border-bottom:1px solid #F0F2F5')}>
+              <Folder size={18} color="#4A5468" />
+              <span style={css('min-width:0')}><span style={css('display:block;font-size:12px;font-weight:700;color:#16223A')}>{k.name}</span><span style={css('display:block;font-size:10.5px;color:#5B6478')}>{k.type || 'Other document'}</span></span>
+              <span style={pillCss(P.n)}>On file</span>
+              <span style={css('font-size:11px;color:#5B6478')}>{ddmmyyyy(k.uploadedAt || k.uploadedDate) || '—'}</span>
+              <span style={css('justify-self:end;display:flex;gap:6px')}><button type="button" onClick={() => view(k)} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;background:#fff;color:#16223A;cursor:pointer')}>View</button></span>
+            </div>
+          ))}
+          <div style={css('padding:9px 16px;background:#F6F8FA;font-size:10.5px;color:#5B6478')}>Files are saved to Google Drive › Clients › {folder}. A file cannot be opened for a client whose KYC is incomplete without partner approval.</div>
+        </div>
+        {cddShown.length > 0 && (
+          <div style={css('border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
+            <div style={css(CARD_HEAD)}><strong style={css(H)}>Customer due diligence</strong><span style={css('margin-left:8px;font-size:11px;color:#5B6478')}>recorded earlier{cdd.updatedAt ? ' · ' + ddmmyyyy(cdd.updatedAt) + (cdd.updatedBy ? ' by ' + cdd.updatedBy : '') : ''}</span></div>
+            <div style={css('display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:14px 16px')}>
+              {cddShown.map(([k, v]) => <div key={k} style={css('display:flex;flex-direction:column;gap:4px')}><span style={css(LABEL)}>{k}</span><span style={css('font-size:12px;color:#16223A')}>{v}</span></div>)}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  /* ------------------------------------------------------------------ portal access */
+  function PortalTab({ c, save }: { c: Client; save: (p: Partial<Client>, what: string, kind?: ClientHistoryEntry['kind']) => void }) {
+    const po = portalOf(c);
+    const pill = portalPill(c);
+    const setStatus = (status: PortalStatus, what: string) => {
+      save({ portal: { ...po, status }, portalAccessEnabled: status === 'Active' || status === 'Invited' }, what, 'portal');
+      showToast(what);
+    };
+    const enableTo: PortalStatus = c.lastLoginAt ? 'Active' : po.invitedAt ? 'Invited' : 'Not set up';
+    const loginLabel = po.status === 'Not set up' ? 'Create portal login' : po.status === 'Invited' ? 'Resend login details' : po.status === 'Active' ? 'Reset password' : '';
+    const acts: { label: string; go?: () => void; pri: boolean; disabled?: boolean }[] = [
+      ...(loginLabel ? [{ label: loginLabel, pri: true, disabled: true }] : []),
+      ...(po.status === 'Invited' || po.status === 'Active' ? [{ label: 'Disable access', go: () => setStatus('Disabled', 'Portal access disabled'), pri: false }] : []),
+      ...(po.status === 'Disabled' ? [{ label: 'Enable access', go: () => setStatus(enableTo, 'Portal access enabled'), pri: true }] : []),
+    ];
+    const SEE: [keyof PortalVisibility, string, string][] = [
+      ['progress', 'Progress and court dates', 'Stage of each file, next court date, whether they need to attend'],
+      ['documents', 'Documents we share', 'Only documents marked "Share with client" in the file'],
+      ['bills', 'Bills and receipts', 'Invoices, payment status, official receipts'],
+      ['statement', 'Client account statement', 'Money we hold for them, monthly statement'],
+      ['messages', 'Messages with the team', 'Questions go to the lawyer in charge'],
+    ];
+    const toggle = (k: keyof PortalVisibility, label: string) => {
+      const on = po.visibility[k];
+      save({ portal: { ...po, visibility: { ...po.visibility, [k]: !on } } }, 'Portal: ' + label + (on ? ' hidden' : ' shown'), 'portal');
+    };
+    const preview = () => {
+      try { sessionStorage.setItem('shco_portal_preview_client', c.id); } catch { /* storage blocked: preview opens on its own client switcher */ }
+      setCurrentView('clientPortal');
+    };
+    return (
+      <div style={css('display:flex;flex-direction:column;gap:16px')}>
+        <div style={css('border-radius:14px;background:#16223A;color:#fff;padding:18px 20px;display:flex;flex-direction:column;gap:14px')}>
+          <div style={css('display:flex;flex-wrap:wrap;align-items:center;gap:12px')}>
+            <span style={css('width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:rgba(143,179,222,.15);border:1px solid rgba(143,179,222,.35)')}><Key size={18} color="#8FB3DE" /></span>
+            <div style={css('display:flex;flex-direction:column;gap:3px;flex:1 1 300px;min-width:0')}>
+              <span style={css('display:flex;align-items:center;gap:8px')}><strong style={css('font-family:Georgia,serif;font-size:15px;color:#fff')}>Client portal access</strong><span style={css(`font-size:10px;font-weight:800;padding:2px 9px;border-radius:9999px;background:${pill.bg};color:${pill.fg}`)}>{pill.t}</span></span>
+              <span style={css('font-size:11.5px;color:#C9D3E0')}>The client signs in at portal.shcolaw.com to see progress, court dates, shared documents and bills. Read-only.</span>
+            </div>
+            <div style={css('display:flex;flex-direction:column;align-items:flex-end;gap:6px')}>
+              <div style={css('display:flex;flex-wrap:wrap;gap:8px')}>
+                {acts.map((a) => <button key={a.label} type="button" disabled={a.disabled} onClick={a.go} title={a.disabled ? 'Client sign-in will open after the database split' : undefined} style={css(`border-radius:8px;padding:8px 13px;font-size:11.5px;font-weight:700;cursor:${a.disabled ? 'not-allowed' : 'pointer'};opacity:${a.disabled ? 0.55 : 1};border:1px solid ${a.pri ? '#8FB3DE' : 'rgba(255,255,255,.25)'};background:${a.pri ? '#8FB3DE' : 'transparent'};color:${a.pri ? '#16223A' : '#fff'}`)}>{a.label}</button>)}
+              </div>
+              {!!loginLabel && <span style={css('font-size:10.5px;color:#C9D3E0')}>Client sign-in will open after the database split</span>}
+            </div>
+          </div>
+          <div style={css('display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;padding-top:12px;border-top:1px solid rgba(255,255,255,.1)')}>
+            {[['Login e-mail', po.loginEmail || '—'], ['Login sent', ddmmyyyy(po.invitedAt) || 'Never'], ['Last signed in', ddmmyyyy(c.lastLoginAt) || 'Not yet']].map(([k, v]) => <div key={k} style={css('padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1)')}><span style={css('display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#8FA0B8')}>{k}</span><span style={css('display:block;margin-top:3px;font-size:12.5px;font-weight:700;color:#fff')}>{v}</span></div>)}
+          </div>
+        </div>
+        <div style={css('display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;align-items:start')}>
+          <div style={css('border-radius:12px;border:1px solid #DDE3EB;background:#fff;overflow:hidden')}>
+            <div style={css(CARD_HEAD)}><strong style={css(H)}>What this client can see</strong></div>
+            {SEE.map(([k, label, note]) => { const on = po.visibility[k]; return (
+              <div key={k} role="switch" aria-checked={on} tabIndex={0} onClick={() => toggle(k, label)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(k, label); } }} style={css('display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid #F0F2F5;cursor:pointer')}>
+                <span style={css('display:flex;flex-direction:column;gap:2px;flex:1;min-width:0')}><span style={css('font-size:12px;font-weight:700;color:#16223A')}>{label}</span><span style={css('font-size:10.5px;color:#5B6478')}>{note}</span></span>
+                <span style={css(`width:34px;height:20px;border-radius:9999px;padding:2px;display:flex;justify-content:${on ? 'flex-end' : 'flex-start'};background:${on ? '#1F5A3B' : '#C9D0DA'}`)}><span style={css('width:16px;height:16px;border-radius:9999px;background:#fff')} /></span>
+              </div>
+            ); })}
+          </div>
+          <div style={css('border-radius:12px;border:1px solid #DDE3EB;background:#fff;padding:16px;display:flex;flex-direction:column;gap:10px')}>
+            <strong style={css(H)}>See it as the client does</strong>
+            <span style={css('font-size:11.5px;line-height:1.5;color:#4A5468')}>Opens the portal in preview mode with this client's files, documents and bills. Nothing you do in preview is sent to the client.</span>
+            <button type="button" onClick={preview} style={css('align-self:flex-start;display:flex;align-items:center;gap:6px;border:0;border-radius:8px;padding:8px 13px;font-size:12px;font-weight:700;background:#16223A;color:#fff;cursor:pointer')}><Eye size={14} color="#FFFFFF" />Preview portal</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ------------------------------------------------------------------ history */
+  function HistoryTab({ c, files }: { c: Client; files: Case[] }) {
+    const rows: { t: number; date: string; what: string; who: string; color: string }[] = [];
+    const push = (when: string | undefined, what: string, who: string, color: string) => rows.push({ t: parseDate(when), date: ddmmyyyy(when) || '—', what, who, color });
+    (c.history || []).forEach((h) => push(h.at, h.what, h.by, h.kind === 'conflict' && /: Clear$/.test(h.what) ? '#1F5A3B' : HIST_C[h.kind || 'edit']));
+    const logged = c.history || [];
+    files.forEach((k) => push(k.fileOpenedDate || k.createdDate, 'File opened: ' + k.ref + ' · ' + k.title, (k.lawyerInCharge || '').split(',')[0].trim() || (k.lawyers || [])[0] || '', '#16223A'));
+    (c.kyc || []).filter((k) => !k.requirement).forEach((k) => push(k.uploadedAt || k.uploadedDate, 'KYC uploaded: ' + (k.type || k.name), k.uploadedBy || '', '#8A6D3B'));
+    if (c.conflictCheck && !logged.some((h) => h.kind === 'conflict')) push(c.conflictCheck.checkedDate, 'Conflict check: ' + c.conflictCheck.status + '. ' + (c.conflictCheck.notes || ''), c.conflictCheck.checkedBy, c.conflictCheck.status === 'Clear' ? '#1F5A3B' : '#8E2A20');
+    if (!logged.some((h) => /^Client registered/.test(h.what))) {
+      const cr = auditLogs.find((a) => a.collection === 'CLIENTS' && a.recordId === c.id && a.action === 'CREATE');
+      if (c.createdAt || cr) push(c.createdAt || cr?.timestamp, 'Client registered as ' + (c.type === 'Corporate' ? c.entityCategory || 'Company' : 'Individual'), cr?.performedBy || '', '#16223A');
+    }
+    auditLogs.filter((a) => a.collection === 'CLIENTS' && a.recordId === c.id && a.action !== 'CREATE' && a.details !== 'Client record updated.').forEach((a) => push(a.timestamp, a.details, a.performedBy, '#4A5468'));
+    rows.sort((a, b) => b.t - a.t);
+    return (
+      <div style={css('border-radius:12px;border:1px solid #DDE3EB;background:#fff;overflow:hidden')}>
+        <div style={css(CARD_HEAD)}><strong style={css(H)}>History</strong><span style={css('margin-left:8px;font-size:11px;color:#5B6478')}>every change to this client record, newest first</span></div>
+        {rows.map((h, i) => (
+          <div key={i} style={css('display:grid;grid-template-columns:120px 12px minmax(0,1fr) 140px;gap:12px;align-items:center;padding:10px 16px;border-bottom:1px solid #F0F2F5')}>
+            <span style={css('font-family:ui-monospace,monospace;font-size:11px;color:#5B6478')}>{h.date}</span>
+            <span style={css(`width:9px;height:9px;border-radius:9999px;background:${h.color}`)} />
+            <span style={css('font-size:12px;color:#16223A')}>{h.what}</span>
+            <span style={css('font-size:11px;color:#5B6478;text-align:right')}>{h.who}</span>
+          </div>
+        ))}
+        {!rows.length && <div style={css('padding:18px 16px;font-size:12px;color:#5B6478')}>Nothing recorded yet.</div>}
+      </div>
+    );
+  }
+};
+
+/* ==================================================================== profile tab */
+
+const ProfileTab: React.FC<{ c: Client; ccPill: Pill; ccState: string; tier: Tier; save: (p: Partial<Client>, what: string, kind?: ClientHistoryEntry['kind']) => void }> = ({ c, ccPill, ccState, tier, save }) => {
+  const { currentUser, currentRole, isAdmin, showToast } = useApp();
+  const isCo = c.type === 'Corporate';
+  const [ccEd, setCcEd] = useState<{ s: string; note: string } | null>(null);
+  const rk = finRoleKey(currentRole, currentUser, isAdmin);
+  const canClear = rk === 'M' || rk === 'P';
+  type F = { label: string; key: keyof Client; mono?: boolean; col?: string; multi?: boolean; select?: string[] };
+  const fieldVal = (k: keyof Client) => {
+    if (k === 'emergencyContactName') return c.emergencyContactName || (c.emergencyContact && c.emergencyContact !== '—' ? c.emergencyContact : '');
+    return String((c[k] as string | undefined) || '');
+  };
+  const commit = (f: F) => (v: string) => {
+    const old = fieldVal(f.key);
+    const value = v.trim();
+    if (value === old.trim()) return;
+    if (f.key === 'name' && !value) { showToast('The client name cannot be empty.'); return; }
+    const patch: Partial<Client> = { [f.key]: value } as Partial<Client>;
+    if (f.key === 'icNo') patch.icNumber = value;
+    save(patch, f.label + (old ? ' changed from "' + old + '" to "' + value + '"' : ' set to "' + value + '"'));
+  };
+  const det: F[] = [
+    ...(isCo
+      ? [{ label: 'Registered name', key: 'name', col: 'span 2' }, { label: 'SSM / ROC no.', key: 'registrationNo', mono: true }, { label: 'Entity type', key: 'entityCategory', select: ENTITY_TYPES }, { label: 'Tax / SST no.', key: 'taxSstNo', mono: true }, { label: 'Person who instructs us', key: 'contactPerson' }, { label: 'Designation', key: 'contactPersonDesignation' }, { label: 'Phone', key: 'phone', mono: true }] as F[]
+      : [{ label: 'Full name (as in NRIC)', key: 'name', col: 'span 2' }, { label: 'NRIC / passport no.', key: 'icNo', mono: true }, { label: 'Nationality', key: 'nationality' }, { label: 'Occupation', key: 'occupation' }, { label: 'Phone', key: 'phone', mono: true }] as F[]),
+    { label: 'E-mail', key: 'email', mono: true, col: 'span 2' },
+    { label: 'Address', key: 'address', col: '1 / -1', multi: true },
+  ];
+  const em: F[] = [{ label: 'Name', key: 'emergencyContactName', col: '1 / -1' }, { label: isCo ? 'Role' : 'Relationship', key: 'emergencyContactRelationship' }, { label: 'Phone', key: 'emergencyContactPhone', mono: true }];
+  const input = (f: F) => {
+    const st = css(INPUT + `;font-family:${f.mono ? MONO : 'inherit'}`);
+    if (f.select) return <select value={fieldVal(f.key)} onChange={(e) => commit(f)(e.target.value)} style={st}>{!fieldVal(f.key) && <option value="">—</option>}{f.select.map((o) => <option key={o} value={o}>{o}</option>)}</select>;
+    if (f.multi) return <CommitField multiline value={fieldVal(f.key)} onCommit={commit(f)} aria-label={f.label} style={css(INPUT + ';line-height:1.5;resize:vertical')} />;
+    return <CommitField value={fieldVal(f.key)} onCommit={commit(f)} aria-label={f.label} style={st} />;
+  };
+  const cc = c.conflictCheck;
+  const panel = ccState === 'Clear' ? '#F6F8FA' : ccState === 'Flagged' ? '#FBF1EF' : '#F2F6FA';
+  const bd = ccState === 'Clear' ? '#DDE3EB' : ccState === 'Flagged' ? '#E8BDB5' : '#C9D7E8';
+  const note = cc ? 'Checked by ' + (cc.checkedBy || '—') + ' on ' + (ddmmyyyy(cc.checkedDate) || '—') + '. ' + (cc.notes || '') : 'No conflict check recorded for this client yet.';
+  const opts: [string, string, { bg: string; fg: string }][] = [['Clear', 'Clear', P.g], ['Pending Partner Review', 'Partner review', P.b], ['Flagged', 'Flagged', P.r]];
+  const saveCC = () => {
+    if (!ccEd) return;
+    if (ccEd.s === 'Clear' && ccState !== 'Clear' && !canClear) { showToast('Only a partner can clear a conflict check.'); return; }
+    const d = new Date().toISOString();
+    save({ conflictCheck: { status: ccEd.s as NonNullable<Client['conflictCheck']>['status'], notes: ccEd.note.trim(), checkedBy: currentUser?.name || 'Staff', checkedDate: d.slice(0, 10) } }, 'Conflict check updated: ' + ccEd.s, 'conflict');
+    setCcEd(null);
+    showToast('Conflict decision saved');
+  };
+  void tier;
   return (
-    <div className="space-y-4">
-      {/* Top Banner Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-[#DDE3EB] p-4 rounded-xl shadow-xs">
-        <div>
-          <h2 className="font-serif text-lg font-bold text-[#16223A] flex items-center gap-2">
-            <Users className="w-5 h-5 text-[#3D6B9C]" />
-            Client Directory &amp; Registry
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Registered corporate entity profiles (Sdn Bhd, Berhad, LLP), individual client records &amp; statutory KYC files.
-          </p>
+    <div style={css('display:flex;flex-direction:column;gap:16px')}>
+      <div style={css(`display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:14px 16px;border-radius:12px;border:1px solid ${bd};background:${panel}`)}>
+        <ShieldCheck size={20} color="#3D6B9C" />
+        <div style={css('display:flex;flex-direction:column;gap:3px;flex:1 1 320px;min-width:0')}>
+          <span style={css('display:flex;align-items:center;gap:8px')}><strong style={css('font-size:12.5px;color:#16223A')}>Conflict check</strong><span style={css(`font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;background:${ccPill.bg};color:${ccPill.fg}`)}>{ccPill.t}</span></span>
+          <span style={css('font-size:11.5px;line-height:1.5;color:#4A5468')}>{note}</span>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleExportClients}
-            className="border border-[#DDE3EB] hover:bg-slate-50 text-slate-800 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
-          >
-            <Download className="w-3.5 h-3.5 text-[#3D6B9C]" />
-            <span>Export Excel</span>
-          </button>
+        <button type="button" onClick={() => setCcEd({ s: ccState === 'Not Started' ? 'Clear' : ccState, note: cc?.notes || '' })} style={css('border:1px solid #16223A;border-radius:8px;padding:7px 12px;font-size:11.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer')}>Review conflict check</button>
+      </div>
+      <div style={css('display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;align-items:start')}>
+        <div style={css('grid-column:1 / -1;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
+          <div style={css(CARD_HEAD)}><strong style={css(H)}>{isCo ? 'Company & contact' : 'Client details'}</strong></div>
+          <div style={css('display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:14px 16px')}>
+            {det.map((f) => <label key={String(f.key)} style={css(`display:flex;flex-direction:column;gap:4px;grid-column:${f.col || 'auto'}`)}><span style={css(LABEL)}>{f.label}</span>{input(f)}</label>)}
+          </div>
+        </div>
+        <div style={css('border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
+          <div style={css(CARD_HEAD)}><strong style={css(H)}>{isCo ? 'Second contact' : 'Emergency contact'}</strong></div>
+          <div style={css('display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:14px 16px')}>
+            {em.map((f) => <label key={String(f.key)} style={css(`display:flex;flex-direction:column;gap:4px;grid-column:${f.col || 'auto'}`)}><span style={css(LABEL)}>{f.label}</span>{input(f)}</label>)}
+          </div>
+        </div>
+        <div style={css('border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
+          <div style={css(CARD_HEAD)}><strong style={css(H)}>Instructions &amp; notes</strong></div>
+          <div style={css('padding:14px 16px')}><CommitField multiline value={c.notes || ''} onCommit={commit({ label: 'Instructions & notes', key: 'notes' })} placeholder="How the client likes to be contacted, billing instructions, board resolution conditions…" aria-label="Instructions and notes" style={css('width:100%;border:1px solid #DDE3EB;border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.5;color:#16223A;background:#fff;resize:vertical;outline-color:#3D6B9C;min-height:84px')} /></div>
+        </div>
+      </div>
+      <span style={css('font-size:11px;color:#5B6478')}>Changes save automatically and are logged in History.</span>
 
-          <button
-            type="button"
-            onClick={handleBackupClientsAndCases}
-            className="border border-[#2F6F4E] hover:bg-[#E6EFE9] text-[#2F6F4E] text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
-          >
-            <Download className="w-3.5 h-3.5 text-[#2F6F4E]" />
-            <span>Backup Clients + Cases</span>
-          </button>
+      {ccEd && (
+        <div onClick={() => setCcEd(null)} style={css('position:fixed;inset:0;background:rgba(22,34,58,.45);z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:64px 16px;overflow:auto')}>
+          <div onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Conflict check" style={css('width:100%;max-width:520px;background:#fff;border-radius:12px;box-shadow:0 20px 50px rgba(22,34,58,.25);display:flex;flex-direction:column')}>
+            <div style={css('display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid #DDE3EB')}><strong style={css('font-family:Georgia,serif;font-size:16px;color:#16223A')}>Conflict check</strong><button type="button" onClick={() => setCcEd(null)} aria-label="Close" style={css('margin-left:auto;border:0;background:none;font-size:18px;color:#5B6478;cursor:pointer')}>×</button></div>
+            <div style={css('display:flex;flex-direction:column;gap:12px;padding:18px 20px')}>
+              <div style={css('display:flex;gap:6px')}>{opts.map(([v, label, p]) => { const on = ccEd.s === v; return <button key={v} type="button" onClick={() => setCcEd({ ...ccEd, s: v })} style={css(`flex:1;border-radius:8px;padding:8px;font-size:11.5px;font-weight:700;cursor:pointer;border:1px solid ${on ? p.fg : '#DDE3EB'};background:${on ? p.bg : '#fff'};color:${on ? p.fg : '#16223A'}`)}>{label}</button>; })}</div>
+              <label style={css('display:flex;flex-direction:column;gap:4px')}><span style={css(LABEL)}>Notes</span><textarea value={ccEd.note} onChange={(e) => setCcEd({ ...ccEd, note: e.target.value })} rows={3} style={css('width:100%;border:1px solid #DDE3EB;border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.5;color:#16223A;outline-color:#3D6B9C')} /></label>
+            </div>
+            <div style={css('display:flex;justify-content:flex-end;gap:10px;padding:12px 20px;border-top:1px solid #DDE3EB;background:#F6F8FA;border-radius:0 0 12px 12px')}><button type="button" onClick={() => setCcEd(null)} style={css('border:1px solid #DDE3EB;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;background:#fff;color:#16223A;cursor:pointer')}>Cancel</button><button type="button" onClick={saveCC} style={css('border:0;border-radius:8px;padding:8px 16px;font-size:12px;font-weight:700;background:#16223A;color:#fff;cursor:pointer')}>Save decision</button></div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
-          <button
-            onClick={() => setIsRegisterClientModalOpen(true)}
-            className="bg-[#16223A] hover:bg-[#16223A] text-white font-bold text-xs px-3.5 py-2 rounded-lg flex items-center gap-1.5 shadow-md cursor-pointer transition-all border border-[#16223A]"
-          >
-            <UserPlus className="w-4 h-4 text-white" />
-            <span>+ Register New Client</span>
-          </button>
+/* ==================================================================== list */
+
+const ClientList: React.FC<{
+  clients: Client[]; cases: Case[]; src: MoneySources;
+  q: string; setQ: (v: string) => void; type: 'All' | 'Individual' | 'Corporate'; setType: (t: 'All' | 'Individual' | 'Corporate') => void;
+  card: string; setCard: (c: string) => void; onOpen: (id: string) => void; onReg: () => void; showToast: (m: string) => void;
+}> = ({ clients, cases, src, q, setQ, type, setType, card, setCard, onOpen, onReg, showToast }) => {
+  const info = useMemo(() => {
+    const m = new Map<string, { files: Case[]; owes: number; kyc: ReturnType<typeof kycOverall> }>();
+    clients.forEach((c) => {
+      const mc = moneyForClient(c, cases, src);
+      m.set(c.id, { files: casesOfClient(c, cases), owes: mc.outstanding, kyc: kycOverall(c) });
+    });
+    return m;
+  }, [clients, cases, src]);
+  const I = (c: Client) => info.get(c.id) || { files: [], owes: 0, kyc: kycOverall(c) };
+  const s = q.trim().toLowerCase();
+  const byQ = (x: Client) => !s || [x.name, x.id, idNoOf(x), x.icNo, x.icNumber, x.registrationNo, x.phone, x.email, x.contactPerson, ...(x.tags || [])].join(' ').toLowerCase().includes(s);
+  const byT = (x: Client) => type === 'All' || x.type === type;
+  const CF: Record<string, (x: Client) => boolean> = {
+    kyc: (x) => !I(x).kyc.done,
+    cc: (x) => conflictOf(x) !== 'Clear',
+    po: (x) => portalOf(x).status === 'Not set up' && I(x).files.some(isOpenFile),
+    owes: (x) => I(x).owes > 0,
+  };
+  const pre = clients.filter((x) => byQ(x) && byT(x));
+  const list = pre.filter((x) => !card || (CF[card] ? CF[card](x) : true));
+  const mk = (label: string, key: string, color: string, count: number, note: string) => ({ label, key, color, count, note });
+  const cards = [
+    mk('All clients', '', '#16223A', pre.length, clients.filter((x) => I(x).files.some((f) => f.status === 'Active')).length + ' with an active file'),
+    mk('KYC to finish', 'kyc', '#8A6D3B', pre.filter(CF.kyc).length, 'missing or expired documents'),
+    mk('Conflict to review', 'cc', '#8E2A20', pre.filter(CF.cc).length, 'flagged or awaiting partner'),
+    mk('No portal login', 'po', '#2F4F7A', pre.filter(CF.po).length, 'open files, client can\'t see progress'),
+    mk('Owes us', 'owes', '#1F5A3B', pre.filter(CF.owes).length, rm(pre.reduce((a, x) => a + Math.max(0, I(x).owes), 0)) + ' outstanding'),
+  ];
+  const exportCsv = () => {
+    if (!clients.length) { showToast('No clients to export yet.'); return; }
+    exportToCsv('SHCO_Clients', clients.map((x) => ({ 'Client ID': x.id, Name: x.name, Type: x.type, 'NRIC / SSM': idNoOf(x), Phone: x.phone, 'E-mail': x.email, KYC: I(x).kyc.t, Conflict: conflictOf(x), Portal: portalOf(x).status })));
+    showToast('SHCO_Clients.csv downloaded');
+  };
+  const hasFilters = !!(q || type !== 'All' || card);
+  const COLS = 'display:grid;grid-template-columns:minmax(230px,1.6fr) 150px minmax(170px,1fr) 70px 104px 88px 104px 88px;gap:12px;';
+  return (
+    <div style={css('display:flex;flex-direction:column;gap:16px;font-size:12px;color:#16223A;font-family:Inter,system-ui,-apple-system,sans-serif')}>
+      <div style={css('display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;background:#fff;border:1px solid #DDE3EB;padding:16px;border-radius:12px')}>
+        <div style={css('display:flex;flex-direction:column;gap:3px')}>
+          <div style={css('display:flex;align-items:center;gap:8px')}><Users size={20} color="#3D6B9C" /><span style={css('font-family:Georgia,serif;font-size:18px;font-weight:700;color:#16223A')}>Client directory</span></div>
+          <span style={css('font-size:12px;color:#5B6478')}>Individuals and companies we act for. One record per client, shared by all their files.</span>
+        </div>
+        <div style={css('display:flex;align-items:center;gap:8px')}>
+          <button type="button" onClick={exportCsv} style={css('display:flex;align-items:center;gap:6px;border:1px solid #DDE3EB;border-radius:10px;padding:9px 13px;font-size:12px;font-weight:700;background:#F1F4F7;color:#16223A;cursor:pointer')}><Download size={15} color="#3D6B9C" />Export to Excel</button>
+          <button type="button" onClick={onReg} style={css('display:flex;align-items:center;gap:7px;border:0;border-radius:10px;padding:9px 15px;font-size:12px;font-weight:700;background:#16223A;color:#fff;cursor:pointer')}><Plus size={15} color="#FFFFFF" />Register new client</button>
         </div>
       </div>
 
-      {/* --- FILTER & GLOBAL SEARCH TOOLBAR --- */}
-      <div className="bg-white border border-[#DDE3EB] p-3.5 rounded-xl shadow-2xs space-y-3 text-xs">
-        {/* Global Search Bar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="relative w-full sm:w-96">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search Client Name, Client ID, NRIC, SSM, Email, Phone, Tags..."
-              className="w-full pl-9 pr-8 py-2 border border-[#DDE3EB] rounded-lg bg-white text-xs focus:ring-1 focus:ring-[#16223A] shadow-2xs"
-            />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm('')}
-                className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
-                title="Clear search"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-            <span className="text-[11px] font-bold text-slate-500">
-              Showing <strong className="text-[#16223A]">{filteredClients.length}</strong> of {clients.length} clients
-            </span>
-            {(searchTerm || filterType !== 'All') && (
-              <button
-                onClick={() => {
-                  setSearchTerm('');
-                  setFilterType('All');
-                }}
-                className="text-[11px] font-bold text-rose-700 hover:text-rose-900 underline cursor-pointer"
-              >
-                Reset Filters
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Filter Controls Row 1: Entity Classification */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-2 border-t border-[#DDE3EB]">
-          <div className="flex items-center gap-1.5 min-w-max">
-            <Filter className="w-3.5 h-3.5 text-[#3D6B9C]" />
-            <span className="font-bold text-slate-600 text-[10.5px] uppercase">Entity Structure:</span>
-          </div>
-          <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
-            <button
-              onClick={() => setFilterType('All')}
-              className={`px-3 py-1 rounded-md text-xs font-bold transition-colors cursor-pointer ${
-                filterType === 'All'
-                  ? 'bg-[#16223A] text-amber-300'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              All Types
-            </button>
-            <button
-              onClick={() => setFilterType('Corporate')}
-              className={`px-3 py-1 rounded-md text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 ${
-                filterType === 'Corporate'
-                  ? 'bg-[#16223A] text-amber-300'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              <Building2 className="w-3.5 h-3.5" />
-              <span>Corporate ({clients.filter((c) => c.type === 'Corporate').length})</span>
-            </button>
-            <button
-              onClick={() => setFilterType('Sdn Bhd')}
-              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
-                filterType === 'Sdn Bhd'
-                  ? 'bg-amber-600 text-white font-bold'
-                  : 'bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100'
-              }`}
-            >
-              Sdn Bhd
-            </button>
-            <button
-              onClick={() => setFilterType('Berhad')}
-              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
-                filterType === 'Berhad'
-                  ? 'bg-amber-600 text-white font-bold'
-                  : 'bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100'
-              }`}
-            >
-              Berhad
-            </button>
-            <button
-              onClick={() => setFilterType('LLP')}
-              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
-                filterType === 'LLP'
-                  ? 'bg-amber-600 text-white font-bold'
-                  : 'bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100'
-              }`}
-            >
-              LLP
-            </button>
-            <button
-              onClick={() => setFilterType('Individual')}
-              className={`px-3 py-1 rounded-md text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 ${
-                filterType === 'Individual'
-                  ? 'bg-[#16223A] text-amber-300'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              <User className="w-3.5 h-3.5" />
-              <span>Individual ({clients.filter((c) => c.type === 'Individual').length})</span>
-            </button>
-          </div>
-        </div>
+      <div style={css('display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px')}>
+        {cards.map((cd) => { const on = card === cd.key; return (
+          <button key={cd.label} type="button" onClick={() => setCard(on ? '' : cd.key)} aria-pressed={on} style={css(`display:flex;flex-direction:column;gap:4px;text-align:left;border-radius:10px;padding:12px;cursor:pointer;background:#fff;border:1px solid ${on ? cd.color : '#DDE3EB'};border-top:4px solid ${cd.color};box-shadow:${on ? '0 0 0 1px ' + cd.color : 'none'}`)}>
+            <span style={css('font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#5B6478')}>{cd.label}</span>
+            <span style={css(`font-size:24px;font-weight:700;color:${cd.color}`)}>{cd.count}</span>
+            <span style={css('font-size:10.5px;color:#5B6478')}>{cd.note}</span>
+          </button>
+        ); })}
       </div>
 
-      {/* --- CLIENTS MASTER TABLE --- */}
-      <div className="bg-white border border-[#DDE3EB] rounded-xl overflow-hidden shadow-xs">
-        <table className="w-full text-left text-xs border-collapse">
-          <thead>
-            <tr className="bg-[#F6F8FA] border-b border-[#DDE3EB] text-[10px] uppercase tracking-wider text-slate-600">
-              <th className="p-3 font-bold">Client ID</th>
-              <th className="p-3 font-bold">Client Name &amp; Profile Tags</th>
-              <th className="p-3 font-bold">Classification / Structure</th>
-              <th className="p-3 font-bold">SSM / NRIC No.</th>
-              <th className="p-3 font-bold">Conflict Check</th>
-              <th className="p-3 font-bold">Contact Person / Phone</th>
-              <th className="p-3 font-bold">Email</th>
-              <th className="p-3 font-bold text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {filteredClients.map((c) => (
-              <tr
-                key={c.id}
-                onClick={() => setSelectedClientId(c.id)}
-                className="hover:bg-[#F6F8FA] transition-colors cursor-pointer group"
-              >
-                <td className="p-3 font-mono font-medium text-slate-700">{c.id}</td>
-                <td className="p-3">
-                  <span className="font-bold text-[#16223A] block">{c.name}</span>
-                  {c.type === 'Corporate' && c.contactPersonDesignation && (
-                    <span className="text-[10px] text-slate-500 block">{c.contactPersonDesignation}</span>
-                  )}
-                  {/* Tag Badges */}
-                  <div className="flex items-center gap-1 flex-wrap mt-1">
-                    {(c.tags || []).map((t) => (
-                      <span
-                        key={t}
-                        className={`px-1.5 py-0.2 rounded text-[9.5px] font-bold border ${getTagBadgeStyle(t)}`}
-                      >
-                        #{t}
-                      </span>
-                    ))}
-                  </div>
-                </td>
-                <td className="p-3">
-                  <div className="flex items-center gap-1">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        c.type === 'Corporate'
-                          ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                          : 'bg-[#16223A] text-white border border-[#16223A]'
-                      }`}
-                    >
-                      {c.type}
-                    </span>
-                    {c.entityCategory && (
-                      <span className="px-1.5 py-0.5 bg-[#16223A] text-amber-300 rounded text-[9.5px] font-bold">
-                        {c.entityCategory}
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="p-3 font-mono text-slate-700">
-                  {c.registrationNo || c.icNo || c.icNumber || '—'}
-                </td>
-                <td className="p-3">
-                  {c.conflictCheck?.status === 'Flagged' ? (
-                    <button
-                      onClick={(e) => handleOpenConflictModal(e, c)}
-                      className="px-2 py-0.5 bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300 rounded text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer transition-colors"
-                      title="Click to review conflict details"
-                    >
-                      <AlertTriangle className="w-3 h-3 text-rose-700" />
-                      <span>Flagged</span>
-                    </button>
-                  ) : c.conflictCheck?.status === 'Pending Partner Review' ? (
-                    <button
-                      onClick={(e) => handleOpenConflictModal(e, c)}
-                      className="px-2 py-0.5 bg-blue-100 hover:bg-blue-200 text-blue-900 border border-blue-200 rounded text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer transition-colors"
-                      title="Click to perform partner review"
-                    >
-                      <Info className="w-3 h-3 text-blue-700" />
-                      <span>Pending</span>
-                    </button>
-                  ) : !c.conflictCheck ? (
-                    <button
-                      onClick={(e) => handleOpenConflictModal(e, c)}
-                      className="px-2 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer transition-colors"
-                      title="No conflict determination recorded yet: click to record one"
-                    >
-                      <Info className="w-3 h-3 text-amber-700" />
-                      <span>Not checked</span>
-                    </button>
-                  ) : (
-                    <button
-                      onClick={(e) => handleOpenConflictModal(e, c)}
-                      className="px-2 py-0.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-200 rounded text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer transition-colors"
-                      title="Click to review conflict check status"
-                    >
-                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                      <span>Clear</span>
-                    </button>
-                  )}
-                </td>
-                <td className="p-3 text-slate-700">
-                  <div>
-                    <span className="font-semibold text-[#16223A]">
-                      {c.type === 'Corporate' ? c.contactPerson || c.name : c.name}
-                    </span>
-                    <span className="text-[10px] text-slate-500 block font-mono">{c.phone || '—'}</span>
-                  </div>
-                </td>
-                <td className="p-3 font-mono text-slate-700">{c.email || '—'}</td>
-                <td className="p-3 text-right">
-                  <div className="flex items-center justify-end gap-1.5">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedClientId(c.id);
-                      }}
-                      className="px-2.5 py-1 bg-[#16223A] hover:bg-[#16223A] text-amber-300 rounded text-[11px] font-bold shadow-2xs inline-flex items-center gap-1 cursor-pointer"
-                    >
-                      <span>View</span>
-                    </button>
-
-                    <button
-                      onClick={(e) => handleDeleteClick(e, c)}
-                      className={`p-1.5 rounded transition-colors cursor-pointer ${
-                        canDelete
-                          ? 'text-rose-600 hover:bg-rose-100 hover:text-rose-800'
-                          : 'text-slate-300 hover:text-slate-500 hover:bg-slate-100'
-                      }`}
-                      title={canDelete ? `Delete ${c.name}` : 'Delete action restricted to Admins/Partners'}
-                    >
-                      {canDelete ? <Trash2 className="w-3.5 h-3.5 text-rose-600" /> : <Lock className="w-3.5 h-3.5 text-slate-400" />}
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {filteredClients.length === 0 && (
-              <tr>
-                <td colSpan={8} className="p-8 text-center text-slate-500">
-                  <div className="max-w-xs mx-auto space-y-2">
-                    <Users className="w-8 h-8 text-slate-300 mx-auto" />
-                    <p className="font-bold text-slate-700">No client records found</p>
-                    <p className="text-xs text-slate-400">
-                      No client matching "{searchTerm}" or selected filters in the firm directory.
-                    </p>
-                  </div>
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <div style={css('display:flex;flex-wrap:wrap;align-items:center;gap:12px;background:#fff;border:1px solid #DDE3EB;padding:10px 12px;border-radius:10px')}>
+        <div style={css('display:flex;align-items:center;gap:6px;border:1px solid #DDE3EB;border-radius:8px;padding:6px 10px;background:#F6F8FA;flex:0 1 340px;min-width:200px')}><Search size={14} color="#5B6478" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name, client ID, NRIC, SSM no., phone or e-mail" aria-label="Search clients" style={css('flex:1;min-width:0;border:0;outline:0;font-size:12px;color:#16223A;background:transparent')} /></div>
+        <div style={css('display:flex;gap:4px')}>
+          {(['All', 'Individual', 'Corporate'] as const).map((t) => { const on = type === t; return <button key={t} type="button" onClick={() => setType(t)} style={css(`border-radius:14px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid ${on ? '#16223A' : '#DDE3EB'};background:${on ? '#16223A' : '#fff'};color:${on ? '#fff' : '#16223A'}`)}>{t === 'All' ? 'All types' : t}</button>; })}
+        </div>
+        {hasFilters && <button type="button" onClick={() => { setQ(''); setType('All'); setCard(''); }} style={css('border:0;background:none;padding:0;font-size:11.5px;font-weight:700;color:#3D6B9C;cursor:pointer')}>Clear filters</button>}
+        <span style={css('margin-left:auto;font-size:11px;color:#5B6478')}>Showing {list.length} of {clients.length} clients</span>
       </div>
 
-      {modals}
+      <div style={css('background:#fff;border:1px solid #DDE3EB;border-radius:12px;overflow-x:auto')}>
+        <div style={css('min-width:1020px')}>
+          <div style={css(COLS + 'padding:11px 14px;background:#16223A;color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em')}>
+            <span>Client</span><span>NRIC / SSM no.</span><span>Contact</span><span>Files</span><span style={css('text-align:right')}>Owes us</span><span>KYC</span><span>Conflict</span><span>Portal</span>
+          </div>
+          {list.map((x) => {
+            const inf = I(x);
+            const isCo = x.type === 'Corporate';
+            const act = inf.files.filter(isOpenFile).length;
+            const o = inf.owes;
+            const kp = inf.kyc, cp = conflictPill(x), pp = portalPill(x);
+            return (
+              <div key={x.id} onClick={() => onOpen(x.id)} className="bg-white hover:bg-[#F6F8FA]" style={css(COLS + 'align-items:center;padding:11px 14px;border-bottom:1px solid #F0F2F5;cursor:pointer')}>
+                <span style={css('display:flex;align-items:center;gap:10px;min-width:0')}>
+                  <span style={css(`width:32px;height:32px;flex-shrink:0;border-radius:${isCo ? '8px' : '9999px'};display:grid;place-items:center;font-size:11px;font-weight:800;color:#fff;background:${isCo ? '#3D6B9C' : '#16223A'}`)}>{initials(x.name)}</span>
+                  <span style={css('display:flex;flex-direction:column;gap:2px;min-width:0')}><span style={css('font-size:12.5px;font-weight:700;color:#16223A;line-height:1.35')}>{x.name}</span><span style={css('font-size:10.5px;color:#5B6478')}>{x.id + ' · ' + (isCo ? x.entityCategory || 'Company' : 'Individual') + ((x.tags || []).length ? ' · ' + (x.tags || []).join(', ') : '')}</span></span>
+                </span>
+                <span style={css('font-family:ui-monospace,monospace;font-size:11px;color:#1E293B')}>{idNoOf(x) || '—'}</span>
+                <span style={css('display:flex;flex-direction:column;gap:2px;min-width:0')}><span style={css('font-weight:600;color:#16223A')}>{x.phone || '—'}</span><span style={css('font-size:11px;color:#5B6478;overflow:hidden;text-overflow:ellipsis;white-space:nowrap')}>{x.email}</span></span>
+                <span style={css('font-weight:700;color:#16223A')}>{act ? act + ' open' : inf.files.length ? inf.files.length + ' closed' : '—'}</span>
+                <span style={css(`text-align:right;font-weight:700;color:${o > 0 ? '#8E2A20' : '#5B6478'}`)}>{o > 0 ? rm(o) : '—'}</span>
+                <span style={pillCss(kp)}>{kp.t}</span>
+                <span style={pillCss(cp)}>{cp.t}</span>
+                <span style={pillCss(pp)}>{pp.t}</span>
+              </div>
+            );
+          })}
+          {!list.length && <div style={css('padding:28px;text-align:center;font-size:12px;color:#5B6478')}>{clients.length ? 'No clients match these filters.' : 'No clients yet. Register the first one with “Register new client”.'}</div>}
+        </div>
+      </div>
     </div>
   );
 };

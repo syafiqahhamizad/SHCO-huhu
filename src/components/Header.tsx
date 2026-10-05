@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { clientsNav, useSelectedClientId } from './views/clients/clientModel';
 import {
   Search,
   RefreshCw,
@@ -37,6 +38,8 @@ export const Header: React.FC = () => {
     isNewCaseModalOpen,
     setIsNewCaseModalOpen,
   } = useApp();
+  const selectedClientId = useSelectedClientId();
+  const selectedClient = currentView === 'clients' && selectedClientId ? clients.find((c: any) => c.id === selectedClientId) : undefined;
   const selectedCase = currentView === 'cases' && currentCaseId ? cases.find((c: any) => c.id === currentCaseId) : undefined;
 
   const [isRecycleBinOpen, setIsRecycleBinOpen] = useState(false);
@@ -88,7 +91,8 @@ export const Header: React.FC = () => {
     setIsSearchOpen(false);
     setGlobalSearch('');
   };
-  const goToClients = () => {
+  const goToClients = (clientId?: string) => {
+    clientsNav.set(clientId || null);
     setCurrentView('clients');
     setIsSearchOpen(false);
     setGlobalSearch('');
@@ -128,7 +132,9 @@ export const Header: React.FC = () => {
       case 'leads-referrals':
         return { title: 'Leads & Referrals', sub: 'Every enquiry, where it came from, and whether it became a client' };
       case 'clients':
-        return { title: 'Clients', sub: 'Client profiles, KYC documents and instructions' };
+        return selectedClient
+          ? { title: 'Client profile', sub: 'Particulars, files, money, KYC and portal access', crumb: 'Clients', onCrumb: () => clientsNav.set(null) }
+          : { title: 'Clients', sub: 'Client records, KYC, conflict checks and portal access' };
       case 'cases':
         if (isNewCaseModalOpen) return { title: 'Open a new file', sub: 'Client, parties, court and team for the new matter', crumb: 'Cases', onCrumb: () => { setIsNewCaseModalOpen(false); setCurrentCaseId(null); } };
         return selectedCase
@@ -247,7 +253,7 @@ export const Header: React.FC = () => {
                     <div className="border-t border-[#F0F2F5] px-1 pt-1">
                       <p className="px-2 py-1 text-[9.5px] font-bold uppercase tracking-wide text-[#5B6478]">Clients</p>
                       {searchResults.clientsList.map((c: any) => (
-                        <button key={c.id} type="button" onClick={goToClients} className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left hover:bg-[#F6F8FA] cursor-pointer">
+                        <button key={c.id} type="button" onClick={() => goToClients(c.id)} className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left hover:bg-[#F6F8FA] cursor-pointer">
                           <span className="text-[12px] font-semibold text-[#16223A]">{c.name}</span>
                           <span className="font-mono text-[10px] text-[#5B6478]">{c.id}</span>
                         </button>

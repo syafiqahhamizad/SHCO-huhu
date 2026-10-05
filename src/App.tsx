@@ -7,7 +7,7 @@ import { Toast } from './components/Toast';
 import { DASHBOARD_TAB_VIEWS, DashboardTabs } from './components/DashboardTabs';
 import { SignInPortal } from './components/SignInPortal';
 import { ShieldAlert } from 'lucide-react';
-import { FINANCE_VIEW_TO_TAB, isFinanceView } from './lib/financeAccess';
+import { FINANCE_VIEW_TO_TAB, FIN_TABS, isFinanceView } from './lib/financeAccess';
 
 const ComprehensiveDashboardView = React.lazy(() => import('./components/views/ComprehensiveDashboardView').then((module) => ({ default: module.ComprehensiveDashboardView })));
 const LeadsReferralsView = React.lazy(() => import('./components/views/LeadsReferralsView').then((module) => ({ default: module.LeadsReferralsView })));
@@ -58,6 +58,20 @@ const MainContent: React.FC = () => {
     logoutUser,
     setCurrentCaseId,
   } = useApp();
+
+  // A finance tab hash (#billing, #trust, #office, #approvals, #payroll, #reports, #overview) opens
+  // that Accounts & Finance tab from anywhere (links, reloads). The finance view keeps it in step.
+  React.useEffect(() => {
+    const fromHash = () => {
+      const h = decodeURIComponent((window.location.hash || '').slice(1));
+      const row = FIN_TABS.find((t) => t[0] === h);
+      if (row) setCurrentView(row[3]);
+    };
+    fromHash();
+    window.addEventListener('hashchange', fromHash);
+    return () => window.removeEventListener('hashchange', fromHash);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // "Open new file" (from anywhere, incl. Leads → open a file with prefill) is a page in Cases.
   React.useEffect(() => {

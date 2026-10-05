@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { FinanceCtrl } from './useFinanceController';
 import { css, inPeriod, picColor, rm } from './financeModel';
 import type { Quotation, Receipt } from '../../../types';
+import { useApp } from '../../../context/AppContext';
+import { FEES_FILTERS, billedPct, feesFilter, isOpenFile, moneyForFile, sumMoney, type FeesFilter } from '../../../lib/moneyByFile';
 
 export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
   const { docT, setDocT, invF, setInvF, SC } = F;
@@ -35,6 +37,17 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
   const docRows: Row[] = docT === 'Receipt'
     ? F.scopedReceipts.slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).map((r: Receipt) => { const acc = r.accountSet === 'CLIENT' ? 'Client account' : 'Office'; return { key: r.id, no: r.id, client: r.receivedFrom || '—', ref: 'for ' + (r.forNo || r.description || '—') + ' · ' + (r.paymentMethod || '—'), date: F.dShort(r.date), amt: rm(Number(r.amount || 0)), x: acc, status: r.historical ? 'Historical' : 'Issued', action: 'View', onAct: () => F.setView({ kind: 'receipt', id: r.id }), view: () => F.setView({ kind: 'receipt', id: r.id }) }; })
     : docT === 'Invoice' ? [] : (docT === 'Quotation' ? quotes : proformas).slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).map((q: Quotation) => { const a = F.actionsFor('quotation', q)[0]; const kase = F.qCase(q); return { key: q.id, no: q.id, client: q.clientName || '—', ref: `${q.fileRef || kase?.ref || '—'} · ${q.practiceArea || '—'}`, date: F.dShort(q.date), amt: rm(Number(q.total || 0)), x: q.payInto || 'Office', status: F.qStatus(q), action: a, onAct: () => F.act('quotation', q, a), view: () => F.setView({ kind: 'quotation', id: q.id }) }; });
+  /* ---- fees by file (lib/moneyByFile: same figures as each file's Money tab) ---- */
+  const { cases = [], invoices = [], payments = [], retainers = [], quotations = [], setCurrentCaseId, setCaseSubTab, setCurrentView } = useApp();
+  const [bfF, setBfF] = useState<FeesFilter>('All');
+  const byFileAll = cases.filter((c) => F.ownCase(c)).map((c) => ({ c, m: moneyForFile(c, { invoices, payments, retainers, quotations }) }))
+    .filter(({ c, m }) => (isOpenFile(c) && (m.agreed > 0 || m.billed > 0)) || m.outstanding > 0.005)
+    .sort((a, b) => b.m.agreed - a.m.agreed || b.m.billed - a.m.billed);
+  const byFile = byFileAll.filter(({ m }) => feesFilter(bfF, m));
+  const bfTot = sumMoney(byFile.map((x) => x.m));
+  const openFile = (id: string) => { setCaseSubTab('money'); setCurrentCaseId(id); setCurrentView('cases'); };
+  const BF = 'display:grid;grid-template-columns:minmax(0,1.6fr) 44px 92px 92px 92px 96px 120px 104px;gap:10px;';
+
   const docNewClick = () => (docT === 'Receipt' ? F.openForm('moneyIn', { account: 'Office' }) : F.openNew(docT));
 
   return (
@@ -94,6 +107,26 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
           ); })}
           <div style={css('padding:9px 14px;background:#F6F8FA;font-size:10.5px;color:#5B6478')}>{D.foot}</div></div>
       )}
+
+      <div style={css('overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
+        <div style={css('display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css('font-family:ui-serif, Georgia, serif;font-size:14.5px;color:#16223A')}>Fees by file</strong><span style={css('font-size:10.5px;color:#5B6478')}>same figures as each file's Money tab · click to open the file</span>
+          <div style={css('display:flex;gap:4px;margin-left:auto')}>{FEES_FILTERS.map((k) => { const on = bfF === k; return <button key={k} type="button" onClick={() => setBfF(k)} style={css(`white-space:nowrap;border-radius:14px;padding:3px 10px;font-size:10.5px;font-weight:700;cursor:pointer;font-family:inherit;border:1px solid ${on ? '#16223A' : '#DDE3EB'};background:${on ? '#16223A' : '#fff'};color:${on ? '#fff' : '#16223A'}`)}>{k} · {byFileAll.filter(({ m }) => feesFilter(k, m)).length}</button>; })}</div></div>
+        <div style={css(BF + 'padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>File · client</span><span>PIC</span><span style={css('text-align:right')}>Agreed</span><span style={css('text-align:right')}>Billed</span><span style={css('text-align:right')}>Received</span><span style={css('text-align:right')}>Outstanding</span><span>Billed of agreed</span><span style={css('text-align:right')}>Client acct</span></div>
+        {byFile.length === 0 && <div style={css('padding:12px 14px;font-size:11.5px;color:#5B6478')}>{byFileAll.length ? 'No files match this filter.' : 'No files with agreed fees or bills yet.'}</div>}
+        {byFile.map(({ c, m }) => { const pic = (c.partners || [])[0] || ''; const pct = billedPct(m); const client = F.clientName(String(c.clientId || '').split(',')[0].trim()) || c.clientName || '—'; return (
+          <div key={c.id} onClick={() => openFile(c.id)} className="hover:bg-[#F6F8FA]" style={css(BF + 'align-items:center;padding:8px 14px;border-bottom:1px solid #F0F2F5;cursor:pointer')}>
+            <span style={css('min-width:0')}><span style={css('display:block;font-size:11.5px;font-weight:700;color:#16223A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{c.title}</span><span style={css('display:block;font-size:10px;color:#5B6478;white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{client} · {c.ref}</span></span>
+            <span style={css(`width:22px;height:22px;border-radius:9999px;display:grid;place-items:center;font-size:9px;font-weight:700;color:#fff;background:${picColor(pic)}`)}>{pic || '—'}</span>
+            <span style={css('text-align:right;font-size:11.5px;color:#16223A')}>{rm(m.agreed)}</span>
+            <span style={css('text-align:right;font-size:11.5px;color:#16223A')}>{rm(m.billed)}</span>
+            <span style={css('text-align:right;font-size:11.5px;color:#2F6F4E')}>{rm(m.received)}</span>
+            <span style={css(`text-align:right;font-size:12px;font-weight:700;color:${m.outstanding > 0 ? '#8E2A20' : '#5B6478'}`)}>{rm(m.outstanding)}</span>
+            <span style={css('display:flex;align-items:center;gap:6px')}><span style={css('flex:1;height:6px;border-radius:3px;background:#EEF1F5')}><span style={css(`display:block;height:6px;border-radius:3px;background:#3D6B9C;width:${pct}%`)} /></span><span style={css('font-size:10px;color:#5B6478;width:30px;text-align:right')}>{m.agreed > 0 ? Math.round((m.billed / m.agreed) * 100) + '%' : '—'}</span></span>
+            <span style={css('text-align:right;font-size:11.5px;color:#2F5680')}>{m.clientAccount ? rm(m.clientAccount) : '—'}</span>
+          </div>
+        ); })}
+        <div style={css(BF + 'padding:9px 14px;background:#F6F8FA;font-size:11.5px;font-weight:700;color:#16223A')}><span>{byFile.length} {byFile.length === 1 ? 'file' : 'files'}</span><span></span><span style={css('text-align:right')}>{rm(bfTot.agreed)}</span><span style={css('text-align:right')}>{rm(bfTot.billed)}</span><span style={css('text-align:right;color:#2F6F4E')}>{rm(bfTot.received)}</span><span style={css('text-align:right;color:#8E2A20')}>{rm(bfTot.outstanding)}</span><span></span><span style={css('text-align:right;color:#2F5680')}>{rm(bfTot.clientAccount)}</span></div>
+      </div>
 
       <div style={css('overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
         <div style={css('display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css('font-family:ui-serif, Georgia, serif;font-size:14.5px;color:#16223A')}>Work not billed yet</strong><span style={css('font-size:10.5px;color:#5B6478')}>time + disbursements recorded in Matters, oldest first</span><span style={css('margin-left:auto;font-size:12px;font-weight:700;color:#16223A')}>{rm(F.unbilled.reduce((s, u) => s + u.time + u.disb, 0))} still to bill</span></div>

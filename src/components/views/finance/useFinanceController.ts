@@ -110,6 +110,26 @@ export function useFinanceController(initialTab: FinTab) {
   const visibleTab: FinTab = TABS.some((t) => t[0] === tab) ? tab : (TABS[0]?.[0] || 'overview');
   const go = useCallback((t: FinTab) => { setTabState(t); const row = FIN_TABS.find((x) => x[0] === t); if (row) setCurrentView(row[3]); }, [setCurrentView]);
 
+  // Tabs open from the URL hash too (#overview, #billing, #trust, #office, #approvals, #payroll,
+  // #reports), and the hash follows the open tab so a link / reload lands on the same tab.
+  const goRef = useRef(go);
+  goRef.current = go;
+  useEffect(() => {
+    const fromHash = () => {
+      const h = decodeURIComponent((window.location.hash || '').slice(1));
+      if (FIN_TABS.some((x) => x[0] === h)) goRef.current(h as FinTab);
+    };
+    fromHash();
+    window.addEventListener('hashchange', fromHash);
+    return () => {
+      window.removeEventListener('hashchange', fromHash);
+      if (FIN_TABS.some((x) => '#' + x[0] === window.location.hash)) window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    };
+  }, []);
+  useEffect(() => {
+    if (window.location.hash !== '#' + visibleTab) window.history.replaceState(null, '', window.location.pathname + window.location.search + '#' + visibleTab);
+  }, [visibleTab]);
+
   const [toast, setToast] = useState('');
   const toastTimer = useRef<number | undefined>(undefined);
   const toastMsg = useCallback((m: string) => { setToast(m); window.clearTimeout(toastTimer.current); toastTimer.current = window.setTimeout(() => setToast(''), 2800); }, []);

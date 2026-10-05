@@ -86,9 +86,7 @@ import {
   signInExternalWithPassword,
   signInStaffWithGoogle,
   signOutFromFirebase,
-  provisionFirebaseUser,
   ensureEmailVerified,
-  describeProvisionedAccount,
   firebaseAuth,
 } from '../services/firebaseAuthService';
 import {
@@ -351,9 +349,6 @@ interface AppContextType {
   updateClient: (id: string, updates: Partial<Client>) => void;
   addClientPortalUpdate: (clientId: string, update: Omit<ClientPortalUpdate, 'id' | 'date'>) => void;
   deleteClient: (id: string) => void;
-  sendClientPortalInvite: (
-    clientId: string
-  ) => Promise<{ success: boolean; inviteDate?: string; email?: string; tempPass?: string; error?: string; message?: string }>;
   addCase: (caseObj: Case) => void;
   updateCase: (id: string, updates: Partial<Case>) => void;
   deleteCase: (id: string) => void;
@@ -2983,53 +2978,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`Client "${clientToDelete.name}" moved to Recycle Bin.`);
   };
 
-  // Creates the client's real Firebase login (email/password, created from this browser via a
-  // secondary Firebase app — see provisionFirebaseUser) and adds them to the roster, which
-  // puts them on the access list as role 'client'. Firebase sends a verification email; the
-  // caller shows the temporary password so the firm can pass it on privately.
-  const sendClientPortalInvite = async (
-    clientId: string
-  ): Promise<{ success: boolean; inviteDate?: string; email?: string; tempPass?: string; error?: string; message?: string }> => {
-    const fail = (error: string) => {
-      showToast(error);
-      return { success: false, error };
-    };
-    const clientObj = clients.find((c) => c.id === clientId);
-    if (!clientObj) return fail('Client not found.');
-    const email = (clientObj.email || '').trim().toLowerCase();
-    if (!email) return fail(`Add an email address to ${clientObj.name}'s record first — it becomes their portal login.`);
-    if (!(currentUser.email === 'syafiqahhamizad@shcolaw.com' || currentUser.isSuperAdmin)) {
-      return fail('Only the Super Admin can create client portal logins.');
-    }
-    if (users.some((u) => u.email.toLowerCase() === email)) {
-      return fail(`${email} already has a portal login.`);
-    }
-
-    try {
-      const provisioned = await provisionFirebaseUser({
-        name: clientObj.name,
-        email,
-        role: 'Client',
-        isAdmin: false,
-        isSuperAdmin: false,
-      });
-      const inviteDate = new Date().toISOString().slice(0, 16).replace('T', ' ');
-      setUsers((prev) => [
-        ...prev,
-        { id: provisioned.id, name: clientObj.name, email, role: 'Client', isAdmin: false, isSuperAdmin: false, status: 'Active' },
-      ]);
-      approveAccessChange(email);
-      setClients((prev) =>
-        prev.map((c) => (c.id === clientId ? { ...c, lastPortalInviteSent: inviteDate, portalAccessEnabled: true } : c))
-      );
-      addActivityLog('Client Portal Login Created', `${clientObj.name} (${email})`);
-      logAuditEvent('CREATE', 'CLIENTS', clientObj.id, clientObj.name, `Client Portal login created for ${email}.`);
-      return { success: true, inviteDate, email, tempPass: provisioned.temporaryPassword, message: describeProvisionedAccount(provisioned, { signInWhere: 'portal.shcolaw.com → Client Access' }) };
-    } catch (error) {
-      return fail(error instanceof Error ? error.message : 'Unable to create the client portal login.');
-    }
-  };
-
   const addCase = async (caseObj: Case) => {
     if (!hasModulePermission('cases', 'a')) {
       showToast('Access denied: you do not have matter creation permission.');
@@ -3648,7 +3596,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateClient,
         addClientPortalUpdate,
         deleteClient,
-        sendClientPortalInvite,
         addCase,
         updateCase,
         renameCaseRef,

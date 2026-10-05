@@ -36,7 +36,9 @@ export interface FirmStartCentrePage {
 }
 
 export interface ConflictCheck {
-  status: 'Not Started' | 'Clear' | 'Flagged';
+  /** 'Pending Partner Review': a possible match was found (e.g. at registration) and a partner
+   * still has to decide. */
+  status: 'Not Started' | 'Clear' | 'Flagged' | 'Pending Partner Review';
   notes: string;
   checkedBy: string;
   checkedDate: string;
@@ -163,6 +165,14 @@ export interface KycDoc {
    * Firestore document). Still opens; never written any more. */
   dataUrl?: string;
   mimeType?: string;
+  /** Clients › KYC: which required document this is (KYC_REQUIREMENTS key, e.g. 'nric', 'ssm').
+   * Older uploads have none and are matched by `type`. */
+  requirement?: string;
+  /** Clients › KYC review state. Absent on older uploads (read as verified when the client's CDD
+   * records a verification, otherwise as waiting to be verified). */
+  status?: 'To verify' | 'Verified';
+  verifiedBy?: string;
+  verifiedAt?: string;
 }
 
 /** Customer due diligence (AMLA 2001 / Bar Council AML/CFT guidance) captured on the client record. */
@@ -234,6 +244,20 @@ export interface Client {
   lastLoginAt?: string;
   autoConflictMatches?: ConflictMatch[];
   conflictCheck?: ConflictCheck;
+  /** Client Portal access (staff side, Clients › Portal access). Read by the Client Portal.
+   * Older records without it fall back to portalAccessEnabled / lastPortalInviteSent. */
+  portal?: { status: 'Not set up' | 'Invited' | 'Active' | 'Disabled'; loginEmail?: string; invitedAt?: string; visibility: { progress: boolean; documents: boolean; bills: boolean; statement: boolean; messages: boolean } };
+  /** Clients › History: every change made to this record, newest first. */
+  history?: ClientHistoryEntry[];
+}
+
+export interface ClientHistoryEntry {
+  /** ISO timestamp. */
+  at: string;
+  by: string;
+  what: string;
+  /** Dot colour on the History tab. */
+  kind?: 'edit' | 'kyc' | 'conflict' | 'portal' | 'file';
 }
 
 export interface ClientPortalUpdate {
