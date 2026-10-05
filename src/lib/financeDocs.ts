@@ -172,7 +172,8 @@ export const ARR_TERMS = 'Early Settlement: In the event the matter is settled b
 const num = (n: number | string | undefined) => Number(n || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const money = (n: number | string | undefined) => 'RM ' + num(n);
 const TITLES: Record<DocType, string> = { Quotation: 'QUOTATION', Proforma: 'PROFORMA INVOICE', Invoice: 'INVOICE', Receipt: 'OFFICIAL RECEIPT' };
-const esc = (s: unknown) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] as string)).replace(/\n/g, '<br>');
+// Quotes escaped too: these values also go inside attributes (e.g. src="…").
+const esc = (s: unknown) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string)).replace(/\n/g, '<br>');
 const F = 'font-family:Arial,Helvetica,sans-serif;color:#000;font-size:9.5pt;line-height:1.35';
 const B = 'border:1px solid #000;padding:5px 8px;vertical-align:top';
 const HDR = 'font-family:Georgia,\'Times New Roman\',serif;color:#16223A';

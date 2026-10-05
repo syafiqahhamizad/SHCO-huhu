@@ -318,7 +318,6 @@ interface AppContextType {
   setIsRegisterClientModalOpen: (open: boolean) => void;
 
   // Actions
-  resetClientPassword: (clientIdentifier: string, newPass: string) => { success: boolean; message: string };
   addBankAccount: (acc: Omit<BankAccount, 'id'>) => void;
   updateBankAccount: (id: string, updates: Partial<BankAccount>) => void;
   archiveBankAccount: (id: string) => void;
@@ -2125,42 +2124,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const resetClientPassword = (clientIdentifier: string, newPass: string): { success: boolean; message: string } => {
-    const term = clientIdentifier.trim().toLowerCase();
-    let updated = false;
-    setUsers((prev) =>
-      prev.map((u) => {
-        if (
-          u.role === 'Client' &&
-          (u.email.toLowerCase() === term || u.id.toLowerCase() === term || u.name.toLowerCase().includes(term))
-        ) {
-          updated = true;
-          return { ...u, clientPassword: newPass };
-        }
-        return u;
-      })
-    );
-
-    if (updated) {
-      showToast('Client password reset successfully.');
-      return { success: true, message: 'Your password has been updated successfully. You may now log in with your new password.' };
-    } else {
-      // If client not yet in users array, add/update
-      const newClientUser: User = {
-        id: `U-client-${Date.now()}`,
-        name: clientIdentifier.split('@')[0],
-        email: term.includes('@') ? term : `${term}@client.com`,
-        role: 'Client',
-        isAdmin: false,
-        clientPassword: newPass,
-        status: 'Active',
-      };
-      setUsers((prev) => [...prev, newClientUser]);
-      showToast('Client account password initialized.');
-      return { success: true, message: 'Password set successfully for client account.' };
-    }
-  };
-
   const VIEW_TO_MODULE_MAP: Record<string, string> = {
     firmStartCentre: 'dashboard',
     dashboard: 'dashboard',
@@ -2587,7 +2550,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (Array.isArray(state.invoices)) setInvoices((state.invoices as Invoice[]).filter((invoice) => isActive('Invoice', invoice)));
       if (Array.isArray(state.payments)) setPayments(state.payments as Payment[]);
       if (Array.isArray(state.retainers)) setRetainers(state.retainers as Retainer[]);
-      if (Array.isArray(state.users)) setUsers(state.users as User[]);
+      // Passwords never live in the shared data; drop any left by old versions (saved back on the next sync).
+      if (Array.isArray(state.users)) setUsers((state.users as User[]).map(({ clientPassword: _pw, ...u }) => u as User));
       if (Array.isArray(state.attendanceRecords)) setAttendanceRecords(state.attendanceRecords as AttendanceRecord[]);
       if (Array.isArray(state.leaveApplications)) setLeaveApplications(state.leaveApplications as LeaveApplication[]);
       if (Array.isArray(state.meetings)) setMeetings(state.meetings as Meeting[]);
@@ -3541,7 +3505,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addStartCentreCard,
         updateStartCentreCard,
         deleteStartCentreCard,
-        resetClientPassword,
         addBankAccount,
         updateBankAccount,
         archiveBankAccount,
