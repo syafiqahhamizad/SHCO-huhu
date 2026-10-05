@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { stripSalutation } from '../lib/legacyCleanup';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import type { Client } from '../types';
@@ -36,10 +37,10 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({ isOpen, onClose,
     const me = currentUser?.name || 'Staff';
     const c: Client = {
       id,
-      name: name.trim(),
+      name: stripSalutation(name),
       type,
       ...(isCo ? { registrationNo: idNo.trim() || undefined, entityCategory: 'Sdn Bhd' as const } : { icNo: idNo.trim() || undefined, icNumber: idNo.trim() || undefined }),
-      contactPerson: isCo ? '' : name.trim(),
+      contactPerson: isCo ? '' : stripSalutation(name),
       phone: phone.trim(),
       email: email.trim(),
       address: '',

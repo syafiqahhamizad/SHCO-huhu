@@ -1,3 +1,4 @@
+import { stripSalutation } from './legacyCleanup';
 /**
  * String Utility Functions for Data Normalization
  */
@@ -72,6 +73,7 @@ function toTitleCase(str: string): string {
 /**
  * Pipeline helper to enforce normalized Title Case casing for Client names across the dashboard.
  */
+/** Title Case, without a courtesy salutation in front (Mr, Ms, Encik, Puan … — firm rule). */
 export function normalizeClientName(name: string): string {
-  return toTitleCase(name);
+  return toTitleCase(stripSalutation(name));
 }

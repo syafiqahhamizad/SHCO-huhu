@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Case, Task } from '../types';
-import { withoutStarterTasks } from './legacyCleanup';
+import type { Case, Client, Task } from '../types';
+import { casesWithoutSalutations, clientsWithoutSalutations, stripSalutation, withoutStarterTasks } from './legacyCleanup';
 
 const task = (over: Partial<Task>): Task => ({ id: 't', title: 'Prepare initial pleadings checklist', status: 'Not Started', ...over } as Task);
 const file = (tasks: Task[]): Case => ({ id: 'CS-1', ref: 'X', title: 'Test v Test', tasks } as unknown as Case);
@@ -13,5 +13,28 @@ describe('withoutStarterTasks', () => {
   it('returns the same file object when nothing changes', () => {
     const f = file([task({ title: 'File defence' })]);
     expect(withoutStarterTasks([f])[0]).toBe(f);
+  });
+});
+
+describe('salutations', () => {
+  it('drops Mr / Mrs / Ms / Encik / Puan / Cik', () => {
+    expect(stripSalutation('Mr. Ali Bin Abu')).toBe('Ali Bin Abu');
+    expect(stripSalutation('Mrs Siti')).toBe('Siti');
+    expect(stripSalutation('ms. Lee')).toBe('Lee');
+    expect(stripSalutation('Puan Aminah')).toBe('Aminah');
+    expect(stripSalutation('Encik Razak')).toBe('Razak');
+  });
+  it('keeps titles and names that only start with the same letters', () => {
+    expect(stripSalutation("Dato' Sri Ahmad")).toBe("Dato' Sri Ahmad");
+    expect(stripSalutation('Dr. Tan')).toBe('Dr. Tan');
+    expect(stripSalutation('Msian Holdings Sdn Bhd')).toBe('Msian Holdings Sdn Bhd');
+    expect(stripSalutation('Missy Ventures')).toBe('Missy Ventures');
+    expect(stripSalutation('Mr')).toBe('Mr');
+  });
+  it('cleans clients and the client names on files', () => {
+    const [c] = clientsWithoutSalutations([{ id: 'C1', name: 'Mr. Ali', salutation: 'Mr' } as unknown as Client]);
+    expect(c.name).toBe('Ali'); expect('salutation' in c).toBe(false);
+    const [k] = casesWithoutSalutations([{ id: 'K', clientName: 'Ms. Lee', clientsList: [{ id: 'C1', name: 'Mrs. Lee' }] } as unknown as Case]);
+    expect(k.clientName).toBe('Lee'); expect(k.clientsList?.[0].name).toBe('Lee');
   });
 });

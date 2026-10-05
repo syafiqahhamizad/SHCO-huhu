@@ -1,4 +1,4 @@
-import { withoutStarterTasks } from '../lib/legacyCleanup';
+import { casesWithoutSalutations, clientsWithoutSalutations, withoutStarterTasks } from '../lib/legacyCleanup';
 import { isForMe, isReadBy, notificationEmail, resolveRecipients } from '../lib/notify';
 import { queueEmail } from '../services/mailQueueService';
 import { canViewAs } from '../components/views/settings/permissionModel';
@@ -1246,7 +1246,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [cases, setCases] = useState<Case[]>(() => {
-    return withoutStarterTasks(readStored(STORAGE_KEY + '_cases', operationalFallback(INITIAL_CASES)));
+    return casesWithoutSalutations(withoutStarterTasks(readStored(STORAGE_KEY + '_cases', operationalFallback(INITIAL_CASES))));
   });
 
   const [quotations, setQuotations] = useState<Quotation[]>(() => {
@@ -2547,8 +2547,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setDeletedRecords((previous) => Array.from(new Map([...previous, ...cloudDeletedRecords].map((record) => [record.id, record])).values()));
       }
       if (Array.isArray(state.leads)) setLeads((state.leads as Lead[]).filter((lead) => isActive('Lead', lead)));
-      if (Array.isArray(state.clients)) setClients((state.clients as Client[]).filter((client) => isActive('Client', client)));
-      if (Array.isArray(state.cases)) setCases(withoutStarterTasks((state.cases as Case[]).filter((caseObj) => isActive('Case', caseObj))));
+      if (Array.isArray(state.clients)) setClients(clientsWithoutSalutations((state.clients as Client[]).filter((client) => isActive('Client', client))));
+      if (Array.isArray(state.cases)) setCases(casesWithoutSalutations(withoutStarterTasks((state.cases as Case[]).filter((caseObj) => isActive('Case', caseObj)))));
       if (Array.isArray(state.quotations)) setQuotations((state.quotations as Quotation[]).filter((quotation) => isActive('Quotation', quotation)));
       if (Array.isArray(state.referralPartners)) setReferralPartners(state.referralPartners as ReferralPartner[]);
       if (Array.isArray(state.paymentVouchers)) setPaymentVouchers((state.paymentVouchers as PaymentVoucher[]).filter((voucher) => isActive('Payment Voucher', voucher)));
@@ -2759,7 +2759,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const gone = new Set(deletedRecords.filter((d) => d.entityType === t).map((d) => d.recordId));
         out = out.filter((r) => !gone.has(String(r.id)));
       }
-      if (key === 'cases') out = withoutStarterTasks(out as unknown as Case[]) as unknown as Record<string, unknown>[];
+      if (key === 'cases') out = casesWithoutSalutations(withoutStarterTasks(out as unknown as Case[])) as unknown as Record<string, unknown>[];
+      if (key === 'clients') out = clientsWithoutSalutations(out as unknown as Client[]) as unknown as Record<string, unknown>[];
       return out;
     },
     onReady: () => setCloudSyncReady(true),

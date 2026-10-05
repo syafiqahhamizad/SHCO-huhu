@@ -285,7 +285,7 @@ export const ClientPortalView: React.FC = () => {
   ];
   const cur = tabsDef.some(([k]) => k === tab) ? tab : 'home';
 
-  const short = client.type === 'Corporate' ? (client.contactPerson || client.name) : [client.salutation, client.name].filter(Boolean).join(' ');
+  const short = client.type === 'Corporate' ? (client.contactPerson || client.name) : client.name;
   const greetSub = left ? 'There ' + (left === 1 ? 'is 1 thing' : 'are ' + left + ' things') + ' we need from you. Everything else is in hand.' : 'Nothing is needed from you right now. Here is where things stand.';
 
   const disabledNote = <span style={css('font-size:11px;color:#8A6D3B')}>{PREVIEW_NOTE}</span>;

@@ -1678,7 +1678,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                         <button
                           type="button"
                           onClick={() => {
-                            const waText = `Salam & Good day, YBhg / Tan Sri / Dato' / Puan ${cs.clientName}. Weekly status update for matter [${cs.ref}]:\n\nCurrent Status: ${cs.notes || 'In progress'}\nNext Action: ${cs.nextAction || 'To be advised'}\nAssigned Lawyers: ${cs.lawyerInCharge || 'Syafiqah Hamizad'}\n\nMessrs Syafiqah Hamizad & Co`;
+                            const waText = `Salam & Good day, ${cs.clientName}. Weekly status update for matter [${cs.ref}]:\n\nCurrent Status: ${cs.notes || 'In progress'}\nNext Action: ${cs.nextAction || 'To be advised'}\nAssigned Lawyers: ${cs.lawyerInCharge || 'To be advised'}\n\nMessrs Syafiqah Hamizad & Co`;
                             setWaModalObj({
                               ref: cs.ref,
                               client: cs.clientName,
@@ -1701,7 +1701,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                           type="button"
                           onClick={() => {
                             const subject = `Case Status Update: ${cs.title} [${cs.ref}]`;
-                            const body = `Dear ${cs.clientName || 'Valued Client'},\n\nCurrent Status: ${cs.notes || 'In progress'}\nNext Action: ${cs.nextAction || 'To be advised'}\nAssigned Lawyers: ${cs.lawyerInCharge || 'Syafiqah Hamizad'}\n\nThank you for trusting Messrs Syafiqah Hamizad & Co.`;
+                            const body = `Dear ${cs.clientName || 'Valued Client'},\n\nCurrent Status: ${cs.notes || 'In progress'}\nNext Action: ${cs.nextAction || 'To be advised'}\nAssigned Lawyers: ${cs.lawyerInCharge || 'To be advised'}\n\nThank you for trusting Messrs Syafiqah Hamizad & Co.`;
                             window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
                             addCaseActivityLog(cs.id, {
                               title: 'Client Status Update Sent (Email)',

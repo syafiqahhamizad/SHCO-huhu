@@ -214,7 +214,6 @@ export interface Client {
   entityCategory?: CorporateEntityCategory;
   registrationNo?: string;
   taxSstNo?: string;
-  salutation?: string;
   icNo?: string;
   icNumber?: string;
   nationality?: string;
