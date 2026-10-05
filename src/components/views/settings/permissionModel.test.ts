@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  designRole, flipBit, fromBits, isManagingPartner, isSuper, parentOf, PERM_ROWS, personBits, personChanges, personRoleBits, roleOwnBits, SUPER_EMAIL,
+  canViewAs, designRole, flipBit, fromBits, isManagingPartner, isSuper, parentOf, PERM_ROWS, personBits, personChanges, personRoleBits, roleOwnBits, SUPER_EMAIL,
 } from './permissionModel';
 import type { RolePermissionsMatrix, User } from '../../../types';
 
@@ -112,4 +112,22 @@ describe('personChanges', () => {
   });
   it('no overrides → 0', () => expect(personChanges(matrix, lawyer)).toBe(0));
   it('Managing Partner → 0', () => expect(personChanges(matrix, u({ role: 'Partner', email: SUPER_EMAIL, navOverrides: { cases: NONE } }))).toBe(0));
+});
+
+describe('client delete, conflict clearing and View as', () => {
+  const m = { Partner: { clients: VAE }, Lawyer: { clients: VAE }, Assistant: { clients: VAE } } as unknown as RolePermissionsMatrix;
+  it('only admins can delete clients, whatever the role', () => {
+    expect(personBits(m, u({ role: 'Partner', email: 'p@example.com' }), 'clients.delete')).toBe('000');
+    expect(personBits(m, u({ role: 'Assistant', email: 'a@example.com', isAdmin: true }), 'clients.delete')).toBe('111');
+  });
+  it('partners clear conflicts by default; lawyers do not unless granted', () => {
+    expect(personBits(m, u({ role: 'Partner', email: 'p@example.com' }), 'clients.clearConflict')).not.toBe('000');
+    expect(personBits(m, u({ role: 'Lawyer', email: 'l@example.com' }), 'clients.clearConflict')).toBe('000');
+    expect(personBits(m, u({ role: 'Lawyer', email: 'l@example.com', navOverrides: { 'clients.clearConflict': VAE } }), 'clients.clearConflict')).toBe('111');
+  });
+  it('View as: Managing Partner always; an admin only if granted', () => {
+    expect(canViewAs(m, u({ role: 'Partner', email: SUPER_EMAIL }))).toBe(true);
+    expect(canViewAs(m, u({ role: 'Partner', email: 'z@example.com', isAdmin: true }))).toBe(false);
+    expect(canViewAs(m, u({ role: 'Partner', email: 'z@example.com', navOverrides: { viewAs: V } }))).toBe(true);
+  });
 });

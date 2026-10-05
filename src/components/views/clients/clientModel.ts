@@ -29,18 +29,18 @@ export const useSelectedClientId = () => useSyncExternalStore(clientsNav.subscri
 
 /* ------------------------------------------------------------------ KYC */
 export type KycReqKey = 'nric' | 'addr' | 'sof' | 'ssm' | 'einfo' | 'br' | 'dir';
-/** Required documents by client type: [key, label, hint, max age in months (0 = none)]. */
-export const KYC_REQUIREMENTS: Record<Client['type'], [KycReqKey, string, string, number][]> = {
+/** Required documents by client type: [key, label, hint]. */
+export const KYC_REQUIREMENTS: Record<Client['type'], [KycReqKey, string, string][]> = {
   Individual: [
-    ['nric', 'NRIC / passport copy', 'Front and back, clear copy', 0],
-    ['addr', 'Proof of address', 'Utility bill or bank statement, not older than 3 months', 3],
-    ['sof', 'Source of funds declaration', 'Required for conveyancing and client-account deposits', 0],
+    ['nric', 'NRIC / passport copy', 'Front and back, clear copy'],
+    ['addr', 'Proof of address', 'Utility bill or bank statement, not older than 3 months'],
+    ['sof', 'Source of funds declaration', 'Required for conveyancing and client-account deposits'],
   ],
   Corporate: [
-    ['ssm', 'SSM certificate', 'Section 17 (or Form 9 for older companies)', 0],
-    ['einfo', 'SSM company profile', 'e-Info printout, not older than 3 months', 3],
-    ['br', 'Board resolution', 'Appointing the firm and naming who instructs us', 0],
-    ['dir', 'NRIC of directors / signatory', 'Everyone who signs or instructs on behalf of the company', 0],
+    ['ssm', 'SSM certificate', 'Section 17 (or Form 9 for older companies)'],
+    ['einfo', 'SSM company profile', 'e-Info printout, not older than 3 months'],
+    ['br', 'Board resolution', 'Appointing the firm and naming who instructs us'],
+    ['dir', 'NRIC of directors / signatory', 'Everyone who signs or instructs on behalf of the company'],
   ],
 };
 
@@ -57,45 +57,35 @@ export const requirementOf = (k: KycDoc, type: Client['type']): KycReqKey | null
   return null;
 };
 
-export type KycState = 'Missing' | 'To verify' | 'Verified' | 'Expired';
+export type KycState = 'Missing' | 'To verify' | 'Verified';
 export const KYC_PILL: Record<KycState, Pill> = {
   Missing: { t: 'Missing', ...P.a },
   'To verify': { t: 'To verify', ...P.b },
   Verified: { t: 'Verified', ...P.g },
-  Expired: { t: 'Expired', ...P.r },
 };
 
 const uploadedOf = (k: KycDoc) => k.uploadedAt || k.uploadedDate || '';
-const monthsAgo = (s: string, now: Date) => {
-  const t = parseDate(s); if (!t) return 0;
-  const d = new Date(t);
-  return (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth()) - (now.getDate() < d.getDate() ? 1 : 0);
-};
-
 /**
  * One required document's state. Latest upload wins.
  * Verified: marked verified (or an older upload on a client whose CDD records a verification).
- * Expired: a ≤3-month document (proof of address, SSM e-Info) still not verified and now more
- * than 3 months old — a fresh copy is needed.
+ * KYC documents do not expire (firm rule).
  */
-export const kycRowOf = (c: Client, key: KycReqKey, maxMonths: number, now = new Date()): { state: KycState; doc?: KycDoc } => {
+export const kycRowOf = (c: Client, key: KycReqKey): { state: KycState; doc?: KycDoc } => {
   const docs = (c.kyc || []).filter((k) => requirementOf(k, c.type) === key).sort((a, b) => parseDate(uploadedOf(b)) - parseDate(uploadedOf(a)));
   const doc = docs[0];
   if (!doc) return { state: 'Missing' };
   const verified = doc.status ? doc.status === 'Verified' : !!c.cdd?.verifiedAt;
   if (verified) return { state: 'Verified', doc };
-  if (maxMonths && monthsAgo(uploadedOf(doc), now) >= maxMonths) return { state: 'Expired', doc };
   return { state: 'To verify', doc };
 };
 
-export const kycRowsOf = (c: Client, now = new Date()) =>
-  (KYC_REQUIREMENTS[c.type] || KYC_REQUIREMENTS.Individual).map(([key, label, hint, max]) => ({ key, label, hint, max, ...kycRowOf(c, key, max, now) }));
+export const kycRowsOf = (c: Client) =>
+  (KYC_REQUIREMENTS[c.type] || KYC_REQUIREMENTS.Individual).map(([key, label, hint]) => ({ key, label, hint, ...kycRowOf(c, key) }));
 
-/** Overall KYC: Complete / Expired / Incomplete (design kycOf). */
-export const kycOverall = (c: Client, now = new Date()): Pill & { done: boolean } => {
-  const st = kycRowsOf(c, now).map((r) => r.state);
+/** Overall KYC: Complete / Incomplete (design kycOf). */
+export const kycOverall = (c: Client): Pill & { done: boolean } => {
+  const st = kycRowsOf(c).map((r) => r.state);
   if (st.every((x) => x === 'Verified')) return { t: 'Complete', ...P.g, done: true };
-  if (st.includes('Expired')) return { t: 'Expired', ...P.r, done: false };
   return { t: 'Incomplete', ...P.a, done: false };
 };
 

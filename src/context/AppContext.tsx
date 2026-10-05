@@ -1,4 +1,5 @@
 import { withoutStarterTasks } from '../lib/legacyCleanup';
+import { canViewAs } from '../components/views/settings/permissionModel';
 import { readCloudState, subscribeToCloudState, writeCloudState, type CloudState } from '../services/firestoreSyncService';
 import { applyCloudPracticeSettings, getPracticeSettings, savePracticeSettings, type PracticeSettings } from '../services/templateService';
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
@@ -658,10 +659,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const startUserPreview = (userId: string) => {
     const target = users.find((user) => user.id === userId);
-    // Super Admin only: "View as" shows everything the other person can see, so an Admin
-    // previewing the Managing Partner would see the firm's finance.
-    const isSuper = Boolean(currentUser.isSuperAdmin) || (currentUser.email || '').toLowerCase() === 'syafiqahhamizad@shcolaw.com';
-    if (!target || !isSuper || previewOrigin.current) return false;
+    // "View as" shows everything the other person can see (previewing the Managing Partner shows
+    // the firm's finance), so it needs the 'viewAs' permission: Managing Partner, or granted per person.
+    if (!target || !canViewAs(rolesMatrix, currentUser) || previewOrigin.current) return false;
     previewOrigin.current = { user: currentUser, role: currentRole, partnerCode: currentPartnerCode, isAdmin };
     setCurrentUser(target);
     setCurrentRole(target.role);

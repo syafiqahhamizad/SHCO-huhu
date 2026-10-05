@@ -9,17 +9,18 @@ import type { ModulePermissions, RolePermissionsMatrix, User } from '../../../ty
 export const PERM_ROWS: [string, string, string?, string?][] = [
   ['dashboard', 'My Dashboard'], ['dashboard.myWork', 'My work', 'dashboard'], ['dashboard.finance', 'Finance (firm P&L, cash)', 'dashboard', '000000'], ['dashboard.clientAccount', 'Client account', 'dashboard', '100000'], ['dashboard.team', 'Team (workload, leave, pay)', 'dashboard', '000000'], ['dashboard.partnerKpis', 'Partner KPIs (own only for Partners)', 'dashboard', '100000'], ['dashboard.firmWide', 'Firm-wide', 'dashboard', '100000'],
   ['leads', 'Leads & Referrals'], ['leads.overview', 'Overview', 'leads'], ['leads.pipeline', 'Pipeline', 'leads'], ['leads.programmes', 'Programmes', 'leads'], ['leads.referrers', 'Referrers & fees', 'leads', '110000'],
-  ['clients', 'Clients'], ['cases', 'Cases'], ['cases.overview', 'Overview', 'cases'], ['cases.court', 'Court dates', 'cases'], ['cases.documents', 'Documents', 'cases'], ['cases.tasks', 'Tasks & notes', 'cases'], ['cases.money', 'Money on the file', 'cases', '110010'],
+  ['clients', 'Clients'], ['clients.clearConflict', 'Clear a conflict check', 'clients', '100000'], ['clients.delete', 'Delete clients', 'clients', '000000'], ['cases', 'Cases'], ['cases.overview', 'Overview', 'cases'], ['cases.court', 'Court dates', 'cases'], ['cases.documents', 'Documents', 'cases'], ['cases.tasks', 'Tasks & notes', 'cases'], ['cases.money', 'Money on the file', 'cases', '110010'],
   ['predispute', 'Pre-dispute'], ['counselRegistry', 'Counsel registry'], ['templates', 'Document templates'],
   ['finance', 'Accounts & Finance'], ['finance.overview', 'Overview', 'finance'], ['finance.billing', 'Billing & Collections', 'finance'], ['officeFinance', 'Office & Expenses', 'finance'], ['finance.approvals', 'Approvals', 'finance'], ['finance.payroll', 'Payroll', 'finance'], ['finance.reports', 'Books & Reports', 'finance'],
   ['retainers', 'Client Account (SAR 1990)'], ['clientPortal', 'Client Portal'],
   ['settings', 'Firm & Practice Settings'], ['users', 'Users & Roles', 'settings'], ['settings.permissions', 'Permissions & limits', 'settings', '000000'], ['settings.firm', 'Firm & Letterhead', 'settings'], ['settings.banks', 'Banks, Numbering & SST', 'settings'], ['settings.areas', 'Practice areas & codes', 'settings'], ['settings.templates', 'Fee templates', 'settings'], ['settings.lists', 'Lists & sources', 'settings'],
   ['logs', 'Activity Logs'], ['firmStartCentreEdit', 'Firm Start Centre (edit)'],
   ['hrRecords', 'HR records (employee profiles)'],
+  ['viewAs', 'View as (see the app as another person)'],
 ];
 
 /** Keys an admin always has in full on top of their role (design ADMK). */
-const ADMIN_KEYS = ['settings', 'users', 'logs', 'hrRecords', 'settings.firm', 'settings.banks', 'settings.templates', 'settings.lists', 'settings.permissions'];
+const ADMIN_KEYS = ['clients.delete', 'settings', 'users', 'logs', 'hrRecords', 'settings.firm', 'settings.banks', 'settings.templates', 'settings.lists', 'settings.permissions'];
 
 /** The design's fixed role order; index 1.. maps to the app's own roles. */
 export const FIXED_ROLE_COLS: [string, string][] = [['Managing Partner', ''], ['Partner', 'Partner'], ['Lawyer', 'Lawyer'], ['Assistant', 'Assistant'], ['Accountant', 'Accountant'], ['Reviewer', 'Reviewer'], ['Client', 'Client']];
@@ -80,3 +81,7 @@ export const personBits = (matrix: RolePermissionsMatrix, u: Partial<User>, key:
 /** Number of keys where this person differs from their role. */
 export const personChanges = (matrix: RolePermissionsMatrix, u: Partial<User>) =>
   isManagingPartner(u) ? 0 : PERM_ROWS.filter(([k]) => u.navOverrides?.[k] && toBits(u.navOverrides[k]) !== personRoleBits(matrix, u, k)).length;
+
+/** "View as" (see the app as another person): Managing Partner always; others only if granted. */
+export const canViewAs = (matrix: RolePermissionsMatrix, u?: Partial<User> | null) =>
+  !!u && (isManagingPartner(u) || isSuper(u) || personBits(matrix, u, 'viewAs') !== '000');

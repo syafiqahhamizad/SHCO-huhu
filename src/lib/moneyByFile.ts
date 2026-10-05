@@ -6,7 +6,8 @@
  * Nothing here is stored: every total is summed from the real records each time.
  *
  *   agreed          = accepted quotation(s) / letter of engagement on the file; when none is
- *                     accepted yet, the file's quotations that are not declined (proformas excluded)
+ *                     accepted yet, the latest quotation that is not declined (a revised quote
+ *                     replaces the earlier one; proformas excluded)
  *   billed          = sum of issued invoices (not Draft / Pending Review / Voided)
  *   received        = payments + proforma deposits applied on those invoices
  *   outstanding     = sum of owedBalance (total − paid − written off − deposit applied, floor 0),
@@ -113,7 +114,9 @@ export const clientLedgerOf = (entries: Retainer[]): LedgerLine[] => {
 export const agreedOf = (c: Pick<Case, 'id' | 'ref'>, quotations: Quotation[]) => {
   const quotes = quotations.filter((q) => q.documentType !== 'Proforma' && onFile(c, q.caseId, q.fileRef) && q.status !== 'Declined');
   const accepted = quotes.filter((q) => q.status === 'Accepted');
-  const agreed = sum((accepted.length ? accepted : quotes).map((q) => Number(q.total || 0)));
+  // Nothing accepted yet: use only the newest quote, so a revised quote is not added on top of the first.
+  const latest = [...quotes].sort((a, b) => parseDate(b.date) - parseDate(a.date) || String(b.id).localeCompare(String(a.id)))[0];
+  const agreed = accepted.length ? sum(accepted.map((q) => Number(q.total || 0))) : Number(latest?.total || 0);
   return { quotes, accepted, agreed };
 };
 

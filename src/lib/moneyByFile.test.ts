@@ -76,3 +76,10 @@ describe('Fees by file filters', () => {
   it('nothing agreed is never "not billed"', () => expect(feesFilter('Not billed', { agreed: 0, billed: 0, outstanding: 0 })).toBe(false));
   it('billed % capped for the bar', () => { expect(billedPct({ agreed: 18000, billed: 9540 })).toBe(53); expect(billedPct({ agreed: 100, billed: 300 })).toBe(100); expect(billedPct({ agreed: 0, billed: 5 })).toBe(0); });
 });
+
+describe('revised quotation, none accepted yet', () => {
+  const C = { id: 'CS-9', ref: 'R9' } as Case;
+  const q = (id: string, total: number, date: string) => ({ ...quote(id, 'CS-9', total, 'Sent'), date }) as Quotation;
+  const s = { ...src, quotations: [q('Q-10', 5000, '2026-08-01'), q('Q-11', 6000, '2026-09-01')] };
+  it('uses only the newest quote, not both', () => eq(moneyForFile(C, s).agreed, 6000));
+});

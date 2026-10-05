@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  CircleCheck, CircleDashed, Clock, Download, Eye, Folder, Key, Lock, Mail, MessageCircle, Plus, Search, ShieldCheck, Trash2, TriangleAlert, Upload, Users,
+  CircleCheck, CircleDashed, Clock, Download, Eye, Folder, Key, Lock, Mail, MessageCircle, Plus, Search, ShieldCheck, Trash2, Upload, Users,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import type { Case, Client, ClientHistoryEntry, CorporateEntityCategory, KycDoc } from '../../types';
@@ -11,6 +11,7 @@ import { casesOfClient, isOpenFile, moneyForClient, moneyForFile, type MoneySour
 import { parseDate } from '../../lib/financeCalc';
 import { exportToCsv } from '../../lib/exportUtils';
 import { whatsappLink } from '../../lib/whatsapp';
+import { personBits } from './settings/permissionModel';
 import {
   DRIVE_REQUIRED_MSG, clientFolderName, ensureClientKycFolder, isUploadReady, openLegacyDataUrl, openStoredFile, prepareStorage, storeClientKycFile, validateClaimFile,
 } from '../../services/fileStorageService';
@@ -104,7 +105,8 @@ export const ClientsView: React.FC = () => {
   const wa = whatsappLink(c.phone, '');
   const ccPill = conflictPill(c);
   const ccState = conflictOf(c);
-  const canDelete = tier !== 'lawyer';
+  // Admin access only, whatever the role (Settings › Permissions › Clients › Delete clients).
+  const canDelete = personBits(app.rolesMatrix, app.currentUser, 'clients.delete') !== '000';
   const del = () => {
     if (files.some(isOpenFile)) { showToast('Cannot delete: this client has open files. Close or move them first.'); return; }
     if (!window.confirm('Delete ' + c.name + ' (' + c.id + ')? The record moves to the Recycle Bin. KYC files stay in Google Drive.')) return;
@@ -294,7 +296,7 @@ export const ClientsView: React.FC = () => {
         showToast(err instanceof Error ? err.message : String(err));
       }
     };
-    const icon = (s: string, fg: string) => s === 'Verified' ? <CircleCheck size={18} color={fg} /> : s === 'Missing' ? <CircleDashed size={18} color={fg} /> : s === 'Expired' ? <TriangleAlert size={18} color={fg} /> : <Clock size={18} color={fg} />;
+    const icon = (s: string, fg: string) => s === 'Verified' ? <CircleCheck size={18} color={fg} /> : s === 'Missing' ? <CircleDashed size={18} color={fg} /> : <Clock size={18} color={fg} />;
     const cdd = c.cdd || {};
     const cddRows: [string, string | undefined][] = [['Risk rating', cdd.riskRating], ['PEP', cdd.pep], ['PEP details', cdd.pepDetails], ['Source of funds', cdd.sourceOfFunds], ['Source of wealth', cdd.sourceOfWealth], ['Purpose', cdd.purposeOfRelationship], ['Verified how', cdd.verificationMethod], ['Verified by', [cdd.verifiedBy, ddmmyyyy(cdd.verifiedAt)].filter(Boolean).join(' · ')], ['Enhanced due diligence', cdd.enhancedDueDiligence ? 'Yes' : undefined], ['Notes', cdd.notes]];
     const cddShown = cddRows.filter(([, v]) => !!v);
@@ -305,13 +307,13 @@ export const ClientsView: React.FC = () => {
           {rows.map((r) => {
             const p = KYC_PILL[r.state];
             const dt = r.doc ? ddmmyyyy(r.doc.uploadedAt || r.doc.uploadedDate) : '';
-            const canUpload = r.state === 'Missing' || r.state === 'Expired';
+            const canUpload = r.state === 'Missing';
             return (
               <div key={r.key} style={css('display:grid;grid-template-columns:28px minmax(0,1fr) 110px 120px 200px;gap:12px;align-items:center;padding:11px 16px;border-bottom:1px solid #F0F2F5')}>
                 {icon(r.state, p.fg)}
                 <span style={css('min-width:0')}><span style={css('display:block;font-size:12px;font-weight:700;color:#16223A')}>{r.label}</span><span style={css('display:block;font-size:10.5px;color:#5B6478')}>{r.hint}</span></span>
                 <span style={pillCss(p)}>{p.t}</span>
-                <span style={css('font-size:11px;color:#5B6478')}>{dt ? (r.state === 'To verify' ? 'Uploaded ' : r.state === 'Expired' ? 'Dated ' : '') + dt : '—'}</span>
+                <span style={css('font-size:11px;color:#5B6478')}>{dt ? (r.state === 'To verify' ? 'Uploaded ' : '') + dt : '—'}</span>
                 <span style={css('justify-self:end;display:flex;gap:6px')}>
                   {canUpload && <label title={isUploadReady() ? undefined : DRIVE_REQUIRED_MSG} onClick={(e) => { if (!isUploadReady()) { e.preventDefault(); showToast(DRIVE_REQUIRED_MSG); } }} style={css('display:flex;align-items:center;gap:5px;border:0;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;background:#16223A;color:#fff;cursor:pointer')}><Upload size={12} color="#FFFFFF" />Upload<input type="file" accept="image/*,.pdf" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void upload(r.key, r.label, f); }} style={css('display:none')} /></label>}
                   {r.state === 'To verify' && tier !== 'lawyer' && r.doc && <button type="button" onClick={() => verify(r.doc!, r.label)} style={css('border:1px solid #1F5A3B;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;background:#E6EFE9;color:#1F5A3B;cursor:pointer;white-space:nowrap')}>Mark verified</button>}
@@ -329,7 +331,7 @@ export const ClientsView: React.FC = () => {
               <span style={css('justify-self:end;display:flex;gap:6px')}><button type="button" onClick={() => view(k)} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;background:#fff;color:#16223A;cursor:pointer')}>View</button></span>
             </div>
           ))}
-          <div style={css('padding:9px 16px;background:#F6F8FA;font-size:10.5px;color:#5B6478')}>Files are saved to Google Drive › Clients › {folder}. A file cannot be opened for a client whose KYC is incomplete without partner approval.</div>
+          <div style={css('padding:9px 16px;background:#F6F8FA;font-size:10.5px;color:#5B6478')}>Files are saved to Google Drive › Clients › {folder}.</div>
         </div>
         {cddShown.length > 0 && (
           <div style={css('border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
@@ -448,11 +450,11 @@ export const ClientsView: React.FC = () => {
 /* ==================================================================== profile tab */
 
 const ProfileTab: React.FC<{ c: Client; ccPill: Pill; ccState: string; tier: Tier; save: (p: Partial<Client>, what: string, kind?: ClientHistoryEntry['kind']) => void }> = ({ c, ccPill, ccState, tier, save }) => {
-  const { currentUser, currentRole, isAdmin, showToast } = useApp();
+  const { currentUser, rolesMatrix, showToast } = useApp();
   const isCo = c.type === 'Corporate';
   const [ccEd, setCcEd] = useState<{ s: string; note: string } | null>(null);
-  const rk = finRoleKey(currentRole, currentUser, isAdmin);
-  const canClear = rk === 'M' || rk === 'P';
+  // Partners by default; can be given to staff in charge in Settings › Permissions › Clients › Clear a conflict check.
+  const canClear = personBits(rolesMatrix, currentUser, 'clients.clearConflict') !== '000';
   type F = { label: string; key: keyof Client; mono?: boolean; col?: string; multi?: boolean; select?: string[] };
   const fieldVal = (k: keyof Client) => {
     if (k === 'emergencyContactName') return c.emergencyContactName || (c.emergencyContact && c.emergencyContact !== '—' ? c.emergencyContact : '');
@@ -488,7 +490,7 @@ const ProfileTab: React.FC<{ c: Client; ccPill: Pill; ccState: string; tier: Tie
   const opts: [string, string, { bg: string; fg: string }][] = [['Clear', 'Clear', P.g], ['Pending Partner Review', 'Partner review', P.b], ['Flagged', 'Flagged', P.r]];
   const saveCC = () => {
     if (!ccEd) return;
-    if (ccEd.s === 'Clear' && ccState !== 'Clear' && !canClear) { showToast('Only a partner can clear a conflict check.'); return; }
+    if (ccEd.s === 'Clear' && ccState !== 'Clear' && !canClear) { showToast('You do not have permission to clear a conflict check. Send it for partner review.'); return; }
     const d = new Date().toISOString();
     save({ conflictCheck: { status: ccEd.s as NonNullable<Client['conflictCheck']>['status'], notes: ccEd.note.trim(), checkedBy: currentUser?.name || 'Staff', checkedDate: d.slice(0, 10) } }, 'Conflict check updated: ' + ccEd.s, 'conflict');
     setCcEd(null);
@@ -571,7 +573,7 @@ const ClientList: React.FC<{
   const mk = (label: string, key: string, color: string, count: number, note: string) => ({ label, key, color, count, note });
   const cards = [
     mk('All clients', '', '#16223A', pre.length, clients.filter((x) => I(x).files.some((f) => f.status === 'Active')).length + ' with an active file'),
-    mk('KYC to finish', 'kyc', '#8A6D3B', pre.filter(CF.kyc).length, 'missing or expired documents'),
+    mk('KYC to finish', 'kyc', '#8A6D3B', pre.filter(CF.kyc).length, 'missing or unverified documents'),
     mk('Conflict to review', 'cc', '#8E2A20', pre.filter(CF.cc).length, 'flagged or awaiting partner'),
     mk('No portal login', 'po', '#2F4F7A', pre.filter(CF.po).length, 'open files, client can\'t see progress'),
     mk('Owes us', 'owes', '#1F5A3B', pre.filter(CF.owes).length, rm(pre.reduce((a, x) => a + Math.max(0, I(x).owes), 0)) + ' outstanding'),
