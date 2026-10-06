@@ -144,5 +144,6 @@ describe('mail queue', () => {
     await assertSucceeds(setDoc(doc(db, 'mail', 'm1'), { to: 'partner@shcolaw.com', message: msg, createdBy: 'x', createdAt: serverTimestamp() }));
     await assertFails(setDoc(doc(db, 'mail', 'm2'), { to: 'someone@gmail.com', message: msg, createdBy: 'x', createdAt: serverTimestamp() }));
     await assertFails(getDoc(doc(db, 'mail', 'm1')));
+    await assertSucceeds(getDoc(doc(as(OWNER), 'mail', 'm1')));
   });
 });

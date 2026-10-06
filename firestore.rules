@@ -204,8 +204,8 @@ service cloud.firestore {
     }
 
     // E-mail queue for the "Trigger Email from Firestore" extension (sends from the firm address).
-    // Staff may only queue a message to one firm address; nobody can read, change or delete the
-    // queue from the app (the extension works with server access).
+    // Staff may only queue a message to one firm address; only the owner can look at a queued
+    // message, and nobody can change or delete the queue from the app (the extension works with server access).
     match /mail/{mailId} {
       allow create: if isFirmUser() &&
         request.resource.data.keys().hasOnly(['to', 'message', 'createdBy', 'createdAt']) &&
@@ -217,7 +217,9 @@ service cloud.firestore {
         request.resource.data.message.text is string && request.resource.data.message.text.size() <= 5000 &&
         request.resource.data.message.html is string && request.resource.data.message.html.size() <= 8000 &&
         request.resource.data.createdAt == request.time;
-      allow read, update, delete: if false;
+      // The owner may follow a test e-mail's delivery status (Settings → Notification e-mails).
+      allow get: if isOwner();
+      allow list, update, delete: if false;
     }
 
     match /{document=**} {
