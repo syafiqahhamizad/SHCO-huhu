@@ -183,6 +183,8 @@ export const Header: React.FC = () => {
         return { title: 'Office Inventory & Library', sub: 'Office equipment, supplies and the firm library' };
       case 'logs':
         return { title: 'Activity Logs', sub: 'Audit trail of user actions' };
+      case 'guide':
+        return { title: 'Staff Guide', sub: 'How to use the portal, step by step for your role' };
       case 'about':
         return { title: 'About App', sub: 'About this practice management system' };
       case 'account':

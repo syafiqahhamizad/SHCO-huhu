@@ -223,6 +223,8 @@ export interface PracticeSettings {
   googleWorkspaceLastTests?: Partial<Record<'calendar' | 'tasks' | 'gmail', { at: string; by: string; ok: boolean; message: string }>>;
   /** "Export all firm data" (Google, e-mail & backup tab). */
   lastBackup?: { at: string; by: string; fileName: string; driveFileId?: string; webViewLink?: string };
+  /** Staff Guide: a walkthrough video link per role (Google Drive or YouTube), set by admins on the guide page. */
+  guideVideos?: Partial<Record<'partner' | 'lawyer' | 'assistant' | 'accounts', string>>;
 }
 
 export interface FirmBranch {

@@ -33,6 +33,7 @@ const InventoryView = React.lazy(() => import('./components/views/InventoryView'
 const StaffPortalView = React.lazy(() => import('./components/views/staff/StaffPortalView').then((module) => ({ default: module.StaffPortalView })));
 const MyClaimsView = React.lazy(() => import('./components/views/staff/MyClaimsView').then((module) => ({ default: module.MyClaimsView })));
 const MyAccountView = React.lazy(() => import('./components/views/MyAccountView').then((module) => ({ default: module.MyAccountView })));
+const StaffGuideView = React.lazy(() => import('./components/views/StaffGuideView').then((module) => ({ default: module.StaffGuideView })));
 const AboutAppView = React.lazy(() => import('./components/views/AboutAppView').then((module) => ({ default: module.AboutAppView })));
 const ActivityLogsView = React.lazy(() => import('./components/views/ActivityLogsView').then((module) => ({ default: module.ActivityLogsView })));
 const FirmStartCentreView = React.lazy(() => import('./components/views/FirmStartCentreView').then((module) => ({ default: module.FirmStartCentreView })));
@@ -238,6 +239,8 @@ const MainContent: React.FC = () => {
       case 'firm-settings':
       case 'settings':
         return <PracticeSettingsView />;
+      case 'guide':
+        return <StaffGuideView />;
       case 'about':
         return <AboutAppView />;
       case 'account':
