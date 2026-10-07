@@ -132,7 +132,7 @@ export const DriveStorageCard = ({ C }: { C: SettingsCtx }) => {
             </div>
           </div>
           <details style={css('font-size:11px;line-height:1.55;color:#16223A;min-width:0')} open={!on}>
-            <summary style={css('cursor:pointer;font-weight:700')}>One-time setup (Managing Partner)</summary>
+            <summary style={css('cursor:pointer;font-weight:700')}>One-time setup</summary>
             <ol style={css('margin:6px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:4px')}>
               <li><strong>Google Cloud Console</strong> (project gen-lang-client-0565207218) → APIs &amp; Services → Enable APIs → enable <strong>Google Drive API</strong>.</li>
               <li>APIs &amp; Services → <strong>OAuth consent screen</strong> → User type <strong>Internal</strong> (only @shcolaw.com accounts).</li>

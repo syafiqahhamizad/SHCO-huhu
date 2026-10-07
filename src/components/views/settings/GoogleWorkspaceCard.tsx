@@ -104,7 +104,7 @@ export const GoogleWorkspaceCard = ({ C }: { C: SettingsCtx }) => {
           </span>
         </div>
         <details style={css('font-size:11px;line-height:1.55;color:#16223A;min-width:0')} open={!allOk}>
-          <summary style={css('cursor:pointer;font-weight:700')}>One-time setup (Managing Partner)</summary>
+          <summary style={css('cursor:pointer;font-weight:700')}>One-time setup</summary>
           <ol style={css('margin:6px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:4px')}>
             <li><strong>Google Cloud Console</strong> (project gen-lang-client-0565207218) → APIs &amp; Services → Enable APIs → enable <strong>Google Calendar API</strong>, <strong>Google Tasks API</strong> and <strong>Gmail API</strong>.</li>
             <li>Use the <strong>same OAuth client</strong> as Google Drive (the Client ID in “Google Drive storage” above). The OAuth consent screen stays <strong>Internal</strong>; no extra credentials are needed.</li>

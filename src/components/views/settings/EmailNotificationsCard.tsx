@@ -92,7 +92,7 @@ export const EmailNotificationsCard: React.FC = () => {
           <span style={css('font-size:10.5px;color:#5B6478;line-height:1.5')}>Goes to {currentUser.email || 'your e-mail'}. Only @shcolaw.com addresses ever receive portal e-mails.</span>
         </div>
         <details style={css('font-size:11px;line-height:1.55;color:#16223A;min-width:0')}>
-          <summary style={css('cursor:pointer;font-weight:700')}>One-time setup (Managing Partner)</summary>
+          <summary style={css('cursor:pointer;font-weight:700')}>One-time setup</summary>
           <ol style={css('margin:6px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:4px')}>
             <li><strong>Google Admin</strong> → Groups → create <strong>portal@shcolaw.com</strong> (replies land here).</li>
             <li>Turn on <strong>2-Step Verification</strong> on the sending account, then open <strong>myaccount.google.com/apppasswords</strong> and create an App password called “SHCO Portal”.</li>
