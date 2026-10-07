@@ -36,6 +36,9 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Install e-mail function dependencies
+        run: npm ci --prefix functions-mail
+
       - name: Build app
         run: npm run build
         env:
@@ -63,7 +66,13 @@ jobs:
 
       - name: Deploy production site to Firebase
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: firebase deploy --project gen-lang-client-0565207218 --force
+        run: firebase deploy --only hosting,firestore,storage --project gen-lang-client-0565207218 --force
+
+      # The notification e-mail sender (functions-mail). Separate so a first-time permission
+      # delay on Google's side never holds back the website itself; re-run the job if it fails.
+      - name: Deploy e-mail sender function
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: firebase deploy --only functions:mail --project gen-lang-client-0565207218 --force
 
       - name: Deploy preview channel for PR
         if: github.event_name == 'pull_request'

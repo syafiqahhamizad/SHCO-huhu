@@ -147,3 +147,15 @@ describe('mail queue', () => {
     await assertSucceeds(getDoc(doc(as(OWNER), 'mail', 'm1')));
   });
 });
+
+describe('e-mail settings', () => {
+  it('only the owner sets them, and nobody can read the password back', async () => {
+    await assertSucceeds(setDoc(doc(as(OWNER), 'privateConfig', 'mail'), { smtpUser: 'owner@shcolaw.com', from: 'SHCO Portal <owner@shcolaw.com>' }));
+    await assertSucceeds(getDoc(doc(as(OWNER), 'privateConfig', 'mail')));
+    await assertFails(setDoc(doc(as(people.assistantAdmin.email), 'privateConfig', 'mail'), { smtpUser: 'x@shcolaw.com' }));
+    await assertFails(setDoc(doc(as(OWNER), 'privateConfig', 'mail'), { smtpUser: 'someone@gmail.com' }));
+    await assertSucceeds(setDoc(doc(as(OWNER), 'privateConfig', 'mailSecret'), { smtpPass: 'abcdabcdabcdabcd' }));
+    await assertFails(getDoc(doc(as(OWNER), 'privateConfig', 'mailSecret')));
+    await assertFails(setDoc(doc(as(people.partner.email), 'privateConfig', 'mailSecret'), { smtpPass: 'x' }));
+  });
+});

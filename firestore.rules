@@ -203,9 +203,9 @@ service cloud.firestore {
         request.resource.data.users is map;
     }
 
-    // E-mail queue for the "Trigger Email from Firestore" extension (sends from the firm address).
+    // E-mail queue for the portal's mail sender (functions-mail; sends through Google Workspace).
     // Staff may only queue a message to one firm address; only the owner can look at a queued
-    // message, and nobody can change or delete the queue from the app (the extension works with server access).
+    // message, and nobody can change or delete the queue from the app (the sender works with server access).
     match /mail/{mailId} {
       allow create: if isFirmUser() &&
         request.resource.data.keys().hasOnly(['to', 'message', 'createdBy', 'createdAt']) &&
@@ -220,6 +220,24 @@ service cloud.firestore {
       // The owner may follow a test e-mail's delivery status (Settings → Notification e-mails).
       allow get: if isOwner();
       allow list, update, delete: if false;
+    }
+
+    // E-mail settings for the mail sender (functions-mail). Only the owner sets them; the App
+    // password can be written but never read back by anyone in the app (the function reads it
+    // with server access).
+    match /privateConfig/mail {
+      allow get: if isOwner();
+      allow create, update: if isOwner() &&
+        request.resource.data.keys().hasOnly(['smtpUser', 'from', 'replyTo', 'passwordSetAt', 'updatedBy', 'updatedAt']) &&
+        request.resource.data.get('smtpUser', '').matches('^[a-z0-9._%+-]+@shcolaw[.]com$');
+      allow list, delete: if false;
+    }
+
+    match /privateConfig/mailSecret {
+      allow create, update: if isOwner() &&
+        request.resource.data.keys().hasOnly(['smtpPass', 'updatedAt']) &&
+        request.resource.data.smtpPass is string && request.resource.data.smtpPass.size() <= 64;
+      allow read, delete: if false;
     }
 
     match /{document=**} {

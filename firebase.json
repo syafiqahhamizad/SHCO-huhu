@@ -70,6 +70,18 @@
       }
     ]
   },
+  "functions": [
+    {
+      "source": "functions-mail",
+      "codebase": "mail",
+      "runtime": "nodejs22",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "*.log"
+      ]
+    }
+  ],
   "firestore": {
     "rules": "firestore.rules"
   },

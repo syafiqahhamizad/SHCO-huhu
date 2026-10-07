@@ -2,10 +2,9 @@ import { addDoc, collection, doc, onSnapshot, serverTimestamp, type Unsubscribe 
 import { firestoreDb } from './firestoreSyncService';
 
 /**
- * Queues one e-mail in Firestore `mail`. The Firebase "Trigger Email from Firestore" extension
- * picks it up and sends it from the firm's address (e.g. portal@shcolaw.com) through Google
- * Workspace SMTP. Rules only allow firm staff to queue mail to @shcolaw.com addresses.
- * Until the extension is installed the documents simply wait in the queue (nothing breaks).
+ * Queues one e-mail in Firestore `mail`. The portal's own sender (functions-mail) picks it up
+ * and sends it through Google Workspace SMTP. Rules only allow firm staff to queue mail to
+ * @shcolaw.com addresses. Until e-mail is set up the documents simply wait (nothing breaks).
  */
 export async function queueEmail(to: string, message: { subject: string; text: string; html: string }, createdBy: string): Promise<string> {
   const ref = await addDoc(collection(firestoreDb, 'mail'), { to, message, createdBy, createdAt: serverTimestamp() });
@@ -15,7 +14,7 @@ export async function queueEmail(to: string, message: { subject: string; text: s
 export type MailState = { state: 'WAITING' | 'PENDING' | 'PROCESSING' | 'SUCCESS' | 'ERROR' | 'RETRY'; error?: string };
 
 /**
- * Follows one queued e-mail (owner only, by rules): the extension writes `delivery.state`
+ * Follows one queued e-mail (owner only, by rules): the sender writes `delivery.state`
  * (PENDING → PROCESSING → SUCCESS / ERROR) back onto the document.
  */
 export function watchEmail(id: string, onChange: (s: MailState) => void): Unsubscribe {
