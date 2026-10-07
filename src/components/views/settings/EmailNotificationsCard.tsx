@@ -51,7 +51,7 @@ export const EmailNotificationsCard: React.FC = () => {
     stop.current?.();
     setState({ state: 'PENDING' });
     try {
-      const mail = notificationEmail({ title: 'Test e-mail', message: 'This is a test from the SHCO portal. If you can read this, notification e-mails work.', from: currentUser.name }, window.location.origin);
+      const mail = notificationEmail({ title: 'Test e-mail', message: 'This is a test from the SHCO portal. If you can read this, notification e-mails work.' }, window.location.origin);
       const id = await queueEmail((currentUser.email || '').toLowerCase(), mail, currentUser.email || currentUser.name);
       stop.current = watchEmail(id, setState);
       // No reply from the sender after a minute: probably not deployed yet.

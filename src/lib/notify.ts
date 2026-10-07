@@ -44,11 +44,11 @@ export const isReadBy = (n: NotificationItem, userId: string) => (n.to ? (n.read
 export const notificationEmail = (n: Pick<NotificationItem, 'title' | 'message' | 'from'>, appUrl: string) => {
   const esc = (x: string) => x.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch] as string));
   const subject = ('[SHCO Portal] ' + n.title).slice(0, 200);
-  const text = n.message + (n.from ? '\n\nFrom: ' + n.from : '') + '\n\nOpen the portal: ' + appUrl + '\n\nThis is an automatic message from the SHCO practice portal.';
+  const text = n.message + (n.from ? '\n\nBy: ' + n.from : '') + '\n\nOpen the portal: ' + appUrl + '\n\nThis is an automatic message from the SHCO practice portal.';
   const html = '<div style="font-family:Arial,sans-serif;font-size:14px;color:#16223A">'
     + '<p style="margin:0 0 12px"><strong>' + esc(n.title) + '</strong></p>'
     + '<p style="margin:0 0 12px">' + esc(n.message) + '</p>'
-    + (n.from ? '<p style="margin:0 0 12px;color:#5B6478">From: ' + esc(n.from) + '</p>' : '')
+    + (n.from ? '<p style="margin:0 0 12px;color:#5B6478">By: ' + esc(n.from) + '</p>' : '')
     + '<p style="margin:0 0 16px"><a href="' + esc(appUrl) + '" style="color:#2F4F7A;font-weight:bold">Open the portal</a></p>'
     + '<p style="margin:0;font-size:12px;color:#94A3B8">Automatic message from the SHCO practice portal.</p></div>';
   return { subject, text, html };
