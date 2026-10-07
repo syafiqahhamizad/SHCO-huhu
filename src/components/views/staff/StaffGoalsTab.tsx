@@ -27,7 +27,7 @@ export const StaffGoalsTab: React.FC = () => {
     : 'No check-in yet.';
 
   const groups: [StaffGoal['type'], string, string][] = [
-    ['Career', 'Career goals', 'agreed with the Managing Partner · reviewed every quarter'],
+    ['Career', 'Career goals', 'reviewed every quarter'],
     ['Personal', 'Personal goals', 'what you want in life: the firm will try to help'],
   ];
 
@@ -51,7 +51,7 @@ export const StaffGoalsTab: React.FC = () => {
     const base = currentUser.staffProfile || ({} as StaffProfile);
     updateUserStaffProfile(currentUser.id, { ...base, moodCheckins: [...checkins.filter((c) => c.period !== period), entry] });
     setW({ text: '', topics: [] });
-    showToast(w.chat ? 'Thank you. The Managing Partner will reach out for a chat.' : 'Thank you for sharing.');
+    showToast(w.chat ? 'Thank you. Someone will reach out for a private chat.' : 'Thank you for sharing.');
   };
 
   return (
@@ -107,7 +107,7 @@ export const StaffGoalsTab: React.FC = () => {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <span style={LBL}>Who sees this</span>
-            {([[false, 'With my name', 'Managing Partner sees it’s from you and can follow up'], [true, 'Anonymous', 'Managing Partner sees the message only, not your name']] as [boolean, string, string][]).map(([k, label, sub]) => (
+            {([[false, 'With my name', 'Shown with your name so someone can follow up'], [true, 'Anonymous', 'Only the message is shown, not your name']] as [boolean, string, string][]).map(([k, label, sub]) => (
               <button key={label} type="button" onClick={() => setW({ anon: k, chat: k ? false : w.chat })} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', textAlign: 'left', border: '1px solid ' + (w.anon === k ? '#16223A' : '#DDE3EB'), borderRadius: 6, padding: '7px 9px', background: w.anon === k ? '#F6F8FA' : '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>
                 <span style={{ flex: 'none', width: 12, height: 12, marginTop: 1, borderRadius: 9999, border: '1.5px solid #16223A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <span style={{ width: 6, height: 6, borderRadius: 9999, background: w.anon === k ? '#16223A' : 'transparent' }} />
@@ -119,7 +119,7 @@ export const StaffGoalsTab: React.FC = () => {
               </button>
             ))}
             <label style={{ display: 'flex', gap: 7, alignItems: 'center', fontSize: 11.5, color: '#16223A', cursor: 'pointer' }}>
-              <input type="checkbox" checked={w.chat} onChange={(e) => setW({ chat: e.target.checked })} style={{ cursor: 'pointer', padding: 0 }} />I’d like a private chat with the Managing Partner
+              <input type="checkbox" checked={w.chat} onChange={(e) => setW({ chat: e.target.checked })} style={{ cursor: 'pointer', padding: 0 }} />I’d like a private chat
             </label>
             <button type="button" onClick={send} style={{ border: 0, borderRadius: 6, padding: '8px 12px', fontSize: 11.5, fontWeight: 700, background: '#16223A', color: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>Send check-in</button>
             <span style={{ fontSize: 10, lineHeight: 1.45, color: '#5B6478' }}>{last}</span>
