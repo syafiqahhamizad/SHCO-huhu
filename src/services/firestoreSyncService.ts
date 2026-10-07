@@ -37,6 +37,7 @@ export type CloudState = Record<string, unknown>;
  */
 let cloudMode: 'legacy' | 'split' = 'legacy';
 export const setCloudMode = (m: 'legacy' | 'split') => { cloudMode = m; };
+export const getCloudMode = () => cloudMode;
 
 /** Everything this person may read, in the single-document shape (backups, roster lookups). */
 export async function readCloudState(): Promise<CloudState | null> {

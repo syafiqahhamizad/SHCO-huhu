@@ -1,4 +1,4 @@
-import { readCloudState } from './firestoreSyncService';
+import { getCloudMode, readCloudState } from './firestoreSyncService';
 import { readAccessList } from './accessListService';
 import { getPracticeSettings } from './templateService';
 import { ensureFolderPath, getDriveConfig, isDriveConfigured, uploadToDrive, type DriveFile } from './googleDriveService';
@@ -6,7 +6,8 @@ import { ensureFolderPath, getDriveConfig, isDriveConfigured, uploadToDrive, typ
 /**
  * "Export all firm data" (Firm & Practice Settings, Managing Partner / admin only).
  *
- * One JSON file with everything the app syncs to Firestore `practiceSystem/sharedState`, the
+ * One JSON file with everything the app syncs to Firestore (the firm/main collections; before the
+ * database split, `practiceSystem/sharedState`), the
  * Firm & Practice Settings, the published access list (when readable) and an index of every
  * file reference (Drive ids / links, Firebase Storage paths, name-only attachments). The file
  * contents themselves are not included: Drive files stay in the Shared Drive.
@@ -155,7 +156,7 @@ export async function exportAllFirmData(opts: { localState: Record<string, unkno
     version: 1,
     exportedAt: now.toISOString(),
     exportedBy: opts.by,
-    source: source === 'cloud' ? 'Firestore practiceSystem/sharedState' : 'Data loaded on the exporting device',
+    source: source === 'cloud' ? (getCloudMode() === 'split' ? 'Firestore firm/main (one record per document)' : 'Firestore practiceSystem/sharedState') : 'Data loaded on the exporting device',
     notes,
     sharedState,
     practiceSettings,
