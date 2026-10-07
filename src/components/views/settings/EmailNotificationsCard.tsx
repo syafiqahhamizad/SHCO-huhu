@@ -47,9 +47,9 @@ export const EmailNotificationsCard: React.FC = () => {
           <summary style={css('cursor:pointer;font-weight:700')}>One-time setup (Managing Partner)</summary>
           <ol style={css('margin:6px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:4px')}>
             <li><strong>Google Admin</strong> → Groups → create <strong>portal@shcolaw.com</strong> (replies to portal e-mails land here).</li>
-            <li>In <strong>your</strong> Gmail → Settings → Accounts → “Send mail as” → add <strong>portal@shcolaw.com</strong> and confirm.</li>
-            <li>Your Google Account → Security → turn on <strong>2-Step Verification</strong>, then create an <strong>App password</strong> (name it “SHCO Portal”). Copy the 16 letters.</li>
-            <li><strong>Firebase console</strong> → Extensions → install <strong>Trigger Email from Firestore</strong>: collection <code>mail</code>; location <code>asia-southeast1</code>; SMTP URI <code>smtps://YOUR-EMAIL%40shcolaw.com@smtp.gmail.com:465</code> (write @ in your e-mail as %40); SMTP password = the app password; Default FROM <code>SHCO Portal &lt;portal@shcolaw.com&gt;</code>; Default REPLY-TO <code>portal@shcolaw.com</code>.</li>
+            <li><em>Optional:</em> in <strong>your</strong> Gmail → Settings → Accounts → “Send mail as” → add <strong>portal@shcolaw.com</strong> (needs the group to accept outside e-mail). Skip it and e-mails show “SHCO Portal” with your address; replies still go to the group.</li>
+            <li>Your Google Account → Security → turn on <strong>2-Step Verification</strong>, then open <strong>myaccount.google.com/apppasswords</strong> and create an <strong>App password</strong> (name it “SHCO Portal”). Copy the 16 letters.</li>
+            <li><strong>Firebase console</strong> → Extensions → install <strong>Trigger Email from Firestore</strong>: collection <code>mail</code>; location <code>asia-southeast1</code>; SMTP URI <code>smtps://YOUR-EMAIL%40shcolaw.com@smtp.gmail.com:465</code> (write @ in your e-mail as %40); SMTP password = the app password; Default FROM <code>SHCO Portal &lt;portal@shcolaw.com&gt;</code> (or your own address if you skipped the optional step); Default REPLY-TO <code>portal@shcolaw.com</code>.</li>
             <li>Come back here and press <strong>Send test e-mail to me</strong>.</li>
           </ol>
         </details>
