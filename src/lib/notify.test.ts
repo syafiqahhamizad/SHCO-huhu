@@ -37,10 +37,11 @@ describe('per-person visibility and read state', () => {
 
 describe('notificationEmail', () => {
   it('escapes HTML and links back to the portal', () => {
-    const e = notificationEmail({ title: 'Claim <x>', message: 'A & B', from: 'P' }, 'https://portal.shcolaw.com');
+    const e = notificationEmail({ title: 'Claim <x>', message: 'A & B' }, 'https://portal.shcolaw.com');
     expect(e.subject).toBe('[SHCO Portal] Claim <x>');
     expect(e.html).toContain('Claim &lt;x&gt;');
     expect(e.html).toContain('A &amp; B');
     expect(e.text).toContain('https://portal.shcolaw.com');
+    expect(e.text).not.toContain('By:');
   });
 });
