@@ -19,7 +19,7 @@ const when = (iso?: string) => {
 };
 
 /**
- * Firm & Letterhead → "Google Calendar, Tasks & Gmail": the court diary calendar and one Test
+ * Google, e-mail & backup → "Google Calendar, Tasks & Gmail": the court diary calendar and one Test
  * button per service. Uses the same OAuth client ID as the Google Drive storage card.
  */
 export const GoogleWorkspaceCard = ({ C }: { C: SettingsCtx }) => {

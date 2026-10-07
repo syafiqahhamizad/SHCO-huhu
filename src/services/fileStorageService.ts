@@ -14,7 +14,7 @@ import {
  * nowhere else (firm decision, Oct 2026).
  *
  * - Every upload goes to the Shared Drive the Managing Partner set up in Firm & Practice
- *   Settings → Firm & Letterhead → Google Drive storage. Records keep only metadata
+ *   Settings → Google, e-mail & backup → Google Drive storage. Records keep only metadata
  *   ({ name, driveFileId, webViewLink, size, contentType, uploadedAt, uploadedBy }).
  * - When Drive is not set up, uploads are BLOCKED with DRIVE_REQUIRED_MSG. There is no
  *   Firebase Storage fallback any more, and nothing new is kept as a data URL / base64 copy
@@ -25,7 +25,7 @@ import {
  */
 
 /** Shown wherever an upload is attempted before Drive storage is set up. */
-export const DRIVE_REQUIRED_MSG = 'Set up Google Drive in Firm & Practice Settings → Firm & Letterhead before uploading.';
+export const DRIVE_REQUIRED_MSG = 'Set up Google Drive in Firm & Practice Settings → Google, e-mail & backup before uploading.';
 
 /** Metadata kept on a record for one uploaded file. */
 export interface StoredFileMeta { name: string; driveFileId: string; webViewLink?: string; size: number; contentType: string; uploadedAt: string; uploadedBy: string }

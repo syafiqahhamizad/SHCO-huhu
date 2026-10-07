@@ -7,7 +7,7 @@ import { SUPER_EMAIL } from './permissionModel';
 import { css, S } from './settingsShared';
 
 /**
- * Firm & Letterhead → "Notification e-mails": how alerts reach people by e-mail, the one-time
+ * Google, e-mail & backup → "Notification e-mails": how alerts reach people by e-mail, the one-time
  * setup, and a test that shows what the e-mail sender actually did.
  */
 export const EmailNotificationsCard: React.FC = () => {

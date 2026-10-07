@@ -17,7 +17,7 @@ const when = (iso?: string) => {
 };
 
 /**
- * Firm & Letterhead → "Google Drive storage" (where uploads go) and "Backup" (Export all firm
+ * Google, e-mail & backup → "Google Drive storage" (where uploads go) and "Backup" (Export all firm
  * data). Managing Partner / admin only, like the rest of Firm & Practice Settings.
  */
 export const DriveStorageCard = ({ C }: { C: SettingsCtx }) => {

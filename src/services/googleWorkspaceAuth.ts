@@ -101,10 +101,10 @@ export const loadGoogleIdentity = (): Promise<void> => {
 
 /* ------------------------------------------------------------------ messages */
 
-const SETTINGS_PATH = 'Firm & Practice Settings → Firm & Letterhead';
+const SETTINGS_PATH = 'Firm & Practice Settings → Google, e-mail & backup';
 
 const notConfiguredMessage = (service: GoogleService) => service === 'drive'
-  ? 'Google Drive is not set up: no OAuth client ID. Ask the Managing Partner to add it in Firm & Practice Settings → Firm & Letterhead → Google Drive storage.'
+  ? 'Google Drive is not set up: no OAuth client ID. Ask the Managing Partner to add it in Firm & Practice Settings → Google, e-mail & backup → Google Drive storage.'
   : GOOGLE_SERVICE_LABEL[service] + ' is not set up: no OAuth client ID. Ask the Managing Partner to add it in ' + SETTINGS_PATH + ' → Google Drive storage (Calendar, Tasks and Gmail use the same client ID).';
 
 const authMessage = (service: GoogleService, code: GoogleErrorCode, detail = ''): string => {

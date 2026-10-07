@@ -42,7 +42,7 @@ export const isCourtDiaryConfigured = () => !!getCourtDiaryCalendarId();
 const resolveCalendarId = (given?: string) => {
   const id = given ? parseCalendarId(given) : getCourtDiaryCalendarId();
   if (given && !id) throw new GoogleWorkspaceError('“' + given + '” is not a Google Calendar ID.', 'bad_request', 'calendar');
-  if (!id) throw new GoogleWorkspaceError('The court diary calendar is not set up. Ask the Managing Partner to add its Calendar ID in Firm & Practice Settings → Firm & Letterhead → Google Calendar, Tasks & Gmail.', 'not_configured', 'calendar');
+  if (!id) throw new GoogleWorkspaceError('The court diary calendar is not set up. Ask the Managing Partner to add its Calendar ID in Firm & Practice Settings → Google, e-mail & backup → Google Calendar, Tasks & Gmail.', 'not_configured', 'calendar');
   return id;
 };
 
