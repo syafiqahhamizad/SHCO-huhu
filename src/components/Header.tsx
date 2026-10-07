@@ -173,7 +173,7 @@ export const Header: React.FC = () => {
       case 'firmSettings':
       case 'firm-settings':
       case 'settings':
-        return { title: 'Firm & Practice Settings', sub: 'Managing Partner only · every change is saved to the Activity Log' };
+        return { title: 'Firm & Practice Settings', sub: 'Admins only · every change is saved to the Activity Log' };
       case 'reimbursements':
         return { title: 'My Claims', sub: 'Your claims and payment requests · approvals happen in Finance → Approvals' };
       case 'staffPortal':

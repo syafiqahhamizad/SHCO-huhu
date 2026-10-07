@@ -717,7 +717,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const notOnAccessListMessage = (email: string) =>
-    `${email} is not on the firm's published access list yet (or has been switched off). Ask the Managing Partner to add you in Firm & Practice Settings → Users & Roles.`;
+    `${email} is not on the firm's published access list yet (or has been switched off). Ask an admin to add you in Firm & Practice Settings → Users & Roles.`;
 
   const userFromAccessEntry = (entry: AccessEntry, base: User | undefined, fallback: { id: string; name: string }): User => {
     const isOwner = entry.email === ACCESS_OWNER_EMAIL;
@@ -818,7 +818,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setIsAuthenticated(true);
       setCurrentView('firmStartCentre');
       if (provisionedAtLowestPrivilege) {
-        showToast(`Welcome, ${signedInUser.name}. Your @shcolaw.com account was verified but has no role assigned yet, so you've been given limited (Reviewer) access. Ask the Managing Partner to set your correct role in Firm & Practice Settings → Users & Roles.`);
+        showToast(`Welcome, ${signedInUser.name}. Your @shcolaw.com account was verified but has no role assigned yet, so you've been given limited (Reviewer) access. Ask an admin to set your correct role in Firm & Practice Settings → Users & Roles.`);
       } else {
         showToast(`Welcome back, ${signedInUser.name}.`);
       }
@@ -2660,7 +2660,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           console.warn('Cloud state refused at startup (permission-denied); showing the access notice.', error);
           setCloudSyncReady(false);
           setCloudAccessNotice(
-            "Your access hasn't been published yet — ask the Managing Partner to open Firm & Practice Settings → Users & Roles. " +
+            "Your access hasn't been published yet — ask an admin to open Firm & Practice Settings → Users & Roles. " +
             'If you sign in with an email and password, also make sure you have clicked the link in the verification email.'
           );
           return;

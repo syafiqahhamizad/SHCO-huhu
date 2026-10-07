@@ -37,8 +37,8 @@ export const FirmSettingsView = () => {
   if (!allowed) {
     return (
       <div style={css('border-radius:12px;border:1px solid #DDE3EB;background:#fff;padding:24px;max-width:640px;margin:24px auto;text-align:center;color:#16223A;font-family:Inter,system-ui,-apple-system,sans-serif')}>
-        <strong style={css('font-family:ui-serif, Georgia, serif;font-size:16px')}>Managing Partner only</strong>
-        <p style={css('margin:6px 0 0;font-size:12px;line-height:1.5;color:#5B6478')}>Firm &amp; Practice Settings, Users &amp; Roles and permissions are managed by the Managing Partner. Ask the Managing Partner if something here needs to change.</p>
+        <strong style={css('font-family:ui-serif, Georgia, serif;font-size:16px')}>Admins only</strong>
+        <p style={css('margin:6px 0 0;font-size:12px;line-height:1.5;color:#5B6478')}>Firm &amp; Practice Settings, Users &amp; Roles and permissions are managed by admins. Ask an admin if something here needs to change.</p>
       </div>
     );
   }

@@ -104,8 +104,8 @@ export const loadGoogleIdentity = (): Promise<void> => {
 const SETTINGS_PATH = 'Firm & Practice Settings → Google, e-mail & backup';
 
 const notConfiguredMessage = (service: GoogleService) => service === 'drive'
-  ? 'Google Drive is not set up: no OAuth client ID. Ask the Managing Partner to add it in Firm & Practice Settings → Google, e-mail & backup → Google Drive storage.'
-  : GOOGLE_SERVICE_LABEL[service] + ' is not set up: no OAuth client ID. Ask the Managing Partner to add it in ' + SETTINGS_PATH + ' → Google Drive storage (Calendar, Tasks and Gmail use the same client ID).';
+  ? 'Google Drive is not set up: no OAuth client ID. Ask an admin to add it in Firm & Practice Settings → Google, e-mail & backup → Google Drive storage.'
+  : GOOGLE_SERVICE_LABEL[service] + ' is not set up: no OAuth client ID. Ask an admin to add it in ' + SETTINGS_PATH + ' → Google Drive storage (Calendar, Tasks and Gmail use the same client ID).';
 
 const authMessage = (service: GoogleService, code: GoogleErrorCode, detail = ''): string => {
   const L = GOOGLE_SERVICE_LABEL[service];
@@ -164,7 +164,7 @@ export async function getGoogleAccessToken(service: GoogleService): Promise<stri
   const { clientId } = getGoogleClientId();
   if (!clientId) throw new GoogleWorkspaceError(notConfiguredMessage(service), 'not_configured', service);
   if (service !== 'drive' && !looksLikeClientId(clientId)) {
-    throw new GoogleWorkspaceError('The OAuth client ID in Firm Settings should end with “.apps.googleusercontent.com”. Ask the Managing Partner to fix it.', 'not_configured', service);
+    throw new GoogleWorkspaceError('The OAuth client ID in Firm Settings should end with “.apps.googleusercontent.com”. Ask an admin to fix it.', 'not_configured', service);
   }
   const hit = validToken([scope]);
   if (hit) return hit.value;
@@ -247,7 +247,7 @@ const describeGoogleApiError = (service: GoogleService, status: number, reason: 
   const L = GOOGLE_SERVICE_LABEL[service];
   const r = reason.toLowerCase(), m = message.toLowerCase();
   if (r === 'accessnotconfigured' || r === 'service_disabled' || m.includes('has not been used') || m.includes('is disabled')) {
-    return { code: 'api_disabled', message: API_NAME[service] + ' isn’t enabled for this project. Ask the Managing Partner to enable it: Google Cloud Console (project ' + CLOUD_PROJECT + ') → APIs & Services → Enable APIs → ' + API_NAME[service] + '.' };
+    return { code: 'api_disabled', message: API_NAME[service] + ' isn’t enabled for this project. Ask an admin to enable it: Google Cloud Console (project ' + CLOUD_PROJECT + ') → APIs & Services → Enable APIs → ' + API_NAME[service] + '.' };
   }
   if (status === 401) return { code: 'unauthorized', message: 'Your ' + L + ' sign-in has expired. Try again.' };
   if (r === 'ratelimitexceeded' || r === 'userratelimitexceeded' || r === 'quotaexceeded' || status === 429) return { code: 'rate_limited', message: L + ' is busy. Wait a moment and try again.' };

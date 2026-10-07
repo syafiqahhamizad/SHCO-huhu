@@ -33,7 +33,7 @@ export const describeStorageError = (err: unknown): string => {
   const code = String((err as { code?: string })?.code || '');
   switch (code) {
     case 'storage/unauthorized':
-      return 'Permission denied by Firebase Storage. Your account is not allowed to open this older file; ask the Managing Partner to check your role in Users & Roles (the access list must show “published”).';
+      return 'Permission denied by Firebase Storage. Your account is not allowed to open this older file; ask an admin to check your role in Users & Roles (the access list must show “published”).';
     case 'storage/unauthenticated':
       return 'You are not signed in to Firebase. Sign out and sign in again with your @shcolaw.com Google account, then retry.';
     case 'storage/object-not-found':

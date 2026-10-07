@@ -114,14 +114,14 @@ class DriveError extends Error {
 /** Turns a Drive API error response into something the staff member (or owner) can act on. */
 const describeDriveError = (status: number, reason: string, message: string): string => {
   const r = reason.toLowerCase(), m = message.toLowerCase();
-  if (r === 'accessnotconfigured' || m.includes('has not been used') || m.includes('is disabled')) return 'The Google Drive API is not enabled for the portal’s Google Cloud project. Ask the Managing Partner to enable it (Google Cloud Console → APIs & Services → Enable APIs → Google Drive API).';
+  if (r === 'accessnotconfigured' || m.includes('has not been used') || m.includes('is disabled')) return 'The Google Drive API is not enabled for the portal’s Google Cloud project. Ask an admin to enable it (Google Cloud Console → APIs & Services → Enable APIs → Google Drive API).';
   if (status === 401) return 'Your Google Drive sign-in has expired. Try again.';
   if (r === 'storagequotaexceeded' || r === 'teamdrivefilelimitexceeded' || r === 'numchildreninnonrootlimitexceeded') return 'The firm’s Google Drive storage is full or at its file limit. Ask the admin to check the Workspace storage.';
   if (r === 'insufficientfilepermissions' || r === 'teamdrivemembershiprequired' || r === 'forbidden' || r === 'insufficientpermissions' || status === 403) {
     if (r === 'ratelimitexceeded' || r === 'userratelimitexceeded') return 'Google Drive is busy. Wait a moment and try again.';
-    return 'Your Google account does not have permission for the firm’s Drive folder. Ask the Managing Partner to add you to the “SHCO Portal” Shared Drive (Content manager).';
+    return 'Your Google account does not have permission for the firm’s Drive folder. Ask an admin to add you to the “SHCO Portal” Shared Drive (Content manager).';
   }
-  if (status === 404) return 'The Drive file or folder was not found, or you are not a member of the Shared Drive it is in. Ask the Managing Partner to check the folder in Firm Settings and your Shared Drive membership.';
+  if (status === 404) return 'The Drive file or folder was not found, or you are not a member of the Shared Drive it is in. Ask an admin to check the folder in Firm Settings and your Shared Drive membership.';
   if (status === 429 || status >= 500) return 'Google Drive is temporarily unavailable (' + status + '). Try again in a minute.';
   return 'Google Drive error ' + (status || '') + (message ? ': ' + message : '');
 };

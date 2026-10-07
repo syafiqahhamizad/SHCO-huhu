@@ -42,13 +42,13 @@ export const isCourtDiaryConfigured = () => !!getCourtDiaryCalendarId();
 const resolveCalendarId = (given?: string) => {
   const id = given ? parseCalendarId(given) : getCourtDiaryCalendarId();
   if (given && !id) throw new GoogleWorkspaceError('“' + given + '” is not a Google Calendar ID.', 'bad_request', 'calendar');
-  if (!id) throw new GoogleWorkspaceError('The court diary calendar is not set up. Ask the Managing Partner to add its Calendar ID in Firm & Practice Settings → Google, e-mail & backup → Google Calendar, Tasks & Gmail.', 'not_configured', 'calendar');
+  if (!id) throw new GoogleWorkspaceError('The court diary calendar is not set up. Ask an admin to add its Calendar ID in Firm & Practice Settings → Google, e-mail & backup → Google Calendar, Tasks & Gmail.', 'not_configured', 'calendar');
   return id;
 };
 
 const hints: GoogleFetchHints = {
-  forbidden: 'Your Google account cannot add or change events in the court diary calendar. Ask the Managing Partner to share “SHCO Court Diary” with you (Make changes to events).',
-  notFound: 'The court diary calendar was not found, or it is not shared with your Google account. Ask the Managing Partner to check the Calendar ID in Firm Settings and share the calendar with you (Make changes to events).',
+  forbidden: 'Your Google account cannot add or change events in the court diary calendar. Ask an admin to share “SHCO Court Diary” with you (Make changes to events).',
+  notFound: 'The court diary calendar was not found, or it is not shared with your Google account. Ask an admin to check the Calendar ID in Firm Settings and share the calendar with you (Make changes to events).',
 };
 
 const eventBody = (input: CourtEventInput) => {
