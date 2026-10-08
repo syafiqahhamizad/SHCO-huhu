@@ -2201,6 +2201,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logs: 'logs',
     roles: 'logs',
     // Personal pages: every staff member can open their own account and the About page.
+    guide: 'dashboard',
     about: 'dashboard',
     account: 'dashboard',
   };

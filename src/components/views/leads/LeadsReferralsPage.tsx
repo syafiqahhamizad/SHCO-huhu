@@ -29,6 +29,7 @@ import {
 import { scanClientConflicts } from '../../../lib/conflictUtils';
 import { identityTokens, isMine, partnerCode } from '../../../lib/identity';
 import { exportToCsv } from '../../../lib/exportUtils';
+import { stripSalutation } from '../../../lib/legacyCleanup';
 import { useConfirmation } from '../../../hooks/useConfirmation';
 
 /**
@@ -579,7 +580,7 @@ export const LeadsReferralsPage: React.FC = () => {
     {
       label: 'Leads · YTD',
       value: ytdLeads.length,
-      note: `enquiries in ${ytdYear}${undatedLeads ? ` · ${undatedLeads} undated not counted` : ''}`,
+      note: `enquiries${undatedLeads ? ` · ${undatedLeads} undated not counted` : ''}`,
       Icon: UserPlus,
       color: '#16223A',
       onClick: () => goLeads({ lf: 'all' }),
@@ -786,6 +787,8 @@ export const LeadsReferralsPage: React.FC = () => {
 
   const saveLead = () => {
     if (!N.name.trim()) return;
+    // Firm rule: names are saved without a salutation (Mr, Ms, Encik, Puan …).
+    const name = stripSalutation(N.name.trim());
     const cat = N.cat;
     const isSocial = cat === 'Social Media';
     const isProg = cat === 'Event / Seminar';
@@ -798,10 +801,10 @@ export const LeadsReferralsPage: React.FC = () => {
       ? 'BNI'
       : N.detail.trim() || (cat === 'Walk-In' ? 'Walk-in' : cat === 'Website' ? 'Website enquiry' : '');
     const shown = isSocial ? platLabel(N.detail) : referralDetail;
-    const matches = conflictMatches(N.name, N.email);
+    const matches = conflictMatches(name, N.email);
     const lead: Lead = {
       id: getNextSequenceId('lead'),
-      name: N.name.trim(),
+      name,
       phone: N.phone,
       email: N.email,
       practiceArea: N.area,
@@ -850,7 +853,7 @@ export const LeadsReferralsPage: React.FC = () => {
       q: st.q,
       locked,
       bd: open ? '#3D6B9C' : '#DDE3EB',
-      ph: locked ? 'Locked to Managing Partner for BNI' : 'Search by name or role…',
+      ph: locked ? `Locked to ${SH_NAME} for BNI` : 'Search by name or role…',
       open,
       none: res.length === 0,
       onQ: (e: React.ChangeEvent<HTMLInputElement>) => setSt({ q: e.target.value, open: true }),
@@ -936,10 +939,11 @@ export const LeadsReferralsPage: React.FC = () => {
   };
   const makeLeadFromAttendee = (a: ProgrammeAttendee) => {
     if (!Praw) return;
-    const matches = conflictMatches(a.name, a.email);
+    const name = stripSalutation(a.name.trim());
+    const matches = conflictMatches(name, a.email);
     addLead({
       id: getNextSequenceId('lead'),
-      name: a.name,
+      name,
       phone: a.phone || '',
       email: a.email || '',
       practiceArea: a.interest || 'General',

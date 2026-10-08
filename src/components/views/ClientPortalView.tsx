@@ -12,14 +12,13 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  CalendarPlus, Download, Eye, FileText, Gavel, Info, LogOut, Mail, MessageCircle, Receipt as ReceiptIcon, Scale, Send, Upload,
+  CalendarPlus, Check, Download, Eye, FileText, Gavel, Info, LogOut, Mail, MessageCircle, Receipt as ReceiptIcon, Scale, Send, Upload,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import type { Case, CaseDocument, Client, Hearing, Invoice, Receipt, Retainer, Task, User } from '../../types';
+import type { Case, CaseDocument, Client, Hearing, Invoice, Receipt, Task, User } from '../../types';
 import { css, invoiceToDoc, quotationToDoc, receiptToDoc, type Lookups } from './finance/financeModel';
 import { courtOf, isDeadline, isDone, isoOf, lawyerOf, practiceOf, stageKey, stageMessage, staffOf, stagesFor, todayIso } from './cases/caseModel';
-import { round2 } from '../../lib/financeCalc';
-import { isIssued, owedBalance, paidByInvoice } from '../../lib/financeMetrics';
+import { casesOfClient, moneyForClient } from '../../lib/moneyByFile';
 import { courtEventTimes } from '../../lib/calendarEvent';
 import { whatsappLink } from '../../lib/whatsapp';
 import { docHtml, pdf, tableHtml } from '../../lib/financeDocs';
@@ -55,19 +54,6 @@ const gcalLink = (title: string, date: string, time: string | undefined, details
   } catch {
     return null;
   }
-};
-
-/* ------------------------------------------------------------------ money */
-
-// TODO: switch to src/lib/moneyByFile.ts (single money source) once it lands.
-const clientMoney = (clientId: string, invoices: Invoice[], payments: { invoiceId: string; amount: number }[], retainers: Retainer[]) => {
-  const paid = paidByInvoice(payments);
-  const bills = invoices.filter((i) => i.clientId === clientId && isIssued(i));
-  const billed = round2(bills.reduce((s, i) => s + Number(i.total || 0), 0));
-  const owing = round2(bills.reduce((s, i) => s + owedBalance(i, paid.get(i.id) || 0), 0));
-  const ledger = retainers.filter((r) => r.clientId === clientId).slice().sort((a, b) => (isoOf(a.date) < isoOf(b.date) ? -1 : 1));
-  const held = round2(ledger.reduce((s, r) => s + (r.type === 'Deposit' ? Number(r.amount || 0) : -Number(r.amount || 0)), 0));
-  return { bills, billed, owing, paidTotal: round2(billed - owing), held, ledger, balOf: (i: Invoice) => owedBalance(i, paid.get(i.id) || 0) };
 };
 
 /* ------------------------------------------------------------------ progress (5 steps by practice) */
@@ -113,7 +99,7 @@ const KEY_TAG: Record<string, [string, string]> = { Court: ['#E4ECF5', '#2F4F7A'
 const isSentUpdate = (s: string) => s !== 'Prepared — not sent';
 
 interface Update { at: string; title: string; body: string; by: string; file: string }
-interface Ask { id: string; title: string; note: string; kind: 'sign' | 'note'; open?: () => void }
+interface Ask { id: string; title: string; note: string; kind: 'sign' | 'note' | 'done'; open?: () => void }
 
 /* ================================================================== view */
 
@@ -160,11 +146,8 @@ export const ClientPortalView: React.FC = () => {
 
   const files = useMemo(() => {
     if (!client) return [];
-    return cases.filter((c) => {
-      if (c.status === 'Archive') return false;
-      const ids = String(c.clientId || '').split(',').map((s) => s.trim());
-      return ids.includes(client.id) || (c.clientsList || []).some((p) => p.clientId === client.id || p.id === client.id);
-    }).sort((a, b) => (a.status === 'Closed' ? 1 : 0) - (b.status === 'Closed' ? 1 : 0));
+    // Same "files of a client" rule as Clients and the money figures (lib/moneyByFile).
+    return casesOfClient(client, cases).filter((c) => c.status !== 'Archive').sort((a, b) => (a.status === 'Closed' ? 1 : 0) - (b.status === 'Closed' ? 1 : 0));
   }, [cases, client]);
   const openFiles = files.filter((f) => f.status !== 'Closed');
   const many = files.length > 1;
@@ -202,9 +185,10 @@ export const ClientPortalView: React.FC = () => {
   ].sort((a, b) => (String(a.at) < String(b.at) ? 1 : -1));
   const latestOn = (f: Case) => (f.clientUpdates || []).filter((u) => isSentUpdate(u.deliveryStatus)).sort((a, b) => (a.at < b.at ? 1 : -1))[0];
 
-  /* what we need from the client */
+  /* what we need from the client (open items first, then what they have already done) */
+  const quotesOf = quotations.filter((q) => q.partyId === client.id || (!q.partyId && q.clientName === client.name));
   const asks: Ask[] = [
-    ...quotations.filter((q) => q.status === 'Sent' && (q.partyId === client.id || (!q.partyId && q.clientName === client.name))).map((q) => ({
+    ...quotesOf.filter((q) => q.status === 'Sent').map((q) => ({
       id: 'q-' + q.id, kind: 'sign' as const, title: (q.documentType === 'Proforma' ? 'Review our proforma ' : 'Review and sign our quotation ') + q.id,
       note: 'Sent ' + fmt(q.documentSentDate || q.date) + ' · sets out our fees and scope',
       open: () => { const d = quotationToDoc(q, lk, 'Sent'); pdf(d.no, docHtml(d)); },
@@ -212,8 +196,13 @@ export const ClientPortalView: React.FC = () => {
     ...openFiles.filter((f) => { const w = (f.weeklyStatus || [])[0]; return w && w.flag === 'Waiting on client'; }).map((f) => ({
       id: 'w-' + f.id, kind: 'note' as const, title: 'Your lawyer is waiting for something from you', note: f.title + ' · please message or call your lawyer',
     })),
+    // Quotations the client has accepted on files still open: shown ticked, as in the design.
+    ...quotesOf.filter((q) => q.status === 'Accepted' && (!q.caseId || openFiles.some((f) => f.id === q.caseId || f.ref === q.caseId))).map((q) => ({
+      id: 'qa-' + q.id, kind: 'done' as const, title: (q.documentType === 'Proforma' ? 'Review our proforma ' : 'Review and sign our quotation ') + q.id,
+      note: 'Sent ' + fmt(q.documentSentDate || q.date) + ' · accepted',
+    })),
   ];
-  const left = asks.length;
+  const left = asks.filter((a) => a.kind !== 'done').length;
 
   /* legal team: lawyer in charge + partners on the open files */
   const team: { name: string; role: string; color: string; phone?: string; email?: string }[] = [];
@@ -228,9 +217,10 @@ export const ClientPortalView: React.FC = () => {
   });
   const firstLawyer = team[0];
 
-  /* money */
-  const m = clientMoney(client.id, invoices, payments, retainers);
-  const dueBill = m.bills.filter((i) => m.balOf(i) > 0.005 && i.dueDate).sort((a, b) => (isoOf(a.dueDate) < isoOf(b.dueDate) ? -1 : 1))[0];
+  /* money: the one source for client money figures (lib/moneyByFile), issued bills only */
+  const mc = moneyForClient(client, cases, { invoices, payments, retainers, quotations, receipts });
+  const m = { bills: mc.bills.filter((b) => b.issued), billed: mc.billed, owing: mc.outstanding, paidTotal: mc.received, held: mc.clientAccount, ledger: mc.ledger };
+  const dueBill = m.bills.filter((b) => b.bal > 0.005 && b.inv.dueDate).map((b) => b.inv).sort((a, b) => (isoOf(a.dueDate) < isoOf(b.dueDate) ? -1 : 1))[0];
   const settings = getPracticeSettings();
   const bank = (settings.bankAccounts || []).find((b) => b.isActive !== false && b.isDefaultOffice) || (settings.bankAccounts || []).find((b) => b.isActive !== false && b.accountType === 'Office Operating');
   const firmPhone = (settings.phone || '').split('/')[0].trim();
@@ -341,13 +331,17 @@ export const ClientPortalView: React.FC = () => {
 
             <section style={css('border-radius:16px;background:#fff;border:1px solid #E4DED2;overflow:hidden')}>
               <div style={css('display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid #EFEAE0')}><strong style={css('font-family:Georgia,serif;font-size:16px;color:#16223A')}>What we need from you</strong>{left > 0 && <span style={css('font-size:11px;font-weight:800;padding:1px 8px;border-radius:9999px;background:#F6EEDC;color:#8A6D3B')}>{left} to do</span>}</div>
-              {asks.map((a) => (
-                <div key={a.id} style={css('display:flex;align-items:center;gap:12px;padding:13px 18px;border-bottom:1px solid #F3EFE7')}>
-                  <span style={css('width:22px;height:22px;flex-shrink:0;border-radius:9999px;display:grid;place-items:center;border:2px solid #C9BFAE;background:#fff')} />
-                  <span style={css('display:flex;flex-direction:column;gap:2px;flex:1;min-width:0')}><span style={css('font-size:13px;font-weight:700;color:#16223A')}>{a.title}</span><span style={css('font-size:11.5px;color:#6B6458')}>{a.note}</span></span>
-                  {a.kind === 'sign' && a.open && <button type="button" onClick={a.open} style={css('flex-shrink:0;border:0;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;background:#16223A;color:#fff;cursor:pointer')}>Review &amp; sign</button>}
-                </div>
-              ))}
+              {asks.map((a) => {
+                const done = a.kind === 'done';
+                return (
+                  <div key={a.id} style={css('display:flex;align-items:center;gap:12px;padding:13px 18px;border-bottom:1px solid #F3EFE7')}>
+                    <span style={css(`width:22px;height:22px;flex-shrink:0;border-radius:9999px;display:grid;place-items:center;border:2px solid ${done ? '#1F5A3B' : '#C9BFAE'};background:${done ? '#1F5A3B' : '#fff'}`)}>{done && <Check size={12} color="#FFFFFF" />}</span>
+                    <span style={css('display:flex;flex-direction:column;gap:2px;flex:1;min-width:0')}><span style={css(`font-size:13px;font-weight:700;color:${done ? '#6B6458' : '#16223A'};text-decoration:${done ? 'line-through' : 'none'}`)}>{a.title}</span><span style={css('font-size:11.5px;color:#6B6458')}>{a.note}</span></span>
+                    {a.kind === 'sign' && a.open && <button type="button" onClick={a.open} style={css('flex-shrink:0;border:0;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;background:#16223A;color:#fff;cursor:pointer')}>Review &amp; sign</button>}
+                    {done && <span style={css('flex-shrink:0;font-size:11.5px;font-weight:700;color:#1F5A3B')}>Done</span>}
+                  </div>
+                );
+              })}
               {!asks.length && <div style={css('padding:16px 18px;font-size:12.5px;color:#1F5A3B')}>Nothing needed right now. We'll let you know if that changes.</div>}
             </section>
           </div>
@@ -497,8 +491,8 @@ export const ClientPortalView: React.FC = () => {
           </div>
           <section style={css('border-radius:16px;background:#fff;border:1px solid #E4DED2;overflow:hidden')}>
             <div style={css('display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid #EFEAE0')}><strong style={css('font-family:Georgia,serif;font-size:16px;color:#16223A')}>Bills</strong>{preview && <span style={css('margin-left:auto')}>{disabledNote}</span>}</div>
-            {m.bills.slice().sort((a, b) => (isoOf(a.date) < isoOf(b.date) ? 1 : -1)).map((inv) => {
-              const bal = m.balOf(inv); const isPaid = bal <= 0.005; const checking = !isPaid && (inv.clientPaymentSlips || []).length > 0;
+            {m.bills.map((b) => {
+              const inv = b.inv; const bal = b.bal; const isPaid = bal <= 0.005; const checking = !isPaid && (inv.clientPaymentSlips || []).length > 0;
               const status = checking ? 'Checking payment' : isPaid ? 'Paid' : 'To pay';
               const [sbg, sfg] = checking ? ['#E4ECF5', '#2F4F7A'] : isPaid ? ['#E6EFE9', '#1F5A3B'] : ['#F6E4E1', '#8E2A20'];
               const rc = receiptsOf(inv);
@@ -507,7 +501,7 @@ export const ClientPortalView: React.FC = () => {
               return (
                 <div key={inv.id} style={css('display:grid;grid-template-columns:120px minmax(0,1fr) 110px 100px auto;gap:12px;align-items:center;padding:12px 18px;border-bottom:1px solid #F3EFE7')}>
                   <button type="button" onClick={view} style={css('justify-self:start;border:0;background:none;padding:0;font-family:ui-monospace,monospace;font-size:12px;font-weight:700;color:#3D6B9C;cursor:pointer;text-decoration:underline')}>{inv.id}</button>
-                  <span style={css('display:flex;flex-direction:column;gap:2px;min-width:0')}><span style={css('font-size:13px;font-weight:700;color:#16223A')}>{inv.subject || inv.matter || kase?.title || 'Legal fees'}</span><span style={css('font-size:11px;color:#6B6458')}>Issued {fmt(inv.issuedAt || inv.date, { day: 'numeric', month: 'short' })}{!isPaid && inv.dueDate ? ' · due ' + fmt(inv.dueDate, { day: 'numeric', month: 'short' }) : ''}{!isPaid && bal < Number(inv.total || 0) - 0.005 ? ' · ' + rm(bal) + ' left' : ''}</span></span>
+                  <span style={css('display:flex;flex-direction:column;gap:2px;min-width:0')}><span style={css('font-size:13px;font-weight:700;color:#16223A')}>{b.what || kase?.title || 'Legal fees'}</span><span style={css('font-size:11px;color:#6B6458')}>Issued {fmt(inv.issuedAt || inv.date, { day: 'numeric', month: 'short' })}{!isPaid && inv.dueDate ? ' · due ' + fmt(inv.dueDate, { day: 'numeric', month: 'short' }) : ''}{!isPaid && bal < Number(inv.total || 0) - 0.005 ? ' · ' + rm(bal) + ' left' : ''}</span></span>
                   <strong style={css('text-align:right;font-size:13px;color:#16223A')}>{rm(Number(inv.total || 0))}</strong>
                   <span style={css(`justify-self:start;font-size:11px;font-weight:700;padding:2px 9px;border-radius:9999px;background:${sbg};color:${sfg}`)}>{status}</span>
                   <span style={css('justify-self:end;display:flex;gap:6px')}>
@@ -523,16 +517,15 @@ export const ClientPortalView: React.FC = () => {
             </div>
           </section>
           {see.statement && m.ledger.length > 0 && (() => {
-            let bal = 0;
-            const rows = m.ledger.map((r) => { const amt = r.type === 'Deposit' ? Number(r.amount || 0) : -Number(r.amount || 0); bal = round2(bal + amt); return { r, amt, bal }; });
+            const rows = m.ledger;
             const monthName = new Date().toLocaleDateString('en-GB', { month: 'long' });
-            const stmt = () => pdf('Client account statement ' + client.name, tableHtml('Client account statement · ' + client.name, 'To ' + fmt(today), ['Date', 'Details', 'Amount (RM)', 'Balance (RM)'], rows.map((x) => [fmt(x.r.date), x.r.remarks || x.r.type, (x.amt < 0 ? '-' : '') + Math.abs(x.amt).toFixed(2), x.bal.toFixed(2)])));
+            const stmt = () => pdf('Client account statement ' + client.name, tableHtml('Client account statement · ' + client.name, 'To ' + fmt(today), ['Date', 'Details', 'Amount (RM)', 'Balance (RM)'], rows.map((x) => [fmt(x.date), x.desc, (x.amount < 0 ? '-' : '') + Math.abs(x.amount).toFixed(2), x.bal.toFixed(2)])));
             return (
               <section style={css('border-radius:16px;background:#fff;border:1px solid #E4DED2;overflow:hidden')}>
                 <div style={css('display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid #EFEAE0')}><strong style={css('font-family:Georgia,serif;font-size:16px;color:#16223A')}>Money we hold for you</strong><span style={css('font-size:11.5px;color:#6B6458')}>client account, kept separate from the firm's money</span><button type="button" onClick={stmt} style={css('margin-left:auto;display:flex;align-items:center;gap:5px;border:1px solid #E4DED2;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;background:#fff;color:#16223A;cursor:pointer')}><Download size={13} color="#3D6B9C" />{monthName} statement</button></div>
-                {rows.map(({ r, amt, bal: b }) => (
+                {rows.map((r) => (
                   <div key={r.id} style={css('display:grid;grid-template-columns:90px minmax(0,1fr) 110px 110px;gap:12px;align-items:center;padding:10px 18px;border-bottom:1px solid #F3EFE7')}>
-                    <span style={css('font-size:12px;color:#6B6458')}>{fmt(r.date, { day: 'numeric', month: 'short' })}</span><span style={css('font-size:12.5px;color:#16223A')}>{r.remarks || r.type}</span><span style={css(`text-align:right;font-size:12.5px;font-weight:600;color:${amt < 0 ? '#8E2A20' : '#1F5A3B'}`)}>{(amt < 0 ? '− ' : '+ ') + rm(Math.abs(amt))}</span><span style={css('text-align:right;font-size:12.5px;font-weight:700;color:#16223A')}>{rm(b)}</span>
+                    <span style={css('font-size:12px;color:#6B6458')}>{fmt(r.date, { day: 'numeric', month: 'short' })}</span><span style={css('font-size:12.5px;color:#16223A')}>{r.desc}</span><span style={css(`text-align:right;font-size:12.5px;font-weight:600;color:${r.amount < 0 ? '#8E2A20' : '#1F5A3B'}`)}>{(r.amount < 0 ? '− ' : '+ ') + rm(Math.abs(r.amount))}</span><span style={css('text-align:right;font-size:12.5px;font-weight:700;color:#16223A')}>{rm(r.bal)}</span>
                   </div>
                 ))}
               </section>

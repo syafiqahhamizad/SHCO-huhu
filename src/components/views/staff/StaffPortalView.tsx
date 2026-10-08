@@ -8,14 +8,17 @@ import {
   buildEaHtml, buildFileDirectory, buildMyClaimRows, buildPayslipHtml, card, cardTitle, dedLines, dedOf, dMonY, earnLines, FirmLetterhead,
   grossOf, MONTHS_SHORT, netOf, periodLabel, printHtml, rm, serif, staffIdentity,
 } from './staffPortalShared';
+import { StaffClaimsTab } from './StaffClaimsTab';
 import { StaffLeaveTab } from './StaffLeaveTab';
 import { StaffGoalsTab } from './StaffGoalsTab';
 import { StaffAttendanceTab } from './StaffAttendanceTab';
 import { StaffProfileTab } from './StaffProfileTab';
 import { personBits } from '../settings/permissionModel';
 
-type Tab = 'pay' | 'leave' | 'attendance' | 'goals' | 'profile';
-const TABS: [Tab, string][] = [['profile', 'Employee records'], ['pay', 'Payslips'], ['leave', 'Leave'], ['attendance', 'Attendance'], ['goals', 'Goals & wellbeing']];
+type Tab = 'pay' | 'claims' | 'leave' | 'attendance' | 'goals' | 'profile';
+// Design order (Payslips, My Claims, Leave, Goals & wellbeing); Attendance and the HR-only
+// Employee records are kept from before the design.
+const TABS: [Tab, string][] = [['pay', 'Payslips'], ['claims', 'My Claims'], ['leave', 'Leave'], ['attendance', 'Attendance'], ['goals', 'Goals & wellbeing'], ['profile', 'Employee records']];
 const PAY_GRID = 'minmax(0,1fr) 100px 90px 90px 90px 100px';
 const LH_PATH = import.meta.env.BASE_URL + 'assets/sh-name.png';
 
@@ -41,11 +44,18 @@ const useLetterhead = () => {
 };
 
 export const StaffPortalView: React.FC = () => {
-  const { currentUser, users, payslips, travelClaims, expenses, paymentVouchers, cases, clients, leaveApplications, showToast, isAdmin, rolesMatrix, setCurrentView } = useApp();
+  const { currentUser, users, payslips, travelClaims, expenses, paymentVouchers, cases, clients, leaveApplications, showToast, isAdmin, rolesMatrix, currentView, setCurrentView } = useApp();
   // Employee records are HR-only: admins, or people granted "HR records" in Permissions & limits.
   const canHr = Boolean(isAdmin) || personBits(rolesMatrix || {}, currentUser, 'hrRecords')[0] === '1';
   const tabs = TABS.filter(([k]) => k !== 'profile' || canHr);
-  const [tab, setTab] = useState<Tab>(canHr ? 'profile' : 'pay');
+  const [innerTab, setInnerTab] = useState<Exclude<Tab, 'claims'>>('pay');
+  // My Claims is the claims tab of this page: the sidebar's "My Claims" opens it and stays highlighted.
+  const tab: Tab = currentView === 'reimbursements' ? 'claims' : innerTab;
+  const setTab = (t: Tab) => {
+    if (t === 'claims') return setCurrentView('reimbursements');
+    setInnerTab(t);
+    if (currentView === 'reimbursements') setCurrentView('staffPortal');
+  };
   const lh = useLetterhead();
 
   const me = useMemo(() => identityTokens(currentUser), [currentUser]);
@@ -73,14 +83,10 @@ export const StaffPortalView: React.FC = () => {
   const waiting = claimRows.filter((c) => c.status === 'Waiting' && c.source !== 'pv');
   const al = annualLeaveBalance(leaveApplications || [], currentUser.id);
   const tiles: [string, string, string, string, Tab][] = [
-    [
-      'Net pay' + (latest ? ' · ' + MONTHS_SHORT[Number(latest.period.slice(5, 7)) - 1] : ''),
-      latest ? rm(netOf(latest)) : '—',
-      latest ? (latest.paidAt ? 'paid ' + dMonY(latest.paidAt) : 'approved · not paid yet') : 'No payslips issued yet',
-      '#2F6F4E',
-      'pay',
-    ],
-    ['Claims waiting', rm(waiting.reduce((s, x) => s + x.amt, 0)), waiting.length + ' claim(s) owed to you, with partner', '#8A6534', 'claims' as Tab],
+    latest
+      ? ['Net pay · ' + MONTHS_SHORT[Number(latest.period.slice(5, 7)) - 1], rm(netOf(latest)), latest.paidAt ? 'paid ' + dMonY(latest.paidAt) : 'approved · not paid yet', '#2F6F4E', 'pay']
+      : [MONTHS_SHORT[new Date().getMonth()] + ' payslip', 'Not yet', 'appears here once Accounts sends payslips', '#8A6534', 'pay'],
+    ['Claims waiting', rm(waiting.reduce((s, x) => s + x.amt, 0)), waiting.length + ' item(s) with partner', '#8A6534', 'claims'],
     ['Annual leave left', al.left + ' days', `of ${al.entitlement} this year${al.pending ? ` · ${al.pending} pending approval` : ''}`, '#3D6B9C', 'leave'],
     ['Goals on track', goals.filter((g) => g.status === 'On track' || g.status === 'Done').length + ' of ' + goals.length, 'personal & career', '#6B3D8C', 'goals'],
   ];
@@ -90,7 +96,7 @@ export const StaffPortalView: React.FC = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, color: '#1E293B', fontSize: 12, lineHeight: 'normal' }}>
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 12 }}>
         {tiles.map(([label, value, note, c, t]) => (
-          <button key={label} type="button" onClick={() => ((t as string) === 'claims' ? setCurrentView('reimbursements') : setTab(t))} style={{ textAlign: 'left', borderRadius: 12, border: '1px solid #DDE3EB', background: '#fff', padding: '13px 15px', display: 'flex', flexDirection: 'column', gap: 4, cursor: 'pointer', fontFamily: 'inherit', borderTop: '3px solid ' + c }}>
+          <button key={label} type="button" onClick={() => setTab(t)} style={{ textAlign: 'left', borderRadius: 12, border: '1px solid #DDE3EB', background: '#fff', padding: '13px 15px', display: 'flex', flexDirection: 'column', gap: 4, cursor: 'pointer', fontFamily: 'inherit', borderTop: '3px solid ' + c }}>
             <span style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: '#5B6478' }}>{label}</span>
             <span style={{ fontFamily: serif, fontSize: 21, fontWeight: 700, color: '#16223A' }}>{value}</span>
             <span style={{ fontSize: 10.5, color: '#5B6478' }}>{note}</span>
@@ -104,6 +110,7 @@ export const StaffPortalView: React.FC = () => {
       </section>
 
       {tab === 'pay' && <PayslipsTab slips={mySlips} lh={lh} showToast={showToast} />}
+      {tab === 'claims' && <StaffClaimsTab rows={claimRows} dir={dir} />}
       {tab === 'leave' && <StaffLeaveTab myLeaves={myLeaves} used={used} me={me} />}
       {tab === 'attendance' && <StaffAttendanceTab />}
       {tab === 'goals' && <StaffGoalsTab />}
@@ -167,7 +174,7 @@ const PayslipsTab: React.FC<{ slips: Payslip[]; lh: string; showToast: (m: strin
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: PAY_GRID, gap: 10, padding: '7px 14px', fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#5B6478', background: '#F6F8FA', borderBottom: '1px solid #EEF1F5' }}>
-            <span>Month</span><span style={{ textAlign: 'right' }}>Gross</span><span style={{ textAlign: 'right' }}>Referral</span><span style={{ textAlign: 'right' }}>Profit share</span><span style={{ textAlign: 'right' }}>Bonus</span><span style={{ textAlign: 'right' }}>Net pay</span>
+            <span>Month</span><span style={{ textAlign: 'right' }}>Gross</span><span style={{ textAlign: 'right' }}>Referral</span><span style={{ textAlign: 'right' }}>Profit / fee share</span><span style={{ textAlign: 'right' }}>Bonus</span><span style={{ textAlign: 'right' }}>Net pay</span>
           </div>
           {!YS.length && <div style={{ padding: '12px 14px', fontSize: 11.5, color: '#5B6478', borderBottom: '1px solid #F0F2F5' }}>No payslips issued yet</div>}
           {YS.map((s) => {

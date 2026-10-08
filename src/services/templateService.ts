@@ -1,6 +1,7 @@
 // Practice Settings & Document Template Service
 import { writeCloudState } from './firestoreSyncService';
 import type { ComplianceItem, ComplaintRecord, Milestone, Panelship, InvestmentChannel, FirmGoal } from '../types';
+import type { ApproverRule } from '../lib/approvers';
 
 export interface FirmBankAccount {
   id: string;
@@ -194,6 +195,9 @@ export interface PracticeSettings {
   /** Approval limits (Permissions & limits tab), as typed. `mpPlusOneAbove` drives the finance
    * Approvals two-signatory threshold. */
   approvalLimits?: ApprovalLimits;
+  /** Who approves (Who approves tab), keyed by item id (lib/approvers APPROVAL_ITEMS); people are
+   * user ids. An item that is not here keeps the existing routing. */
+  approvers?: Record<string, ApproverRule>;
   /** Per-practice-area default quotation (Fee templates tab), keyed by practice-area tag (L, CONV,
    * EST, …). Overrides the built-in templates in lib/financeDocs AREAS. */
   feeTemplates?: Record<string, FeeTemplate>;
@@ -223,6 +227,8 @@ export interface PracticeSettings {
   googleWorkspaceLastTests?: Partial<Record<'calendar' | 'tasks' | 'gmail', { at: string; by: string; ok: boolean; message: string }>>;
   /** "Export all firm data" (Google, e-mail & backup tab). */
   lastBackup?: { at: string; by: string; fileName: string; driveFileId?: string; webViewLink?: string };
+  /** Staff Guide: a walkthrough video link per role (Google Drive or YouTube), set by admins on the guide page. */
+  guideVideos?: Partial<Record<'partner' | 'lawyer' | 'assistant' | 'accounts', string>>;
 }
 
 export interface FirmBranch {
