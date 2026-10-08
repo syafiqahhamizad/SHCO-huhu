@@ -3,6 +3,7 @@ import { useApp } from '../../../context/AppContext';
 import type { Case, PartnerCode } from '../../../types';
 import { DEFAULT_PRACTICE_SETTINGS, getPracticeSettings } from '../../../services/templateService';
 import { css, S, Modal } from './caseUi';
+import { PeoplePicker } from './PeoplePicker';
 import { fmt, isDone, isFileHandler, lawyersOf, openedOf, practiceOf, rm, stagesFor, todayIso } from './caseModel';
 import { histEntry, type WF } from './wf';
 import { rebuildRef } from '../../../lib/caseRef';
@@ -65,18 +66,17 @@ export const EditMatterModal: React.FC<{ w: WF; onClose: () => void }> = ({ w, o
         <label style={css('display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>Practice area</span><select value={ed.practice} onChange={(e) => setEd({ ...ed, practice: e.target.value })} style={css(inp)}>{practices.map((o) => <option key={o} value={o}>{o}</option>)}</select></label>
         <label style={css('display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>File status</span><select value={ed.status} onChange={(e) => setEd({ ...ed, status: e.target.value as Case['status'] })} style={css(inp)}><option value="Active">Active</option><option value="Pending">Pending (on hold)</option>{(init.status === 'Closed' || init.status === 'Archive') && <option value={init.status}>{init.status}</option>}</select></label>
         <div style={css('grid-column:1/-1;display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>Partner in charge</span>
-          <div style={css('display:flex;gap:6px;flex-wrap:wrap')}>{partners.map((p) => { const on = ed.partners.includes(p.code); return <button key={p.code} type="button" onClick={() => setEd({ ...ed, partners: on ? ed.partners.filter((x) => x !== p.code) : [...ed.partners, p.code] })} style={css(`border-radius:8px;padding:6px 11px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;background:${on ? '#16223A' : '#fff'};color:${on ? '#fff' : '#16223A'};border:1px solid ${on ? '#16223A' : '#C9D1DC'}`)}>{p.name} ({p.code})</button>; })}
-            {ed.partners.filter((code) => !partners.some((p) => p.code === code)).map((code) => <span key={code} style={css('border-radius:8px;padding:6px 11px;font-size:12.5px;font-weight:600;background:#16223A;color:#fff')}>{code}</span>)}
-          </div>
+          <PeoplePicker id="matter-partners" value={ed.partners} onChange={(v) => setEd({ ...ed, partners: v })} placeholder="Search partner by name or code"
+            options={[...partners.map((p) => ({ value: p.code, label: p.name + ' (' + p.code + ')' })), ...ed.partners.filter((code) => !partners.some((p) => p.code === code)).map((code) => ({ value: code, label: code }))]} />
         </div>
         <div style={css('grid-column:1/-1;display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>Lawyers in charge</span>
-          <div style={css('display:flex;gap:6px;flex-wrap:wrap')}>
-            {[...staff.filter(isFileHandler).map((p) => p.name), ...ed.lawyers.filter((n) => !staff.some((p) => isFileHandler(p) && p.name === n))].map((name) => {
-              const on = ed.lawyers.includes(name);
-              return <button key={name} type="button" onClick={() => setEd({ ...ed, lawyers: on ? ed.lawyers.filter((x) => x !== name) : [...ed.lawyers, name] })} style={css(`border-radius:8px;padding:6px 11px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;background:${on ? '#16223A' : '#fff'};color:${on ? '#fff' : '#16223A'};border:1px solid ${on ? '#16223A' : '#C9D1DC'}`)}>{name}</button>;
-            })}
-          </div>
-          <span style={css('font-size:11.5px;color:#5B6478')}>Pick one or more.</span>
+          <PeoplePicker id="matter-lawyers" value={ed.lawyers} onChange={(v) => setEd({ ...ed, lawyers: v })} placeholder="Search lawyer by name or code"
+            options={[
+              // Partners in charge already handle the file, so they are not offered again here.
+              ...staff.filter((p) => isFileHandler(p) && !ed.partners.includes(p.code)).map((p) => ({ value: p.name, label: p.name, hint: p.role })),
+              ...ed.lawyers.filter((n) => !staff.some((p) => isFileHandler(p) && p.name === n)).map((n) => ({ value: n, label: n })),
+            ]} />
+          <span style={css('font-size:11.5px;color:#5B6478')}>Pick one or more. Partners in charge already count as handlers of the file. Changing people does not change the file no. (admins can use Rebuild below).</span>
         </div>
         <label style={css('display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>Date opened{firmAdmin ? '' : ' (admin only)'}</span><input type="date" disabled={!firmAdmin} value={ed.opened} onChange={(e) => setEd({ ...ed, opened: e.target.value })} style={css(inp)} /></label>
         <div style={css('grid-column:1/-1;display:flex;flex-direction:column;gap:5px')}>

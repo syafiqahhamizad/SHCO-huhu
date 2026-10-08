@@ -19,6 +19,7 @@ export const CasesListPage: React.FC = () => {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
   const [pic, setPic] = useState('ALL');
+  const [area, setArea] = useState('');
   const [folderRun, setFolderRun] = useState<string | null>(null);
   const [closeOnly, setCloseOnly] = useState(false);
   const [binOpen, setBinOpen] = useState(false);
@@ -44,7 +45,9 @@ export const CasesListPage: React.FC = () => {
   const byQ = (c: Case) => !ql || [c.ref, c.title, clientOf(c), c.courtCaseNo].join(' ').toLowerCase().includes(ql);
   const byPic = (c: Case) => pic === 'ALL' || (c.partners || []).includes(pic as never) || (c.lawyers || []).includes(pic) || lawyerOf(c) === pic;
   const pendingClose = (c: Case) => c.closeRequest?.status === 'Pending';
-  const pre = scoped.filter((c) => byPic(c) && byQ(c) && (!closeOnly || pendingClose(c)));
+  const areas = Array.from(new Set(scoped.map((c) => practiceOf(c)).filter(Boolean))).sort();
+  const byArea = (c: Case) => !area || practiceOf(c) === area;
+  const pre = scoped.filter((c) => byPic(c) && byArea(c) && byQ(c) && (!closeOnly || pendingClose(c)));
   const list = pre.filter((c) => !status || c.status === status);
   const waiting = scoped.filter(pendingClose).length;
 
@@ -57,7 +60,7 @@ export const CasesListPage: React.FC = () => {
   const lawyers = Array.from(new Set(cases.flatMap((c) => [...(c.lawyers || []), lawyerOf(c)]).filter(Boolean))).filter((n) => !partners.some((p) => p.name === n));
   const binCount = deletedRecords.filter((r) => r.entityType === 'Case').length;
   const cols = 'minmax(215px,250px) minmax(200px,1.6fr) minmax(120px,1fr) minmax(130px,1fr) 80px 96px 74px' + (isFirmAdmin ? ' 32px' : '');
-  const hasFilters = !!(q || status || pic !== 'ALL' || closeOnly);
+  const hasFilters = !!(q || status || area || pic !== 'ALL' || closeOnly);
 
   const open = (c: Case) => { setCaseSubTab('overview'); setCurrentCaseId(c.id); };
   const del = async (e: React.MouseEvent, c: Case) => {
@@ -134,6 +137,12 @@ export const CasesListPage: React.FC = () => {
             {[['', 'All statuses'], ['Active', 'Active'], ['Pending', 'Pending'], ['Closed', 'Closed'], ['Archive', 'Archive']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
         </label>
+        <label style={css('display:flex;align-items:center;gap:6px')}><span style={css('font-size:10px;font-weight:700;text-transform:uppercase;color:#5B6478')}>Practice area</span>
+          <select value={area} onChange={(e) => setArea(e.target.value)} style={css('font-size:12px;background:#F6F8FA;border:1px solid #DDE3EB;border-radius:6px;padding:5px 8px;font-weight:600;color:#16223A')}>
+            <option value="">All practice areas</option>
+            {areas.map((a) => <option key={a} value={a}>{a}</option>)}
+          </select>
+        </label>
         {isFirmAdmin && (
           <label style={css('display:flex;align-items:center;gap:6px')}><span style={css('font-size:10px;font-weight:700;text-transform:uppercase;color:#5B6478')}>PIC</span>
             <select value={pic} onChange={(e) => setPic(e.target.value)} style={css('font-size:12px;background:#F6F8FA;border:1px solid #DDE3EB;border-radius:6px;padding:5px 8px;font-weight:600;color:#16223A')}>
@@ -143,7 +152,7 @@ export const CasesListPage: React.FC = () => {
             </select>
           </label>
         )}
-        {hasFilters && <button type="button" onClick={() => { setQ(''); setStatus(''); setPic('ALL'); setCloseOnly(false); }} style={css('border:0;background:none;padding:0;font-size:11.5px;font-weight:700;color:#3D6B9C;cursor:pointer')}>Clear filters</button>}
+        {hasFilters && <button type="button" onClick={() => { setQ(''); setStatus(''); setArea(''); setPic('ALL'); setCloseOnly(false); }} style={css('border:0;background:none;padding:0;font-size:11.5px;font-weight:700;color:#3D6B9C;cursor:pointer')}>Clear filters</button>}
         <span style={css('margin-left:auto;font-size:11px;color:#5B6478')}>Showing {list.length} of {scoped.length}{isFirmAdmin ? ' firm files' : ' of your files'} · newest file no. first</span>
       </div>
 
