@@ -136,7 +136,7 @@ export const DeleteMatterModal: React.FC<{ w: WF; onClose: () => void }> = ({ w,
     <Modal onClose={onClose} width={520} top>
       <div style={css('display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid #DDE3EB')}><strong style={css('font-family:Georgia, serif;font-size:16px;color:#8E2A20')}>{isPartner ? 'Delete this matter?' : 'Request deletion'}</strong><button type="button" onClick={onClose} style={css('margin-left:auto;background:none;border:0;cursor:pointer;color:#4A5468;font-size:15px')}>✕</button></div>
       <div style={css('display:flex;flex-direction:column;gap:14px;padding:18px 20px')}>
-        <p style={css('margin:0;font-size:13px;line-height:1.55;color:#16223A')}>{isPartner ? 'Use this only for files opened in error or duplicates. Finished matters should be closed, not deleted. Deleted matters go to the recycle bin and can be restored.' : 'Only a partner can delete a matter. Your request goes to the partner in charge with the reason below.'}</p>
+        <p style={css('margin:0;font-size:13px;line-height:1.55;color:#16223A')}>{isPartner ? 'Use this only for files opened in error or duplicates. Finished matters should be closed, not deleted. Deleted matters go to the recycle bin and can be restored.' : 'Your request goes to the partner in charge with the reason below.'}</p>
         <div style={css('display:flex;flex-direction:column;gap:6px;padding:12px 14px;border-radius:8px;background:#F6F8FA;border:1px solid #DDE3EB')}>
           {impact.map(([k, v, red]) => <div key={k} style={css('display:flex;gap:10px;font-size:12.5px')}><span style={css('flex:1;color:#4A5468')}>{k}</span><strong style={css(`color:${red ? '#8E2A20' : '#16223A'}`)}>{v}</strong></div>)}
         </div>

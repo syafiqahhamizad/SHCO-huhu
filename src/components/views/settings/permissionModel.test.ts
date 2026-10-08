@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  canViewAs, designRole, flipBit, fromBits, isManagingPartner, isSuper, parentOf, PERM_ROWS, personBits, personChanges, personRoleBits, roleOwnBits, SUPER_EMAIL,
+  can, peopleWho, canViewAs, designRole, flipBit, fromBits, isManagingPartner, isSuper, parentOf, PERM_ROWS, personBits, personChanges, personRoleBits, roleOwnBits, SUPER_EMAIL,
 } from './permissionModel';
 import type { RolePermissionsMatrix, User } from '../../../types';
 
@@ -130,5 +130,24 @@ describe('client delete, conflict clearing and View as', () => {
     expect(canViewAs(m, u({ role: 'Partner', email: SUPER_EMAIL }))).toBe(true);
     expect(canViewAs(m, u({ role: 'Partner', email: 'z@example.com', isAdmin: true }))).toBe(false);
     expect(canViewAs(m, u({ role: 'Partner', email: 'z@example.com', navOverrides: { viewAs: V } }))).toBe(true);
+  });
+});
+
+describe('office jobs on a file: you decide who', () => {
+  const partner = { id: 'p', role: 'Partner', isAdmin: false, email: 'p@x', status: 'Active' } as User;
+  const clerk = { id: 'a', role: 'Assistant', isAdmin: true, email: 'a@x', status: 'Active' } as User;
+  it('partners by default; an admin assistant does not get it just for being admin', () => {
+    const m = { Partner: { cases: { v: 1, a: 1, e: 1 } }, Assistant: { cases: { v: 1, a: 1, e: 1 } } } as unknown as RolePermissionsMatrix;
+    for (const k of ['cases.approveClose', 'cases.reopen', 'cases.delete', 'clients.clearConflict']) {
+      expect(can(m, partner, k)).toBe(k === 'clients.clearConflict' ? false : true);
+      expect(can(m, clerk, k)).toBe(false);
+    }
+  });
+  it('given to the assistant by role or by person', () => {
+    const m = { Assistant: { cases: { v: 1, a: 1, e: 1 }, 'cases.approveClose': { v: 1, a: 1, e: 1 } } } as unknown as RolePermissionsMatrix;
+    expect(can(m, clerk, 'cases.approveClose')).toBe(true);
+    const one = { ...clerk, navOverrides: { 'cases.reopen': { v: 1, a: 0, e: 0 } } } as User;
+    expect(can({} as RolePermissionsMatrix, one, 'cases.reopen')).toBe(true);
+    expect(peopleWho(m, [partner, clerk], 'cases.approveClose').map((u) => u.id)).toEqual(['a']);
   });
 });

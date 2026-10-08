@@ -9,7 +9,7 @@ import type { ModulePermissions, RolePermissionsMatrix, User } from '../../../ty
 export const PERM_ROWS: [string, string, string?, string?][] = [
   ['dashboard', 'My Dashboard'], ['dashboard.myWork', 'My work', 'dashboard'], ['dashboard.finance', 'Finance (firm P&L, cash)', 'dashboard', '000000'], ['dashboard.clientAccount', 'Client account', 'dashboard', '100000'], ['dashboard.team', 'Team (workload, leave, pay)', 'dashboard', '000000'], ['dashboard.partnerKpis', 'Partner KPIs (own only for Partners)', 'dashboard', '100000'], ['dashboard.firmWide', 'Firm-wide', 'dashboard', '100000'],
   ['leads', 'Leads & Referrals'], ['leads.overview', 'Overview', 'leads'], ['leads.pipeline', 'Pipeline', 'leads'], ['leads.programmes', 'Programmes', 'leads'], ['leads.referrers', 'Referrers & fees', 'leads', '110000'],
-  ['clients', 'Clients'], ['clients.clearConflict', 'Clear a conflict check', 'clients', '100000'], ['clients.delete', 'Delete clients', 'clients', '000000'], ['cases', 'Cases'], ['cases.overview', 'Overview', 'cases'], ['cases.court', 'Court dates', 'cases'], ['cases.documents', 'Documents', 'cases'], ['cases.tasks', 'Tasks & notes', 'cases'], ['cases.money', 'Money on the file', 'cases', '100110'],
+  ['clients', 'Clients'], ['clients.clearConflict', 'Clear a conflict check (client profile and new file)', 'clients', '100000'], ['clients.delete', 'Delete clients', 'clients', '000000'], ['cases', 'Cases'], ['cases.overview', 'Overview', 'cases'], ['cases.court', 'Court dates', 'cases'], ['cases.documents', 'Documents', 'cases'], ['cases.tasks', 'Tasks & notes', 'cases'], ['cases.money', 'Money on the file', 'cases', '100110'], ['cases.approveClose', 'Approve closing a file (partners: their own files)', 'cases', '100000'], ['cases.reopen', 'Reopen a closed file', 'cases', '100000'], ['cases.delete', 'Delete a file (others send a request)', 'cases', '100000'],
   ['predispute', 'Pre-dispute'], ['counselRegistry', 'Counsel registry'], ['templates', 'Document templates'],
   ['finance', 'Accounts & Finance'], ['finance.overview', 'Overview', 'finance'], ['finance.billing', 'Billing & Collections', 'finance'], ['officeFinance', 'Office & Expenses', 'finance'], ['finance.approvals', 'Approvals', 'finance'], ['finance.payroll', 'Payroll', 'finance'], ['finance.reports', 'Books & Reports', 'finance'],
   ['retainers', 'Client Account (SAR 1990)'], ['clientPortal', 'Client Portal'],
@@ -77,6 +77,14 @@ export const personBits = (matrix: RolePermissionsMatrix, u: Partial<User>, key:
   const o = u.navOverrides?.[key];
   return o ? toBits(o) : personRoleBits(matrix, u, key);
 };
+
+/** Can this person do this job? (Super Admin always; everyone else by role, then their own setting.) */
+export const can = (matrix: RolePermissionsMatrix, u: Partial<User> | null | undefined, key: string): boolean =>
+  !!u && (isSuper(u) || personBits(matrix, u, key) !== '000');
+
+/** Active staff allowed to do this job — for sending them the request. */
+export const peopleWho = (matrix: RolePermissionsMatrix, users: User[], key: string): User[] =>
+  users.filter((u) => u.status !== 'Inactive' && u.role !== 'Client' && can(matrix, u, key));
 
 /** Number of keys where this person differs from their role. */
 export const personChanges = (matrix: RolePermissionsMatrix, u: Partial<User>) =>

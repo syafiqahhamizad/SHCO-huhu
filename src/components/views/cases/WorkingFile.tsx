@@ -5,6 +5,7 @@ import { TaskFormModal, blankTaskDraft, type TaskDraft } from '../../ui/TaskForm
 import { FileCoverModal } from '../../modals/FileCoverModal';
 import { activeStorage, ensureMatterFolder, prepareStorage } from '../../../services/fileStorageService';
 import { css } from './caseUi';
+import { can, isSuper } from '../settings/permissionModel';
 import { canSeeClientBilling, finGrants, canSeeFinanceView, finRoleKey } from '../../../lib/financeAccess';
 import {
   courtOf, deriveMatchKey, fmt, isDone, lawyerOf, matterMoney, openedOf, partiesOf, partnerNames, practiceOf, rm, staffOf, todayIso,
@@ -39,15 +40,17 @@ export const WorkingFile: React.FC<{ c: Case }> = ({ c }) => {
   const me = currentUser?.name || '';
   const meP = staff.find((p) => p.name === me);
   const meCode = meP?.code || '';
-  const firmAdmin = Boolean(isAdmin || currentUser?.isSuperAdmin);
-  const isPartner = currentRole === 'Partner' || firmAdmin;
+  // Office jobs on a file follow Settings › Permissions (you decide who; partners by default).
+  const canDelete = can(app.rolesMatrix || {}, currentUser, 'cases.delete');
+  const canReopen = can(app.rolesMatrix || {}, currentUser, 'cases.reopen');
+  const isPartner = canDelete;
   const isClerk = currentRole === 'Assistant';
   const finRk = finRoleKey(currentRole, currentUser, isAdmin);
   // Bills and money on the file: partners, Accounts and reviewers only (lawyers / clerks get no billing records).
   const seeFin = canSeeClientBilling(finRk, finGrants(currentUser));
   const canOpenFin = (view: string) => canSeeFinanceView(view, finRk);
   const ro = c.status === 'Closed' || c.status === 'Archive';
-  const canApprove = firmAdmin || (currentRole === 'Partner' && (c.partners || []).some((p) => p === meCode));
+  const canApprove = isSuper(currentUser) || (can(app.rolesMatrix || {}, currentUser, 'cases.approveClose') && (currentRole !== 'Partner' || (c.partners || []).some((p) => p === meCode)));
   const parties = useMemo(() => partiesOf(c, clients), [c, clients]);
   const money = useMemo(() => matterMoney(c, { invoices, payments, retainers, quotations, timeEntries, expenses, travelClaims }), [c, invoices, payments, retainers, quotations, timeEntries, expenses, travelClaims]);
 
@@ -184,10 +187,10 @@ export const WorkingFile: React.FC<{ c: Case }> = ({ c }) => {
         {!ro && <button type="button" onClick={() => setModal('edit')} style={css(btn)}>Edit matter details</button>}
         <button type="button" onClick={() => setModal('cover')} style={css(btn)}>Print file cover</button>
         {!ro && <button type="button" onClick={() => setModal('close')} style={css(btn)}>{c.closeRequest?.status === 'Pending' ? 'Close requested' : 'Request to close'}</button>}
-        {!ro && <button type="button" onClick={() => setModal('del')} title={isPartner ? 'Partners only. Removes the file from all lists.' : 'Sends a deletion request to the partner in charge'} style={css('flex-shrink:0;border:1px solid #E7C3BE;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:700;background:#fff;color:#8E2A20;cursor:pointer;font-family:inherit')}>{isPartner ? 'Delete matter' : c.deletionRequest ? 'Deletion requested' : 'Request deletion'}</button>}
+        {!ro && <button type="button" onClick={() => setModal('del')} title={isPartner ? 'Removes the file from all lists.' : 'Sends a deletion request to the partner in charge'} style={css('flex-shrink:0;border:1px solid #E7C3BE;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:700;background:#fff;color:#8E2A20;cursor:pointer;font-family:inherit')}>{isPartner ? 'Delete matter' : c.deletionRequest ? 'Deletion requested' : 'Request deletion'}</button>}
       </div>
 
-      <ClosedBanner key={c.status + (c.closedDate || "")} w={w} canReopen={isPartner} onPrint={() => setModal('cover')} />
+      <ClosedBanner key={c.status + (c.closedDate || "")} w={w} canReopen={canReopen} onPrint={() => setModal('cover')} />
       <CloseRequestPanel w={w} canApprove={canApprove} onEdit={() => setModal('close')} />
 
       {seeFin && (

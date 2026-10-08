@@ -4,6 +4,7 @@ import type { Case, MatterCloseCheck } from '../../../types';
 import { css, S, Modal, ModalHead, Card, boxStyle } from './caseUi';
 import { addDays, daysFrom, fmt, isDone, rm, todayIso } from './caseModel';
 import { type WF } from './wf';
+import { peopleWho } from '../settings/permissionModel';
 
 const OUTCOMES = ['Settled', 'Judgment for client', 'Judgment against client', 'Withdrawn / discontinued', 'Completed (non-court matter)', 'Client ended our retainer'];
 
@@ -28,7 +29,7 @@ const systemChecks = (w: WF): MatterCloseCheck[] => {
 };
 
 export const RequestCloseModal: React.FC<{ w: WF; onClose: () => void }> = ({ w, onClose }) => {
-  const { addNotification, setCurrentView } = useApp();
+  const { addNotification, setCurrentView, rolesMatrix = {}, users = [] } = useApp();
   const { c, staff } = w;
   const prev = c.closeRequest;
   const prevManual = (label: string) => !!prev?.checklist.find((x) => x.label === label)?.ok;
@@ -55,7 +56,7 @@ export const RequestCloseModal: React.FC<{ w: WF; onClose: () => void }> = ({ w,
   const send = () => {
     if (!outcome) { w.toast('Choose the outcome'); return; }
     w.save({ closeRequest: { status: 'Pending', requestedBy: w.me, requestedAt: todayIso(), outcome, note: note.trim() || undefined, checklist: all } }, 'Close requested · ' + outcome + (left ? ' (' + left + ' item(s) still open)' : ''), 'Status Update');
-    addNotification({ title: 'Close request: ' + c.ref, message: w.me + ' asked to close ' + c.ref + ' (' + c.title + ') · ' + outcome + (left ? ' · ' + left + ' item(s) still open' : '') + '. Open the file to approve or send back.', type: 'system', linkTab: 'cases', linkId: c.id, to: ['partners:' + c.id] });
+    addNotification({ title: 'Close request: ' + c.ref, message: w.me + ' asked to close ' + c.ref + ' (' + c.title + ') · ' + outcome + (left ? ' · ' + left + ' item(s) still open' : '') + '. Open the file to approve or send back.', type: 'system', linkTab: 'cases', linkId: c.id, to: ['partners:' + c.id, ...peopleWho(rolesMatrix, users, 'cases.approveClose').filter((u) => u.role !== 'Partner').map((u) => u.id)] });
     onClose();
     w.toast(left ? 'Sent to ' + to + ' with ' + left + ' item(s) still open' : 'Close request sent to ' + to);
   };
@@ -124,7 +125,7 @@ export const CloseRequestPanel: React.FC<{ w: WF; canApprove: boolean; onEdit: (
   };
   return (
     <Card>
-      <div style={css(S.head)}><strong style={css('font-family:Georgia, serif;font-size:15px;color:#16223A')}>Close request</strong><span style={css(S.sub)}>Requested by {r.requestedBy} · {fmt(r.requestedAt)} · Outcome: <strong style={css('color:#16223A')}>{r.outcome}</strong></span><span style={css('margin-left:auto;padding:2px 9px;border-radius:10px;font-size:11.5px;font-weight:700;background:#F6EEDC;color:#8A6D3B')}>Waiting for partner approval</span></div>
+      <div style={css(S.head)}><strong style={css('font-family:Georgia, serif;font-size:15px;color:#16223A')}>Close request</strong><span style={css(S.sub)}>Requested by {r.requestedBy} · {fmt(r.requestedAt)} · Outcome: <strong style={css('color:#16223A')}>{r.outcome}</strong></span><span style={css('margin-left:auto;padding:2px 9px;border-radius:10px;font-size:11.5px;font-weight:700;background:#F6EEDC;color:#8A6D3B')}>Waiting for approval</span></div>
       <div style={css('display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:0')}>
         <div>
           {live.map((x) => (
@@ -143,10 +144,10 @@ export const CloseRequestPanel: React.FC<{ w: WF; canApprove: boolean; onEdit: (
               {blocked && <span style={css('font-size:11.5px;color:#8A4B00')}>Checklist not clear yet. Send it back, or clear the items first.</span>}
               <label style={css('display:flex;flex-direction:column;gap:6px;padding-top:10px;border-top:1px solid #EEF1F5')}><span style={css(S.label)}>Or send back with a reason</span><textarea value={back} onChange={(e) => setBack(e.target.value)} rows={3} placeholder="e.g. Return the original title first" style={css(S.input + ';resize:vertical')} /></label>
               <button type="button" onClick={sendBack} style={css('border:1px solid #B23A2E;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:700;background:#fff;color:#A3321F;cursor:pointer;font-family:inherit')}>Send back to {r.requestedBy}</button>
-              <span style={css('font-size:11.5px;line-height:1.45;color:#4A5468')}>Only a partner in charge of this file (or the firm admin) can approve. Every decision is saved to the file history.</span>
+              <span style={css('font-size:11.5px;line-height:1.45;color:#4A5468')}>Who can approve is set in Settings › Permissions (partners: their own files). Every decision is saved to the file history.</span>
             </>
           ) : (
-            <span style={css('font-size:12.5px;line-height:1.5;color:#4A5468')}>Waiting for a partner in charge to approve. You'll see it here if it is sent back.</span>
+            <span style={css('font-size:12.5px;line-height:1.5;color:#4A5468')}>Waiting for approval. You'll see it here if it is sent back.</span>
           )}
         </div>
       </div>

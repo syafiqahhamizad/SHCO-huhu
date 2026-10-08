@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../../../context/AppContext';
+import { can } from '../settings/permissionModel';
 import type { Case, Client, PartnerCode } from '../../../types';
 import { DEFAULT_PRACTICE_SETTINGS, getPracticeSettings } from '../../../services/templateService';
 import { quotationForFile, type DocLang } from '../../../lib/engagementLetter';
@@ -36,14 +37,15 @@ export const NewFilePage: React.FC = () => {
   const {
     clients = [], cases = [], users = [], currentUser, currentRole, isAdmin, newCasePrefill, setNewCasePrefill,
     setIsNewCaseModalOpen, setIsRegisterClientModalOpen, setCurrentCaseId, setCaseSubTab, setCurrentView,
-    addCase, updateCase, getNextSequenceId, incrementSequenceCounter, showToast, quotations = [],
+    addCase, updateCase, getNextSequenceId, incrementSequenceCounter, showToast, quotations = [], rolesMatrix = {},
   } = useApp();
   const settings = getPracticeSettings();
   const areas = (settings.practiceAreas && settings.practiceAreas.length ? settings.practiceAreas : DEFAULT_PRACTICE_SETTINGS.practiceAreas) || [];
   const mcodes = (settings.matterCodes && settings.matterCodes.length ? settings.matterCodes : DEFAULT_PRACTICE_SETTINGS.matterCodes) || [];
   const staff = useMemo(() => staffOf(users), [users]);
   const partnerList = staff.filter((p) => p.isPartner);
-  const isPartner = currentRole === 'Partner' || Boolean(isAdmin || currentUser?.isSuperAdmin);
+  // Who may clear a possible conflict: Settings › Permissions › Clients › Clear a conflict check.
+  const canClearConflict = can(rolesMatrix, currentUser, 'clients.clearConflict');
 
   const [clientId, setClientId] = useState('');
   const [cq, setCq] = useState<string | undefined>(undefined);
@@ -164,7 +166,7 @@ export const NewFilePage: React.FC = () => {
       hearings: [], documents: [], courtDiary: [], tasks: [], serviceRecord: [], meetingNotes: [], internalNotes: [],
       statusStage: 0, intakeDetails: Object.keys(intake).length ? intake : undefined,
       conflictReview: conflict.length ? { status: 'Reviewed', detail: conflict.join(' '), by: currentUser?.name, at: stamp() } : { status: 'Clear', at: stamp() },
-      activityLogs: [{ id: 'CAL-' + Date.now(), timestamp: stamp().replace('T', ' '), type: 'Status Update', title: 'File opened', description: 'File opened' + (conflict.length ? '. Possible conflict reviewed by ' + (currentUser?.name || 'a partner') : '. Conflict check clear'), actor: currentUser?.name || '' }],
+      activityLogs: [{ id: 'CAL-' + Date.now(), timestamp: stamp().replace('T', ' '), type: 'Status Update', title: 'File opened', description: 'File opened' + (conflict.length ? '. Possible conflict reviewed by ' + (currentUser?.name || 'staff') : '. Conflict check clear'), actor: currentUser?.name || '' }],
       ...mapped,
     };
     addCase(kase);
@@ -241,14 +243,14 @@ export const NewFilePage: React.FC = () => {
               {(() => {
                 const cf = !C && !opp.trim() ? { bg: '#EEF1F5', fg: '#4A5468', title: 'Conflict check.', text: 'Choose the client and the other side to check.' }
                   : !conflict.length ? { bg: '#E6EFE9', fg: '#1F5A3B', title: 'No conflict.', text: 'Not found as the other side in any file, and the other side is not a firm client.' }
-                    : reviewed ? { bg: '#E6EFE9', fg: '#1F5A3B', title: 'Conflict reviewed.', text: 'Partner confirmed safe to act. Saved on the file.' }
+                    : reviewed ? { bg: '#E6EFE9', fg: '#1F5A3B', title: 'Conflict reviewed.', text: 'Confirmed safe to act by ' + (currentUser?.name || 'you') + '. Saved on the file.' }
                       : { bg: '#FFF4E5', fg: '#7A4300', title: 'Possible conflict.', text: conflict.join(' ') };
                 return (
                   <div style={css(`display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;font-size:12.5px;background:${cf.bg};color:${cf.fg}`)}>
                     <strong style={css('flex-shrink:0')}>{cf.title}</strong><span>{cf.text}</span>
-                    {conflictOpen && (isPartner
-                      ? <button type="button" onClick={() => setReviewed(true)} style={css('margin-left:auto;flex-shrink:0;border:0;border-radius:7px;padding:6px 11px;font-size:12px;font-weight:700;background:#16223A;color:#fff;cursor:pointer')}>Partner reviewed</button>
-                      : <span style={css('margin-left:auto;flex-shrink:0;font-size:12px;font-weight:700')}>A partner must review</span>)}
+                    {conflictOpen && (canClearConflict
+                      ? <button type="button" onClick={() => setReviewed(true)} style={css('margin-left:auto;flex-shrink:0;border:0;border-radius:7px;padding:6px 11px;font-size:12px;font-weight:700;background:#16223A;color:#fff;cursor:pointer')}>Reviewed, safe to act</button>
+                      : <span style={css('margin-left:auto;flex-shrink:0;font-size:12px;font-weight:700')}>Needs review by someone allowed to clear conflicts</span>)}
                   </div>
                 );
               })()}
