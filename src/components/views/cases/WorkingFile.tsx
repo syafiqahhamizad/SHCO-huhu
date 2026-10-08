@@ -5,7 +5,7 @@ import { TaskFormModal, blankTaskDraft, type TaskDraft } from '../../ui/TaskForm
 import { FileCoverModal } from '../../modals/FileCoverModal';
 import { activeStorage, ensureMatterFolder, prepareStorage } from '../../../services/fileStorageService';
 import { css } from './caseUi';
-import { canSeeFinanceView, finRoleKey } from '../../../lib/financeAccess';
+import { canSeeClientBilling, canSeeFinanceView, finRoleKey } from '../../../lib/financeAccess';
 import {
   courtOf, deriveMatchKey, fmt, isDone, lawyerOf, matterMoney, openedOf, partiesOf, partnerNames, practiceOf, rm, staffOf, todayIso,
 } from './caseModel';
@@ -42,8 +42,9 @@ export const WorkingFile: React.FC<{ c: Case }> = ({ c }) => {
   const firmAdmin = Boolean(isAdmin || currentUser?.isSuperAdmin);
   const isPartner = currentRole === 'Partner' || firmAdmin;
   const isClerk = currentRole === 'Assistant';
-  const seeFin = !isClerk;
   const finRk = finRoleKey(currentRole, currentUser, isAdmin);
+  // Bills and money on the file: partners, Accounts and reviewers only (lawyers / clerks get no billing records).
+  const seeFin = canSeeClientBilling(finRk);
   const canOpenFin = (view: string) => canSeeFinanceView(view, finRk);
   const ro = c.status === 'Closed' || c.status === 'Archive';
   const canApprove = firmAdmin || (currentRole === 'Partner' && (c.partners || []).some((p) => p === meCode));

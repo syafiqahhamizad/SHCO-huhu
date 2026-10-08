@@ -13,12 +13,17 @@ const systemChecks = (w: WF): MatterCloseCheck[] => {
   const open = (c.tasks || []).filter((t) => !isDone(t));
   const future = (c.hearings || []).filter((h) => daysFrom(h.date) > 0 && h.status === 'Scheduled');
   const issued = money.bills.filter((b) => b.issued);
-  return [
-    { label: 'Tasks', ok: !open.length, detail: open.length ? open.length + ' open task' + (open.length > 1 ? 's' : '') + ': ' + open.slice(0, 2).map((t) => t.title).join('; ') : 'All tasks done' },
-    { label: 'Court dates', ok: !future.length, detail: future.length ? future.length + ' court date(s) after today, next ' + fmt(future[0].date) : 'No court dates after today' },
+  // Bills and the client account are only known to people who see billing; for anyone else
+  // the partner checks them when approving (the approval re-runs these checks live).
+  const billing: MatterCloseCheck[] = !w.seeFin ? [] : [
     { label: 'Final bill', ok: issued.length > 0, detail: issued.length ? issued.length + ' bill(s) issued · ' + rm(money.billed) : 'No bill issued on this file (a partner can still approve)' },
     { label: 'Invoices paid', ok: money.outstanding <= 0.005, detail: money.outstanding > 0.005 ? rm(money.outstanding) + ' still outstanding' : 'Nothing outstanding' },
     { label: 'Client account', ok: Math.abs(money.clientBalance) <= 0.005, detail: Math.abs(money.clientBalance) > 0.005 ? rm(money.clientBalance) + ' still held for this client' : 'Balance RM 0.00' },
+  ];
+  return [
+    { label: 'Tasks', ok: !open.length, detail: open.length ? open.length + ' open task' + (open.length > 1 ? 's' : '') + ': ' + open.slice(0, 2).map((t) => t.title).join('; ') : 'All tasks done' },
+    { label: 'Court dates', ok: !future.length, detail: future.length ? future.length + ' court date(s) after today, next ' + fmt(future[0].date) : 'No court dates after today' },
+    ...billing,
   ];
 };
 

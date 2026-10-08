@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canSeeFinanceNav, canSeeFinanceView, FIN_TABS, FINANCE_VIEW_TO_TAB, finGrants, finRoleKey, finTabsFor, isFinanceView } from './financeAccess';
+import { canSeeClientBilling, canSeeFinanceNav, canSeeFinanceView, FIN_TABS, FINANCE_VIEW_TO_TAB, finGrants, finRoleKey, finTabsFor, isFinanceView } from './financeAccess';
 import type { User } from '../types';
 
 const OWNER = 'syafiqahhamizad@shcolaw.com';
@@ -98,5 +98,17 @@ describe('per-person grant for Accounting & Reports', () => {
     expect(canSeeFinanceView('reports', 'S', g)).toBe(true);
     expect(canSeeFinanceNav('accounting', 'S', g)).toBe(true);
     expect(canSeeFinanceView('payroll', 'S', g)).toBe(false);
+  });
+});
+
+describe('canSeeClientBilling', () => {
+  it('Managing Partner, partners, Accounts and reviewers see client billing', () => {
+    for (const rk of ['M', 'P', 'A', 'R'] as const) expect(canSeeClientBilling(rk)).toBe(true);
+  });
+  it('lawyers, assistants and clients (S) do not', () => expect(canSeeClientBilling('S')).toBe(false));
+  it('a lawyer and an admin assistant map to S; a reviewer to R', () => {
+    expect(canSeeClientBilling(finRoleKey('Lawyer', { role: 'Lawyer' }, false))).toBe(false);
+    expect(canSeeClientBilling(finRoleKey('Assistant', { role: 'Assistant', isAdmin: true }, true))).toBe(false);
+    expect(canSeeClientBilling(finRoleKey('Reviewer', { role: 'Reviewer' }, false))).toBe(true);
   });
 });

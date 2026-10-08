@@ -93,3 +93,11 @@ export const canSeeFinanceNav = (viewId: string, rk: FinRoleKey, grants: FinTab[
   return !!row && (row[4].includes(rk) || grants.includes(row[0]));
 };
 
+
+/**
+ * Client billing (quotations, invoices, payments, receipts, client-account entries) is for
+ * Managing Partner, partners, Accounts and reviewers only — the same people who see the Client
+ * Account page. Lawyers, assistants and clients get none of these records from the database
+ * (firestore.rules: books tier), so screens hide bills and money figures for them.
+ */
+export const canSeeClientBilling = (rk: FinRoleKey, grants: FinTab[] = []): boolean => canSeeFinanceView('retainers', rk, grants);

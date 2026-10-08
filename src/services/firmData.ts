@@ -8,8 +8,10 @@
  * After: one document per record under `firm/main/<collection>/<docId>`, and a few settings
  * documents under `firm/main/config/<name>`. Each collection has a tier that the Firestore rules
  * enforce (see firestore.rules):
- *   firm  — every firm user reads and writes (files, clients, billing, claims, leave, logs …)
- *   books — partners, accountants, reviewers, admins, the owner (ledgers, bank, journals)
+ *   firm  — every firm user reads and writes (files, clients, time, claims, leave, logs …)
+ *   books — partners, accountants, reviewers (read only), admins, the owner (ledgers, bank,
+ *           journals, and client billing: quotations, invoices, payments, receipts and
+ *           client-account entries — lawyers and assistants see no billing at all)
  *   hr    — partners, accountants, admins, the owner; everyone else only their OWN document
  *           (payslips, the private part of staff profiles: IC, bank, pay, address …)
  *   users — every firm user reads; admins/owner write; a person may update their own
@@ -34,11 +36,11 @@ const def = (key: string, tier: Tier, idOf: CollectionDef['idOf'] = byId): Colle
 
 /** Every list the app keeps. `users` is split into `users` (public) + `staffPrivate` (hr). */
 export const COLLECTIONS: CollectionDef[] = [
-  ...['leads', 'clients', 'cases', 'quotations', 'referralPartners', 'paymentVouchers', 'travelClaims', 'receipts', 'deadlines',
-    'invoices', 'payments', 'retainers', 'attendanceRecords', 'leaveApplications', 'meetings', 'programmes', 'notifications',
+  ...['leads', 'clients', 'cases', 'referralPartners', 'paymentVouchers', 'travelClaims', 'deadlines', 'attendanceRecords', 'leaveApplications', 'meetings', 'programmes', 'notifications',
     'lawFirmRegistry', 'deletedRecords', 'timeEntries', 'expenses', 'announcements', 'auditLogs', 'firmStartCentrePages', 'inventoryItems',
   ].map((k) => def(k, 'firm')),
   def('logs', 'firm', (r) => 'LOG-' + hash([r.ts, r.user, r.action, r.details].map(String).join('|'))),
+  ...['quotations', 'invoices', 'payments', 'receipts', 'retainers'].map((k) => def(k, 'books')),
   ...['manualJournals', 'bankAccounts', 'bankReconciliationEntries', 'trustAuditLogs'].map((k) => def(k, 'books')),
   def('generalLedger', 'books', (r) => 'GL-' + String(r.glNo ?? '') + '-' + String(r.docNo ?? '')),
   def('clientAccountChecks', 'books', (r) => String(r.itemKey ?? '')),

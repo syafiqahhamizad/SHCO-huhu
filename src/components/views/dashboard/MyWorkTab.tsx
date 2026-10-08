@@ -30,7 +30,7 @@ import type { TaskDraft } from '../../ui';
 import { palette, serifFont, tint } from '../../../lib/designTokens';
 import { parseLocal, toLocalMonth } from '../../../lib/localDate';
 import { caseFinder, isIssued, owedBalance, paidByInvoice } from '../../../lib/financeMetrics';
-import { canSeeFinanceView, finRoleKey, isFinanceView } from '../../../lib/financeAccess';
+import { canSeeClientBilling, canSeeFinanceView, finRoleKey, isFinanceView } from '../../../lib/financeAccess';
 import { driveViewUrl } from '../../../services/googleDriveService';
 import { deleteGoogleTask, upsertGoogleTask } from '../../../services/googleTasksService';
 import { googleErrorMessage, hasValidGoogleToken } from '../../../services/googleWorkspaceAuth';
@@ -393,6 +393,9 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
   /* ---------------------------------------------------------------- navigation */
 
   const finRk = finRoleKey(currentRole, currentUser, isAdmin);
+  // Billed / collected / receivables come from invoices and payments: partners, Accounts and
+  // reviewers only (lawyers and assistants get no billing records, so the tiles are hidden).
+  const seeBilling = canSeeClientBilling(finRk);
   const canOpen = (view: string) => !isFinanceView(view) || canSeeFinanceView(view, finRk);
   const CASE_TAB: Partial<Record<Stream, string>> = { task: 'tasks', deadline: 'tasks', hearing: 'court', signature: 'letters', matter: 'overview', unbilled: 'time', approval: 'time' };
   const openCase = (caseId: string, sub = 'overview') => {
@@ -615,8 +618,10 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
     { label: 'To-do open', value: open(matterRows).filter((r) => r.stream === 'task').length, note: 'tasks', desc: 'Requires your attention this week', icon: CheckCircle2, color: '#2E7D7A', filter: 'all' },
     { label: 'Waiting on you', value: waiting, note: 'approvals', desc: 'Requires your attention this week', icon: Inbox, color: '#8A6D3B', filter: 'waiting' },
     { label: 'Unbilled time', value: open(matterRows).filter((r) => r.stream === 'unbilled').length, note: 'matters', desc: 'Billable write-ups awaiting billing', icon: Timer, color: '#2F6F4E', filter: 'unbilled' },
-    { label: 'My billed (RM)', value: billing.billedThisMonth.toLocaleString(), note: '', desc: '', icon: DollarSign, color: '#8A6D3B' },
-    { label: 'My collected (RM)', value: billing.collectedThisMonth.toLocaleString(), note: '', desc: '', icon: DollarSign, color: '#3D6B9C' },
+    ...(seeBilling ? [
+      { label: 'My billed (RM)', value: billing.billedThisMonth.toLocaleString(), note: '', desc: '', icon: DollarSign, color: '#8A6D3B' },
+      { label: 'My collected (RM)', value: billing.collectedThisMonth.toLocaleString(), note: '', desc: '', icon: DollarSign, color: '#3D6B9C' },
+    ] : []),
     { label: 'Files I brought', value: filesBroughtIn, note: '', desc: '', icon: FolderOpen, color: '#16223A' },
   ];
 
@@ -915,8 +920,10 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
             </div>
             <div className="mt-3 flex flex-col gap-[11px]">
               {([
-                ['Billed', billing.billedThisMonth, targets.billed, '#8A6D3B', (v: number) => setTargets({ billed: v }), 'RM'],
-                ['Collected', billing.collectedThisMonth, targets.collected, '#2F6F4E', (v: number) => setTargets({ collected: v }), 'RM'],
+                ...(seeBilling ? [
+                  ['Billed', billing.billedThisMonth, targets.billed, '#8A6D3B', (v: number) => setTargets({ billed: v }), 'RM'],
+                  ['Collected', billing.collectedThisMonth, targets.collected, '#2F6F4E', (v: number) => setTargets({ collected: v }), 'RM'],
+                ] as const : []),
                 ['New files brought', filesBroughtIn, targets.files, '#3D6B9C', (v: number) => setTargets({ files: v }), ''],
                 ['Referrals converted', myReferrals.converted, targets.referrals, '#6B3D8C', (v: number) => setTargets({ referrals: v }), ''],
               ] as const).map(([label, value, target, color, onSet, prefix]) => (
@@ -942,8 +949,10 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
             </div>
             {(() => {
               const gaps = [
-                { label: 'billing', gap: targets.billed - billing.billedThisMonth, prefix: 'RM ' },
-                { label: 'collections', gap: targets.collected - billing.collectedThisMonth, prefix: 'RM ' },
+                ...(seeBilling ? [
+                  { label: 'billing', gap: targets.billed - billing.billedThisMonth, prefix: 'RM ' },
+                  { label: 'collections', gap: targets.collected - billing.collectedThisMonth, prefix: 'RM ' },
+                ] : []),
                 { label: 'new files', gap: targets.files - filesBroughtIn, prefix: '' },
                 { label: 'referrals', gap: targets.referrals - myReferrals.converted, prefix: '' },
               ].filter((g) => g.gap > 0).sort((a, b) => b.gap - a.gap);
@@ -957,8 +966,8 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
             })()}
           </div>
 
-          {/* Collection + aging */}
-          <div className="rounded-xl border border-[#DDE3EB] bg-white p-3.5">
+          {/* Collection + aging (billing readers only) */}
+          {seeBilling && <div className="rounded-xl border border-[#DDE3EB] bg-white p-3.5">
             <div className="flex items-center gap-3">
               <Donut segments={[{ label: 'Collected', value: billing.collectionRate, color: palette.green }]} size={64} thickness={10} centerLabel={`${billing.collectionRate}%`} />
               <div>
@@ -979,7 +988,7 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
                 { label: '>120', value: billing.buckets.over120, color: palette.red },
               ]}
             />
-          </div>
+          </div>}
 
           {/* Productivity */}
           <div className="rounded-xl border border-[#DDE3EB] bg-white p-3.5">

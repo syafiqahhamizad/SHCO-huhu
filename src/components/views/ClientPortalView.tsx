@@ -19,6 +19,7 @@ import type { Case, CaseDocument, Client, Hearing, Invoice, Receipt, Task, User 
 import { css, invoiceToDoc, quotationToDoc, receiptToDoc, type Lookups } from './finance/financeModel';
 import { courtOf, isDeadline, isDone, isoOf, lawyerOf, practiceOf, stageKey, stageMessage, staffOf, stagesFor, todayIso } from './cases/caseModel';
 import { casesOfClient, moneyForClient } from '../../lib/moneyByFile';
+import { canSeeClientBilling, finRoleKey } from '../../lib/financeAccess';
 import { courtEventTimes } from '../../lib/calendarEvent';
 import { whatsappLink } from '../../lib/whatsapp';
 import { docHtml, pdf, tableHtml } from '../../lib/financeDocs';
@@ -105,11 +106,14 @@ interface Ask { id: string; title: string; note: string; kind: 'sign' | 'note' |
 
 export const ClientPortalView: React.FC = () => {
   const {
-    clients, cases, invoices, payments, receipts, retainers, quotations, users, currentUser, currentRole, logoutUser, setCurrentView, updateInvoice, updateCase,
+    clients, cases, invoices, payments, receipts, retainers, quotations, users, currentUser, currentRole, isAdmin, logoutUser, setCurrentView, updateInvoice, updateCase,
   } = useApp();
 
   const isClientLogin = currentRole === 'Client';
   const preview = !isClientLogin;
+  // Staff preview: bills and the client account only for people who see billing (partners,
+  // Accounts, reviewers). Lawyers and assistants get no billing records, so those parts are hidden.
+  const previewBilling = !preview || canSeeClientBilling(finRoleKey(currentRole, currentUser, isAdmin));
 
   const [cid, setCid] = useState<string>(() => {
     try { return sessionStorage.getItem(PREVIEW_CLIENT_KEY) || ''; } catch { return ''; }
@@ -169,7 +173,7 @@ export const ClientPortalView: React.FC = () => {
   }
 
   const vis = client.portal?.visibility;
-  const see = { progress: vis?.progress ?? true, documents: vis?.documents ?? true, bills: vis?.bills ?? true, statement: vis?.statement ?? true, messages: vis?.messages ?? true };
+  const see = { progress: vis?.progress ?? true, documents: vis?.documents ?? true, bills: (vis?.bills ?? true) && previewBilling, statement: (vis?.statement ?? true) && previewBilling, messages: vis?.messages ?? true };
 
   /* next court date */
   const today = todayIso();

@@ -112,6 +112,13 @@ export function useFirmDataSync(a: FirmDataSyncArgs) {
     const emailOf = (id: string) => (((a.lists.users || []) as unknown as User[]).find((u) => u.id === id)?.email || '').toLowerCase();
 
     const push = (key: string, docs: Map<string, Record<string, unknown>>) => {
+      if (L.scope.get(key) === 'none' && docs.size > 0) {
+        // Records this person may not read at all (e.g. a lawyer adding a quotation — billing is
+        // partners / Accounts only): say so and drop the unsaved copy instead of keeping a phantom.
+        argsRef.current.onRefused(`You don't have access to ${key}; the change was not saved.`);
+        argsRef.current.setList(key, []);
+        return;
+      }
       if (!L.isReady(key)) return;
       const writes = L.changes(key, docs, a.myEmail);
       if (!writes.length) return;
