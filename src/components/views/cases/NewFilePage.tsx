@@ -29,10 +29,6 @@ const SIDES: Record<string, [string, string[], string]> = {
 };
 const GENERIC_SIDE: [string, string[], string] = ['We act for', ['Client', 'Plaintiff', 'Defendant', 'Applicant', 'Respondent'], 'Other party'];
 
-const initialsOf = (name: string) => {
-  const w = String(name || '').replace(/[’']/g, '').split(/\s+/).filter((x) => x && !/^(bin|binti|bt|b\.|sdn|bhd|berhad|tan|sri|dr\.?|dato'?|datuk|datin|encik|puan|syarikat|the)$/i.test(x));
-  return (w.slice(0, 2).map((x) => x[0]).join('') || 'CL').toUpperCase();
-};
 const norm = (s: string) => String(s || '').trim().toLowerCase();
 
 export const NewFilePage: React.FC = () => {
@@ -56,6 +52,8 @@ export const NewFilePage: React.FC = () => {
   const [custom, setCustom] = useState('');
   const [title, setTitle] = useState('');
   const [opp, setOpp] = useState('');
+  // Client initials in the file no. are typed by the firm, never worked out automatically.
+  const [initials, setInitials] = useState('');
   const [side, setSide] = useState<Record<string, string>>({});
   const [vals, setVals] = useState<Record<string, string>>({});
   const [reviewed, setReviewed] = useState(false);
@@ -114,10 +112,10 @@ export const NewFilePage: React.FC = () => {
   const mmyy = String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getFullYear()).slice(-2);
   const runNo = getNextSequenceId('case');
   const sortedPartners = [...partners].sort((a, b) => Number(b === 'SH') - Number(a === 'SH'));
-  const refFor = (no: string) => ['SHC', ...sortedPartners, ...(lawyer ? [lawyer] : []), ...(codePart ? [codePart] : []), C ? initialsOf(C.name) : 'CL', no, mmyy].join('/');
+  const refFor = (no: string) => ['SHC', ...sortedPartners, ...(lawyer ? [lawyer] : []), ...(codePart ? [codePart] : []), initials || '??', no, mmyy].join('/');
   const ref = refFor(done ? '' : '###');
 
-  const blocker = !C ? 'Choose the client' : !codePart ? 'Choose a matter code' : conflictOpen ? 'Conflict needs partner review' : !title.trim() ? 'Enter a matter title' : !partners.length ? 'Pick a partner in charge' : '';
+  const blocker = !C ? 'Choose the client' : !initials ? 'Type the client initials for the file no.' : !codePart ? 'Choose a matter code' : conflictOpen ? 'Conflict needs partner review' : !title.trim() ? 'Enter a matter title' : !partners.length ? 'Pick a partner in charge' : '';
 
   const fee = (settings.feeTemplates || {})[tag] || builtInFeeTemplates()[tag];
   const feeTotal = fee ? [...fee.prof, ...fee.disb, ...fee.reimb].reduce((s, l) => s + Number(l.a || 0), 0) : 0;
@@ -185,7 +183,7 @@ export const NewFilePage: React.FC = () => {
   };
 
   const goFile = () => { if (!done) return; close(); setCaseSubTab('overview'); setCurrentCaseId(done.id); };
-  const again = () => { setDone(null); setTitle(''); setOpp(''); setVals({}); setReviewed(false); setClientId(''); };
+  const again = () => { setDone(null); setTitle(''); setOpp(''); setInitials(''); setVals({}); setReviewed(false); setClientId(''); };
 
   const pqq = pq.toLowerCase().trim();
   const pList = partnerList.filter((p) => !pqq || p.name.toLowerCase().includes(pqq) || p.code.toLowerCase().includes(pqq));
@@ -213,7 +211,7 @@ export const NewFilePage: React.FC = () => {
             <div style={css('position:sticky;top:0;z-index:2;display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;padding:14px 24px;background:#16223A;color:#fff;border-radius:12px 12px 0 0')}>
               <span style={css('font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#E9C46A')}>File no. preview</span>
               <span style={css('font-family:ui-monospace,monospace;font-size:15px;font-weight:800;word-break:break-all')}>{ref}</span>
-              <span style={css('flex-basis:100%;font-size:12px;line-height:1.5;color:#C9D1DC')}>Built from partner, lawyer, matter type and client. Running number ({runNo}) is given when the file opens.</span>
+              <span style={css('flex-basis:100%;font-size:12px;line-height:1.5;color:#C9D1DC')}>Built from partner, lawyer, matter type and the client initials you type. Running number ({runNo}) is given when the file opens.</span>
             </div>
 
             <div style={css('padding:20px 24px;display:flex;flex-direction:column;gap:12px;border-bottom:1px solid #EEF1F5')}>
@@ -234,6 +232,10 @@ export const NewFilePage: React.FC = () => {
                 </div>
                 <button type="button" onClick={() => setIsRegisterClientModalOpen(true)} style={css('flex-shrink:0;height:40px;border:1px solid #C9D1DC;border-radius:8px;padding:0 14px;font-size:12.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer')}>+ New client</button>
               </div>
+              <label style={css('display:flex;align-items:center;gap:10px;flex-wrap:wrap')}>
+                <span style={css('font-size:12px;font-weight:600;color:#5B6478')}>Client initials (for the file no.)</span>
+                <input id="newfile-initials" value={initials} maxLength={8} placeholder="e.g. AH" onChange={(e) => setInitials(e.target.value.toUpperCase().replace(/[^A-Z0-9&-]/g, ''))} style={css('width:120px;height:36px;border:1px solid #C9D1DC;border-radius:8px;padding:0 10px;font-family:ui-monospace,monospace;font-size:13px;font-weight:700;color:#16223A;text-transform:uppercase')} />
+              </label>
               {(() => {
                 const cf = !C && !opp.trim() ? { bg: '#EEF1F5', fg: '#4A5468', title: 'Conflict check.', text: 'Choose the client and the other side to check.' }
                   : !conflict.length ? { bg: '#E6EFE9', fg: '#1F5A3B', title: 'No conflict.', text: 'Not found as the other side in any file, and the other side is not a firm client.' }
