@@ -8,7 +8,6 @@ import {
   buildEaHtml, buildFileDirectory, buildMyClaimRows, buildPayslipHtml, card, cardTitle, dedLines, dedOf, dMonY, earnLines, FirmLetterhead,
   grossOf, MONTHS_SHORT, netOf, periodLabel, printHtml, rm, serif, staffIdentity,
 } from './staffPortalShared';
-import { StaffClaimsTab } from './StaffClaimsTab';
 import { StaffLeaveTab } from './StaffLeaveTab';
 import { StaffGoalsTab } from './StaffGoalsTab';
 import { StaffAttendanceTab } from './StaffAttendanceTab';
@@ -18,7 +17,7 @@ import { personBits } from '../settings/permissionModel';
 type Tab = 'pay' | 'claims' | 'leave' | 'attendance' | 'goals' | 'profile';
 // Design order (Payslips, My Claims, Leave, Goals & wellbeing); Attendance and the HR-only
 // Employee records are kept from before the design.
-const TABS: [Tab, string][] = [['pay', 'Payslips'], ['claims', 'My Claims'], ['leave', 'Leave'], ['attendance', 'Attendance'], ['goals', 'Goals & wellbeing'], ['profile', 'Employee records']];
+const TABS: [Tab, string][] = [['pay', 'Payslips'], ['leave', 'Leave'], ['attendance', 'Attendance'], ['goals', 'Goals & wellbeing'], ['profile', 'Employee records']];
 const PAY_GRID = 'minmax(0,1fr) 100px 90px 90px 90px 100px';
 const LH_PATH = import.meta.env.BASE_URL + 'assets/sh-name.png';
 
@@ -44,18 +43,13 @@ const useLetterhead = () => {
 };
 
 export const StaffPortalView: React.FC = () => {
-  const { currentUser, users, payslips, travelClaims, expenses, paymentVouchers, cases, clients, leaveApplications, showToast, isAdmin, rolesMatrix, currentView, setCurrentView } = useApp();
+  const { currentUser, users, payslips, travelClaims, expenses, paymentVouchers, cases, clients, leaveApplications, showToast, isAdmin, rolesMatrix, setCurrentView } = useApp();
   // Employee records are HR-only: admins, or people granted "HR records" in Permissions & limits.
   const canHr = Boolean(isAdmin) || personBits(rolesMatrix || {}, currentUser, 'hrRecords')[0] === '1';
   const tabs = TABS.filter(([k]) => k !== 'profile' || canHr);
-  const [innerTab, setInnerTab] = useState<Exclude<Tab, 'claims'>>('pay');
-  // My Claims is the claims tab of this page: the sidebar's "My Claims" opens it and stays highlighted.
-  const tab: Tab = currentView === 'reimbursements' ? 'claims' : innerTab;
-  const setTab = (t: Tab) => {
-    if (t === 'claims') return setCurrentView('reimbursements');
-    setInnerTab(t);
-    if (currentView === 'reimbursements') setCurrentView('staffPortal');
-  };
+  const [tab, setInnerTab] = useState<Exclude<Tab, 'claims'>>('pay');
+  // My Claims is its own page (owner's choice); the claims tile opens it.
+  const setTab = (t: Tab) => (t === 'claims' ? setCurrentView('reimbursements') : setInnerTab(t));
   const lh = useLetterhead();
 
   const me = useMemo(() => identityTokens(currentUser), [currentUser]);
@@ -110,7 +104,6 @@ export const StaffPortalView: React.FC = () => {
       </section>
 
       {tab === 'pay' && <PayslipsTab slips={mySlips} lh={lh} showToast={showToast} />}
-      {tab === 'claims' && <StaffClaimsTab rows={claimRows} dir={dir} />}
       {tab === 'leave' && <StaffLeaveTab myLeaves={myLeaves} used={used} me={me} />}
       {tab === 'attendance' && <StaffAttendanceTab />}
       {tab === 'goals' && <StaffGoalsTab />}
