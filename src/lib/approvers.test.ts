@@ -21,6 +21,10 @@ describe('approvers', () => {
     expect(ruleLabel(['SH', 'ZA', 'AH'], 0)).toBe('SH, ZA & AH');
     expect(ruleLabel(['SH', 'ZA', 'AH'], 1)).toBe('any 1 of SH, ZA, AH');
   });
+  it('client account payments: partners only, even if someone else was ticked', () => {
+    const r = resolveApproval('clientPay', users, { clientPay: { approvers: ['s', 'n', 'l'], need: 0 } });
+    expect(r?.people.map((x) => x.id)).toEqual(['s']);
+  });
   it('not set up = null (existing routing stays)', () => {
     expect(resolveApproval('claims', users, undefined)).toBeNull();
     expect(resolveApproval('claims', users, { claims: { approvers: ['z'], need: 1 } })).toBeNull(); // only a switched-off person

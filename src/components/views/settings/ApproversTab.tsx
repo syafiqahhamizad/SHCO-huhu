@@ -1,6 +1,6 @@
 import React from 'react';
 import { useApp } from '../../../context/AppContext';
-import { APPROVAL_ITEMS, approverCode, approverPool, ruleLabel, type ApproverRule } from '../../../lib/approvers';
+import { APPROVAL_ITEMS, PARTNER_ONLY_ITEMS, approverCode, approverPool, poolFor, ruleLabel, type ApproverRule } from '../../../lib/approvers';
 import { css, S, type SettingsCtx } from './settingsShared';
 import { designRole } from './permissionModel';
 
@@ -30,18 +30,20 @@ export const ApproversTab = ({ C }: { C: SettingsCtx }) => {
       <div style={css(GRID + 'padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>What needs approval</span><span>Approvers</span><span>Rule</span><span>Result</span></div>
       {APPROVAL_ITEMS.map(([id, label, where, fallback]) => {
         const r = rules[id];
+        const itemPool = poolFor(id, users);
+        const partnerOnly = PARTNER_ONLY_ITEMS.includes(id);
         // Only people still in the pool count (switched-off or role-changed people drop out).
-        const ids = (r?.approvers || []).filter((uid) => pool.some((u) => u.id === uid));
+        const ids = (r?.approvers || []).filter((uid) => itemPool.some((u) => u.id === uid));
         const n = ids.length;
         const need = r?.need ? Math.min(r.need, n) : n;
-        const codes = ids.map((uid) => approverCode(pool.find((u) => u.id === uid) || { name: uid }));
+        const codes = ids.map((uid) => approverCode(itemPool.find((u) => u.id === uid) || { name: uid }));
         const summary = !n ? 'Not set yet · ' + fallback : need === n ? (n === 1 ? codes[0] + ' approves' : 'all of ' + codes.join(', ')) : need + ' of ' + codes.join(', ');
         const needOpts = [{ v: '0', label: n > 1 ? 'All ' + n + ' must approve' : 'Must approve' }, ...Array.from({ length: Math.max(0, n - 1) }, (_, i) => ({ v: String(i + 1), label: 'Any ' + (i + 1) + ' of ' + n }))];
         return (
           <div key={id} style={css(GRID + 'align-items:center;padding:9px 14px;border-bottom:1px solid #F0F2F5')}>
-            <span style={css('min-width:0')}><span style={css('display:block;font-size:11.5px;font-weight:700;color:#16223A')}>{label}</span><span style={css('display:block;font-size:10px;color:#5B6478')}>{where}</span></span>
+            <span style={css('min-width:0')}><span style={css('display:block;font-size:11.5px;font-weight:700;color:#16223A')}>{label}</span><span style={css('display:block;font-size:10px;color:#5B6478')}>{where}</span>{partnerOnly && <span style={css('display:block;font-size:10px;font-weight:700;color:#8A6534')}>Partners only (Solicitors’ Account Rules 1990)</span>}</span>
             <div style={css('display:flex;gap:4px;flex-wrap:wrap')}>
-              {pool.map((u) => {
+              {itemPool.map((u) => {
                 const on = ids.includes(u.id);
                 const go = () => {
                   const a = on ? ids.filter((y) => y !== u.id) : [...ids, u.id];

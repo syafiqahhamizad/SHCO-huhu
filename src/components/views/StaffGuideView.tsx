@@ -627,13 +627,15 @@ export const StaffGuideView: React.FC = () => {
   const [editingVideo, setEditingVideo] = useState(false);
   const [videoDraft, setVideoDraft] = useState('');
   const mine = roleOf(finRoleKey(currentRole, currentUser, isAdmin), String(currentUser?.role || currentRole || ''));
-  const [role, setRole] = useState<GuideRole>(mine);
+  const [picked, setRole] = useState<GuideRole>(mine);
   const isAdminViewer = Boolean(currentUser?.isAdmin || currentUser?.isSuperAdmin);
+  // Each person reads only their own role's guide; admins can look at every role (to check it).
+  const role: GuideRole = isAdminViewer ? picked : mine;
   const seesBilling = canSeeClientBilling(finRoleKey(currentRole, currentUser, isAdmin), finGrants(currentUser));
   const sections = useMemo(() => SECTIONS.filter((s) =>
     s.roles === 'all' ? true
       : s.roles === 'admin' ? isAdminViewer
-        : s.roles === 'billing' ? role === 'partner' || role === 'accounts' || seesBilling
+        : s.roles === 'billing' ? (isAdminViewer ? role === 'partner' || role === 'accounts' || seesBilling : seesBilling)
           : s.roles.includes(role)), [role, isAdminViewer, seesBilling]);
   const video = settings.guideVideos?.[role] || '';
   const roleLabel = ROLES.find(([k]) => k === role)?.[1] || '';
@@ -662,10 +664,10 @@ export const StaffGuideView: React.FC = () => {
       <div className="flex flex-col gap-1">
         <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8A6D3B]">Staff guide</span>
         <h2 className="m-0 font-serif text-2xl font-bold text-[#16223A]">How to use the portal</h2>
-        <p className="m-0 max-w-[68ch] text-[#5B6478]">Step by step, for your role. Button names match what you see on screen. Pick another role to see how colleagues work.</p>
+        <p className="m-0 max-w-[68ch] text-[#5B6478]">Step by step, for your role. Button names match what you see on screen.{isAdminViewer ? ' As an admin you can switch roles below to check each one.' : ''}</p>
       </div>
 
-      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Guide by role">
+      {isAdminViewer && <div className="flex flex-wrap gap-2" role="tablist" aria-label="Guide by role">
         {ROLES.map(([k, label, sub]) => {
           const on = role === k;
           return (
@@ -676,7 +678,7 @@ export const StaffGuideView: React.FC = () => {
             </button>
           );
         })}
-      </div>
+      </div>}
 
       {(video || canEditVideo) && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[#DDE3EB] bg-white px-4 py-3">

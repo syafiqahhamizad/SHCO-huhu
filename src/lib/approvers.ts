@@ -37,6 +37,13 @@ export const approverPool = (users: User[]): User[] =>
     .filter((u) => u.status !== 'Inactive' && u.role !== 'Client' && u.role !== 'Reviewer')
     .sort((a, b) => Number(!!b.isSuperAdmin) - Number(!!a.isSuperAdmin) || (POOL_ORDER[a.role] ?? 2) - (POOL_ORDER[b.role] ?? 2) || a.name.localeCompare(b.name));
 
+/** Money out of the client account (SAR 1990): signed by partners only, whatever else is set. */
+export const PARTNER_ONLY_ITEMS = ['clientPay'];
+
+/** Who can be picked for one item: partners (and the Super Admin) for client money, anyone otherwise. */
+export const poolFor = (id: string, users: User[]): User[] =>
+  PARTNER_ONLY_ITEMS.includes(id) ? approverPool(users).filter((u) => u.role === 'Partner' || u.isSuperAdmin) : approverPool(users);
+
 /** Short code shown on the chips: the user code, else initials (bin / binti left out). */
 export const approverCode = (u: Partial<User>): string =>
   partnerCode(u) ||
@@ -68,7 +75,7 @@ interface ResolvedApproval {
 export const resolveApproval = (id: string, users: User[], rules: Record<string, ApproverRule> | undefined): ResolvedApproval | null => {
   const r = rules?.[id];
   if (!r || !Array.isArray(r.approvers)) return null;
-  const pool = approverPool(users);
+  const pool = poolFor(id, users);
   const people = r.approvers.map((uid) => pool.find((u) => u.id === uid)).filter((u): u is User => !!u);
   if (!people.length) return null;
   const codes = people.map(approverCode);
