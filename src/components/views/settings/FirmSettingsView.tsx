@@ -5,6 +5,7 @@ import { css, usePracticeSettings, type SettingsCtx } from './settingsShared';
 import { isSuper } from './permissionModel';
 import { UsersTab } from './UsersTab';
 import { PermissionsTab } from './PermissionsTab';
+import { ApproversTab } from './ApproversTab';
 import { DriveStorageCard } from './DriveStorageCard';
 import { FirmTab } from './FirmTab';
 import { BanksTab } from './BanksTab';
@@ -18,7 +19,7 @@ import { ListsTab } from './ListsTab';
  * replaces the old Users & Permissions page (routes 'users' / 'roles' open it here). Every change
  * is written to the Activity Log. Managing Partner (admin / super admin) only.
  */
-const TABS: [string, string][] = [['users', 'Users & Roles'], ['perms', 'Permissions & limits'], ['firm', 'Firm & Letterhead'], ['google', 'Google, e-mail & backup'], ['bank', 'Banks, Numbering & SST'], ['areas', 'Practice areas & codes'], ['tpl', 'Fee templates'], ['src', 'Lists & sources']];
+const TABS: [string, string][] = [['users', 'Users & Roles'], ['perms', 'Permissions & limits'], ['apv', 'Who approves'], ['firm', 'Firm & Letterhead'], ['google', 'Google, e-mail & backup'], ['bank', 'Banks, Numbering & SST'], ['areas', 'Practice areas & codes'], ['tpl', 'Fee templates'], ['src', 'Lists & sources']];
 const tabForView = (v: string) => (v === 'users' ? 'users' : v === 'roles' ? 'perms' : null);
 
 export const FirmSettingsView = () => {
@@ -62,6 +63,7 @@ export const FirmSettingsView = () => {
       </section>
       {tab === 'users' && <UsersTab C={C} />}
       {tab === 'perms' && <PermissionsTab C={C} view={permView} setView={setPermView} />}
+      {tab === 'apv' && <ApproversTab C={C} />}
       {tab === 'firm' && <FirmTab C={C} />}
       {tab === 'google' && <div style={css('display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start')}><DriveStorageCard C={C} /></div>}
       {tab === 'bank' && <BanksTab C={C} />}

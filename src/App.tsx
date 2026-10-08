@@ -31,7 +31,6 @@ const PracticeSettingsView = React.lazy(() => import('./components/views/Practic
 const TrustAuditLogsView = React.lazy(() => import('./components/views/TrustAuditLogsView').then((module) => ({ default: module.TrustAuditLogsView })));
 const InventoryView = React.lazy(() => import('./components/views/InventoryView').then((module) => ({ default: module.InventoryView })));
 const StaffPortalView = React.lazy(() => import('./components/views/staff/StaffPortalView').then((module) => ({ default: module.StaffPortalView })));
-const MyClaimsView = React.lazy(() => import('./components/views/staff/MyClaimsView').then((module) => ({ default: module.MyClaimsView })));
 const MyAccountView = React.lazy(() => import('./components/views/MyAccountView').then((module) => ({ default: module.MyAccountView })));
 const StaffGuideView = React.lazy(() => import('./components/views/StaffGuideView').then((module) => ({ default: module.StaffGuideView })));
 const AboutAppView = React.lazy(() => import('./components/views/AboutAppView').then((module) => ({ default: module.AboutAppView })));
@@ -181,11 +180,11 @@ const MainContent: React.FC = () => {
         return <MyDashboardView />;
       case 'firmDashboard':
         return <ComprehensiveDashboardView />;
+      // My Claims is the Staff Portal's claims tab (design: the sidebar highlights My Claims while it is open).
       case 'staffPortal':
       case 'staff-portal':
-        return <StaffPortalView />;
       case 'reimbursements':
-        return <MyClaimsView />;
+        return <StaffPortalView />;
       case 'leads':
       case 'leadsReferrals':
       case 'leads-referrals':

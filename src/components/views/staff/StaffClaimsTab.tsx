@@ -6,6 +6,8 @@ import { DRIVE_REQUIRED_MSG, isUploadReady, openStoredFile, prepareStorage, stor
 import {
   card, cardTitle, ClaimKind, ClaimRow, ddmm, ddmmyyyy, FileDirectory, KIND_COLORS, labelWrap, OFFICE_LABEL, rm, STATUS_COLORS, todayIso,
 } from './staffPortalShared';
+import { resolveApproval } from '../../../lib/approvers';
+import { usePracticeSettings } from '../settings/settingsShared';
 
 const LBL: React.CSSProperties = { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#5B6478' };
 const INP: React.CSSProperties = { border: '1px solid #C9D3E0', borderRadius: 4, padding: '7px 9px', fontSize: 12, color: '#16223A', background: '#fff', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' };
@@ -104,7 +106,7 @@ interface Props {
 
 export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
   const {
-    currentUser, cases, clients, travelClaims, expenses, paymentVouchers, addTravelClaim, addExpense, addPaymentVoucher,
+    currentUser, users, cases, clients, travelClaims, expenses, paymentVouchers, addTravelClaim, addExpense, addPaymentVoucher,
     addNotification, addActivityLog, getNextSequenceId, showToast,
   } = useApp();
   const [f, setForm] = useState<Form>(blankForm);
@@ -116,6 +118,9 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
   const [upErr, setUpErr] = useState('');
   const [recOpen, setRecOpen] = useState<string | null>(null);
   const storageLabel = useStorageLabel();
+  // Firm & Practice Settings → Who approves → Staff claims; until it is set, the file's partner in charge approves.
+  const [settings] = usePracticeSettings();
+  const rule = resolveApproval('claims', users || [], settings.approvers);
   const openStored = async (a: ClaimAttachment) => {
     const err = await openStoredFile(a);
     if (err) showToast(err);
@@ -125,7 +130,7 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
 
   const list = rows.map((c) => ({
     ...c,
-    withTxt: c.status === 'Waiting' ? 'with ' + c.approver : c.status === 'Approved' ? 'Accounts to pay' : c.status === 'Paid' ? 'paid by Accounts' : 'by ' + (c.approvedBy || c.approver),
+    withTxt: c.status === 'Waiting' ? 'with ' + (rule ? rule.label : c.approver) : c.status === 'Approved' ? 'Accounts to pay' : c.status === 'Paid' ? 'paid by Accounts' : 'by ' + (c.approvedBy || c.approver),
   }));
 
   /* ---------------- updates (derived from my own records only) ---------------- */
@@ -206,7 +211,7 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
 
   const tot = f.items.reduce((s, i) => s + i.amt, 0);
   const totB = f.items.reduce((s, i) => s + i.bill, 0);
-  const approvers = Array.from(new Set(f.items.map((i) => dir.picOf(i.caseRef))));
+  const approvers = rule ? rule.people.map((u) => u.name) : Array.from(new Set(f.items.map((i) => dir.picOf(i.caseRef))));
   const payee = PM === 'Online portal' ? f.portal : f.vendor;
 
   const sp = currentUser.staffProfile;

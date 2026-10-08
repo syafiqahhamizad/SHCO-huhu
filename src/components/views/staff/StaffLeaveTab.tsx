@@ -3,6 +3,8 @@ import { useApp } from '../../../context/AppContext';
 import type { ClaimAttachment, LeaveApplication } from '../../../types';
 import { DRIVE_REQUIRED_MSG, isUploadReady, prepareStorage, storeLeaveDocument, useStorageLabel, validateClaimFile } from '../../../services/fileStorageService';
 import { isMine } from '../../../lib/identity';
+import { resolveApproval } from '../../../lib/approvers';
+import { usePracticeSettings } from '../settings/settingsShared';
 import { card, cardTitle, ddmmyyyy, isoOf, labelWrap, LEAVE_COLORS, LEAVE_TYPES, getPublicHolidays } from './staffPortalShared';
 
 const LBL: React.CSSProperties = { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#5B6478' };
@@ -26,6 +28,9 @@ export const StaffLeaveTab: React.FC<Props> = ({ myLeaves, used, me }) => {
   const [mcFile, setMcFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const storage = useStorageLabel();
+  // Firm & Practice Settings → Who approves → Staff leave; until it is set, any partner approves.
+  const [settings] = usePracticeSettings();
+  const rule = resolveApproval('leave', users, settings.approvers);
   /** Keeps the picked supporting document; blocked (with the reason) when Drive is not set up or the file is not allowed. */
   const pickMc = (f0?: File | null) => {
     if (!f0) return;
@@ -138,7 +143,7 @@ export const StaffLeaveTab: React.FC<Props> = ({ myLeaves, used, me }) => {
       type: 'system',
       // Partners approve leave under My Dashboard → Needs your decision.
       linkTab: 'dashboard',
-      to: ['role:Partner', lv.pic],
+      to: [...(rule ? rule.people.map((u) => u.id) : ['role:Partner']), lv.pic],
     });
     setLv((x) => ({ ...x, from: '', to: '', half: 'Full day', pic: '', mc: '' }));
     setMcFile(null);
@@ -251,7 +256,7 @@ export const StaffLeaveTab: React.FC<Props> = ({ myLeaves, used, me }) => {
             </label>
             <span style={{ fontSize: 10.5, lineHeight: 1.5, color: wc }}>{warn}</span>
             <button type="button" disabled={busy} onClick={() => { void submit(); }} style={{ border: 0, borderRadius: 6, padding: '8px 12px', fontSize: 11.5, fontWeight: 700, background: '#16223A', color: '#fff', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1, fontFamily: 'inherit' }}>{busy ? 'Uploading…' : 'Send to partner'}</button>
-            <span style={{ fontSize: 10, lineHeight: 1.45, color: '#5B6478' }}>Once approved, it goes on the firm calendar so partners and your PIC can see it. You can add it to your own Google / Outlook calendar from “My leave”.</span>
+            <span style={{ fontSize: 10, lineHeight: 1.45, color: '#5B6478' }}>{rule ? 'Approved by ' + rule.label + '. ' : ''}Once approved, it goes on the firm calendar so partners and your PIC can see it. You can add it to your own Google / Outlook calendar from “My leave”.</span>
           </div>
         </div>
       </div>

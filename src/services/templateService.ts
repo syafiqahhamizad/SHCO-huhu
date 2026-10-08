@@ -1,6 +1,7 @@
 // Practice Settings & Document Template Service
 import { writeCloudState } from './firestoreSyncService';
 import type { ComplianceItem, ComplaintRecord, Milestone, Panelship, InvestmentChannel, FirmGoal } from '../types';
+import type { ApproverRule } from '../lib/approvers';
 
 export interface FirmBankAccount {
   id: string;
@@ -194,6 +195,9 @@ export interface PracticeSettings {
   /** Approval limits (Permissions & limits tab), as typed. `mpPlusOneAbove` drives the finance
    * Approvals two-signatory threshold. */
   approvalLimits?: ApprovalLimits;
+  /** Who approves (Who approves tab), keyed by item id (lib/approvers APPROVAL_ITEMS); people are
+   * user ids. An item that is not here keeps the existing routing. */
+  approvers?: Record<string, ApproverRule>;
   /** Per-practice-area default quotation (Fee templates tab), keyed by practice-area tag (L, CONV,
    * EST, …). Overrides the built-in templates in lib/financeDocs AREAS. */
   feeTemplates?: Record<string, FeeTemplate>;
