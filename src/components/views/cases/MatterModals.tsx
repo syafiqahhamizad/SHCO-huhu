@@ -112,7 +112,8 @@ export const DeleteMatterModal: React.FC<{ w: WF; onClose: () => void }> = ({ w,
     ['Open tasks removed from My Work', String((c.tasks || []).filter((t) => !isDone(t)).length), false],
     ['Court dates on the file', String((c.hearings || []).length), false],
     ['Filing & service entries hidden', String((c.serviceRecord || []).length), false],
-    ['Client account balance', rm(money.clientBalance), blocked],
+    // Client-account money is shown only to people who see billing.
+    ...(w.seeFin ? [['Client account balance', rm(money.clientBalance), blocked] as [string, string, boolean]] : []),
   ];
   const confirm = () => {
     if (blocked) { w.toast('Clear the client account balance first'); return; }

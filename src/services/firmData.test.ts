@@ -14,6 +14,19 @@ describe('collection layout', () => {
     expect(canReadTier('books', 'accountant', false)).toBe(true);
     expect(canReadTier('hr', 'lawyer', true)).toBe(true); // admins
   });
+  it('client billing is books only: lawyers and assistants get none of it', () => {
+    for (const k of ['quotations', 'invoices', 'payments', 'receipts', 'retainers']) {
+      expect(collectionDef(k)?.tier).toBe('books');
+      expect(canReadTier(collectionDef(k)!.tier, 'lawyer', false)).toBe(false);
+      expect(canReadTier(collectionDef(k)!.tier, 'assistant', false)).toBe(false);
+      expect(canReadTier(collectionDef(k)!.tier, 'reviewer', false)).toBe(true);
+      expect(canReadTier(collectionDef(k)!.tier, 'partner', false)).toBe(true);
+    }
+  });
+  it('time entries and expenses stay with every firm user', () => {
+    expect(collectionDef('timeEntries')?.tier).toBe('firm');
+    expect(collectionDef('expenses')?.tier).toBe('firm');
+  });
 });
 
 describe('document ids', () => {

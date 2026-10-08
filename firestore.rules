@@ -107,18 +107,21 @@ service cloud.firestore {
       return splitStarted() && get(metaPath()).data.get('state', '') == 'done';
     }
 
-    // firm  — every firm user;  books — partners, accountants, reviewers (read), admins, owner;
+    // firm  — every firm user;  books — partners, accountants, reviewers (read), admins, owner
+    //         (ledgers, bank, and client billing: quotations, invoices, payments, receipts,
+    //         client-account entries — lawyers and assistants get none of it);
     // hr    — partners, accountants, admins, owner, or the person's own document;
     // own   — only the person it belongs to (private to-dos), nobody else;
     // users — everyone reads; admins write; people may update their own non-sensitive fields.
     function tierOf(col) {
-      return col in ['manualJournals', 'financeConfig', 'bankAccounts', 'bankReconciliationEntries', 'trustAuditLogs', 'generalLedger', 'clientAccountChecks'] ? 'books'
+      return col in ['manualJournals', 'financeConfig', 'bankAccounts', 'bankReconciliationEntries', 'trustAuditLogs', 'generalLedger', 'clientAccountChecks',
+                     'quotations', 'invoices', 'payments', 'receipts', 'retainers'] ? 'books'
         : col in ['payslips', 'staffPrivate'] ? 'hr'
         : col == 'privateTodos' ? 'own'
         : col == 'users' ? 'users'
         : col == 'config' ? 'config'
-        : col in ['leads', 'clients', 'cases', 'quotations', 'referralPartners', 'paymentVouchers', 'travelClaims', 'receipts',
-                  'deadlines', 'invoices', 'payments', 'retainers', 'attendanceRecords', 'leaveApplications', 'meetings', 'programmes',
+        : col in ['leads', 'clients', 'cases', 'referralPartners', 'paymentVouchers', 'travelClaims',
+                  'deadlines', 'attendanceRecords', 'leaveApplications', 'meetings', 'programmes',
                   'notifications', 'lawFirmRegistry', 'deletedRecords', 'timeEntries', 'expenses', 'announcements', 'auditLogs',
                   'firmStartCentrePages', 'inventoryItems', 'logs'] ? 'firm'
         : 'none';

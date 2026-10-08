@@ -6,7 +6,7 @@ import { useApp } from '../../context/AppContext';
 import type { Case, Client, ClientHistoryEntry, CorporateEntityCategory, KycDoc } from '../../types';
 import { NewClientModal } from '../NewClientModal';
 import { css } from './finance/financeModel';
-import { canSeeFinanceView, finRoleKey } from '../../lib/financeAccess';
+import { canSeeClientBilling, canSeeFinanceView, finRoleKey } from '../../lib/financeAccess';
 import { casesOfClient, isOpenFile, moneyForClient, moneyForFile, type MoneySources } from '../../lib/moneyByFile';
 import { parseDate } from '../../lib/financeCalc';
 import { exportToCsv } from '../../lib/exportUtils';
@@ -64,6 +64,10 @@ export const ClientsView: React.FC = () => {
   const src: MoneySources = useMemo(() => ({ invoices, payments, retainers, quotations, receipts }), [invoices, payments, retainers, quotations, receipts]);
   const rk = finRoleKey(currentRole, currentUser, isAdmin);
   const tier: Tier = rk === 'M' || rk === 'A' ? 'fin' : rk === 'P' ? 'partner' : 'lawyer';
+  // Bills, receipts and the client account: partners, Accounts and reviewers only. Lawyers and
+  // assistants get no billing records, so the Money tab and "Owes us" figures are not shown.
+  const seeBilling = canSeeClientBilling(rk);
+  const FILE_COLS = 'display:grid;grid-template-columns:220px minmax(200px,1fr) 140px 150px ' + (seeBilling ? '100px ' : '') + '80px;gap:12px;';
   const me = currentUser?.name || 'Staff';
 
   const selId = useSelectedClientId();
@@ -82,7 +86,7 @@ export const ClientsView: React.FC = () => {
     return (
       <>
         <ClientList
-          clients={clients} cases={cases} src={src} q={q} setQ={setQ} type={type} setType={setType} card={card} setCard={setCard}
+          clients={clients} cases={cases} src={src} seeBilling={seeBilling} q={q} setQ={setQ} type={type} setType={setType} card={card} setCard={setCard}
           onOpen={(id) => open(id)} onReg={() => setReg(true)} showToast={showToast}
         />
         {modal}
@@ -113,7 +117,7 @@ export const ClientsView: React.FC = () => {
     deleteClient(c.id);
     clientsNav.set(null);
   };
-  const tabs: [Tab, string][] = [['profile', 'Profile'], ['files', `Files (${files.length})`], ['money', 'Money'], ['kyc', `KYC (${kycRows.filter((r) => r.state === 'Verified').length}/${kycRows.length})`], ['portal', 'Portal access'], ['history', 'History']];
+  const tabs: [Tab, string][] = [['profile', 'Profile'], ['files', `Files (${files.length})`], ...(seeBilling ? [['money', 'Money'] as [Tab, string]] : []), ['kyc', `KYC (${kycRows.filter((r) => r.state === 'Verified').length}/${kycRows.length})`], ['portal', 'Portal access'], ['history', 'History']];
 
   return (
     <div style={css('display:flex;flex-direction:column;gap:16px;font-size:12px;color:#16223A;font-family:Inter,system-ui,-apple-system,sans-serif')}>
@@ -146,17 +150,17 @@ export const ClientsView: React.FC = () => {
         <div style={css('border-radius:12px;border:1px solid #DDE3EB;background:#fff;overflow-x:auto')}>
           <div style={css('min-width:940px')}>
             <div style={css('display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid #EEF1F5')}><strong style={css(H)}>Files for this client</strong><span style={css('font-size:11px;color:#5B6478')}>click a file to open it</span><button type="button" onClick={() => { setCurrentCaseId(null); openNewCaseWithPrefill({ clientId: c.id, clientName: c.name }); setCurrentView('cases'); }} style={css('margin-left:auto;border:0;background:none;padding:0;font-size:11.5px;font-weight:600;color:#3D6B9C;cursor:pointer')}>+ Open new file</button></div>
-            <div style={css('display:grid;grid-template-columns:220px minmax(200px,1fr) 140px 150px 100px 80px;gap:12px;padding:8px 16px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>File no.</span><span>Title</span><span>Practice area</span><span>Partner · lawyer</span><span style={css('text-align:right')}>Owes us</span><span>Status</span></div>
+            <div style={css(FILE_COLS + 'padding:8px 16px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>File no.</span><span>Title</span><span>Practice area</span><span>Partner · lawyer</span>{seeBilling && <span style={css('text-align:right')}>Owes us</span>}<span>Status</span></div>
             {files.map((k) => {
-              const o = moneyForFile(k, src).outstanding;
+              const o = seeBilling ? moneyForFile(k, src).outstanding : 0;
               const lawyer = (k.lawyerInCharge || '').split(',')[0].trim() || (k.lawyers || [])[0] || '';
               return (
-                <div key={k.id} onClick={() => openCase(k)} className="bg-white hover:bg-[#F6F8FA]" style={css('display:grid;grid-template-columns:220px minmax(200px,1fr) 140px 150px 100px 80px;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid #F0F2F5;cursor:pointer')}>
+                <div key={k.id} onClick={() => openCase(k)} className="bg-white hover:bg-[#F6F8FA]" style={css(FILE_COLS + 'align-items:center;padding:12px 16px;border-bottom:1px solid #F0F2F5;cursor:pointer')}>
                   <span style={css('justify-self:start;font-family:ui-monospace,monospace;font-size:10.5px;font-weight:700;color:#16223A;background:#F1F4F7;border:1px solid #DDE3EB;border-radius:5px;padding:3px 6px;white-space:nowrap')}>{k.ref}</span>
                   <span style={css('font-size:12.5px;font-weight:700;color:#16223A')}>{k.title}</span>
                   <span style={css('color:#1E293B')}>{k.practiceArea || k.type || '—'}</span>
                   <span style={css('color:#5B6478')}>{[(k.partners || []).join(', '), lawyer].filter(Boolean).join(' · ') || '—'}</span>
-                  <span style={css(`text-align:right;font-weight:700;color:${o > 0 ? '#8E2A20' : '#5B6478'}`)}>{o > 0 ? rm(o) : '—'}</span>
+                  {seeBilling && <span style={css(`text-align:right;font-weight:700;color:${o > 0 ? '#8E2A20' : '#5B6478'}`)}>{o > 0 ? rm(o) : '—'}</span>}
                   <span style={pillCss(FILE_PILL[k.status] || P.n)}>{k.status}</span>
                 </div>
               );
@@ -166,7 +170,7 @@ export const ClientsView: React.FC = () => {
         </div>
       )}
 
-      {tab === 'money' && MoneyPanel({ c, money, files, tier, rk })}
+      {tab === 'money' && seeBilling && MoneyPanel({ c, money, files, tier, rk })}
       {tab === 'kyc' && KycTab({ c, tier, save })}
       {tab === 'portal' && PortalTab({ c, save })}
       {tab === 'history' && HistoryTab({ c, files })}
@@ -546,18 +550,17 @@ const ProfileTab: React.FC<{ c: Client; ccPill: Pill; ccState: string; tier: Tie
 /* ==================================================================== list */
 
 const ClientList: React.FC<{
-  clients: Client[]; cases: Case[]; src: MoneySources;
+  clients: Client[]; cases: Case[]; src: MoneySources; seeBilling: boolean;
   q: string; setQ: (v: string) => void; type: 'All' | 'Individual' | 'Corporate'; setType: (t: 'All' | 'Individual' | 'Corporate') => void;
   card: string; setCard: (c: string) => void; onOpen: (id: string) => void; onReg: () => void; showToast: (m: string) => void;
-}> = ({ clients, cases, src, q, setQ, type, setType, card, setCard, onOpen, onReg, showToast }) => {
+}> = ({ clients, cases, src, seeBilling, q, setQ, type, setType, card, setCard, onOpen, onReg, showToast }) => {
   const info = useMemo(() => {
     const m = new Map<string, { files: Case[]; owes: number; kyc: ReturnType<typeof kycOverall> }>();
     clients.forEach((c) => {
-      const mc = moneyForClient(c, cases, src);
-      m.set(c.id, { files: casesOfClient(c, cases), owes: mc.outstanding, kyc: kycOverall(c) });
+      m.set(c.id, { files: casesOfClient(c, cases), owes: seeBilling ? moneyForClient(c, cases, src).outstanding : 0, kyc: kycOverall(c) });
     });
     return m;
-  }, [clients, cases, src]);
+  }, [clients, cases, src, seeBilling]);
   const I = (c: Client) => info.get(c.id) || { files: [], owes: 0, kyc: kycOverall(c) };
   const s = q.trim().toLowerCase();
   const byQ = (x: Client) => !s || [x.name, x.id, idNoOf(x), x.icNo, x.icNumber, x.registrationNo, x.phone, x.email, x.contactPerson, ...(x.tags || [])].join(' ').toLowerCase().includes(s);
@@ -576,7 +579,7 @@ const ClientList: React.FC<{
     mk('KYC to finish', 'kyc', '#8A6D3B', pre.filter(CF.kyc).length, 'missing or unverified documents'),
     mk('Conflict to review', 'cc', '#8E2A20', pre.filter(CF.cc).length, 'flagged or awaiting partner'),
     mk('No portal login', 'po', '#2F4F7A', pre.filter(CF.po).length, 'open files, client can\'t see progress'),
-    mk('Owes us', 'owes', '#1F5A3B', pre.filter(CF.owes).length, rm(pre.reduce((a, x) => a + Math.max(0, I(x).owes), 0)) + ' outstanding'),
+    ...(seeBilling ? [mk('Owes us', 'owes', '#1F5A3B', pre.filter(CF.owes).length, rm(pre.reduce((a, x) => a + Math.max(0, I(x).owes), 0)) + ' outstanding')] : []),
   ];
   const exportCsv = () => {
     if (!clients.length) { showToast('No clients to export yet.'); return; }
@@ -584,7 +587,7 @@ const ClientList: React.FC<{
     showToast('SHCO_Clients.csv downloaded');
   };
   const hasFilters = !!(q || type !== 'All' || card);
-  const COLS = 'display:grid;grid-template-columns:minmax(230px,1.6fr) 150px minmax(170px,1fr) 70px 104px 88px 104px 88px;gap:12px;';
+  const COLS = 'display:grid;grid-template-columns:minmax(230px,1.6fr) 150px minmax(170px,1fr) 70px ' + (seeBilling ? '104px ' : '') + '88px 104px 88px;gap:12px;';
   return (
     <div style={css('display:flex;flex-direction:column;gap:16px;font-size:12px;color:#16223A;font-family:Inter,system-ui,-apple-system,sans-serif')}>
       <div style={css('display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;background:#fff;border:1px solid #DDE3EB;padding:16px;border-radius:12px')}>
@@ -620,7 +623,7 @@ const ClientList: React.FC<{
       <div style={css('background:#fff;border:1px solid #DDE3EB;border-radius:12px;overflow-x:auto')}>
         <div style={css('min-width:1020px')}>
           <div style={css(COLS + 'padding:11px 14px;background:#16223A;color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em')}>
-            <span>Client</span><span>NRIC / SSM no.</span><span>Contact</span><span>Files</span><span style={css('text-align:right')}>Owes us</span><span>KYC</span><span>Conflict</span><span>Portal</span>
+            <span>Client</span><span>NRIC / SSM no.</span><span>Contact</span><span>Files</span>{seeBilling && <span style={css('text-align:right')}>Owes us</span>}<span>KYC</span><span>Conflict</span><span>Portal</span>
           </div>
           {list.map((x) => {
             const inf = I(x);
@@ -637,7 +640,7 @@ const ClientList: React.FC<{
                 <span style={css('font-family:ui-monospace,monospace;font-size:11px;color:#1E293B')}>{idNoOf(x) || '—'}</span>
                 <span style={css('display:flex;flex-direction:column;gap:2px;min-width:0')}><span style={css('font-weight:600;color:#16223A')}>{x.phone || '—'}</span><span style={css('font-size:11px;color:#5B6478;overflow:hidden;text-overflow:ellipsis;white-space:nowrap')}>{x.email}</span></span>
                 <span style={css('font-weight:700;color:#16223A')}>{act ? act + ' open' : inf.files.length ? inf.files.length + ' closed' : '—'}</span>
-                <span style={css(`text-align:right;font-weight:700;color:${o > 0 ? '#8E2A20' : '#5B6478'}`)}>{o > 0 ? rm(o) : '—'}</span>
+                {seeBilling && <span style={css(`text-align:right;font-weight:700;color:${o > 0 ? '#8E2A20' : '#5B6478'}`)}>{o > 0 ? rm(o) : '—'}</span>}
                 <span style={pillCss(kp)}>{kp.t}</span>
                 <span style={pillCss(cp)}>{cp.t}</span>
                 <span style={pillCss(pp)}>{pp.t}</span>

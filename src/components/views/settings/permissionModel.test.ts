@@ -73,6 +73,7 @@ describe('roleOwnBits', () => {
   it('unmasked sub-tab falls back to its tab', () => expect(roleOwnBits(matrix, 'Lawyer', 'cases.tasks')).toBe('110'));
   it('masked sub-tab: allowed role inherits the tab', () => expect(roleOwnBits(matrix, 'Partner', 'cases.money')).toBe('111'));
   it('masked sub-tab: role outside the mask gets nothing', () => expect(roleOwnBits(matrix, 'Assistant', 'cases.money')).toBe('000'));
+  it('money on the file: not for lawyers by default (billing is partners, Accounts, reviewers)', () => expect(roleOwnBits(matrix, 'Lawyer', 'cases.money')).toBe('000'));
   it("design default '000000' hides for every role", () => expect(roleOwnBits(matrix, 'Partner', 'dashboard.finance')).toBe('000'));
 });
 
