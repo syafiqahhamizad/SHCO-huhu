@@ -32,9 +32,9 @@ export const FinanceHomeTab = ({ F }: { F: FinanceCtrl }) => {
   const payRef = slips.reduce((s, p) => s + Number(p.referralFee || 0), 0);
   const kpis: [string, string, string, string][] = [
     ['Client account', rmShort(F.trustTotal), `${F.ledgers.length} ledgers · ${prevRec ? F.prevDate.toLocaleString('en-US', { month: 'short' }) + (prevRec.status === 'MATCHED' ? ' balanced' : ' not balanced') : 'no reconciliation on file'}`, '#2F6F4E'],
-    ['Office bank', F.officeCash == null ? '—' : rmShort(F.officeCash), F.officeCash == null ? 'no office bank account set up' : 'opening balance + cash book · ' + ((officeBanks.length ? officeBanks.map((b) => b.bankName) : F.firmBanksOf('Office').map((b) => b.bankName)).join(' + ') || 'office'), '#16223A'],
-    ['Owed to us', rmShort(F.owedTotal), `${F.openInvoices.length} invoices · ${rmShort(over60)} over 60 days`, '#B23A2E'],
-    ['Work not billed', rmShort(F.wipTotal), `${F.unbilled.length} files · ${F.unbilled.filter((u) => u.oldest > 60).length} over 60 days`, '#8A6534'],
+    ['Office ACCOUNT', F.officeCash == null ? '—' : rmShort(F.officeCash), F.officeCash == null ? 'no office bank account set up' : ((officeBanks.length ? officeBanks.map((b) => b.bankName) : F.firmBanksOf('Office').map((b) => b.bankName)).join(' + ') || 'office'), '#16223A'],
+    ['OWING', rmShort(F.owedTotal), `${F.openInvoices.length} invoices · ${rmShort(over60)} over 60 days`, '#B23A2E'],
+    ['UNBILLED', rmShort(F.wipTotal), `${F.unbilled.length} files · ${F.unbilled.filter((u) => u.oldest > 60).length} over 60 days`, '#8A6534'],
     ['Payroll ' + lastDayLabel, slips.length ? rm(payGross) : '—', slips.length ? 'incl. ' + rm(payRef) + ' referral fees' : 'no payslips keyed in yet', '#3D6B9C'],
   ];
 
@@ -70,7 +70,7 @@ export const FinanceHomeTab = ({ F }: { F: FinanceCtrl }) => {
   // disbursements are not costs.
   const P = F.pnl((d) => inPeriod(d, period));
   const feesIn = P.income, salaries = P.payroll, rent = P.rent, other = P.otherCosts;
-  const flows: [string, number, string][] = [['Fee income received (excl. SST & disbursements)', feesIn, '#2F6F4E'], ['Salaries & statutory', salaries, '#B23A2E'], ['Rent & utilities', rent, '#8A6534'], ['Other expenses', other, '#8A6534']];
+  const flows: [string, number, string][] = [['Fees received', feesIn, '#2F6F4E'], ['Salaries & statutory', salaries, '#B23A2E'], ['Rent & utilities', rent, '#8A6534'], ['Other expenses', other, '#8A6534']];
   const flowMax = Math.max(1, ...flows.map((f) => f[1]));
   const net = P.net;
 
@@ -89,7 +89,7 @@ export const FinanceHomeTab = ({ F }: { F: FinanceCtrl }) => {
             <span style={css(`justify-self:start;font-size:10px;font-weight:700;padding:2px 9px;border-radius:10px;background:${FK[a.kind][0]};color:${FK[a.kind][1]}`)}>{a.kind}</span>
             <span style={css('min-width:0')}><span style={css(`display:block;font-size:11.5px;line-height:1.4;color:#16223A;font-weight:${r ? 500 : 700}`)}>{a.text}</span><span style={css('display:block;font-size:10px;color:#5B6478')}>{a.meta}</span></span>
             <span style={css('text-align:right;font-size:12px;font-weight:700;color:#16223A')}>{a.amt ? rm2(a.amt) : ''}</span>
-            <button type="button" onClick={() => { F.markRead([a.id]); F.go(F.TABS.some((t) => t[0] === a.tab) ? a.tab : F.tab); }} style={css('justify-self:end;border:1px solid #16223A;border-radius:6px;padding:4px 10px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit;white-space:nowrap')}>{a.cta}</button>
+            <button type="button" onClick={() => { F.markRead([a.id]); if (a.tab === 'approvals') F.setApSub(a.cta === 'Pay' ? 'p' : 'w'); F.go(F.TABS.some((t) => t[0] === a.tab) ? a.tab : F.tab); }} style={css('justify-self:end;border:1px solid #16223A;border-radius:6px;padding:4px 10px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit;white-space:nowrap')}>{a.cta}</button>
           </div>
         ); })}
       </div>
@@ -131,6 +131,7 @@ export const FinanceHomeTab = ({ F }: { F: FinanceCtrl }) => {
           </div>
         </div>
       </section>
+      <button type="button" onClick={() => F.setGuide(true)} style={css('align-self:flex-start;border:0;background:none;padding:0;font-size:11.5px;font-weight:600;color:#3D6B9C;cursor:pointer;font-family:inherit')}>How money moves, A to Z -&gt;</button>
     </div>
   );
 };

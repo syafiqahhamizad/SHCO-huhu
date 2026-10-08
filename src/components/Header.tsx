@@ -11,7 +11,7 @@ import {
   Archive,
 } from 'lucide-react';
 import { RecycleBinModal } from './RecycleBinModal';
-import { canSeeFinanceView, finRoleKey, isFinanceView } from '../lib/financeAccess';
+import { FIN_TABS, FINANCE_VIEW_TO_TAB, canSeeFinanceView, finRoleKey, isFinanceView } from '../lib/financeAccess';
 
 export const Header: React.FC = () => {
   const {
@@ -117,7 +117,9 @@ export const Header: React.FC = () => {
   // Long names (e.g. a matter's title) belong in the page content, not the header.
   const getViewInfo = (): { title: string; sub: string; crumb?: string; onCrumb?: () => void } => {
     if (isFinanceView(currentView)) {
-      return { title: 'Finance & Accounts', sub: 'Restricted: Accounts, Partners and Managing Partner only' };
+      // Design: the page title is the open finance page (sidebar drives the pages, no tab strip).
+      const tab = FINANCE_VIEW_TO_TAB[currentView];
+      return { title: FIN_TABS.find((t) => t[0] === tab)?.[1] || 'Finance & Accounts', sub: 'Finance & Accounts · restricted to Accounts, Partners and Managing Partner' };
     }
     switch (currentView) {
       case 'firmStartCentre':

@@ -39,7 +39,7 @@ describe('finance tabs per role', () => {
   it('Managing Partner sees every tab', () => expect(keys('M')).toEqual(FIN_TABS.map((t) => t[0])));
   it('Accounts sees every tab', () => expect(keys('A')).toEqual(FIN_TABS.map((t) => t[0])));
   it('Partner: billing, client account, approvals', () => expect(keys('P')).toEqual(['billing', 'trust', 'approvals']));
-  it('Reviewer: client account + books & reports', () => expect(keys('R')).toEqual(['trust', 'reports']));
+  it('Reviewer: client account + accounting + reports', () => expect(keys('R')).toEqual(['trust', 'books', 'reports']));
   it('Staff: nothing', () => expect(keys('S')).toEqual([]));
 });
 
@@ -57,6 +57,11 @@ describe('canSeeFinanceView / isFinanceView', () => {
     expect(canSeeFinanceView('officeAccounts', 'P')).toBe(false);
     expect(canSeeFinanceView('billing', 'P')).toBe(true);
     expect(canSeeFinanceView('quotations', 'P')).toBe(true);
+  });
+  it('accounting aliases open the Accounting tab', () => {
+    expect(FINANCE_VIEW_TO_TAB.trialBalance).toBe('books');
+    expect(FINANCE_VIEW_TO_TAB.accounting).toBe('books');
+    expect(FINANCE_VIEW_TO_TAB.balanceSheet).toBe('reports');
   });
   it('reviewer: reports aliases and client account only', () => {
     expect(canSeeFinanceView('trialBalance', 'R')).toBe(true);
@@ -80,6 +85,7 @@ describe('canSeeFinanceNav', () => {
   });
   it('only sidebar view ids match (aliases do not)', () => {
     expect(canSeeFinanceNav('accountingCentre', 'M')).toBe(true);
-    expect(canSeeFinanceNav('accounting', 'M')).toBe(false);
+    expect(canSeeFinanceNav('accounting', 'M')).toBe(true);
+    expect(canSeeFinanceNav('coa', 'M')).toBe(false);
   });
 });

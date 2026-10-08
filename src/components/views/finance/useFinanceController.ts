@@ -3,6 +3,7 @@
  * class (state, derived values and every interaction), but reading and writing REAL app data
  * through useApp(). Tabs and modals are pure renderers of what this returns.
  */
+import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../../../context/AppContext';
 import type {
@@ -14,8 +15,12 @@ import { isApprovedForBilling } from '../../../lib/billingEngine';
 import { claimFormTotal, invoiceComposition, isNonExpensePv, isReimbursementCategory, isStatutoryCategory, needsTwoSignatories, PV_DRAWINGS, PV_SST, PV_STATUTORY, round2, splitReceipt } from '../../../lib/financeCalc';
 import { identityTokens, isMine } from '../../../lib/identity';
 import * as SD from '../../../lib/financeDocs';
+import { whatsappLink } from '../../../lib/whatsapp';
 import { statutoryForPayslip, STATUTORY_VERSION } from '../../../lib/statutory';
 import { finRoleKey, finTabsFor, FIN_TABS, type FinTab } from '../../../lib/financeAccess';
+import { approverCode } from '../../../lib/approvers';
+import { computeFeeSharing, DEFAULT_RULES, isPartnerType, type FsFile, type FsPerson, type PersonType } from '../../../lib/feeSharing';
+import { configuredSign, finRule, type FinApprovalId } from '../../../lib/financeApproval';
 import {
   GLA,
   MONTHS,
@@ -69,6 +74,7 @@ export interface EditorState {
   inst: SD.DocInstalments | null;
 }
 export interface FormState { kind: string; vals: Record<string, any> }
+export interface PaperState { title: string; sub: string; html: string; pdf?: () => void; xls?: () => void; toggles?: { label: string; on: boolean; go: () => void }[]; extra?: React.ReactNode }
 export interface ImportState { src: 'Template' | 'Bank' | 'Software'; acc: 'Office' | 'Client account' | 'Petty cash'; raw: string[][] | null; fileName: string }
 
 export interface ApItem {
@@ -166,12 +172,21 @@ export function useFinanceController(initialTab: FinTab) {
   const [docT, setDocT] = useState<'Quotation' | 'Proforma' | 'Invoice' | 'Receipt'>('Invoice');
   const [invF, setInvF] = useState('All');
   const [apF, setApF] = useState('All');
-  const [ledgerKey, setLedgerKey] = useState<string>('');
-  const [slipUser, setSlipUser] = useState<string>('');
   const [cbAcc, setCbAcc] = useState<CashAcc>('Office');
   const [fundEdit, setFundEdit] = useState(false);
   const [fundsDraft, setFundsDraft] = useState<SinkingFund[] | null>(null);
   const [view, setView] = useState<DocRef | null>(null);
+  /** Sub-pages (design: chips under the page): Client Account, Office Account, Approvals, Payroll. */
+  const [trSub, setTrSub] = useState<'l' | 'c' | 'r' | 's'>('l');
+  const [ofSub, setOfSub] = useState<'e' | 'c' | 'd' | 'f' | 'm' | 'i'>('e');
+  const [apSub, setApSub] = useState<'w' | 'p' | 'r'>('w');
+  const [paySub, setPaySub] = useState<'sl' | 'pp' | 'fs'>('sl');
+  /** "How money moves, A to Z" guide page. */
+  const [guide, setGuide] = useState(false);
+  /** Payment reminder (email / WhatsApp) for an invoice or proforma. */
+  const [rem, setRem] = useState<{ kind: DocKind; id: string; to: string; subj: string; body: string; attach: boolean; viaE: boolean; viaW: boolean; phone: string; wa: string } | null>(null);
+  /** A4 paper viewer (reports, statements, payslips): html + PDF / Excel actions. */
+  const [paper, setPaper] = useState<PaperState | null>(null);
   const [ed, setEd] = useState<EditorState | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
   const [imp, setImp] = useState<ImportState | null>(null);
@@ -478,8 +493,36 @@ export function useFinanceController(initialTab: FinTab) {
   }, [travelClaims, expenses, paymentVouchers, manualJournals, invoices, referral, refDecision, lk]);
   const pendingAp = apItems.length;
 
+  /** "Who approves" item for a record waiting in Approvals. */
+  const apId = (item: Pick<ApItem, 'kind' | 'clientAccount'>): FinApprovalId => (item.kind === 'travel' || item.kind === 'expense' ? 'claims' : item.kind === 'writeoff' ? 'writeOff' : item.kind === 'referral' ? 'referral' : item.clientAccount ? 'clientPay' : 'officePay');
+  /** Rule for an approval: Firm Settings → Who approves when set, else the finance defaults. */
+  const ruleFor = (id: FinApprovalId) => finRule(id, users, settings.approvers);
+  const myCode = currentUser ? approverCode(currentUser) : '';
+  /** Settings-held sign-offs (payroll, fee sharing, reconciliation, statements…). */
+  const signoffs = (key: string) => (settings.financeSignoffs || {})[key] || {};
+  const signOff = (id: FinApprovalId, key: string, onDone?: () => void) => {
+    const r = ruleFor(id);
+    if (!r.canSign(currentUser)) { toastMsg('This ' + r.rule + '.'); return false; }
+    const cur = { ...signoffs(id + ':' + key) };
+    if (cur[myCode]) delete cur[myCode]; else cur[myCode] = { by: me, at: new Date().toISOString() };
+    saveSettings({ financeSignoffs: { ...(settings.financeSignoffs || {}), [id + ':' + key]: cur } });
+    const done = r.done(cur);
+    toastMsg(!cur[myCode] ? 'Your approval was removed' : done ? 'Approved by ' + Object.keys(cur).join(' & ') : 'Approved by you · waiting for ' + (r.need - r.count(cur)) + ' more');
+    if (done && cur[myCode] && onDone) onDone();
+    return done;
+  };
+  /** The approval rule shown under an item ("needs approval from …"). */
+  const apRule = (item: ApItem) => {
+    const r = ruleFor(apId(item));
+    if (r.configured) return r.rule;
+    if (item.kind === 'writeoff' || item.kind === 'referral') return r.rule;
+    return needsTwoSignatories(formTotalOf(item).total, twoSignatoryThreshold(), item.clientAccount) ? 'needs the Managing Partner + 1 more signatory' : 'any partner can approve';
+  };
+  /** Can the signed-in person sign this item now? */
+  const canSignItem = (item: ApItem) => { const r = ruleFor(apId(item)); return r.configured ? r.canSign(currentUser) : item.kind === 'writeoff' || item.kind === 'referral' ? isMP : canApprove; };
   const approve = (item: ApItem, ok: boolean) => {
-    if (!canApprove) { toastMsg('Only partners approve. Accounts prepare.'); return; }
+    const rule = ruleFor(apId(item));
+    if (rule.configured ? !rule.canSign(currentUser) : !canApprove) { toastMsg(rule.configured ? 'This ' + rule.rule + ' (Firm & Practice Settings › Who approves).' : 'Only partners approve. Accounts prepare.'); return; }
     const at = new Date().toISOString();
     if (!ok) {
       if (item.kind === 'travel') app.updateTravelClaim(item.id, { approvalStatus: 'Rejected', approvedBy: me, approvedAt: at });
@@ -493,13 +536,22 @@ export function useFinanceController(initialTab: FinTab) {
       toastMsg(item.title + ' rejected');
       return;
     }
-    if ((item.kind === 'writeoff' || item.kind === 'referral') && !isMP) { toastMsg(item.kind === 'writeoff' ? 'Write-offs need the Managing Partner.' : 'Referral fees are approved by the Managing Partner.'); return; }
-    if (item.signatories.some((s) => norm(s.name) === norm(me))) { toastMsg('You have already signed this. It needs another signatory.'); return; }
-    const sigs = [...item.signatories, { name: me, at, isManagingPartner: isMP }];
-    // Threshold from Firm & Practice Settings → Permissions & limits (default RM 5,000).
-    // Per claim / PV FORM (sum of its items), Managing Partner + 1 at the threshold and above.
-    const needTwo = needsTwoSignatories(formTotalOf(item).total, twoSignatoryThreshold(), item.clientAccount);
-    const complete = item.kind === 'writeoff' || item.kind === 'referral' ? isMP : needTwo ? sigs.length >= 2 && sigs.some((s) => s.isManagingPartner) : true;
+    // Write-offs stay admin-level even when listed in Who approves.
+    if (item.kind === 'writeoff' && !(isMP || (rule.configured && isAdmin))) { toastMsg('Write-offs need an admin partner.'); return; }
+    if (!rule.configured && item.kind === 'referral' && !isMP) { toastMsg('Referral fees are approved by an admin.'); return; }
+    if (item.signatories.some((s) => (s.userId ? s.userId === currentUser?.id : norm(s.name) === norm(me)))) { toastMsg('You have already signed this. It needs another signatory.'); return; }
+    const sigs = [...item.signatories, { name: me, at, isManagingPartner: isMP, ...(currentUser?.id ? { userId: currentUser.id } : {}) }];
+    let complete: boolean;
+    if (rule.configured) {
+      const step = configuredSign(rule, { id: currentUser?.id || '', name: me }, item.signatories);
+      if ('msg' in step) { toastMsg(step.msg); return; }
+      complete = step.complete;
+    } else {
+      // Threshold from Firm & Practice Settings → Permissions & limits (default RM 5,000).
+      // Per claim / PV FORM (sum of its items), Managing Partner + 1 at the threshold and above.
+      const needTwo = needsTwoSignatories(formTotalOf(item).total, twoSignatoryThreshold(), item.clientAccount);
+      complete = item.kind === 'writeoff' || item.kind === 'referral' ? isMP : needTwo ? sigs.length >= 2 && sigs.some((s) => s.isManagingPartner) : true;
+    }
     // Client-account payments: the ledger can never go below zero.
     if (item.kind === 'pv' && item.clientAccount) {
       const v = paymentVouchers.find((x) => x.id === item.id);
@@ -519,7 +571,7 @@ export function useFinanceController(initialTab: FinTab) {
       else if (item.kind === 'expense') app.updateExpense(item.id, { signatories: sigs });
       else if (item.kind === 'pv') app.updatePaymentVoucher(item.id, { signatories: sigs });
       else if (item.kind === 'journal') app.updateManualJournal(item.id, { signatories: sigs });
-      toastMsg('Signed · needs the Managing Partner + 1 more signatory');
+      toastMsg(rule.configured ? 'Signed · ' + rule.rule : 'Signed · needs the Managing Partner + 1 more signatory');
       return;
     }
     if (item.kind === 'travel') app.updateTravelClaim(item.id, { approvalStatus: 'Approved', approvedBy: me, approvedAt: at, signatories: sigs });
@@ -621,7 +673,12 @@ export function useFinanceController(initialTab: FinTab) {
     if (!periodSlips.length) { toastMsg('No payslips for ' + monthName + ' yet. Click a staff row to key in their payslip.'); return; }
     if (payStep >= 3) return;
     if (payStep === 0 && !canPrepare) { toastMsg('Payroll is checked by Accounts or the Managing Partner.'); return; }
-    if (payStep === 1 && !isMP) { toastMsg('Payroll is approved by the Managing Partner.'); return; }
+    if (payStep === 1) {
+      // Payroll approval follows Who approves (default: Managing Partner); several approvers sign in turn.
+      const r = ruleFor('payroll');
+      if (!r.canSign(currentUser)) { toastMsg('Payroll ' + r.rule + '.'); return; }
+      if (r.need > 1) { const cur = signoffs('payroll:' + period); if (cur[myCode]) { toastMsg('You have already approved. Waiting for ' + (r.need - r.count(cur)) + ' more.'); return; } if (!signOff('payroll', period)) return; }
+    }
     if (payStep === 2 && !canPrepare) { toastMsg('Not available for your role.'); return; }
     if (payStep === 0 && staff.some((u) => !slipOf(u.id))) { toastMsg('Every staff member needs a payslip before payroll is checked.'); return; }
     const ids = periodSlips.filter((p) => PAY_STEPS.indexOf(p.status) === payStep).map((p) => p.id);
@@ -635,6 +692,73 @@ export function useFinanceController(initialTab: FinTab) {
     }
     toastMsg(['Payroll checked', 'Payroll approved', 'Payroll marked paid · payslips show in Staff Portal'][payStep]);
   };
+  /** Save one Draft payslip from inline edits (design: Staff payslips grid). EPF / SOCSO / EIS are
+   * recalculated from the official tables unless the payslip carries an override. */
+  const saveSlipPatch = (userId: string, patch: Partial<Pick<Payslip, 'basic' | 'referralFee' | 'profitShare' | 'bonus' | 'pcb' | 'zakat'>> & { allow?: number; oth?: number; profitShareNote?: string; referralNote?: string; bonusNote?: string }, per = period) => {
+    const u = staffUser(userId); if (!u) return false;
+    const existing = payslips.find((p) => p.userId === userId && p.period === per);
+    if (existing && existing.status !== 'Draft') { toastMsg('Only Draft payslips can be changed.'); return false; }
+    const hr = u.staffProfile?.pay;
+    const base = existing || { basic: Number(hr?.basicSalary || 0), allowances: (hr?.allowances || []).map((a) => ({ name: a.name || 'Allowances', amount: Number(a.amount || 0) })), referralFee: 0, profitShare: 0, bonus: 0, pcb: 0, zakat: 0, otherDeductions: [] as { name: string; amount: number }[] } as Partial<Payslip>;
+    const allowTotal = patch.allow != null ? patch.allow : (base.allowances || []).reduce((s2, a) => s2 + Number(a.amount || 0), 0);
+    const next = { basic: patch.basic ?? Number(base.basic || 0), referralFee: patch.referralFee ?? Number(base.referralFee || 0), profitShare: patch.profitShare ?? Number(base.profitShare || 0), bonus: patch.bonus ?? Number(base.bonus || 0), pcb: patch.pcb ?? Number(base.pcb || 0), zakat: patch.zakat ?? Number(base.zakat || 0) };
+    const sp = u.staffProfile;
+    const st = statutoryForPayslip({ basic: next.basic, allowances: allowTotal, referralFee: next.referralFee, profitShare: next.profitShare, bonus: next.bonus }, { birthday: sp?.birthday, nric: sp?.nric, nationality: sp?.nationality }, per);
+    const keepOverride = existing?.statutory && existing.statutory.auto === false;
+    const p: Payslip = {
+      ...(existing || {}), id: existing?.id || `PS-${per}-${u.id}`, userId: u.id, period: per, status: 'Draft', ...next,
+      allowances: patch.allow != null ? (patch.allow ? [{ name: 'Allowances', amount: patch.allow }] : []) : base.allowances || [],
+      otherDeductions: patch.oth != null ? (patch.oth ? [{ name: (base.otherDeductions || [])[0]?.name || 'Other deduction', amount: patch.oth }] : []) : base.otherDeductions || [],
+      ...(patch.profitShareNote != null ? { profitShareNote: patch.profitShareNote } : {}), ...(patch.referralNote != null ? { referralNote: patch.referralNote } : {}), ...(patch.bonusNote != null ? { bonusNote: patch.bonusNote } : {}),
+      ...(keepOverride || !st.ok ? { epfEmployee: Number(existing?.epfEmployee || 0), epfEmployer: Number(existing?.epfEmployer || 0), socsoEis: Number(existing?.socsoEis || 0), socsoEisEmployer: existing?.socsoEisEmployer, statutory: existing?.statutory || { auto: false, version: STATUTORY_VERSION } }
+        : { epfEmployee: st.epfEmployee, epfEmployer: st.epfEmployer, socsoEis: st.socsoEisEmployee, socsoEisEmployer: st.socsoEisEmployer, statutory: { auto: true, version: STATUTORY_VERSION, socsoEmployee: st.socso.employee, eisEmployee: st.eis.employee, socsoEmployer: st.socso.employer, eisEmployer: st.eis.employer } }),
+    } as Payslip;
+    if (existing) app.updatePayslip(existing.id, p); else app.addPayslip(p);
+    return true;
+  };
+
+  /* ------------------------------ fee sharing (Payroll › Fee sharing) ------------------------------ */
+  const FS = settings.feeSharing || {};
+  const fsPeople: FsPerson[] = users.filter((u) => u.status !== 'Inactive' && u.role !== 'Client' && u.role !== 'Reviewer').map((u) => {
+    const o = (FS.people || {})[u.id] || {};
+    const t0: PersonType = u.role === 'Partner' ? (u.isSuperAdmin ? 'Owner' : 'Partner') : u.role === 'Lawyer' ? 'Associate' : 'Staff';
+    const t = (o.t as PersonType) || t0;
+    const isP = isPartnerType(t);
+    const okPay = isP ? ['Profit share only', 'Monthly salary + profit share', 'Monthly drawing + profit share'].includes(o.pay || '') : ['Salary + fee sharing', 'Salary only', 'Fee sharing only'].includes(o.pay || '');
+    return { id: u.id, code: approverCode(u), name: u.name, t, pay: okPay ? o.pay! : isP ? 'Profit share only' : 'Salary + fee sharing', sal: o.sal != null ? Number(o.sal) : Number(u.staffProfile?.pay?.basicSalary || 0), ded: o.ded || {} };
+  });
+  const personFor = (s0?: string) => { const n = norm(s0); if (!n) return undefined; return fsPeople.find((p) => p.id === s0 || norm(p.name) === n || norm(p.code) === n); };
+  const fsFilesFor = (per: string): FsFile[] => {
+    const by = new Map<string, FsFile>();
+    moneyReceived(invoices).filter((x) => inPeriod(x.date, per) && x.income > 0.004).forEach((x) => {
+      const k = invCase(x.inv); const id = k?.id || x.inv.caseId || x.inv.fileRef || x.inv.id;
+      let f = by.get(id);
+      if (!f) {
+        const o = ((FS.files || {})[per] || {})[id] || {};
+        const handDefault = k ? [...new Set([personFor(k.lawyerInCharge)?.id, ...(k.partners || []).map((c) => fsPeople.find((p) => p.code === String(c).toUpperCase())?.id)].filter(Boolean) as string[])] : [];
+        f = { id, ref: k?.ref || x.inv.fileRef || x.inv.id, client: x.inv.partyName || clientName(x.inv.clientId) || '—', matter: k?.title || x.inv.matter || '', amount: 0, intro: o.intro !== undefined ? o.intro : personFor(k?.referredBy)?.id || '', hands: o.hands && o.hands.length ? o.hands : handDefault, cu: o.cu, rules: o.rules };
+        by.set(id, f);
+      }
+      f.amount = round2(f.amount + x.income);
+    });
+    return [...by.values()].sort((a, b) => b.amount - a.amount);
+  };
+  const fsCostsFor = (per: string) => { const v = (FS.costs || {})[per]; return v != null ? Number(v) : round2(pnl((d) => inPeriod(d, per)).expensesTotal); };
+  const feeShareFor = (per: string) => ({ people: fsPeople, ...computeFeeSharing(fsPeople, fsFilesFor(per), { ...DEFAULT_RULES, ...(FS.rules || {}) }, { psplit: FS.psplit, costs: fsCostsFor(per) }) });
+  const fsApproved = (per: string) => ruleFor('feeShare').done(signoffs('feeShare:' + per));
+  const saveFs = (patch: Partial<NonNullable<typeof settings.feeSharing>>) => { if (!canPrepare && !isMP) { toastMsg('Fee sharing is kept by Accounts and admins.'); return; } if (fsApproved(period)) { toastMsg('This month is approved and locked. Remove an approval to change it.'); return; } saveSettings({ feeSharing: { ...FS, ...patch } }); };
+  const setFsFile = (per: string, id: string, p: Record<string, unknown>) => saveFs({ files: { ...(FS.files || {}), [per]: { ...((FS.files || {})[per] || {}), [id]: { ...(((FS.files || {})[per] || {})[id] || {}), ...p } } } });
+  /** Approved fee sharing → commission on each staff member's Draft payslip for that month. */
+  const applyFeeShareToSlips = (per: string) => {
+    const r = feeShareFor(per); let n = 0;
+    fsPeople.filter((p) => !isPartnerType(p.t) && p.pay !== 'Salary only').forEach((p) => {
+      const t = r.tot[p.id]; if (!t || t.amt <= 0.004) return;
+      const ok = saveSlipPatch(p.id, { profitShare: round2(t.amt), profitShareNote: t.files.length + (t.files.length === 1 ? ' file' : ' files') + ' · fees collected ' + MON[Number(per.slice(5)) - 1] }, per);
+      if (ok) n++;
+    });
+    return n;
+  };
+
   const refFeeFor = (u: User) => referral.rows.filter((r) => r.type === 'Staff' && norm(r.name) === norm(u.name)).reduce((s, r) => s + r.fee, 0);
 
   /* ------------------------------ cash book ------------------------------ */
@@ -726,7 +850,17 @@ export function useFinanceController(initialTab: FinTab) {
     if (rk === 'R') { toastMsg('Read-only access.'); return; }
     if (a === 'Send' || a === 'Resend') { const q = rec as Quotation; app.updateQuotation(q.id, { status: 'Sent', documentSentDate: todayIso(), documentSentBy: me }); toastMsg(`${docNo} marked as sent to ${q.clientName} · email the PDF from your mailbox`); return; }
     if (a === 'Mark accepted') { app.updateQuotation(rec.id, { status: 'Accepted' }); toastMsg(docNo + ' accepted'); return; }
-    if (a === 'Remind') { const c = kind === 'invoice' ? lk.clientById.get((rec as Invoice).clientId) || clientByName((rec as Invoice).partyName || '') : clientByName((rec as Quotation).clientName); const bal = kind === 'invoice' ? invBal(rec as Invoice) : Number((rec as Quotation).total || 0) - proformaPaid(rec as Quotation); mailto(c?.email, `Payment reminder: ${docNo}`, `Dear ${c?.contactPerson || c?.name || 'Sir/Madam'},\n\nThis is a reminder that ${docNo} has an outstanding balance of ${rm2(bal)}.\n\nPayment to: ${SD.BANK.Office[0]}, ${SD.BANK.Office[1]}, A/C ${SD.BANK.Office[2]}.\n\nThank you.\n${SD.FIRM.name}`); toastMsg('Payment reminder email draft opened for ' + (c?.name || 'the client')); return; }
+    if (a === 'Remind') {
+      // Design: a reminder window (email and / or WhatsApp) with the message ready to edit.
+      const inv = kind === 'invoice' ? (rec as Invoice) : undefined;
+      const c = inv ? lk.clientById.get(inv.clientId) || clientByName(inv.partyName || '') : clientByName((rec as Quotation).clientName);
+      const bal = inv ? invBal(inv) : Number((rec as Quotation).total || 0) - proformaPaid(rec as Quotation);
+      const n = (inv?.reminders || []).length; const amt = rm2(bal); const days = inv ? ageDays(inv) : 0;
+      const who = c?.contactPerson || c?.name || (inv ? inv.partyName : (rec as Quotation).clientName) || 'Sir/Madam';
+      const bank = `${SD.BANK.Office[0]} · ${SD.BANK.Office[1]} · ${SD.BANK.Office[2]}`;
+      setRem({ kind, id: rec.id, to: c?.email || '', subj: (n ? 'Second reminder' : 'Payment reminder') + ': ' + docNo + ' · ' + amt + ' outstanding', body: `Dear ${who},\n\nRe: ${(inv?.matter || (rec as Quotation).matter || '')}\n\nOur records show that ${docNo} dated ${fd(rec.date)} has an outstanding balance of ${amt}${inv ? ', now ' + days + ' days past due' : ''}.\n\nWe would be grateful if payment could be made to our office account:\n${bank}\nPlease quote ${docNo} as the payment reference.\n\nIf payment has already been made, kindly send us the bank-in slip and disregard this reminder.\n\nThank you.\n\nYours faithfully,\n${SD.FIRM.name}`, attach: true, viaE: true, viaW: !!c?.phone, phone: c?.phone || '', wa: `Salam / Hi ${who}, a reminder from ${SD.FIRM.name}: ${docNo} has ${amt} outstanding${inv ? ' (' + days + ' days overdue)' : ''}. Please pay to ${SD.BANK.Office[0]} ${SD.BANK.Office[2]} (${SD.BANK.Office[1]}) quoting ${docNo}. If already paid, kindly send us the bank-in slip. Thank you.` });
+      return;
+    }
     if (a === 'Record payment' || a === 'Record paid') { const bal = kind === 'invoice' ? invBal(rec as Invoice) : Number((rec as Quotation).total || 0) - proformaPaid(rec as Quotation); setForm({ kind: 'pay', vals: { docKind: kind, docId: rec.id, title: docNo, amount: String(Math.round(bal * 100) / 100), date: fd(Date.now()) } }); return; }
     if (a === 'View receipt') { const r = receipts.find((x) => x.invoiceId === rec.id || x.quotationId === rec.id || x.forNo === rec.id); if (r) setView({ kind: 'receipt', id: r.id }); else toastMsg('No receipt yet'); return; }
     if (a === 'Issue') {
@@ -799,16 +933,31 @@ export function useFinanceController(initialTab: FinTab) {
     if (a === 'Edit') { editDoc(kind, rec as Quotation | Invoice); return; }
   };
 
+  /** Send the reminder: mail draft and / or WhatsApp chat; logged on the invoice. */
+  const sendReminder = () => {
+    const r = rem; if (!r) return;
+    if (!r.viaE && !r.viaW) { toastMsg('Choose email, WhatsApp or both'); return; }
+    if (r.viaE && !/.+@.+\..+/.test(r.to || '')) { toastMsg("Enter the client's email address"); return; }
+    const link = r.viaW ? whatsappLink(r.phone, r.wa) : null;
+    if (r.viaW && !link) { toastMsg("Enter the client's mobile number, e.g. 012-345 6789"); return; }
+    if (link) window.open(link, '_blank', 'noopener');
+    if (r.viaE) { const d = buildDoc({ kind: r.kind, id: r.id }); if (r.attach && d) SD.pdf(d.no, SD.docHtml(d)); mailto(r.to, r.subj, r.body); }
+    const via = [r.viaE && 'email', r.viaW && 'WhatsApp'].filter(Boolean).join(' & ');
+    if (r.kind === 'invoice') { const inv = invoices.find((i) => i.id === r.id); if (inv) app.updateInvoice(inv.id, { reminders: [...(inv.reminders || []), fd(Date.now()) + ' · ' + via] }); }
+    setRem(null);
+    toastMsg('Reminder ready by ' + via + (r.viaE ? ' · email draft opened' + (r.attach ? ', ' + r.id + '.pdf to attach' : '') : '') + (r.viaW ? ' · press Send in WhatsApp' : ''));
+  };
+
   const openNew = (type: 'Quotation' | 'Proforma' | 'Invoice' | 'Receipt') => {
     if (!(canPrepare || rk === 'P')) { toastMsg('Not available for your role.'); return; }
     const area = 'Litigation';
     setView(null);
     setEd({ type: type === 'Receipt' ? 'Invoice' : type, client: '', ref: '', matter: '', area, account: 'Office', lines: SD.fromTemplate(area), yourRef: 'Kindly Advised', tin: '-', subject: '', desc: SD.AREAS[area].desc, arrangement: '', sstRate: SD.defaultSstRate(), inst: null });
   };
-  const editDoc = (kind: DocKind, rec: Quotation | Invoice) => {
+  const editDoc = (kind: DocKind, rec: Quotation | Invoice, copy = false) => {
     const ref: DocRef = { kind, id: rec.id }; const d = buildDoc(ref); if (!d || d.type === 'Receipt') return;
     setView(null);
-    setEd({ kind, id: rec.id, type: d.type, client: d.client, ref: d.ref || '', matter: d.matter || '', area: d.area || 'Litigation', account: d.account === 'Client account' ? 'Client account' : 'Office', yourRef: d.yourRef || 'Kindly Advised', tin: d.tin || '-', subject: d.subject || '', desc: d.desc || '', arrangement: d.arrangement || '', sstRate: d.sstRate || 0, inst: d.inst ? { ...d.inst } : null, lines: { prof: SD.clone(d.lines?.prof), disb: SD.clone(d.lines?.disb), reimb: SD.clone(d.lines?.reimb) } });
+    setEd({ ...(copy ? {} : { kind, id: rec.id }), type: d.type, client: d.client, ref: d.ref || '', matter: d.matter || '', area: d.area || 'Litigation', account: d.account === 'Client account' ? 'Client account' : 'Office', yourRef: d.yourRef || 'Kindly Advised', tin: d.tin || '-', subject: d.subject || '', desc: d.desc || '', arrangement: d.arrangement || '', sstRate: d.sstRate || 0, inst: d.inst ? { ...d.inst } : null, lines: { prof: SD.clone(d.lines?.prof), disb: SD.clone(d.lines?.disb), reimb: SD.clone(d.lines?.reimb) } });
   };
   const saveEd = (andView: boolean) => {
     const e = ed; if (!e) return;
@@ -885,8 +1034,10 @@ export function useFinanceController(initialTab: FinTab) {
     if (kind === 'moneyIn') {
       if (!canPrepare) { toastMsg('Receipts are recorded by Accounts.'); return; }
       if (amt <= 0) { toastMsg('Enter the amount received.'); return; }
-      const acc: 'Office' | 'Client account' = vals.account || 'Office';
+      // Design: "This money is" Payment of an invoice (office) / Deposit / money held for client.
+      const acc: 'Office' | 'Client account' = vals.kind === 'Deposit / money held for client' ? 'Client account' : vals.kind ? 'Office' : vals.account || 'Office';
       const c = clientByName(vals.client || ''); const forNo = String(vals.forNo || '').trim();
+      if (acc === 'Client account' && /^(INV|IV)-/i.test(forNo)) { toastMsg('Payment for an issued invoice goes to the office account. Choose "Payment of an invoice", or give the purpose for a deposit.'); return; }
       const inv = invoices.find((i) => i.id === forNo); const pf = quotations.find((q) => q.id === forNo);
       const kase = vals.caseId ? findCase(lk, vals.caseId) : inv ? invCase(inv) : pf ? qCase(pf) : caseForRef(forNo);
       if (acc === 'Office' && inv) { if (inv.status === 'Voided') { toastMsg(inv.id + ' is voided.'); return; } if (amt > invBal(inv) + 0.01) { toastMsg('Payment cannot exceed the invoice balance (' + rm2(invBal(inv)) + ').'); return; } }
@@ -962,8 +1113,21 @@ export function useFinanceController(initialTab: FinTab) {
         if (amt > invBal(inv) + 0.01) { toastMsg('Transfer cannot exceed the invoice balance (' + rm2(invBal(inv)) + ').'); return; }
       }
       const id = app.getNextSequenceId('voucher');
-      app.addPaymentVoucher({ id, date: todayIso(), accountSet: 'CLIENT', voucherCategory: kind === 'transfer' ? 'Legal Fees Transfer' : 'Client Disb', payee: kind === 'transfer' ? 'Office account' : vals.payee || '', paymentMethod: vals.method || 'Bank transfer', description: kind === 'transfer' ? `Transfer to office for ${inv!.id}` : vals.purpose || 'payment', amount: amt, debit: GLA.clientFunds, credit: GLA.clientBank, clientId: c.id, fileRef: kase?.ref || '', caseId: kase?.id || caseId, invoiceId: inv?.id, preparedBy: me, approvalStatus: 'Pending Approval', approved: false });
+      app.addPaymentVoucher({ id, date: todayIso(), accountSet: 'CLIENT', voucherCategory: kind === 'transfer' ? 'Legal Fees Transfer' : 'Client Disb', payee: kind === 'transfer' ? 'Office account' : vals.payee || '', paymentMethod: vals.method || 'Bank transfer', description: kind === 'transfer' ? `Transfer to office for ${inv!.id}` : vals.purpose || 'payment', amount: amt, debit: GLA.clientFunds, credit: GLA.clientBank, clientId: c.id, fileRef: kase?.ref || '', caseId: kase?.id || caseId, invoiceId: inv?.id, preparedBy: me, approvalStatus: 'Pending Approval', approved: false, ...(proofs.length ? { proofs } : {}) });
       setForm(null); toastMsg('Sent to Approvals (needs 2 signatories)');
+    } else if (kind === 'disb') {
+      // Paid on behalf of a client: a billable disbursement (3200 / recoverable), billed back on the
+      // next invoice for that file. Paid from the Disbursement account.
+      if (!canPrepare) { toastMsg('Disbursements are recorded by Accounts.'); return; }
+      const c = clientByName(vals.client || '');
+      if (!String(vals.client || '').trim()) { toastMsg('Name the client. This is billed back to them.'); return; }
+      if (amt <= 0) { toastMsg('Enter the amount.'); return; }
+      const kase = vals.matter ? caseForRef(String(vals.matter)) : cases.find((k) => c && k.clientId.split(',').map((x) => x.trim()).includes(c.id) && k.status !== 'Closed');
+      const id = app.getNextSequenceId('expense');
+      app.addExpense({ id, caseId: kase?.id || '', fileRef: kase?.ref, date: dateIso, category: 'Disbursement', amount: amt, billable: true, description: vals.what || 'Disbursement', payee: vals.payee || '', accountSet: 'OFFICE', paidFrom: 'Disbursement', approvalStatus: 'Posted to GL', postedToGl: true, paidProof: proofs[0], documents: proofs.map((p, i) => ({ id: `DOC-${id}-${i}`, name: p.name, url: '', type: p.type, size: p.size, uploadedAt: p.uploadedAt, category: 'Receipt Photo' as const })) });
+      rememberProofUrls('form', 'expense:' + id, proofs);
+      postGL([{ date: dateIso, docType: 'PV', docNo: id, accountSet: 'OFFICE', debit: GLA.unbilledDisb, credit: GLA.disb, amount: amt, clientId: c?.id || '', fileRef: kase?.ref || '', description: `Disbursement for ${vals.client}: ${vals.what || ''} · paid to ${vals.payee || '—'}` }]);
+      setForm(null); toastMsg(`${id} recorded · billed back to ${vals.client} on the next invoice${kase ? '' : ' (link it to a file to bill it)'}`);
     } else if (kind === 'expense') {
       if (!canPrepare) { toastMsg('Office expenses are recorded by Accounts.'); return; }
       if (amt <= 0) { toastMsg('Enter the amount.'); return; }
@@ -985,7 +1149,7 @@ export function useFinanceController(initialTab: FinTab) {
       postGL([{ date: dateIso, docType: 'PV', docNo: id, accountSet: 'OFFICE', debit: expenseGL(cat), credit: /petty/i.test(from) ? GLA.petty : GLA.office, amount: amt, clientId: '', fileRef: '', description: `${vals.payee || ''} · ${vals.what || cat}` }]);
       setForm(null); toastMsg(proofs.length ? 'Expense recorded with receipt.' : 'Expense recorded. Attach the receipt to complete it.');
     } else if (kind === 'fund') {
-      const fund: SinkingFund = { id: `fund-${Date.now()}`, name: vals.name || 'New fund', note: 'added by ' + me, target: num0(vals.target), balance: num0(vals.saved), due: vals.due || '—', monthly: num0(vals.monthly) };
+      const fund: SinkingFund = { id: `fund-${Date.now()}`, name: vals.name || 'New fund', note: 'added by ' + me, target: num0(vals.target), balance: num0(vals.saved), due: vals.due || '—', monthly: num0(vals.monthly), pct: num0(vals.pct) || undefined };
       const next = [...(settings.sinkingFunds || []), fund];
       saveSettings({ sinkingFunds: next }); if (fundsDraft) setFundsDraft([...fundsDraft, fund]);
       setForm(null); toastMsg('Fund added');
@@ -993,7 +1157,7 @@ export function useFinanceController(initialTab: FinTab) {
       const inv = invoices.find((i) => i.id === vals.docId); if (!inv) return;
       if (amt <= 0 || amt > invBal(inv) + 0.01) { toastMsg('Write-off must be between RM 0 and the balance (' + rm2(invBal(inv)) + ').'); return; }
       app.updateInvoice(inv.id, { writeOffRequest: { amount: amt, reason: vals.reason || '', requestedBy: me, requestedAt: new Date().toISOString(), status: 'Pending' } });
-      setForm(null); setView(null); toastMsg('Write-off sent to the Managing Partner (Approvals)');
+      setForm(null); setView(null); toastMsg('Write-off sent to Approvals');
     } else if (kind === 'payslip') {
       const u = staffUser(vals.userId); if (!u) return;
       const existing = slipOf(u.id);
@@ -1118,11 +1282,13 @@ export function useFinanceController(initialTab: FinTab) {
     ledgers, trustTotal, ledgerTotalAt, clientLedgerBalance, threeWayRec,
     unbilled, wipTotal, billMatter, billed: billed as Record<string, { inv: string; u: any }>,
     activeBanks, bankKind, banksOf, bankBal, lastRecon, officeCash,
-    apItems, pendingAp, approve, decided: decided as Record<string, { d: 'ok' | 'no'; item: ApItem }>, referral, referralFor, refDecision, toPay, markPaid, paidNow: paidNow as Record<string, { item: PayItem; file: string }>,
-    staff, slipOf, slipCalc, slipStatutory, periodSlips, payStep, payNext, refFeeFor, slipUser, setSlipUser,
+    apItems, pendingAp, approve, apId, apRule, canSignItem, ruleFor, signoffs, signOff, myCode,
+    trSub, setTrSub, ofSub, setOfSub, apSub, setApSub, paySub, setPaySub, guide, setGuide, rem, setRem, paper, setPaper, decided: decided as Record<string, { d: 'ok' | 'no'; item: ApItem }>, referral, referralFor, refDecision, toPay, markPaid, paidNow: paidNow as Record<string, { item: PayItem; file: string }>,
+    saveSlipPatch, feeShareFor, fsFilesFor, fsPeople, fsCostsFor, fsApproved, saveFs, setFsFile, applyFeeShareToSlips,
+    staff, slipOf, slipCalc, slipStatutory, periodSlips, payStep, payNext, refFeeFor,
     cashBook, openingBalance, cbAcc, setCbAcc, attachTo,
-    docT, setDocT, invF, setInvF, apF, setApF, ledgerKey, setLedgerKey, fundEdit, setFundEdit, fundsDraft, setFundsDraft,
-    view, setView, ed, setEd, saveEd, openNew, editDoc, form, setForm, openForm, saveForm,
+    docT, setDocT, invF, setInvF, apF, setApF, fundEdit, setFundEdit, fundsDraft, setFundsDraft,
+    view, setView, ed, setEd, saveEd, sendReminder, duplicateDoc: (kind: DocKind, rec: Quotation | Invoice) => { editDoc(kind, rec, true); toastMsg(rec.id + ' copied · save it as a new draft'); }, openNew, editDoc, form, setForm, openForm, saveForm,
     imp, setImp, importFile, importRows, postImport,
     faRead, markRead, toggleClose, closeKey,
     SC, picColor, rm, rm2, fd, dShort,

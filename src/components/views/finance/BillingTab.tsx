@@ -2,11 +2,42 @@ import React, { useState } from 'react';
 import type { FinanceCtrl } from './useFinanceController';
 import { css, inPeriod, picColor, rm } from './financeModel';
 import type { Quotation, Receipt } from '../../../types';
+import * as SD from '../../../lib/financeDocs';
 import { useApp } from '../../../context/AppContext';
 import { FEES_FILTERS, billedPct, feesFilter, isOpenFile, moneyForFile, sumMoney, type FeesFilter } from '../../../lib/moneyByFile';
 
+type DocKind = 'quotation' | 'invoice' | 'receipt';
+type MenuState = { kind: DocKind; id: string; top: number; left: number } | null;
+
+/** Design: the row action is a split button — main action + ▾ "More actions". */
+const Split = ({ label, onAct, onMenu, open }: { label: string; onAct: () => void; onMenu: (e: React.MouseEvent<HTMLButtonElement>) => void; open: boolean }) => (
+  <span style={css('justify-self:end;display:flex;align-items:stretch;border:1px solid #DDE3EB;border-radius:6px;background:#fff;overflow:hidden')}>
+    <button type="button" onClick={onAct} className="hover:bg-[#F6F8FA]" style={css('white-space:nowrap;border:0;padding:4px 9px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>{label}</button>
+    <button type="button" onClick={onMenu} title="More actions" aria-label="More actions" className="hover:bg-[#F6F8FA]" style={css(`border:0;border-left:1px solid #DDE3EB;padding:0 7px;background:${open ? '#F1F4F7' : '#fff'};cursor:pointer;display:grid;place-items:center`)}><span style={css('width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid #5B6478')}></span></button>
+  </span>
+);
+
 export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
   const { docT, setDocT, invF, setInvF, SC } = F;
+  const [menu, setMenu] = useState<MenuState>(null);
+  const openMenu = (kind: DocKind, id: string) => (e: React.MouseEvent<HTMLButtonElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const left = Math.max(8, Math.min(r.right - 190, window.innerWidth - 198)); const top = r.bottom + 4 + 260 > window.innerHeight ? Math.max(8, r.top - 264) : r.bottom + 4;
+    setMenu((m) => (m && m.id === id ? null : { kind, id, top, left }));
+  };
+  const menuRec = menu ? (menu.kind === 'invoice' ? F.app.invoices.find((i) => i.id === menu.id) : menu.kind === 'quotation' ? F.app.quotations.find((q) => q.id === menu.id) : F.app.receipts.find((r) => r.id === menu.id)) : undefined;
+  const menuItems = (): { label: string; go: () => void; fw: number; fg: string; sep: boolean }[] => {
+    if (!menu || !menuRec) return [];
+    const kind = menu.kind;
+    const st = kind === 'invoice' ? F.invStatus(menuRec as import('../../../types').Invoice) : kind === 'quotation' ? F.qStatus(menuRec as Quotation) : 'Issued';
+    const acts = F.actionsFor(kind, menuRec as Quotation).filter((a) => a !== 'View' && a !== 'Void');
+    const run = (fn: () => void) => () => { setMenu(null); fn(); };
+    const canEdit = kind !== 'receipt' && F.rk !== 'R' && ['Draft', 'Sent', 'Accepted', 'Unpaid', 'Ready', 'Pending Approval', 'Overdue', 'Part-paid'].includes(st);
+    const doc = () => F.buildDoc({ kind, id: menuRec.id });
+    const more: [string, () => void][] = [['View', () => F.setView({ kind, id: menuRec.id })], ...(canEdit ? [['Edit', () => F.editDoc(kind, menuRec as Quotation)] as [string, () => void]] : []), ['Download PDF', () => { const d = doc(); if (d) SD.pdf(d.no, SD.docHtml(d)); }], ...(kind !== 'receipt' && F.rk !== 'R' ? [['Duplicate', () => F.duplicateDoc(kind, menuRec as Quotation)] as [string, () => void]] : [])];
+    const danger = F.actionsFor(kind, menuRec as Quotation).includes('Void') ? [{ label: 'Void (credit note)', go: run(() => F.act(kind, menuRec as Quotation, 'Void')), fw: 600, fg: '#B23A2E', sep: true }] : [];
+    return [...acts.map((a, i) => ({ label: a, go: run(() => F.act(kind, menuRec as Quotation, a)), fw: i ? 500 : 700, fg: '#16223A', sep: false })), ...more.map(([label, fn], i) => ({ label, go: run(fn), fw: 500, fg: '#16223A', sep: i === 0 })), ...danger];
+  };
   const quotes = F.scopedQuotations.filter((q) => q.documentType !== 'Proforma');
   const proformas = F.scopedQuotations.filter((q) => q.documentType === 'Proforma');
   const invAll = F.scopedInvoices;
@@ -33,10 +64,10 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
     Receipt: { title: 'Receipts', sub: 'every ringgit in gets a receipt, numbered by account', col: 'Account', newL: '+ Record money in', foot: 'Office and client account receipts are both numbered HQ-OR-… and tagged by account (Solicitors’ Account Rules 1990 keep the two separate).' },
     Invoice: { title: '', sub: '', col: '', newL: '', foot: '' },
   }[docT];
-  type Row = { key: string; no: string; client: string; ref: string; date: string; amt: string; x: string; status: string; action: string; onAct: () => void; view: () => void };
+  type Row = { kind: DocKind; key: string; no: string; client: string; ref: string; date: string; amt: string; x: string; status: string; action: string; onAct: () => void; view: () => void };
   const docRows: Row[] = docT === 'Receipt'
-    ? F.scopedReceipts.slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).map((r: Receipt) => { const acc = r.accountSet === 'CLIENT' ? 'Client account' : 'Office'; return { key: r.id, no: r.id, client: r.receivedFrom || '—', ref: 'for ' + (r.forNo || r.description || '—') + ' · ' + (r.paymentMethod || '—'), date: F.dShort(r.date), amt: rm(Number(r.amount || 0)), x: acc, status: r.historical ? 'Historical' : 'Issued', action: 'View', onAct: () => F.setView({ kind: 'receipt', id: r.id }), view: () => F.setView({ kind: 'receipt', id: r.id }) }; })
-    : docT === 'Invoice' ? [] : (docT === 'Quotation' ? quotes : proformas).slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).map((q: Quotation) => { const a = F.actionsFor('quotation', q)[0]; const kase = F.qCase(q); return { key: q.id, no: q.id, client: q.clientName || '—', ref: `${q.fileRef || kase?.ref || '—'} · ${q.practiceArea || '—'}`, date: F.dShort(q.date), amt: rm(Number(q.total || 0)), x: q.payInto || 'Office', status: F.qStatus(q), action: a, onAct: () => F.act('quotation', q, a), view: () => F.setView({ kind: 'quotation', id: q.id }) }; });
+    ? F.scopedReceipts.slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).map((r: Receipt) => { const acc = r.accountSet === 'CLIENT' ? 'Client account' : 'Office'; return { kind: 'receipt' as DocKind, key: r.id, no: r.id, client: r.receivedFrom || '—', ref: 'for ' + (r.forNo || r.description || '—') + ' · ' + (r.paymentMethod || '—'), date: F.dShort(r.date), amt: rm(Number(r.amount || 0)), x: acc, status: r.historical ? 'Historical' : 'Issued', action: 'View', onAct: () => F.setView({ kind: 'receipt', id: r.id }), view: () => F.setView({ kind: 'receipt', id: r.id }) }; })
+    : docT === 'Invoice' ? [] : (docT === 'Quotation' ? quotes : proformas).slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).map((q: Quotation) => { const a = F.actionsFor('quotation', q)[0]; const kase = F.qCase(q); return { kind: 'quotation' as DocKind, key: q.id, no: q.id, client: q.clientName || '—', ref: `${q.fileRef || kase?.ref || '—'} · ${q.practiceArea || '—'}`, date: F.dShort(q.date), amt: rm(Number(q.total || 0)), x: q.payInto || 'Office', status: F.qStatus(q), action: a, onAct: () => F.act('quotation', q, a), view: () => F.setView({ kind: 'quotation', id: q.id }) }; });
   /* ---- fees by file (lib/moneyByFile: same figures as each file's Money tab) ---- */
   const { cases = [], invoices = [], payments = [], retainers = [], quotations = [], setCurrentCaseId, setCaseSubTab, setCurrentView } = useApp();
   const [bfF, setBfF] = useState<FeesFilter>('All');
@@ -81,9 +112,9 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
                 <span style={css('text-align:right;font-size:11.5px;color:#5B6478')}>{paid + F.invDeposit(d) ? rm(paid + F.invDeposit(d)) : '—'}</span>
                 <span style={css('text-align:right;font-size:12px;font-weight:700;color:#16223A')}>{st === 'Voided' ? '—' : F.invCredit(d) > 0.005 ? <span title="Received more than the invoice total: owed back to the client" style={css('color:#B23A2E')}>credit {rm(F.invCredit(d))}</span> : rm(F.invBal(d))}</span>
                 <span style={css(`text-align:right;font-size:11px;font-weight:700;color:${days > 90 ? '#B23A2E' : days > 60 ? '#8A6534' : '#5B6478'}`)}>{['Paid', 'Draft', 'Voided', 'Written off'].includes(st) ? '—' : days + 'd'}</span>
-                <span style={css(`justify-self:start;font-size:10px;font-weight:700;padding:1px 8px;border-radius:10px;background:${c[0]};color:${c[1]}`)}>{st}</span>
+                <span style={css('justify-self:start;display:flex;flex-direction:column;gap:2px')}><span style={css(`align-self:flex-start;font-size:10px;font-weight:700;padding:1px 8px;border-radius:10px;background:${c[0]};color:${c[1]}`)}>{st}</span>{!!(d.reminders || []).length && <span style={css('font-size:9.5px;color:#8A6534')}>{'Reminded ' + d.reminders![d.reminders!.length - 1].split(' · ')[0] + (d.reminders!.length > 1 ? ' (' + d.reminders!.length + 'x)' : '')}</span>}</span>
                 <span style={css(`font-size:10.5px;font-weight:600;color:${einv === 'Validated' ? '#2F6F4E' : einv === 'Pending' ? '#8A6534' : '#94A3B8'}`)}>{einv}</span>
-                <button type="button" onClick={() => F.act('invoice', d, a)} style={css('justify-self:end;border:1px solid #DDE3EB;border-radius:6px;padding:4px 9px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>{a}</button>
+                <Split label={a} onAct={() => F.act('invoice', d, a)} onMenu={openMenu('invoice', d.id)} open={menu?.id === d.id} />
               </div>
             );
           })}
@@ -102,7 +133,7 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
               <span style={css('text-align:right;font-size:12px;font-weight:700;color:#16223A')}>{r.amt}</span>
               <span style={css(`justify-self:start;font-size:10px;font-weight:700;padding:1px 8px;border-radius:10px;background:${x[0]};color:${x[1]}`)}>{r.x}</span>
               <span style={css(`justify-self:start;font-size:10px;font-weight:700;padding:1px 8px;border-radius:10px;background:${c[0]};color:${c[1]}`)}>{r.status}</span>
-              <button type="button" onClick={r.onAct} style={css('justify-self:end;white-space:nowrap;border:1px solid #DDE3EB;border-radius:6px;padding:4px 9px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>{r.action}</button>
+              <Split label={r.action} onAct={r.onAct} onMenu={openMenu(r.kind, r.key)} open={menu?.id === r.key} />
             </div>
           ); })}
           <div style={css('padding:9px 14px;background:#F6F8FA;font-size:10.5px;color:#5B6478')}>{D.foot}</div></div>
@@ -145,6 +176,20 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
           </div>
         ); })}
       </div>
+      {menu && menuRec && (
+        <>
+          <div onClick={() => setMenu(null)} style={css('position:fixed;inset:0;z-index:70')}></div>
+          <div style={css(`position:fixed;top:${menu.top}px;left:${menu.left}px;z-index:71;width:190px;background:#fff;border:1px solid #DDE3EB;border-radius:8px;box-shadow:0 12px 28px rgba(22,34,58,.16);padding:4px;display:flex;flex-direction:column`)}>
+            <span style={css('padding:6px 10px 4px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478')}>{menuRec.id} · {menu.kind === 'invoice' ? F.invStatus(menuRec as import('../../../types').Invoice) : menu.kind === 'quotation' ? F.qStatus(menuRec as Quotation) : 'Issued'}</span>
+            {menuItems().map((m) => (
+              <React.Fragment key={m.label}>
+                {m.sep && <div style={css('height:1px;background:#EEF1F5;margin:4px 0')}></div>}
+                <button type="button" onClick={m.go} className="hover:bg-[#F6F8FA]" style={css(`text-align:left;border:0;background:none;border-radius:5px;padding:7px 10px;font-size:11.5px;font-weight:${m.fw};color:${m.fg};cursor:pointer;font-family:inherit`)}>{m.label}</button>
+              </React.Fragment>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 };

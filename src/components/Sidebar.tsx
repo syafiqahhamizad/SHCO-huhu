@@ -32,6 +32,7 @@ import {
   LogOut,
   Menu,
   X,
+  FolderOpen,
 } from 'lucide-react';
 
 /* Navigation shell (design pack `SHCO Sidebar.dc.html`). User identity and Sign out live ONLY in
@@ -93,7 +94,8 @@ const NAV_GROUPS: NavGroup[] = [
       { id: 'officeAccounts', label: 'Office Account', icon: Landmark, color: BLUE_300 },
       { id: 'approvals', label: 'Approvals', icon: BadgeCheck, color: AMBER },
       { id: 'payroll', label: 'Payroll', icon: Wallet, color: EMERALD_300 },
-      { id: 'reports', label: 'Books & Reports', icon: BookOpen, color: BLUE_300 },
+      { id: 'accounting', label: 'Accounting', icon: BookOpen, color: BLUE_300 },
+      { id: 'reports', label: 'Reports', icon: FolderOpen, color: BLUE_300 },
     ],
   },
   {

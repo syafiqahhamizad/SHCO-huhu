@@ -4,7 +4,7 @@
  *
  *   Managing Partner (M) & Accounts (A): every tab.
  *   Partner (P): Billing & Collections (own files), Client Account (view), Approvals.
- *   Reviewer / external auditor (R): read-only Client Account + Books & Reports.
+ *   Reviewer / external auditor (R): read-only Client Account + Accounting + Reports.
  *   Staff (S) and clients: nothing (they use My Claims / Staff Portal).
  *
  * Pages a role can't use are hidden from the menu, not just locked.
@@ -12,7 +12,7 @@
 import type { User } from '../types';
 
 export type FinRoleKey = 'M' | 'P' | 'A' | 'R' | 'S';
-export type FinTab = 'overview' | 'billing' | 'trust' | 'office' | 'approvals' | 'payroll' | 'reports';
+export type FinTab = 'overview' | 'billing' | 'trust' | 'office' | 'approvals' | 'payroll' | 'books' | 'reports';
 
 /** [tab key, tab label, roles that see the tab, sidebar view id, roles that see the sidebar item] */
 export const FIN_TABS: [FinTab, string, string, string, string][] = [
@@ -22,14 +22,14 @@ export const FIN_TABS: [FinTab, string, string, string, string][] = [
   ['office', 'Office Account', 'MA', 'officeAccounts', 'MA'],
   ['approvals', 'Approvals', 'MPA', 'approvals', 'MP'],
   ['payroll', 'Payroll', 'MA', 'payroll', 'MA'],
-  ['reports', 'Books & Reports', 'MAR', 'reports', 'MAR'],
+  ['books', 'Accounting', 'MAR', 'accounting', 'MAR'],
+  ['reports', 'Reports', 'MAR', 'reports', 'MAR'],
 ];
 
 /** Every app view id that now opens a tab of the Accounts & Finance module. */
 export const FINANCE_VIEW_TO_TAB: Record<string, FinTab> = {
   accountingCentre: 'overview',
   'accounting-centre': 'overview',
-  accounting: 'overview',
   billing: 'billing',
   quotations: 'billing',
   time: 'billing',
@@ -40,10 +40,12 @@ export const FINANCE_VIEW_TO_TAB: Record<string, FinTab> = {
   approvals: 'approvals',
   payroll: 'payroll',
   reports: 'reports',
-  coa: 'reports',
-  gl: 'reports',
-  tb: 'reports',
-  trialBalance: 'reports',
+  accounting: 'books',
+  books: 'books',
+  coa: 'books',
+  gl: 'books',
+  tb: 'books',
+  trialBalance: 'books',
   balanceSheet: 'reports',
   'balance-sheet': 'reports',
   cashFlow: 'reports',

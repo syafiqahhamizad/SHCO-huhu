@@ -955,6 +955,8 @@ export interface Invoice {
   /** Amount written off (approved by the Managing Partner) — reduces the debtor balance. */
   writtenOff?: number;
   writeOffRequest?: WriteOffRequest;
+  /** Payment reminders sent from Billing & Collections ("dd.mm.yyyy · email & WhatsApp"). */
+  reminders?: string[];
   /** Office-account proforma money (fees received in advance) applied to this invoice — printed
    * as "LESS: DEPOSIT RECEIVED" and deducted from the balance. Posted Dr 2110 / Cr 1100 on issue. */
   depositApplied?: number;
@@ -1658,6 +1660,8 @@ export interface FinanceSignatory {
   name: string;
   at: string;
   isManagingPartner: boolean;
+  /** Signer's user id (newer signatures), so "Who approves" lists can be matched exactly. */
+  userId?: string;
 }
 
 /** Proof-of-payment file reference. Only metadata is synced — the firm has no object storage

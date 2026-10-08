@@ -2,6 +2,7 @@ import React from 'react';
 import type { ApItem, FinanceCtrl, PayItem } from './useFinanceController';
 import { css, rm, rm2 } from './financeModel';
 import { twoSignatoryThreshold } from '../../../services/templateService';
+import { approverCode } from '../../../lib/approvers';
 
 export const ApprovalsTab = ({ F }: { F: FinanceCtrl }) => {
   const { apF, setApF, rk } = F;
@@ -20,22 +21,26 @@ export const ApprovalsTab = ({ F }: { F: FinanceCtrl }) => {
 
   return (
     <div style={css('display:flex;flex-direction:column;gap:16px')}>
+      <div style={css('display:flex;align-items:center;gap:4px;flex-wrap:wrap')}>{([['w', 'Waiting for approval', F.pendingAp], ['p', 'Approved · to pay', F.toPay.length], ['r', 'Referral fees', F.referral.rows.length]] as ['w' | 'p' | 'r', string, number][]).map(([k, label, n]) => { const on = F.apSub === k; return <button key={k} type="button" onClick={() => F.setApSub(k)} style={css(`display:flex;align-items:center;gap:6px;border-radius:16px;padding:6px 14px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;border:1px solid ${on ? '#16223A' : '#DDE3EB'};background:${on ? '#16223A' : '#fff'};color:${on ? '#fff' : '#16223A'}`)}>{label}{!!n && <span style={css(`font-size:10px;padding:0 6px;border-radius:9px;background:${on ? '#fff' : '#EEF1F5'};color:${on ? '#16223A' : '#5B6478'}`)}>{n}</span>}</button>; })}</div>
+      {F.apSub === 'w' && (
       <div style={css('overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
         <div style={css('display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css('font-family:ui-serif, Georgia, serif;font-size:14.5px;color:#16223A')}>Waiting for approval</strong>
           <div style={css('display:flex;flex-wrap:wrap;gap:4px;margin-left:auto')}>{['All', 'Staff claim', 'Payment voucher', 'Client account', 'Referral fees', 'Write-off'].map((f) => { const on = apF === f; return <button key={f} type="button" onClick={() => setApF(f)} style={css(`white-space:nowrap;border-radius:14px;padding:3px 10px;font-size:10.5px;font-weight:700;cursor:pointer;font-family:inherit;border:1px solid ${on ? '#16223A' : '#DDE3EB'};background:${on ? '#16223A' : '#fff'};color:${on ? '#fff' : '#16223A'}`)}>{f}</button>; })}</div></div>
         {rows.length === 0 && <div style={css('padding:12px 14px;font-size:11.5px;color:#5B6478')}>Nothing waiting for approval.</div>}
-        {rows.map(({ item: a, d }) => { const pending = !d && rk !== 'A'; const done = !!d || rk === 'A'; return (
-          <div key={a.key} style={css(`display:grid;grid-template-columns:120px minmax(0,1.5fr) 100px 110px 190px;gap:12px;align-items:center;padding:9px 14px;border-bottom:1px solid #F0F2F5;opacity:${d ? 0.55 : 1}`)}>
+        {rows.map(({ item: a, d }) => { const mine = F.canSignItem(a); const pending = !d && mine; const done = !!d || !mine; const signedCodes = a.signatories.map((x) => (F.app.users.find((u) => u.id === x.userId || u.name === x.name) ? approverCode(F.app.users.find((u) => u.id === x.userId || u.name === x.name)!) : approverCode({ name: x.name }))); return (
+          <div key={a.key} style={css(`display:grid;grid-template-columns:120px minmax(0,1.5fr) 100px 90px minmax(230px,auto);gap:12px;align-items:center;padding:9px 14px;border-bottom:1px solid #F0F2F5;opacity:${d ? 0.55 : 1}`)}>
             <span style={css(`justify-self:start;font-size:10px;font-weight:700;padding:2px 9px;border-radius:10px;background:${T[a.type][0]};color:${T[a.type][1]}`)}>{a.type}</span>
-            <span style={css('min-width:0')}><span style={css('display:block;font-size:11.5px;font-weight:700;color:#16223A')}>{a.title}</span><span style={css('display:block;font-size:10px;color:#5B6478')}>{a.sub}</span></span>
+            <span style={css('min-width:0')}><span style={css('display:block;font-size:11.5px;font-weight:700;color:#16223A')}>{a.title}</span><span style={css('display:block;font-size:10px;color:#5B6478')}>{a.sub}</span><span style={css('display:block;font-size:10px;color:#8A6534')}>{F.apRule(a)}</span></span>
             <span style={css('text-align:right;font-size:12.5px;font-weight:700;color:#16223A')}>{rm(a.amount)}</span>
             <span style={css('font-size:10.5px;color:#5B6478')}>by {a.by}</span>
-            {pending && <div style={css('display:flex;gap:6px;justify-content:flex-end')}><button type="button" onClick={() => F.approve(a, true)} style={css('border:0;border-radius:6px;padding:5px 12px;font-size:10.5px;font-weight:700;background:#2F6F4E;color:#fff;cursor:pointer;font-family:inherit')}>Approve</button><button type="button" onClick={() => F.approve(a, false)} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:5px 12px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>Reject</button></div>}
-            {done && <span style={css(`justify-self:end;font-size:10.5px;font-weight:700;color:${d === 'ok' ? '#2F6F4E' : d ? '#B23A2E' : '#8A6534'}`)}>{d === 'ok' ? 'Approved ✓' : d ? 'Rejected' : 'With partner to approve'}</span>}
+            {pending && <div style={css('display:flex;gap:6px;justify-content:flex-end')}>{signedCodes.map((c) => <span key={c} style={css('border:1px solid #B9D7C5;border-radius:6px;padding:5px 9px;font-size:10.5px;font-weight:700;background:#E6EFE9;color:#2F6F4E;white-space:nowrap')}>{c} ✓</span>)}<button type="button" title={F.me} onClick={() => F.approve(a, true)} style={css('border:1px solid #B9D7C5;border-radius:6px;padding:5px 9px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit;white-space:nowrap')}>Approve · {F.myCode}</button><button type="button" onClick={() => F.approve(a, false)} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:5px 12px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>Reject</button></div>}
+            {done && <span style={css(`justify-self:end;font-size:10.5px;font-weight:700;color:${d === 'ok' ? '#2F6F4E' : d ? '#B23A2E' : '#8A6534'}`)}>{d === 'ok' ? 'Approved ✓' + (signedCodes.length ? ' · ' + signedCodes.join(' & ') : '') : d ? 'Rejected' : 'With ' + F.ruleFor(F.apId(a)).label + ' to approve'}</span>}
           </div>
         ); })}
-        <div style={css('padding:9px 14px;background:#F6F8FA;font-size:10.5px;color:#5B6478')}>Per claim / PV form total: any partner below {lim} · Managing Partner + 1 more signatory at {lim} and above, and for anything from the client account</div>
+        <div style={css('padding:9px 14px;background:#F6F8FA;font-size:10.5px;color:#5B6478')}>Under {lim}: any partner · {lim} and above, or anything from the client account: Managing Partner + 1 more signatory · items set up in Firm &amp; Practice Settings › Who approves follow that list</div>
       </div>
+      )}
+      {F.apSub === 'p' && (
       <div style={css('overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
         <div style={css('display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css('font-family:ui-serif, Georgia, serif;font-size:14.5px;color:#16223A')}>Approved · to pay</strong><span style={css('font-size:10.5px;color:#5B6478')}>staff claims and payment requests (PV) approved by partners · details come straight from the staff form</span><span style={css('margin-left:auto;font-size:12px;font-weight:700;color:#16223A')}>{rm2(F.toPay.reduce((s, x) => s + x.amount, 0))} to pay</span></div>
         <div style={css('display:grid;grid-template-columns:104px minmax(0,1.2fr) 118px minmax(0,1.3fr) 118px 90px 150px;gap:10px;padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>Form no.</span><span>Pay to · for</span><span>How</span><span>Payment details</span><span>Paid from</span><span style={css('text-align:right')}>Amount</span><span></span></div>
@@ -54,6 +59,8 @@ export const ApprovalsTab = ({ F }: { F: FinanceCtrl }) => {
         ))}
         <div style={css('padding:9px 14px;background:#F6F8FA;font-size:10.5px;line-height:1.5;color:#5B6478')}>Drop or choose the bank / portal receipt to mark it paid. It posts to the cash book of the account it was paid from (email to the staff member isn't connected yet). Online portal payments (e-Filing, e-Tanah, STAMPS) need no bank details.</div>
       </div>
+      )}
+      {F.apSub === 'r' && (
       <div style={css('overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
         <div style={css('display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css('font-family:ui-serif, Georgia, serif;font-size:14.5px;color:#16223A')}>{F.monthName} referral fees</strong><span style={css('font-size:10.5px;color:#5B6478')}>from Leads &amp; Referrals · % is of professional fees actually received this month (excl. disbursements &amp; SST)</span><span style={css('margin-left:auto;font-size:12px;font-weight:700;color:#16223A')}>Total {rm(F.referral.total)}{F.refDecision ? ` · ${F.refDecision.status} by ${F.refDecision.by}` : ''}</span></div>
         <div style={css('display:grid;grid-template-columns:minmax(0,1fr) 90px minmax(0,1.3fr) 110px 80px 100px 110px;gap:10px;padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>Referrer</span><span>Type</span><span>Files paid this month</span><span style={css('text-align:right')}>Fees received</span><span style={css('text-align:right')}>Rate</span><span style={css('text-align:right')}>Referral fee</span><span>Paid through</span></div>
@@ -71,6 +78,7 @@ export const ApprovalsTab = ({ F }: { F: FinanceCtrl }) => {
         ))}
         <div style={css('padding:9px 14px;background:#F6F8FA;font-size:10.5px;color:#5B6478')}>Staff fees go on the {F.lastDayLabel} payslip · partner fees go to partner drawings · outside referrers get a payment voucher.</div>
       </div>
+      )}
     </div>
   );
 };

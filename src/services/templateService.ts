@@ -43,6 +43,38 @@ export interface SinkingFund {
    * (free text, e.g. "Dec 2026"). Optional/additive. */
   note?: string;
   due?: string;
+  /** Office Account → Sinking funds "Split %": share of each fee received set aside into this fund. */
+  pct?: number;
+}
+
+/** One movement of the emergency fund or the firm investment (Office Account). Balances are the
+ * sum of movements, never stored. Deposits / withdrawals wait for approval in `pending` first. */
+export interface FundMove {
+  id: string;
+  date: string;
+  kind: 'Deposit' | 'Withdrawal' | 'Dividend' | 'Value change';
+  /** Investment: where it is held (Fixed deposit, ASB / ASN…). Emergency fund: money from. */
+  place?: string;
+  amount: number;
+  note?: string;
+  by: string;
+  at: string;
+  /** Signatures (by approver code) while pending; who approved once moved to the log. */
+  sign?: Record<string, { by: string; at: string }>;
+}
+
+/** Payroll › Fee sharing (Accounts & Finance). Rules and per-file / per-person choices only:
+ * every amount is worked out from fees actually collected (lib/feeSharing). */
+export interface FeeSharingSettings {
+  rules?: { own: number; intro: number; hand: number };
+  /** Per month 'YYYY-MM' → per file (case id): introducer / handlers / own % rules. */
+  files?: Record<string, Record<string, { intro?: string; hands?: string[]; cu?: Record<string, number>; rules?: { own: number; intro: number; hand: number } }>>;
+  /** Per person (user id): type and how they are paid. */
+  people?: Record<string, { t?: string; pay?: string; sal?: number; nsal?: string; nfrom?: string; ded?: Record<string, number> }>;
+  /** Partners' split of the firm's profit, % per user id. */
+  psplit?: Record<string, number>;
+  /** Office costs for the month, 'YYYY-MM' → RM (typed by Accounts). */
+  costs?: Record<string, number>;
 }
 
 /** A recurring firm commitment (fixed cost), edited on the Managing Partner's Finance
@@ -168,6 +200,21 @@ export interface PracticeSettings {
   clientStatementRuns?: Record<string, { at: string; by: string; count: number }>;
   /** Accounts & Finance → Approvals monthly referral-fee batch decisions, keyed by 'YYYY-MM'. */
   referralFeeApprovals?: Record<string, { status: 'Approved' | 'Rejected'; by: string; at: string; total: number }>;
+  /** Accounts & Finance sign-offs held in settings (payroll, fee sharing, partner pay, 3-way
+   * reconciliation, client statements), keyed `${approval id}:${period or record}` → approver code. */
+  financeSignoffs?: Record<string, Record<string, { by: string; at: string }>>;
+  /** Accounts & Finance → Payroll › Fee sharing rules and choices. */
+  feeSharing?: FeeSharingSettings;
+  /** Accounts & Finance → Office Account › Emergency fund: target in months of fixed costs,
+   * movements and withdrawals waiting for approval. */
+  emergencyFund?: { months?: number; pct?: number; log?: FundMove[]; pending?: FundMove[] };
+  /** Accounts & Finance → Office Account › Investment: goal, movements, pending deposits/withdrawals. */
+  investments?: { goalName?: string; goalAmt?: number; log?: FundMove[]; pending?: FundMove[] };
+  /** Office Account › Sinking funds "Fees waiting to be split": receipt id → when it was split. */
+  fundSplits?: Record<string, { at: string; by: string; total: number }>;
+  /** Accounting › Chart of accounts edits: renamed / re-coded / archived accounts (keyed by the
+   * original code, so past postings keep their account), added accounts and a change log. */
+  coaEdits?: { overrides?: Record<string, { code?: string; name?: string; arch?: boolean }>; added?: { code: string; name: string; type: 'Asset' | 'Liability' | 'Equity' | 'Income' | 'Expense' }[]; log?: { t: string; who: string; when: string }[] };
 
   /* ---- Firm & Practice Settings (design pack firm-settings.dc.html). All optional/additive. ---- */
   /** Firm registration number printed on finance documents and payslips ("Firm Reg. No."). */
@@ -186,7 +233,7 @@ export interface PracticeSettings {
   bankOpeningBalancesAsAt?: string;
   /** Accounts & Finance → Client Account 3-way reconciliation: client bank statement closing
    * balance per month, keyed 'YYYY-MM'. */
-  clientBankStatements?: Record<string, { balance: number; by: string; at: string }>;
+  clientBankStatements?: Record<string, { balance: number; by: string; at: string; proof?: { name: string; driveFileId?: string; webViewLink?: string }; outstanding?: string[] }>;
   /** Document numbering formats, keyed by DOC_NUMBERING key. Stored only: record ids are still
    * issued by AppContext.getNextSequenceId in its existing format. */
   docNumbering?: Record<string, string>;
