@@ -1,4 +1,5 @@
 import { getPracticeSettings } from './templateService';
+import { driveSafeName } from '../lib/driveLayout';
 import {
   GOOGLE_SCOPES,
   GOOGLE_TOKEN_EVENT,
@@ -48,6 +49,11 @@ export interface DriveConfig {
   rootFolderId: string;
   rootFolderName: string;
   hrFolderId: string;
+  /** "SHCO Finance" Shared Drive (partners / Accounts). '' = use Finance/ inside the root. */
+  financeFolderId: string;
+  financeFolderName: string;
+  /** Practice area name → folder name under Matters/ (blank = the area name). */
+  practiceFolderNames: Record<string, string>;
   /** Where the client ID came from, for the settings card. */
   clientIdSource: 'env' | 'settings' | 'none';
 }
@@ -74,6 +80,9 @@ export const getDriveConfig = (): DriveConfig => {
     rootFolderId: parseDriveFolderId(s.driveRootFolderId || ''),
     rootFolderName: s.driveRootFolderName || '',
     hrFolderId: parseDriveFolderId(s.driveHrFolderId || ''),
+    financeFolderId: parseDriveFolderId(s.driveFinanceFolderId || ''),
+    financeFolderName: s.driveFinanceFolderName || '',
+    practiceFolderNames: s.drivePracticeFolderNames || {},
   };
 };
 
@@ -110,6 +119,9 @@ export const getDriveAccessToken = (): Promise<string> => getGoogleAccessToken('
 class DriveError extends Error {
   constructor(message: string, public status = 0, public reason = '') { super(message); }
 }
+
+/** True for "no access" errors (403 / 404 from Drive): the person is not a member of that Shared Drive. */
+export const isDriveAccessError = (e: unknown) => e instanceof DriveError && (e.status === 403 || e.status === 404) && e.reason !== 'rateLimitExceeded' && e.reason !== 'userRateLimitExceeded';
 
 /** Turns a Drive API error response into something the staff member (or owner) can act on. */
 const describeDriveError = (status: number, reason: string, message: string): string => {
@@ -149,8 +161,8 @@ async function driveFetch(url: string, init: RequestInit = {}, retried = false):
 
 const q = (params: Record<string, string>) => '?' + new URLSearchParams({ supportsAllDrives: 'true', ...params }).toString();
 const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-/** Drive allows almost any name; keep folder/file names tidy and free of slashes. */
-export const driveSafeName = (s: string) => String(s || '').replace(/[\\/]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 150) || 'unnamed';
+/** Drive allows almost any name; keep folder/file names tidy (see lib/driveLayout). */
+export { driveSafeName };
 
 async function getDriveFile(id: string, fields = FILE_FIELDS): Promise<DriveFile> {
   const res = await driveFetch(API + '/files/' + encodeURIComponent(id) + q({ fields }));
@@ -161,8 +173,8 @@ async function getDriveFile(id: string, fields = FILE_FIELDS): Promise<DriveFile
 
 const folderCache = new Map<string, Promise<string>>();
 
-/** Finds a sub-folder by exact name under `parentId`, creating it if missing. Cached per session. */
-function findOrCreateFolder(parentId: string, name: string): Promise<string> {
+/** Finds a sub-folder by exact name under `parentId`, creating it if missing (with `description`). Cached per session. */
+function findOrCreateFolder(parentId: string, name: string, description?: string): Promise<string> {
   const clean = driveSafeName(name);
   const key = parentId + '/' + clean;
   const hit = folderCache.get(key);
@@ -175,7 +187,7 @@ function findOrCreateFolder(parentId: string, name: string): Promise<string> {
     const made = await driveFetch(API + '/files' + q({ fields: 'id' }), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: clean, mimeType: FOLDER_MIME, parents: [parentId] }),
+      body: JSON.stringify({ name: clean, mimeType: FOLDER_MIME, parents: [parentId], ...(description ? { description } : {}) }),
     });
     return (await made.json() as DriveFile).id;
   })();
@@ -184,10 +196,13 @@ function findOrCreateFolder(parentId: string, name: string): Promise<string> {
   return p;
 }
 
-/** Walks / creates a folder path like ['Claims', '2026', 'CF-26-0413'] under `rootId`. */
-export async function ensureFolderPath(rootId: string, parts: string[]): Promise<string> {
+/**
+ * Walks / creates a folder path like ['2026', 'Claims', 'CF-26-0413'] under `rootId`.
+ * `lastDescription` is set on the last folder when it is newly created (e.g. the full file ref).
+ */
+export async function ensureFolderPath(rootId: string, parts: string[], lastDescription?: string): Promise<string> {
   let id = rootId;
-  for (const part of parts) id = await findOrCreateFolder(id, part);
+  for (let i = 0; i < parts.length; i += 1) id = await findOrCreateFolder(id, parts[i], i === parts.length - 1 ? lastDescription : undefined);
   return id;
 }
 
@@ -264,42 +279,76 @@ export const driveViewUrl = (f: { driveFileId?: string; webViewLink?: string }) 
 
 /* ------------------------------------------------------------------ connection test */
 
-export interface DriveTestResult { ok: boolean; message: string; folderName?: string; hrFolderName?: string }
+export interface DriveTestResult { ok: boolean; message: string; folderName?: string; hrFolderName?: string; financeFolderName?: string }
+
+type FolderInfo = DriveFile & { capabilities?: { canAddChildren?: boolean } };
+
+/** Reads one configured folder; returns its info or a problem to show. */
+async function checkFolder(id: string, label: string): Promise<{ f: FolderInfo; problem?: string; myDrive: boolean }> {
+  const f = await getDriveFile(id, 'id,name,mimeType,driveId,capabilities(canAddChildren)') as FolderInfo;
+  if (f.mimeType !== FOLDER_MIME) return { f, myDrive: false, problem: label + ': “' + f.name + '” is a file, not a folder. Paste the link of the Shared Drive (or a folder inside it).' };
+  if (f.capabilities?.canAddChildren === false) return { f, myDrive: !f.driveId, problem: label + ': found “' + f.name + '” but your account cannot add files to it. Make yourself Manager or Content manager of that Shared Drive.' };
+  return { f, myDrive: !f.driveId };
+}
+
+/** Writes a tiny file into `folderId`, reads it back and moves it to trash. */
+async function writeReadTrash(folderId: string): Promise<void> {
+  const stamp = new Date().toISOString();
+  const f = await uploadToDrive(folderId, new Blob(['SHCO portal connection test ' + stamp], { type: 'text/plain' }), 'connection-test-' + stamp.replace(/[:.]/g, '-') + '.txt', 'text/plain');
+  const back = await getDriveFile(f.id, 'id,name');
+  await trashDriveFile(back.id);
+}
 
 /**
- * "Test connection": reads the root folder, checks it is in a Shared Drive, writes a tiny file
- * into Backups/, reads it back, then moves it to trash. Also reads the HR folder if one is set.
+ * "Test connection": checks each configured Shared Drive.
+ * - SHCO Portal (root): readable, a folder, in a Shared Drive, writable (test file written at the
+ *   top, read back, moved to trash).
+ * - SHCO Finance (when set): the same, with the test file written in Backups/. When it is not set
+ *   the test file goes to Finance/Backups/ inside SHCO Portal.
+ * - SHCO HR (when set): readable, a folder, writable.
  */
 export async function testDriveConnection(): Promise<DriveTestResult> {
   const cfg = getDriveConfig();
   if (!cfg.clientId) return { ok: false, message: 'Add the OAuth client ID first.' };
   if (!looksLikeClientId(cfg.clientId)) return { ok: false, message: 'The OAuth client ID should end with “.apps.googleusercontent.com”. Copy the Client ID (not the client secret) from Google Cloud Console → Credentials.' };
-  if (!cfg.rootFolderId) return { ok: false, message: 'Add the Shared Drive folder link or ID first.' };
+  if (!cfg.rootFolderId) return { ok: false, message: 'Add the SHCO Portal Shared Drive link or ID first.' };
+  const lines: string[] = [];
+  const warnings: string[] = [];
+  let folderName: string | undefined, financeFolderName: string | undefined, hrFolderName: string | undefined;
   try {
-    const root = await getDriveFile(cfg.rootFolderId, 'id,name,mimeType,driveId,capabilities(canAddChildren)');
-    if (root.mimeType !== FOLDER_MIME) return { ok: false, message: '“' + root.name + '” is a file, not a folder. Paste the link of the Shared Drive (or a folder inside it).' };
-    const warnMyDrive = !root.driveId;
-    const canAdd = (root as DriveFile & { capabilities?: { canAddChildren?: boolean } }).capabilities?.canAddChildren;
-    if (canAdd === false) return { ok: false, folderName: root.name, message: 'Found “' + root.name + '” but your account cannot add files to it. Make yourself Manager or Content manager of the Shared Drive.' };
-    const backups = await findOrCreateFolder(cfg.rootFolderId, 'Backups');
-    const stamp = new Date().toISOString();
-    const f = await uploadToDrive(backups, new Blob(['SHCO portal connection test ' + stamp], { type: 'text/plain' }), 'connection-test-' + stamp.replace(/[:.]/g, '-') + '.txt', 'text/plain');
-    const back = await getDriveFile(f.id, 'id,name');
-    await trashDriveFile(back.id);
-    let hrFolderName: string | undefined;
-    if (cfg.hrFolderId) {
-      const hr = await getDriveFile(cfg.hrFolderId, 'id,name,mimeType');
-      if (hr.mimeType !== FOLDER_MIME) return { ok: false, folderName: root.name, message: 'The HR folder link points to a file, not a folder.' };
-      hrFolderName = hr.name;
+    const root = await checkFolder(cfg.rootFolderId, 'SHCO Portal');
+    folderName = root.f.name;
+    if (root.problem) return { ok: false, folderName, message: root.problem };
+    if (root.myDrive) warnings.push('“' + root.f.name + '” is in a personal My Drive, not a Shared Drive, so files would belong to one person.');
+    await writeReadTrash(cfg.rootFolderId);
+    lines.push('SHCO Portal: “' + root.f.name + '” ✓');
+
+    if (cfg.financeFolderId) {
+      const fin = await checkFolder(cfg.financeFolderId, 'SHCO Finance');
+      financeFolderName = fin.f.name;
+      if (fin.problem) return { ok: false, folderName, financeFolderName, message: lines.join(' · ') + ' · ' + fin.problem };
+      if (fin.myDrive) warnings.push('“' + fin.f.name + '” is in a personal My Drive, not a Shared Drive.');
+      await writeReadTrash(await findOrCreateFolder(cfg.financeFolderId, 'Backups'));
+      lines.push('SHCO Finance: “' + fin.f.name + '” ✓');
+    } else {
+      await writeReadTrash(await ensureFolderPath(cfg.rootFolderId, ['Finance', 'Backups']));
+      lines.push('SHCO Finance not set: finance files go to Finance/ inside SHCO Portal, which all staff can see');
     }
+
+    if (cfg.hrFolderId) {
+      const hr = await checkFolder(cfg.hrFolderId, 'SHCO HR');
+      hrFolderName = hr.f.name;
+      if (hr.problem) return { ok: false, folderName, financeFolderName, hrFolderName, message: lines.join(' · ') + ' · ' + hr.problem };
+      lines.push('SHCO HR: “' + hr.f.name + '” ✓');
+    } else {
+      lines.push('SHCO HR not set: HR files go to HR/ inside SHCO Portal');
+    }
+
     return {
-      ok: true,
-      folderName: root.name,
-      hrFolderName,
-      message: 'Connected to “' + root.name + '”' + (hrFolderName ? ' (HR files: “' + hrFolderName + '”)' : '') + '. A test file was written to Backups/, read back and moved to trash.'
-        + (warnMyDrive ? ' Warning: this folder is in a personal My Drive, not a Shared Drive, so files would belong to one person. Use a Shared Drive.' : ''),
+      ok: true, folderName, financeFolderName, hrFolderName,
+      message: lines.join(' · ') + '. A test file was written, read back and moved to trash.' + (warnings.length ? ' Warning: ' + warnings.join(' ') + ' Use Shared Drives.' : ''),
     };
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : String(e) };
+    return { ok: false, folderName, financeFolderName, hrFolderName, message: (lines.length ? lines.join(' · ') + ' · ' : '') + (e instanceof Error ? e.message : String(e)) };
   }
 }

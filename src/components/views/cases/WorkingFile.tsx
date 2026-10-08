@@ -137,8 +137,8 @@ export const WorkingFile: React.FC<{ c: Case }> = ({ c }) => {
     setDriveBusy(true);
     try {
       await prepareStorage();
-      const f = await ensureMatterFolder(c.ref, c.title);
-      if (f) { save({ gdriveFolderId: f.id, gdriveFolderUrl: f.url }, 'Google Drive folder created'); toast('Drive folder created under Matters'); }
+      const f = await ensureMatterFolder(c);
+      if (f) { save({ gdriveFolderId: f.id, gdriveFolderUrl: f.url }, 'Google Drive folder created'); toast('Drive folder created: SHCO Portal › Matters › ' + (c.practiceArea || c.type || 'Other')); }
     } catch (e) { toast('Drive folder not created: ' + (e instanceof Error ? e.message : String(e))); }
     setDriveBusy(false);
   };
@@ -177,6 +177,7 @@ export const WorkingFile: React.FC<{ c: Case }> = ({ c }) => {
             {meta.map(([k, v]) => <span key={k} style={css('white-space:nowrap')}>{k} <strong style={css('color:#16223A')}>{v}</strong></span>)}
             {c.gdriveFolderUrl ? <a href={c.gdriveFolderUrl} target="_blank" rel="noopener noreferrer" style={css('font-weight:700;color:#2F4F7A;white-space:nowrap')}>Open in Google Drive ↗</a>
               : activeStorage() === 'drive' && !ro ? <button type="button" disabled={driveBusy} onClick={createDrive} style={css('border:0;background:none;padding:0;font-weight:700;color:#2F4F7A;cursor:pointer;font-family:inherit;font-size:12.5px;white-space:nowrap')}>{driveBusy ? 'Creating…' : 'Create Drive folder'}</button> : null}
+            {c.oldDriveFolderUrl && <a href={c.oldDriveFolderUrl} target="_blank" rel="noopener noreferrer" title="This file's folder in an old drive (kept as it was)" style={css('font-weight:600;color:#5B6478;white-space:nowrap')}>Old folder ↗</a>}
           </div>
         </div>
         <span style={css(`flex-shrink:0;padding:4px 11px;border-radius:10px;font-size:12px;font-weight:700;background:${st.bg};color:${st.fg}`)}>{c.status}</span>

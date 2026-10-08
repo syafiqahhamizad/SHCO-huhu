@@ -16,6 +16,7 @@ import type React from 'react';
 import type { Invoice, Quotation, QuotationLineItem, Receipt, Case, Client, FinanceProof } from '../../../types';
 import { DRIVE_REQUIRED_MSG, activeStorage, storeFinanceProof } from '../../../services/fileStorageService';
 import { driveViewUrl } from '../../../services/googleDriveService';
+import { financeKindFromOwner } from '../../../lib/driveLayout';
 import { computeTotals } from '../../../lib/billingEngine';
 import { type DocLines, type DocLine, type FinanceDoc, areaFromName, TERMS, defaultSstRate } from '../../../lib/financeDocs';
 
@@ -150,7 +151,7 @@ export const receiptToDoc = (r: Receipt, lk: Lookups, proofs: { name: string; ur
 
 /* ------------------------------ proofs (session file cache + Google Drive) ------------------------------ */
 // Proof metadata is synced on the record. The file is uploaded to the firm Google Drive
-// (`Finance proofs/<YYYY>/`) in the background and the record is then patched with the Drive
+// (SHCO Finance `<YYYY>/Bank-in Proofs`, `Payment Vouchers/<PV no>` or `Claims/<no>`) in the background and the record is then patched with the Drive
 // file id / link (see useFinanceController's proof-upload effect), so it opens on any device;
 // until then it is viewable in this session through an object URL. Attaching is BLOCKED when
 // Drive storage is not set up (callers check proofUploadBlocked() first; filesToProofs then
@@ -159,7 +160,7 @@ const proofUrls = new Map<string, string>();
 const proofKey = (owner: string, name: string) => owner + '::' + name;
 /** Identifies one attached file across records (the same proof object can be copied onto a receipt too). */
 export const proofSig = (p: Pick<FinanceProof, 'name' | 'size' | 'uploadedAt'>) => p.name + '|' + (p.size || 0) + '|' + p.uploadedAt;
-type ProofUpload = { ok: true; driveFileId?: string; webViewLink?: string; uploadedBy?: string } | { ok: false; error: string; name: string };
+type ProofUpload = { ok: true; driveFileId?: string; webViewLink?: string; uploadedBy?: string; driveFolderId?: string } | { ok: false; error: string; name: string };
 const proofUploads = new Map<string, ProofUpload>();
 const proofListeners = new Set<() => void>();
 let proofUploader = '';
@@ -176,8 +177,9 @@ export const filesToProofs = (owner: string, files: FileList | File[] | null | u
     proofUrls.set(proofKey(owner, f.name), URL.createObjectURL(f));
     const p: FinanceProof = { name: f.name, size: f.size, type: f.type, uploadedAt: new Date().toISOString() };
     const sig = proofSig(p);
-    const ref = owner === 'form' ? '' : owner.slice(owner.indexOf(':') + 1);
-    storeFinanceProof(f, proofUploader || 'Accounts', ref)
+    // Drive folder from the owner: PV → Payment Vouchers/<PV no>, staff claim → Claims/<no>, else Bank-in Proofs.
+    const { kind, ref } = financeKindFromOwner(owner);
+    storeFinanceProof(f, proofUploader || 'Accounts', ref, kind)
       .then((r) => { proofUploads.set(sig, { ok: true, ...r }); notifyProofs(); })
       .catch((e) => { proofUploads.set(sig, { ok: false, name: f.name, error: e instanceof Error ? e.message : String(e) }); notifyProofs(); });
     return p;

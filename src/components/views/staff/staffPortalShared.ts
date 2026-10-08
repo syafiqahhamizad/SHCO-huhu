@@ -1,6 +1,7 @@
 import type React from 'react';
 import type { Case, ClaimAttachment, ClaimDocument, Client, Expense, PaymentVoucher, Payslip, TravelClaim, User } from '../../../types';
 import { isMine, partnerCode } from '../../../lib/identity';
+import { financeDocType, firstDriveFolderId, type FinanceDocType } from '../../../lib/claimFilters';
 import { getPracticeSettings } from '../../../services/templateService';
 
 /* ------------------------------------------------------------------ formatting */
@@ -314,6 +315,10 @@ const OFFICE_REFS = new Set(['', 'FIRM_OVERHEAD', 'FIRM_OPERATIONS', 'Firm Opera
 export interface ClaimRow {
   key: string;
   source: 'travel' | 'expense' | 'pv';
+  /** Claim / Payment voucher / Client account (type filter + badge). */
+  docType: FinanceDocType;
+  /** Drive folder the receipts were saved in, when known (uploads since the 3-drive layout). */
+  driveFolderId?: string;
   iso: string;
   kind: ClaimKind;
   what: string;
@@ -373,10 +378,11 @@ export const buildFileDirectory = (cases: Case[], clients: Client[], users: User
   };
 };
 
-type WithDocs = { documents?: ClaimDocument[]; attachmentName?: string; attachments?: ClaimAttachment[] };
+type WithDocs = { documents?: ClaimDocument[]; attachmentName?: string; attachments?: ClaimAttachment[]; proofs?: { driveFolderId?: string }[]; paidProof?: { driveFolderId?: string } };
 const docCount = (r: WithDocs) => (r.attachments?.length ? r.attachments.length : r.documents?.length ? r.documents.length : r.attachmentName ? 1 : 0);
 /** Stored files plus, for records from before Storage, the names of device-only files. */
 const docsOf = (r: WithDocs) => ({
+  driveFolderId: firstDriveFolderId(r.attachments, r.proofs, r.paidProof ? [r.paidProof] : []) || undefined,
   attachments: r.attachments || [],
   localDocNames: r.attachments?.length ? [] : r.documents?.length ? r.documents.map((d) => d.name) : r.attachmentName ? [r.attachmentName] : [],
 });
@@ -394,7 +400,7 @@ export const buildMyClaimRows = (
     if (!isMine(t.claimant, me)) return;
     const ref = t.purposeType === 'Client Matter' ? t.fileRef : null;
     rows.push({
-      key: 'tc-' + t.id, source: 'travel', iso: t.date || '', kind: 'Travelling',
+      key: 'tc-' + t.id, source: 'travel', docType: financeDocType('travel'), iso: t.date || '', kind: 'Travelling',
       what: t.purpose || [t.from, t.to].filter(Boolean).join(' → ') || 'Travel claim',
       file: dir.label(ref), caseRef: ref, amt: Number(t.total || 0),
       bill: ref ? Number(t.billableClientTotal ?? t.total ?? 0) : 0,
@@ -409,7 +415,7 @@ export const buildMyClaimRows = (
     const c = dir.caseOf(e.fileRef) || dir.caseOf(e.caseId);
     const ref = c ? c.ref : null;
     rows.push({
-      key: 'ex-' + e.id, source: 'expense', iso: e.date || '', kind: ref && e.billable ? 'Disbursement' : 'Office',
+      key: 'ex-' + e.id, source: 'expense', docType: financeDocType('expense'), iso: e.date || '', kind: ref && e.billable ? 'Disbursement' : 'Office',
       what: e.description || e.category, file: dir.label(ref), caseRef: ref, amt: Number(e.amount || 0),
       bill: ref && e.billable ? Number(e.amount || 0) : 0, form: e.formNo || e.id, rec: docCount(e),
       status: statusOf(e.approvalStatus, e.postedToGl), approver: dir.picOf(ref), approvedBy: e.approvedBy, approvedAt: e.approvedAt, ...docsOf(e),
@@ -422,7 +428,7 @@ export const buildMyClaimRows = (
     const ref = c ? c.ref : null;
     const kind: ClaimKind = v.requestKind || (v.voucherCategory === 'Office Operating' ? 'Office bill' : 'Disbursement');
     rows.push({
-      key: 'pv-' + v.id, source: 'pv', iso: v.date || '', kind, what: v.description, file: dir.label(ref), caseRef: ref,
+      key: 'pv-' + v.id, source: 'pv', docType: financeDocType('pv', v.accountSet === 'CLIENT'), iso: v.date || '', kind, what: v.description, file: dir.label(ref), caseRef: ref,
       amt: Number(v.amount || 0), bill: ref && v.accountSet !== 'CLIENT' && kind !== 'Office bill' ? Number(v.amount || 0) : 0,
       form: v.formNo || v.id, rec: docCount(v), status: statusOf(v.approvalStatus, v.postedToGl, v.approved),
       approver: dir.picOf(ref), approvedBy: v.approvedBy, payee: v.payee, ...docsOf(v),

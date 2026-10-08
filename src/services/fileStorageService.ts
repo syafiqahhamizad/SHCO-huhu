@@ -6,29 +6,32 @@ import {
   validateClaimFile,
 } from './firebaseStorageService';
 import {
-  DRIVE_TOKEN_EVENT, downloadDriveFile, driveSafeName, driveViewUrl, ensureFolderPath, getDriveAccessToken, getDriveConfig, grantReader, hasValidDriveToken, isDriveConfigured, uploadToDrive,
+  DRIVE_TOKEN_EVENT, downloadDriveFile, driveViewUrl, ensureFolderPath, getDriveAccessToken, getDriveConfig, grantReader, hasValidDriveToken, isDriveAccessError, isDriveConfigured, uploadToDrive,
 } from './googleDriveService';
+import {
+  MATTER_SUBFOLDERS, clientFolderName as layoutClientFolderName, financeFolderPath, financeMatterPath, folderUrl, matterFolderDescription, matterFolderPath,
+  staffFolderName, type FinanceKind, type MatterLike, type MatterSub,
+} from '../lib/driveLayout';
 
 /**
- * One place that decides where uploaded files go: the firm's Google Drive (Shared Drive), and
- * nowhere else (firm decision, Oct 2026).
+ * One place that decides where uploaded files go: the firm's Google Shared Drives, and nowhere
+ * else (firm decision, Oct 2026). Folder layout: lib/driveLayout.ts.
  *
- * - Every upload goes to the Shared Drive the Managing Partner set up in Firm & Practice
- *   Settings → Google, e-mail & backup → Google Drive storage. Records keep only metadata
- *   ({ name, driveFileId, webViewLink, size, contentType, uploadedAt, uploadedBy }).
- * - When Drive is not set up, uploads are BLOCKED with DRIVE_REQUIRED_MSG. There is no
- *   Firebase Storage fallback any more, and nothing new is kept as a data URL / base64 copy
- *   (one exception: the letterhead header image, see storeLetterheadImage).
- * - Legacy, read-only: records made before the switch may still carry a Firebase Storage
- *   `path` / `storagePath`, or a `dataUrl`. Those still open (openStoredFile, useStoredImageUrl,
- *   openLegacyDataUrl); nothing new is written that way.
+ * - SHCO Portal (root folder, all staff): Matters/<area>/<NNN - title>/<sub>, Clients/<ID - name>/KYC.
+ * - SHCO Finance (partners / Accounts; Finance/ inside SHCO Portal until it is set): claims,
+ *   payment vouchers, bank-in proofs, client account, engagement & billing papers, backups.
+ * - SHCO HR (HR folder setting; HR/ inside SHCO Portal until it is set): <Staff ID - Name>/.
+ * Records keep only metadata ({ name, driveFileId, webViewLink, driveFolderId, size, contentType,
+ * uploadedAt, uploadedBy }). Records made before this layout keep their stored links, which
+ * still open. When Drive is not set up, uploads are BLOCKED with DRIVE_REQUIRED_MSG.
+ * Legacy, read-only: Firebase Storage `path` / `storagePath`, or a `dataUrl`.
  */
 
 /** Shown wherever an upload is attempted before Drive storage is set up. */
 export const DRIVE_REQUIRED_MSG = 'Set up Google Drive in Firm & Practice Settings → Google, e-mail & backup before uploading.';
 
 /** Metadata kept on a record for one uploaded file. */
-export interface StoredFileMeta { name: string; driveFileId: string; webViewLink?: string; size: number; contentType: string; uploadedAt: string; uploadedBy: string }
+export interface StoredFileMeta { name: string; driveFileId: string; webViewLink?: string; driveFolderId?: string; size: number; contentType: string; uploadedAt: string; uploadedBy: string }
 
 export type StorageBackend = 'drive' | 'none';
 export const activeStorage = (): StorageBackend => (isDriveConfigured() ? 'drive' : 'none');
@@ -64,7 +67,8 @@ export { validateClaimFile };
 const isPdf = (file: File) => file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
 const typeOf = (file: File) => file.type || (isPdf(file) ? 'application/pdf' : 'application/octet-stream');
 const yyyy = () => String(new Date().getFullYear());
-const errOf = (file: File, err: unknown) => new Error(file.name + ': ' + (err instanceof Error ? err.message : String(err)));
+/** Wraps an upload error with the file name, keeping the Drive error as `cause`. */
+const errOf = (file: File, err: unknown) => Object.assign(new Error(file.name + ': ' + (err instanceof Error ? err.message : String(err))), { cause: err });
 
 /**
  * Checks Drive is set up, then warms up the Drive token from inside a click handler (so Google's
@@ -76,7 +80,7 @@ export async function prepareStorage(): Promise<void> {
   await getDriveAccessToken();
 }
 
-/** Uploads one file into `parts` under `baseId` (default: the firm root folder). */
+/** Uploads one file into `parts` under `baseId` (default: the SHCO Portal root folder). */
 async function storeIn(parts: string[], file: File, uploadedBy: string, opts: { baseId?: string; name?: string; description?: string } = {}): Promise<StoredFileMeta> {
   const problem = validateClaimFile(file);
   if (problem) throw new Error(problem);
@@ -84,38 +88,78 @@ async function storeIn(parts: string[], file: File, uploadedBy: string, opts: { 
   try {
     const folder = await ensureFolderPath(opts.baseId || c.rootFolderId, parts);
     const f = await uploadToDrive(folder, file, opts.name || file.name, typeOf(file), opts.description || ('Uploaded by ' + uploadedBy));
-    return { name: file.name, driveFileId: f.id, webViewLink: f.webViewLink, size: file.size, contentType: typeOf(file), uploadedAt: new Date().toISOString(), uploadedBy };
+    return { name: file.name, driveFileId: f.id, webViewLink: f.webViewLink, driveFolderId: folder, size: file.size, contentType: typeOf(file), uploadedAt: new Date().toISOString(), uploadedBy };
   } catch (err) {
     throw errOf(file, err);
   }
 }
 
+/* ------------------------------------------------------------------ finance base */
+
+/**
+ * Where finance files live: the SHCO Finance Shared Drive, or `Finance/` inside SHCO Portal when
+ * no Finance drive is set (Firm Settings warns that staff could then see them).
+ */
+export const financeBase = (): { baseId: string; prefix: string[]; separate: boolean } => {
+  const c = getDriveConfig();
+  return c.financeFolderId
+    ? { baseId: c.financeFolderId, prefix: [], separate: true }
+    : { baseId: c.rootFolderId, prefix: ['Finance'], separate: false };
+};
+
+/** Creates (or finds) a folder inside the finance base, e.g. ['Backups']. */
+export async function ensureFinanceFolder(parts: string[]): Promise<string> {
+  requireDrive();
+  const b = financeBase();
+  return ensureFolderPath(b.baseId, [...b.prefix, ...parts]);
+}
+
+async function storeFinance(parts: string[], file: File, uploadedBy: string, opts: { name?: string; description?: string; fallbackToPortal?: boolean } = {}): Promise<StoredFileMeta> {
+  requireDrive();
+  const b = financeBase();
+  try {
+    return await storeIn([...b.prefix, ...parts], file, uploadedBy, { baseId: b.baseId, name: opts.name, description: opts.description });
+  } catch (err) {
+    // Staff who submit a claim are usually not members of SHCO Finance: their own receipts then
+    // go to Finance/ inside SHCO Portal (where every staff member can add files).
+    const cause = err instanceof Error ? (err as Error & { cause?: unknown }).cause : undefined;
+    if (opts.fallbackToPortal && b.separate && isDriveAccessError(cause)) {
+      return storeIn(['Finance', ...parts], file, uploadedBy, { name: opts.name, description: opts.description });
+    }
+    throw err;
+  }
+}
+
 /* ------------------------------------------------------------------ claims */
 
-/** A claim / payment-request receipt. Drive: `Claims/<YYYY>/<form no.>/`. */
-export async function storeClaimReceipt(opts: { userId: string; recordId: string; formNo: string; file: File; uploadedBy: string }): Promise<ClaimAttachment> {
-  return storeIn(['Claims', yyyy(), opts.formNo || opts.recordId], opts.file, opts.uploadedBy, {
+/**
+ * A claim / payment-request receipt. Drive: SHCO Finance `<YYYY>/Claims/<form no.>/`
+ * (or `<YYYY>/Payment Vouchers/<form no.>/` for a payment request).
+ */
+export async function storeClaimReceipt(opts: { userId: string; recordId: string; formNo: string; file: File; uploadedBy: string; kind?: 'claim' | 'pv' }): Promise<ClaimAttachment> {
+  return storeFinance(financeFolderPath(opts.kind || 'claim', yyyy(), opts.formNo || opts.recordId), opts.file, opts.uploadedBy, {
     name: opts.recordId + ' - ' + opts.file.name,
     description: 'Receipt for ' + opts.recordId + ' (' + (opts.formNo || '') + ') uploaded by ' + opts.uploadedBy,
+    fallbackToPortal: true,
   });
 }
 
 /* ------------------------------------------------------------------ HR */
 
 export interface HrStaffRef { email: string; staffId?: string; name: string }
-const staffFolderName = (staff: HrStaffRef) => [staff.staffId, staff.name].filter(Boolean).join(' ') || staff.email || 'Unknown staff';
 
 /**
- * An HR document or staff photo. Drive: `HR/<Staff ID> <Display name>/` inside the HR folder
- * (if the owner set a separate one) or the root folder. When `shareWithStaff` is true the staff
+ * An HR document or staff photo. Drive: SHCO HR `<Staff ID> - <Name>/` (or `HR/<Staff ID> - <Name>/`
+ * inside SHCO Portal when no HR drive is set). When `shareWithStaff` is true the staff
  * member gets reader access to that one file, so they can open it from their own record even
  * if they are not a member of the HR Shared Drive.
  */
 export async function storeHrFile(staff: HrStaffRef, file: File, uploadedBy: string, opts: { shareWithStaff?: boolean } = {}): Promise<Omit<HrDocument, 'type'> & { shareWarning?: string }> {
   const c = requireDrive();
+  const folder = staffFolderName(staff);
   const up = c.hrFolderId
-    ? await storeIn([staffFolderName(staff)], file, uploadedBy, { baseId: c.hrFolderId, description: 'HR file for ' + staff.name + ' uploaded by ' + uploadedBy })
-    : await storeIn(['HR', staffFolderName(staff)], file, uploadedBy, { description: 'HR file for ' + staff.name + ' uploaded by ' + uploadedBy });
+    ? await storeIn([folder], file, uploadedBy, { baseId: c.hrFolderId, description: 'HR file for ' + staff.name + ' uploaded by ' + uploadedBy })
+    : await storeIn(['HR', folder], file, uploadedBy, { description: 'HR file for ' + staff.name + ' uploaded by ' + uploadedBy });
   let shareWarning: string | undefined;
   if (opts.shareWithStaff && staff.email) {
     try { await grantReader(up.driveFileId, staff.email); } catch (e) { shareWarning = 'Saved, but ' + staff.name + ' could not be given access to open it (' + (e instanceof Error ? e.message : String(e)) + ').'; }
@@ -125,8 +169,8 @@ export async function storeHrFile(staff: HrStaffRef, file: File, uploadedBy: str
 
 /**
  * A leave supporting document (MC, discharge note, exam slip…) uploaded by the staff member
- * themselves. Drive: `Leave/<YYYY>/<Staff ID> <Name>/` under the firm root (not the HR folder,
- * which may be partners-only), so every staff member can upload their own.
+ * themselves. Drive: `Leave/<YYYY>/<Staff ID> - <Name>/` in SHCO Portal (not the HR drive,
+ * which is partners-only), so every staff member can upload their own.
  */
 export async function storeLeaveDocument(staff: HrStaffRef, file: File, leaveId: string): Promise<StoredFileMeta> {
   return storeIn(['Leave', yyyy(), staffFolderName(staff)], file, staff.name, {
@@ -137,28 +181,35 @@ export async function storeLeaveDocument(staff: HrStaffRef, file: File, leaveId:
 
 /* ------------------------------------------------------------------ finance proofs */
 
-/** A bank-in slip / payment proof. Drive: `Finance proofs/<YYYY>/`. */
-export async function storeFinanceProof(file: File, uploadedBy: string, ref?: string): Promise<Pick<FinanceProof, 'driveFileId' | 'webViewLink' | 'uploadedBy'>> {
-  const up = await storeIn(['Finance proofs', yyyy()], file, uploadedBy, { name: (ref ? ref + ' - ' : '') + file.name, description: 'Finance proof uploaded by ' + uploadedBy });
-  return { driveFileId: up.driveFileId, webViewLink: up.webViewLink, uploadedBy };
+/**
+ * A finance proof. Drive (SHCO Finance): bank-in / payment proofs `<YYYY>/Bank-in Proofs/`,
+ * PV documents `<YYYY>/Payment Vouchers/<PV no.>/`, claim payments `<YYYY>/Claims/<no.>/`,
+ * client account statements / reconciliation proofs `<YYYY>/Client Account/`.
+ */
+export async function storeFinanceProof(file: File, uploadedBy: string, ref?: string, kind: FinanceKind = 'bankin'): Promise<Pick<FinanceProof, 'driveFileId' | 'webViewLink' | 'uploadedBy' | 'driveFolderId'>> {
+  const up = await storeFinance(financeFolderPath(kind, yyyy(), ref), file, uploadedBy, {
+    name: (ref ? ref + ' - ' : '') + file.name,
+    description: 'Finance proof' + (ref ? ' for ' + ref : '') + ' uploaded by ' + uploadedBy,
+  });
+  return { driveFileId: up.driveFileId, webViewLink: up.webViewLink, uploadedBy, driveFolderId: up.driveFolderId };
 }
 
 /* ------------------------------------------------------------------ clients (KYC / CDD) */
 
-/** Drive folder name for a client: "<name> (<client id>)". */
-export const clientFolderName = (name: string, id: string) => driveSafeName([name, id ? '(' + id + ')' : ''].filter(Boolean).join(' ')).slice(0, 120);
+/** Drive folder name for a client: "<client id> - <name>". */
+export const clientFolderName = (name: string, id: string) => layoutClientFolderName(name, id);
 
-/** A client's KYC / CDD document (IC, SSM extract, proof of address…). Drive: `Clients/<name (id)>/KYC/`. */
+/** A client's KYC / CDD document (IC, SSM extract, proof of address…). Drive: `Clients/<ID - name>/KYC/`. */
 export async function storeClientKycFile(client: { id: string; name: string }, file: File, uploadedBy: string): Promise<StoredFileMeta> {
   return storeIn(['Clients', clientFolderName(client.name, client.id), 'KYC'], file, uploadedBy, { description: 'KYC document for ' + client.name + ' (' + client.id + ') uploaded by ' + uploadedBy });
 }
 
-/** Creates (or finds) the client's KYC folder, `Clients/<name (id)>/KYC/`. Null when Drive is not set up. */
+/** Creates (or finds) the client's KYC folder, `Clients/<ID - name>/KYC/`. Null when Drive is not set up. */
 export async function ensureClientKycFolder(client: { id: string; name: string }): Promise<{ id: string; url: string } | null> {
   if (activeStorage() !== 'drive') return null;
   const c = getDriveConfig();
   const id = await ensureFolderPath(c.rootFolderId, ['Clients', clientFolderName(client.name, client.id), 'KYC']);
-  return { id, url: 'https://drive.google.com/drive/folders/' + encodeURIComponent(id) };
+  return { id, url: folderUrl(id) };
 }
 
 /* ------------------------------------------------------------------ firm letterhead */
@@ -175,33 +226,52 @@ export async function storeLetterheadImage(branchName: string, file: File, uploa
 
 /* ------------------------------------------------------------------ matter files */
 
-/** Drive folder name for a matter: "<file ref, / as -> - <title>". */
-const matterFolderName = (ref: string, title?: string) => driveSafeName([String(ref || '').replace(/\//g, '-'), title].filter(Boolean).join(' - ')).slice(0, 120);
+export { MATTER_SUBFOLDERS, type MatterSub, type MatterLike };
+
+/** "Matters › Civil Litigation › 042 - Title" (for "Goes to …" hints). */
+export const matterDriveLabel = (m: MatterLike) => matterFolderPath(m, getDriveConfig().practiceFolderNames).join(' › ');
 
 /**
- * Creates (or finds) the matter's own folder in the firm Shared Drive: `Matters/<ref - title>/`.
+ * Creates (or finds) the matter's folder in SHCO Portal, `Matters/<Practice area>/<NNN> - <title>/`,
+ * with its five sub-folders, and puts the full file ref in the folder description.
  * Returns null when Drive is not set up in Firm Settings.
  */
-export async function ensureMatterFolder(ref: string, title?: string): Promise<{ id: string; url: string } | null> {
+export async function ensureMatterFolder(m: MatterLike): Promise<{ id: string; url: string } | null> {
   if (activeStorage() !== 'drive') return null;
   const c = getDriveConfig();
-  const id = await ensureFolderPath(c.rootFolderId, ['Matters', matterFolderName(ref, title)]);
-  return { id, url: 'https://drive.google.com/drive/folders/' + encodeURIComponent(id) };
+  const id = await ensureFolderPath(c.rootFolderId, matterFolderPath(m, c.practiceFolderNames), matterFolderDescription(m));
+  for (const sub of MATTER_SUBFOLDERS) await ensureFolderPath(id, [sub]);
+  return { id, url: folderUrl(id) };
 }
 
 /** `storagePath` is legacy (Firebase Storage, read-only); new files always have driveFileId. */
-export interface StoredMatterFile { name: string; driveFileId?: string; webViewLink?: string; storagePath?: string; size: number; contentType: string; uploadedAt: string; uploadedBy: string }
+export interface StoredMatterFile { name: string; driveFileId?: string; webViewLink?: string; driveFolderId?: string; storagePath?: string; size: number; contentType: string; uploadedAt: string; uploadedBy: string }
 
 /**
- * A file kept on a matter (filing / service proof, correspondence, documents).
- * Drive: `<matter folder>/<sub>/` — the matter's own folder when it has one, else
- * `Matters/<ref - title>/<sub>/` under the firm root.
+ * A file kept on a matter. Drive: `<matter folder>/<sub>/` — the matter's own folder when it has
+ * one (gdriveFolderId), else `Matters/<area>/<NNN - title>/<sub>/` in SHCO Portal.
+ * Subs: Court Papers (filing / service proofs), Correspondence, Client Documents, Research, Closing.
  */
-export async function storeMatterFile(opts: { ref: string; title?: string; folderId?: string; sub: 'Filing' | 'Service' | 'Correspondence' | 'Documents'; file: File; uploadedBy: string }): Promise<StoredMatterFile> {
+export async function storeMatterFile(opts: MatterLike & { folderId?: string; sub: MatterSub; file: File; uploadedBy: string }): Promise<StoredMatterFile> {
   const description = opts.sub + ' for ' + opts.ref + ' uploaded by ' + opts.uploadedBy;
-  return opts.folderId
-    ? storeIn([opts.sub], opts.file, opts.uploadedBy, { baseId: opts.folderId, description })
-    : storeIn(['Matters', matterFolderName(opts.ref, opts.title), opts.sub], opts.file, opts.uploadedBy, { description });
+  if (opts.folderId) return storeIn([opts.sub], opts.file, opts.uploadedBy, { baseId: opts.folderId, description });
+  const c = requireDrive();
+  const folder = await ensureFolderPath(c.rootFolderId, matterFolderPath(opts, c.practiceFolderNames), matterFolderDescription(opts));
+  return storeIn([opts.sub], opts.file, opts.uploadedBy, { baseId: folder, description });
+}
+
+/**
+ * Engagement & billing papers of a matter (signed Letter of Engagement, quotations, invoices,
+ * receipts). Drive: SHCO Finance `Files/<NNN> - <title>/`.
+ */
+export async function storeEngagementFile(m: MatterLike, file: File, uploadedBy: string): Promise<StoredMatterFile> {
+  try {
+    return await storeFinance(financeMatterPath(m), file, uploadedBy, { description: 'Engagement & billing for ' + m.ref + ' uploaded by ' + uploadedBy });
+  } catch (err) {
+    const cause = err instanceof Error ? (err as Error & { cause?: unknown }).cause : undefined;
+    if (financeBase().separate && isDriveAccessError(cause)) throw new Error(file.name + ': engagement & billing papers go to the SHCO Finance Shared Drive, and your Google account cannot add files there. Ask a partner or Accounts to upload it.');
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ opening */

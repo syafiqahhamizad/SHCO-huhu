@@ -4,7 +4,7 @@ import type { ClaimDocument } from '../types';
  * Helpers for claim supporting documents (receipt photos, toll slips…).
  *
  * The files themselves are uploaded to the firm's Google Drive (fileStorageService
- * storeClaimReceipt → `Claims/<YYYY>/<form no.>/`) and only their metadata is kept on the
+ * storeClaimReceipt → SHCO Finance `<YYYY>/Claims/<form no.>/`) and only their metadata is kept on the
  * claim. The old per-device "claim document vault" (data URLs in localStorage under
  * SHCO_CLAIM_DOCUMENTS_VAULT_V1) was removed: nothing read it, and a copy kept in one
  * browser was lost on every other device.

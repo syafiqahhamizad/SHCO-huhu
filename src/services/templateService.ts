@@ -265,6 +265,13 @@ export interface PracticeSettings {
    * documents and staff photos. Blank = `HR/` inside the root folder. */
   driveHrFolderId?: string;
   driveHrFolderName?: string;
+  /** "SHCO Finance" Shared Drive (partners / Accounts only): claims, payment vouchers, bank-in
+   * proofs, client account, engagement & billing papers, backups. Blank = `Finance/` inside the
+   * root folder (all staff can see it). */
+  driveFinanceFolderId?: string;
+  driveFinanceFolderName?: string;
+  /** Practice area name → folder name under `Matters/` in SHCO Portal (blank = the area name). */
+  drivePracticeFolderNames?: Record<string, string>;
   /** OAuth 2.0 Web client ID used for Google Drive access (overridden by VITE_GOOGLE_OAUTH_CLIENT_ID). */
   googleOAuthClientId?: string;
   /** Result of the last "Test connection". */

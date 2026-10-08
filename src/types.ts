@@ -683,6 +683,8 @@ export interface Case {
   disbursementAgreedWithClient?: number;
   gdriveFolderId?: string;
   gdriveFolderUrl?: string;
+  /** Link to the file's folder in an old drive (kept untouched, never moved or renamed). */
+  oldDriveFolderUrl?: string;
   gdriveCategory?: 'Litigation' | 'Conveyancing' | 'Criminal' | 'Corporate' | string;
   gdriveParentFolderName?: string;
 
@@ -904,6 +906,8 @@ export interface ClaimAttachment {
   /** Google Drive file (uploads once Drive storage is set up in Firm Settings). */
   driveFileId?: string;
   webViewLink?: string;
+  /** Drive folder the file was saved in (for the "Drive folder" link). */
+  driveFolderId?: string;
   uploadedAt?: string;
   uploadedBy?: string;
 }
@@ -991,7 +995,7 @@ export interface Invoice {
   sourceItems?: { time?: string[]; expenses?: string[]; travel?: string[] };
   /** Date the invoice was issued (status left Draft). */
   issuedAt?: string;
-  /** Payment slips the client uploaded from the Client Portal (Drive: Finance proofs/<YYYY>/).
+  /** Payment slips the client uploaded from the Client Portal (Drive: SHCO Finance <YYYY>/Bank-in Proofs/).
    * The bill shows "Checking payment" until Accounts records the payment. */
   clientPaymentSlips?: { name: string; driveFileId: string; webViewLink?: string; uploadedAt: string; uploadedBy: string }[];
 }
@@ -1696,11 +1700,13 @@ export interface FinanceProof {
   size?: number;
   type?: string;
   uploadedAt: string;
-  /** Set once the file has been saved to Google Drive (Finance proofs/<YYYY>/). Without it,
+  /** Set once the file has been saved to Google Drive (SHCO Finance <YYYY>/…). Without it,
    * only the file name is kept and the file is viewable in the session that attached it. */
   driveFileId?: string;
   webViewLink?: string;
   uploadedBy?: string;
+  /** Drive folder the file was saved in (SHCO Finance <YYYY>/…). */
+  driveFolderId?: string;
 }
 
 export interface FinanceFeeArrangement {

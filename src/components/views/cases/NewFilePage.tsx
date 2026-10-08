@@ -170,12 +170,12 @@ export const NewFilePage: React.FC = () => {
     addCase(kase);
     incrementSequenceCounter('case');
     setDone(kase);
-    // Every new file gets its Google Drive folder straight away (Shared Drive › Matters).
+    // Every new file gets its Google Drive folder straight away (SHCO Portal › Matters › <area> › <NNN - title>, with its 5 sub-folders).
     if (activeStorage() === 'drive') {
       void (async () => {
         try {
           await prepareStorage();
-          const f = await ensureMatterFolder(kase.ref, kase.title);
+          const f = await ensureMatterFolder(kase);
           if (f) updateCase(kase.id, { gdriveFolderId: f.id, gdriveFolderUrl: f.url });
         } catch (e) {
           showToast('File opened, but the Drive folder was not created: ' + (e instanceof Error ? e.message : String(e)) + '. Use "Create Drive folder" on the file.');
