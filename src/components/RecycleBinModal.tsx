@@ -15,6 +15,16 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { DeletedRecord } from '../types';
+import { canSeeClientBilling, finRoleKey } from '../lib/financeAccess';
+
+/** Filter chip for an entity type (financial documents share one chip; anything else is Other). */
+const MONEY_TYPES = ['INVOICE', 'QUOTATION', 'RECEIPT', 'PAYMENT VOUCHER'];
+const chipOf = (entityType: string) => {
+  const t = entityType.toUpperCase();
+  if (t === 'MATTER') return 'CASE';
+  if (MONEY_TYPES.includes(t)) return 'INVOICE';
+  return ['CASE', 'CLIENT', 'LEAD'].includes(t) ? t : 'OTHER';
+};
 
 interface RecycleBinModalProps {
   isOpen: boolean;
@@ -28,7 +38,12 @@ export const RecycleBinModal: React.FC<RecycleBinModalProps> = ({ isOpen, onClos
     purgeDeletedRecordPermanently,
     emptyTrashRecycleBin,
     showToast,
+    currentRole,
+    currentUser,
+    isAdmin,
   } = useApp();
+  // Lawyers and assistants get no billing records, so deleted bills stay out of their bin too.
+  const seeBilling = canSeeClientBilling(finRoleKey(currentRole, currentUser, isAdmin));
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEntity, setSelectedEntity] = useState<string>('ALL');
@@ -39,7 +54,7 @@ export const RecycleBinModal: React.FC<RecycleBinModalProps> = ({ isOpen, onClos
   if (!isOpen) return null;
 
   // Filter records
-  const filtered = deletedRecords.filter((r) => {
+  const filtered = deletedRecords.filter((r) => seeBilling || chipOf(r.entityType) !== 'INVOICE').filter((r) => {
     const matchesSearch =
       (r.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (r.details || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -47,7 +62,7 @@ export const RecycleBinModal: React.FC<RecycleBinModalProps> = ({ isOpen, onClos
       (r.deletedBy || '').toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesEntity =
-      selectedEntity === 'ALL' || r.entityType.toUpperCase() === selectedEntity.toUpperCase();
+      selectedEntity === 'ALL' || chipOf(r.entityType) === selectedEntity;
 
     return matchesSearch && matchesEntity;
   });
@@ -165,7 +180,7 @@ export const RecycleBinModal: React.FC<RecycleBinModalProps> = ({ isOpen, onClos
 
           {/* Entity Filter Tabs */}
           <div className="flex max-w-full flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs">
-            {['ALL', 'CASE', 'CLIENT', 'LEAD', 'INVOICE', 'OTHER'].map((entity) => (
+            {['ALL', 'CASE', 'CLIENT', 'LEAD', ...(seeBilling ? ['INVOICE'] : []), 'OTHER'].map((entity) => (
               <button
                 key={entity}
                 onClick={() => setSelectedEntity(entity)}
@@ -189,7 +204,7 @@ export const RecycleBinModal: React.FC<RecycleBinModalProps> = ({ isOpen, onClos
               <div className="font-bold text-slate-700 text-sm">No Deleted Records Found</div>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
                 {deletedRecords.length === 0
-                  ? 'Your system audit bin is clear. Any items deleted from cases, leads, clients, or invoices will appear here for recovery.'
+                  ? 'Your system audit bin is clear. Any cases, leads or clients that are deleted will appear here for recovery.'
                   : 'No records matched your search query or selected entity filter.'}
               </p>
             </div>

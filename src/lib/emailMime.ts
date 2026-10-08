@@ -53,7 +53,7 @@ export function parseAddressList(input: string | string[] | undefined | null): s
 
 const wrap76 = (b64: string) => (b64.match(/.{1,76}/g) || ['']).join('\r\n');
 
-export interface MimeMessageInput {
+interface MimeMessageInput {
   to: string | string[];
   cc?: string | string[];
   bcc?: string | string[];
@@ -100,5 +100,3 @@ export function buildRfc2822Message(m: MimeMessageInput): string {
 /** The `raw` value for Gmail's users.messages.send. */
 export const buildGmailRaw = (m: MimeMessageInput) => base64UrlUtf8(buildRfc2822Message(m));
 
-/** Escapes text for safe use inside HTML e-mail bodies. */
-export const escapeHtml = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));

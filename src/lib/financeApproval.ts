@@ -13,8 +13,8 @@ import { approverCode, resolveApproval, type ApproverRule } from './approvers';
 
 export type FinApprovalId = 'feeShare' | 'payroll' | 'partnerPay' | 'officePay' | 'clientPay' | 'recon' | 'referral' | 'claims' | 'writeOff' | 'emergency' | 'investment' | 'clientStmt';
 
-export interface Signer { code: string; name: string; userId: string; isMP: boolean }
-export interface FinRule {
+interface Signer { code: string; name: string; userId: string; isMP: boolean }
+interface FinRule {
   configured: boolean;
   people: Signer[];
   need: number;
@@ -26,7 +26,7 @@ export interface FinRule {
   canSign: (u?: Partial<User> | null) => boolean;
 }
 
-export const isManagingPartnerUser = (u?: Partial<User> | null) => !!u && u.role === 'Partner' && (!!u.isSuperAdmin || String(u.email || '').toLowerCase() === 'syafiqahhamizad@shcolaw.com');
+const isManagingPartnerUser = (u?: Partial<User> | null) => !!u && u.role === 'Partner' && (!!u.isSuperAdmin || String(u.email || '').toLowerCase() === 'syafiqahhamizad@shcolaw.com');
 const toSigner = (u: User): Signer => ({ code: approverCode(u), name: u.name, userId: u.id, isMP: isManagingPartnerUser(u) });
 
 const labelOf = (codes: string[], need: number, mpCodes: string[], otherCodes: string[], mpRequired: boolean) => {

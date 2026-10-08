@@ -30,12 +30,10 @@ import {
   PartnerCode,
   Lead,
   Client,
-  ClientPortalUpdate,
   Case,
   NewCasePrefill,
   CaseActivityLog,
   Quotation,
-  QuoteTemplate,
   ReferralPartner,
   OfficeBucket,
   ChartOfAccount,
@@ -44,9 +42,7 @@ import {
   PaymentVoucher,
   GeneralLedgerEntry,
   TrialBalanceRow,
-  CashFlowRow,
   ThreeWayRecRow,
-  DocTemplate,
   Deadline,
   TimeEntry,
   Expense,
@@ -66,7 +62,6 @@ import {
   BankReconciliationEntry,
   Payslip, PrivateTodo,
   ComplianceItem,
-  ComplaintRecord,
   Milestone,
   Panelship,
   InvestmentChannel,
@@ -101,7 +96,6 @@ import {
   INITIAL_CLIENTS,
   INITIAL_CASES,
   INITIAL_QUOTATIONS,
-  INITIAL_QUOTE_TEMPLATES,
   INITIAL_REFERRALS,
   INITIAL_OFFICE_BUCKETS,
   INITIAL_CHART_OF_ACCOUNTS,
@@ -110,9 +104,7 @@ import {
   INITIAL_PAYMENT_VOUCHERS,
   INITIAL_GENERAL_LEDGER,
   INITIAL_TRIAL_BALANCE,
-  INITIAL_CASH_FLOW,
   INITIAL_3WAY_REC,
-  INITIAL_DOC_TEMPLATES,
   INITIAL_DEADLINES,
   INITIAL_MEETINGS,
   INITIAL_PROGRAMMES,
@@ -133,7 +125,7 @@ import {
   INITIAL_FIRM_START_CENTRE_PAGES,
 } from '../data/initialData';
 
-export interface AccessListStatus {
+interface AccessListStatus {
   state: 'idle' | 'preview' | 'not-owner' | 'updating' | 'published' | 'review' | 'failed';
   message?: string;
   /** Changes that give someone more access and were not made in this owner session. */
@@ -147,7 +139,6 @@ export interface AccessListStatus {
 
 interface AppContextType {
   currentUser: User;
-  setCurrentUser: (user: User) => void;
   isUserPreview: boolean;
   previewUserId: string | null;
   startUserPreview: (userId: string) => boolean;
@@ -155,15 +146,12 @@ interface AppContextType {
   firmStartCentreEditMode: boolean;
   setFirmStartCentreEditMode: (enabled: boolean) => void;
   isAuthenticated: boolean;
-  setIsAuthenticated: (auth: boolean) => void;
   currentRole: Role;
   setCurrentRole: (role: Role) => void;
   currentPartnerCode: PartnerCode;
   setCurrentPartnerCode: (code: PartnerCode) => void;
   isAdmin: boolean;
   setIsAdmin: (val: boolean) => void;
-  isOAuthConnected: boolean;
-  setIsOAuthConnected: (val: boolean) => void;
   currentView: string;
   setCurrentView: (view: string) => void;
   currentCaseId: string | null;
@@ -176,8 +164,6 @@ interface AppContextType {
   toastMessage: string | null;
   showToast: (msg?: string) => void;
 
-  assignmentToastData: { assignees: string[]; count: number } | null;
-  showAssignmentSuccessToast: (assignees: string[]) => void;
 
   // Appearance & Theme Preferences
   theme: ThemePreference;
@@ -214,16 +200,11 @@ interface AppContextType {
   addLeaveApplication: (application: LeaveApplication) => void;
   updateLeaveApplication: (id: string, updates: Partial<LeaveApplication>) => void;
   addMeeting: (meeting: Meeting) => void;
-  updateMeeting: (id: string, updates: Partial<Meeting>) => void;
-  deleteMeeting: (id: string) => void;
   addProgramme: (programme: Programme) => void;
   updateProgramme: (id: string, updates: Partial<Programme>) => void;
-  deleteProgramme: (id: string) => void;
   canViewModule: (viewId: string) => boolean;
-  updateRolePermission: (role: Role, moduleKey: string, action: 'v' | 'a' | 'e', value: number) => void;
   customRoles: string[];
   addCustomRole: (roleName: string) => boolean;
-  updateUserNavOverride: (userId: string, moduleKey: string, action: 'v' | 'a' | 'e', value: number) => void;
   /** Firm & Practice Settings: set all three bits of one role/module cell at once (no toast). */
   setRoleModulePermissions: (role: Role, moduleKey: string, perms: ModulePermissions) => void;
   /** Firm & Practice Settings: set (or with null, clear) one person's own permission for a key. */
@@ -238,7 +219,6 @@ interface AppContextType {
   clients: Client[];
   cases: Case[];
   quotations: Quotation[];
-  quoteTemplates: QuoteTemplate[];
   referralPartners: ReferralPartner[];
   officeBuckets: OfficeBucket[];
   chartOfAccounts: ChartOfAccount[];
@@ -247,9 +227,7 @@ interface AppContextType {
   paymentVouchers: PaymentVoucher[];
   generalLedger: GeneralLedgerEntry[];
   trialBalance: TrialBalanceRow[];
-  cashFlowOffice: CashFlowRow[];
   threeWayRec: ThreeWayRecRow[];
-  docTemplates: DocTemplate[];
   deadlines: Deadline[];
   timeEntries: TimeEntry[];
   expenses: Expense[];
@@ -325,18 +303,11 @@ interface AppContextType {
   setIsRegisterClientModalOpen: (open: boolean) => void;
 
   // Actions
-  addBankAccount: (acc: Omit<BankAccount, 'id'>) => void;
-  updateBankAccount: (id: string, updates: Partial<BankAccount>) => void;
-  archiveBankAccount: (id: string) => void;
-  addTrustAuditLog: (entry: Omit<TrustAuditLog, 'id' | 'timestamp'>) => void;
   addInventoryItem: (item: Omit<InventoryItem, 'id'>) => void;
   updateInventoryItem: (id: string, updates: Partial<InventoryItem>) => void;
-  toggleReconcileEntry: (id: string) => void;
   toggleComplianceItem: (id: string) => void;
   updateComplianceItem: (id: string, patch: Partial<ComplianceItem>) => void;
   addComplianceItem: (group: ComplianceItem['group'], item: Partial<Omit<ComplianceItem, 'id' | 'group'>>) => void;
-  addComplaint: (complaint: Omit<ComplaintRecord, 'id'>) => void;
-  updateComplaint: (id: string, patch: Partial<ComplaintRecord>) => void;
   updateDirectionStatement: (field: 'vision' | 'mission' | 'target2028', text: string) => void;
   updatePartnersNotes: (text: string) => void;
   addMilestone: (year: number, text?: string) => void;
@@ -356,15 +327,11 @@ interface AppContextType {
   deleteLead: (id: string) => void;
   addClient: (client: Client) => void;
   updateClient: (id: string, updates: Partial<Client>) => void;
-  addClientPortalUpdate: (clientId: string, update: Omit<ClientPortalUpdate, 'id' | 'date'>) => void;
   deleteClient: (id: string) => void;
   addCase: (caseObj: Case) => void;
   updateCase: (id: string, updates: Partial<Case>) => void;
   deleteCase: (id: string) => void;
   addCaseActivityLog: (caseId: string, log: Omit<CaseActivityLog, 'id' | 'timestamp'>) => void;
-  addLawFirmRegistryEntry: (entry: LawFirmRegistryEntry) => void;
-  updateLawFirmRegistryEntry: (id: string, updates: Partial<LawFirmRegistryEntry>) => void;
-  deleteLawFirmRegistryEntry: (id: string) => void;
   addQuotation: (q: Quotation) => void;
   updateQuotation: (id: string, updates: Partial<Quotation>) => void;
   addReferralPartner: (rp: ReferralPartner) => void;
@@ -375,19 +342,14 @@ interface AppContextType {
   updateReceipt: (id: string, updates: Partial<Receipt>) => void;
   addPaymentVoucher: (pv: PaymentVoucher) => void;
   updatePaymentVoucher: (id: string, updates: Partial<PaymentVoucher>) => void;
-  approvePaymentVoucher: (id: string, approvedBy: string) => void;
   addRetainer: (r: Retainer) => void;
   addInvoice: (inv: Invoice) => void;
   updateInvoice: (id: string, updates: Partial<Invoice>) => void;
   addPayment: (p: Payment) => void;
-  updatePayment: (id: string, updates: Partial<Payment>) => void;
-  deletePayment: (id: string) => void;
   addTimeEntry: (te: TimeEntry) => void;
   updateTimeEntry: (id: string, updates: Partial<TimeEntry>) => void;
-  deleteTimeEntry: (id: string) => void;
   addExpense: (ex: Expense) => void;
   updateExpense: (id: string, updates: Partial<Expense>) => void;
-  deleteExpense: (id: string) => void;
   addGeneralLedgerEntry: (gl: Omit<GeneralLedgerEntry, 'glNo'> | GeneralLedgerEntry) => void;
   addDeadline: (d: Deadline) => void;
   addActivityLog: (action: string, details: string) => void;
@@ -396,8 +358,6 @@ interface AppContextType {
    * journal): the running number restarts at 0001 each year per prefix. Defaults to today. */
   getNextSequenceId: (type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense' | 'journal', date?: string) => string;
   incrementSequenceCounter: (type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense') => void;
-  resetSequenceCounters: () => void;
-  factoryResetSystem: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -536,8 +496,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return INITIAL_USERS[0]?.isAdmin ?? false;
   });
 
-  const [isOAuthConnected, setIsOAuthConnected] = useState<boolean>(true);
-
   // Appearance Theme Preference State
   const [theme, setThemeState] = useState<ThemePreference>(() => {
     const saved = localStorage.getItem(STORAGE_KEY + '_theme');
@@ -608,16 +566,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const showToast = (msg = 'Saved successfully') => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 2500);
-  };
-
-  const [assignmentToastData, setAssignmentToastData] = useState<{ assignees: string[]; count: number } | null>(null);
-
-  const showAssignmentSuccessToast = (assignees: string[]) => {
-    setAssignmentToastData({
-      assignees: assignees.filter(Boolean), // Filter out empty strings
-      count: assignees.filter(Boolean).length,
-    });
-    setTimeout(() => setAssignmentToastData(null), 3000); // Slightly longer for more info
   };
 
   // Automatically save current user session to localStorage whenever key parameters change
@@ -1200,16 +1148,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Meeting booked.');
   };
 
-  const updateMeeting = (id: string, updates: Partial<Meeting>) => {
-    setMeetings((prev) => prev.map((item) => (item.id === id ? { ...item, ...updates } : item)));
-    showToast('Meeting updated.');
-  };
-
-  const deleteMeeting = (id: string) => {
-    setMeetings((prev) => prev.filter((item) => item.id !== id));
-    showToast('Meeting removed.');
-  };
-
   const addProgramme = (programme: Programme) => {
     setProgrammes((prev) => [programme, ...prev.filter((item) => item.id !== programme.id)]);
     addActivityLog('Programme Added', `${programme.title} · ${programme.date}`);
@@ -1219,11 +1157,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateProgramme = (id: string, updates: Partial<Programme>) => {
     setProgrammes((prev) => prev.map((item) => (item.id === id ? { ...item, ...updates } : item)));
     showToast('Programme updated.');
-  };
-
-  const deleteProgramme = (id: string) => {
-    setProgrammes((prev) => prev.filter((item) => item.id !== id));
-    showToast('Programme removed.');
   };
 
   // Load state from localStorage if available
@@ -1258,7 +1191,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return readStored(STORAGE_KEY + '_quotations', operationalFallback(INITIAL_QUOTATIONS));
   });
 
-  const [quoteTemplates] = useState<QuoteTemplate[]>(INITIAL_QUOTE_TEMPLATES);
   const [referralPartners, setReferralPartners] = useState<ReferralPartner[]>(() => {
     return readStored(STORAGE_KEY + '_referrals', operationalFallback(INITIAL_REFERRALS));
   });
@@ -1281,9 +1213,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     readStored(STORAGE_KEY + '_generalLedger', operationalFallback(INITIAL_GENERAL_LEDGER))
   );
   const [trialBalance] = useState<TrialBalanceRow[]>(operationalFallback(INITIAL_TRIAL_BALANCE));
-  const [cashFlowOffice] = useState<CashFlowRow[]>(operationalFallback(INITIAL_CASH_FLOW));
   const [threeWayRec] = useState<ThreeWayRecRow[]>(operationalFallback(INITIAL_3WAY_REC));
-  const [docTemplates] = useState<DocTemplate[]>(INITIAL_DOC_TEMPLATES);
 
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
     return readStored(STORAGE_KEY + '_notifications', operationalFallback<NotificationItem>([
@@ -1817,68 +1747,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
   };
 
-  const resetSequenceCounters = () => {
-    const zeros: SequenceCounters = {
-      invoiceSeq: 0,
-      quotationSeq: 0,
-      caseSeq: 0,
-      receiptSeq: 0,
-      voucherSeq: 0,
-      claimSeq: 0,
-      clientSeq: 0,
-      leadSeq: 0,
-      expenseSeq: 0,
-    };
-    setSequenceCounters(zeros);
-    localStorage.setItem(STORAGE_KEY + '_sequenceCounters', JSON.stringify(zeros));
-  };
-
-  const factoryResetSystem = async () => {
-    // 1. Clear operational local storage keys (preserving configuration and users)
-    Object.keys(localStorage).forEach((key) => {
-      if (
-        key.startsWith(STORAGE_KEY) &&
-        !key.endsWith('_practiceSettings') &&
-        !key.endsWith('_users') &&
-        !key.endsWith('_rolesMatrix')
-      ) {
-        localStorage.removeItem(key);
-      }
-    });
-
-    // 2. Reset sequence counters to zero
-    resetSequenceCounters();
-
-    // 3. Clear data collections
-    setLeads([]);
-    setClients([]);
-    setCases([]);
-    setQuotations([]);
-    setTravelClaims([]);
-    setReceipts([]);
-    setPaymentVouchers([]);
-    setGeneralLedger([]);
-    setDeadlines([]);
-    setTimeEntries([]);
-    setExpenses([]);
-    setInvoices([]);
-    setPayments([]);
-    setRetainers([]);
-    setLawFirmRegistry([]);
-
-    // 4. Create audit log entry
-    const resetLog: ActivityLog = {
-      ts: new Date().toISOString().slice(0, 16).replace('T', ' '),
-      user: currentUser?.name || 'Super Admin (Syafiqah Hamizad)',
-      action: 'Factory Reset Executed',
-      details:
-        'Full Factory Reset Executed: Cleared all transactional collections (Leads, Clients, Cases, Invoices, Vouchers, Receipts, Trust Ledger) and reset running sequence counters to 0.',
-    };
-    setLogs([resetLog]);
-
-    showToast('Factory Reset Complete! All operational data purged and sequence counters reset to zero.');
-  };
-
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY + '_bankAccounts', JSON.stringify(bankAccounts));
   }, [bankAccounts]);
@@ -1907,33 +1775,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(STORAGE_KEY + '_manualJournals', JSON.stringify(manualJournals));
   }, [manualJournals]);
 
-  const addBankAccount = (acc: Omit<BankAccount, 'id'>) => {
-    const newAcc: BankAccount = { ...acc, id: `BANK-${Date.now()}` };
-    setBankAccounts((prev) => [...prev, newAcc]);
-    addActivityLog('Bank Account Created', `${newAcc.bankName} (${newAcc.accountNo})`);
-    showToast(`Added bank account: ${newAcc.accountName}`);
-  };
-
-  const updateBankAccount = (id: string, updates: Partial<BankAccount>) => {
-    setBankAccounts((prev) => prev.map((a) => (a.id === id ? { ...a, ...updates } : a)));
-    showToast('Bank account updated');
-  };
-
-  const archiveBankAccount = (id: string) => {
-    setBankAccounts((prev) => prev.map((a) => (a.id === id ? { ...a, status: 'Archived' } : a)));
-    addActivityLog('Bank Account Archived', id);
-    showToast('Bank account archived');
-  };
-
-  const addTrustAuditLog = (entry: Omit<TrustAuditLog, 'id' | 'timestamp'>) => {
-    const newEntry: TrustAuditLog = {
-      ...entry,
-      id: `TAL-${Date.now()}`,
-      timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
-    };
-    setTrustAuditLogs((prev) => [newEntry, ...prev]);
-  };
-
   const addInventoryItem = (item: Omit<InventoryItem, 'id'>) => {
     const newItem: InventoryItem = { ...item, id: `INV-${Date.now()}` };
     setInventoryItems((prev) => [...prev, newItem]);
@@ -1944,22 +1785,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateInventoryItem = (id: string, updates: Partial<InventoryItem>) => {
     setInventoryItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...updates } : i)));
     showToast('Inventory item updated');
-  };
-
-  const toggleReconcileEntry = (id: string) => {
-    setBankReconciliationEntries((prev) =>
-      prev.map((e) =>
-        e.id === id
-          ? {
-              ...e,
-              status: e.status === 'Reconciled' ? 'Unreconciled' : 'Reconciled',
-              reconciledBy: currentUser.name,
-              reconciledDate: new Date().toISOString().slice(0, 10),
-            }
-          : e
-      )
-    );
-    showToast('Reconciliation status updated');
   };
 
   /** Advance a recurring compliance item's due date by one period. */
@@ -2025,21 +1850,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     savePracticeSettings({ ...settings, complianceRegister: [...(settings.complianceRegister || []), newItem] });
     addActivityLog('Compliance Item Added', `${newItem.label} (${group})`);
     showToast(`Added item to ${group}`);
-  };
-
-  const addComplaint = (complaint: Omit<ComplaintRecord, 'id'>) => {
-    const settings = getPracticeSettings();
-    const newComplaint: ComplaintRecord = { ...complaint, id: `CMPLT-${Date.now()}` };
-    savePracticeSettings({ ...settings, complaints: [...(settings.complaints || []), newComplaint] });
-    addActivityLog('Complaint Logged', newComplaint.summary);
-    showToast('Complaint logged');
-  };
-
-  const updateComplaint = (id: string, patch: Partial<ComplaintRecord>) => {
-    const settings = getPracticeSettings();
-    const complaints = (settings.complaints || []).map((c) => (c.id === id ? { ...c, ...patch } : c));
-    savePracticeSettings({ ...settings, complaints });
-    showToast('Complaint updated');
   };
 
   // --- My Dashboard -> Direction (Managing Partner only, Growth merged in) -----------------
@@ -2153,9 +1963,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     'case-status': 'cases',
     'file-closing': 'cases',
     referrals: 'cases',
-    'bank-accounts': 'officeFinance',
-    'bank-reconciliation': 'officeFinance',
-    'trust-audit-logs': 'retainers',
     leads: 'leads',
     leadsReferrals: 'leads',
     'leads-referrals': 'leads',
@@ -2188,11 +1995,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     statement: 'retainers',
     paymentVouchers: 'retainers',
     trustReports: 'retainers',
-    trustAuditLogs: 'retainers',
     coa: 'officeFinance',
     officeAccounts: 'officeFinance',
-    bankAccounts: 'officeFinance',
-    bankReconciliation: 'officeFinance',
     inventory: 'officeFinance',
     gl: 'officeFinance',
     trialBalance: 'officeFinance',
@@ -2238,57 +2042,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addActivityLog('Custom Role Created', trimmedName);
     showToast(`Role "${trimmedName}" created. Configure its access under Roles & Permissions.`);
     return true;
-  };
-
-  const updateRolePermission = (
-    role: Role,
-    moduleKey: string,
-    action: 'v' | 'a' | 'e',
-    value: number
-  ) => {
-    setRolesMatrix((prev) => {
-      const rolePerms = prev[role] || {};
-      const modulePerms = rolePerms[moduleKey] || { v: 0, a: 0, e: 0 };
-      return {
-        ...prev,
-        [role]: {
-          ...rolePerms,
-          [moduleKey]: {
-            ...modulePerms,
-            [action]: value,
-          },
-        },
-      };
-    });
-    showToast(`Updated permissions for ${role} -> ${moduleKey}`);
-  };
-
-  const updateUserNavOverride = (
-    userId: string,
-    moduleKey: string,
-    action: 'v' | 'a' | 'e',
-    value: number
-  ) => {
-    setUsers((prev) =>
-      prev.map((u) => {
-        if (u.id === userId) {
-          const currentOverrides = u.navOverrides || {};
-          const currentModPerm = currentOverrides[moduleKey] || { v: 0, a: 0, e: 0 };
-          return {
-            ...u,
-            navOverrides: {
-              ...currentOverrides,
-              [moduleKey]: {
-                ...currentModPerm,
-                [action]: value,
-              },
-            },
-          };
-        }
-        return u;
-      })
-    );
-    showToast(`Updated user explicit navigation override.`);
   };
 
   const setRoleModulePermissions = (role: Role, moduleKey: string, perms: ModulePermissions) => {
@@ -2970,20 +2723,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Client details updated.');
   };
 
-  const addClientPortalUpdate = (clientId: string, update: Omit<ClientPortalUpdate, 'id' | 'date'>) => {
-    const portalUpdate: ClientPortalUpdate = {
-      ...update,
-      id: `PORTAL-${Date.now()}`,
-      date: new Date().toISOString(),
-    };
-    setClients((prev) => prev.map((client) => (
-      client.id === clientId
-        ? { ...client, portalUpdates: [portalUpdate, ...(client.portalUpdates || [])] }
-        : client
-    )));
-    addActivityLog('Client Portal Updated', `${clientId} — ${update.title}`);
-  };
-
   const deleteClient = (id: string) => {
     if (!hasModulePermission('clients', 'e')) {
       showToast('Access denied: you do not have client delete permission.');
@@ -3242,22 +2981,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`Logged activity: ${log.title}`);
   };
 
-  const addLawFirmRegistryEntry = (entry: LawFirmRegistryEntry) => {
-    setLawFirmRegistry((prev) => [entry, ...prev]);
-    addActivityLog('Law Firm Registered', entry.firmName);
-    showToast('Law Firm & Counsel registered');
-  };
-
-  const updateLawFirmRegistryEntry = (id: string, updates: Partial<LawFirmRegistryEntry>) => {
-    setLawFirmRegistry((prev) => prev.map((f) => (f.id === id ? { ...f, ...updates } : f)));
-    showToast('Registry entry updated');
-  };
-
-  const deleteLawFirmRegistryEntry = (id: string) => {
-    setLawFirmRegistry((prev) => prev.filter((f) => f.id !== id));
-    showToast('Registry entry deleted');
-  };
-
   const addQuotation = (q: Quotation) => {
     const editedQuotation: Quotation = {
       ...q,
@@ -3319,14 +3042,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Payment Voucher updated');
   };
 
-  const approvePaymentVoucher = (id: string, approvedBy: string) => {
-    setPaymentVouchers((prev) =>
-      prev.map((pv) => (pv.id === id ? { ...pv, approved: true, approvedBy, approvalStatus: 'Approved' } : pv))
-    );
-    addActivityLog('PV Approved', `${id} approved by ${approvedBy}`);
-    showToast('Payment Voucher Approved');
-  };
-
   const addRetainer = (r: Retainer) => {
     setRetainers((prev) => [r, ...prev]);
     addActivityLog('Trust Transaction', `${r.type} — RM ${r.amount}`);
@@ -3373,24 +3088,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Payment recorded & invoice updated');
   };
 
-  const updatePayment = (id: string, updates: Partial<Payment>) => {
-    setPayments((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)));
-    showToast('Payment updated');
-  };
-
-  const deletePayment = (id: string) => {
-    const target = payments.find((p) => p.id === id);
-    setPayments((prev) => prev.filter((p) => p.id !== id));
-    // Revert invoice back to unpaid if this was its last recorded payment
-    if (target) {
-      const hasOtherPayments = payments.some((p) => p.invoiceId === target.invoiceId && p.id !== id);
-      if (!hasOtherPayments) {
-        setInvoices((prev) => prev.map((inv) => (inv.id === target.invoiceId && inv.status === 'Paid' ? { ...inv, status: 'Unpaid' } : inv)));
-      }
-    }
-    showToast('Payment removed');
-  };
-
   const addTimeEntry = (te: TimeEntry) => {
     setTimeEntries((prev) => [te, ...prev]);
     showToast('Time entry logged');
@@ -3398,11 +3095,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateTimeEntry = (id: string, updates: Partial<TimeEntry>) => {
     setTimeEntries((prev) => prev.map((te) => (te.id === id ? { ...te, ...updates } : te)));
-  };
-
-  const deleteTimeEntry = (id: string) => {
-    setTimeEntries((prev) => prev.filter((te) => te.id !== id));
-    showToast('Time entry removed');
   };
 
   const addExpense = (ex: Expense) => {
@@ -3413,11 +3105,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateExpense = (id: string, updates: Partial<Expense>) => {
     setExpenses((prev) => prev.map((ex) => (ex.id === id ? { ...ex, ...updates } : ex)));
     showToast('Expense updated');
-  };
-
-  const deleteExpense = (id: string) => {
-    setExpenses((prev) => prev.filter((ex) => ex.id !== id));
-    showToast('Expense record removed');
   };
 
   const addGeneralLedgerEntry = (entry: Omit<GeneralLedgerEntry, 'glNo'> | GeneralLedgerEntry) => {
@@ -3480,7 +3167,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <AppContext.Provider
       value={{
         currentUser,
-        setCurrentUser,
         isUserPreview: Boolean(previewOrigin.current),
         previewUserId,
         startUserPreview,
@@ -3488,15 +3174,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         firmStartCentreEditMode,
         setFirmStartCentreEditMode,
         isAuthenticated,
-        setIsAuthenticated,
         currentRole,
         setCurrentRole,
         currentPartnerCode,
         setCurrentPartnerCode,
         isAdmin,
         setIsAdmin,
-        isOAuthConnected,
-        setIsOAuthConnected,
         currentView,
         setCurrentView,
         currentCaseId,
@@ -3514,8 +3197,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsRegisterClientModalOpen,
         toastMessage,
         showToast,
-        assignmentToastData,
-        showAssignmentSuccessToast,
         theme,
         setTheme,
         loginWithGoogleSSO,
@@ -3537,16 +3218,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addLeaveApplication,
         updateLeaveApplication,
         addMeeting,
-        updateMeeting,
-        deleteMeeting,
         addProgramme,
         updateProgramme,
-        deleteProgramme,
         canViewModule,
-        updateRolePermission,
         customRoles,
         addCustomRole,
-        updateUserNavOverride,
         setRoleModulePermissions,
         setUserNavOverride,
         resetUserNavOverrides,
@@ -3555,7 +3231,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         clients,
         cases,
         quotations,
-        quoteTemplates,
         referralPartners,
         officeBuckets,
         chartOfAccounts,
@@ -3564,9 +3239,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         paymentVouchers,
         generalLedger,
         trialBalance,
-        cashFlowOffice,
         threeWayRec,
-        docTemplates,
         deadlines,
         timeEntries,
         expenses,
@@ -3618,18 +3291,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addStartCentreCard,
         updateStartCentreCard,
         deleteStartCentreCard,
-        addBankAccount,
-        updateBankAccount,
-        archiveBankAccount,
-        addTrustAuditLog,
         addInventoryItem,
         updateInventoryItem,
-        toggleReconcileEntry,
         toggleComplianceItem,
         updateComplianceItem,
         addComplianceItem,
-        addComplaint,
-        updateComplaint,
         updateDirectionStatement,
         updatePartnersNotes,
         addMilestone,
@@ -3649,16 +3315,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteLead,
         addClient,
         updateClient,
-        addClientPortalUpdate,
         deleteClient,
         addCase,
         updateCase,
         renameCaseRef,
         deleteCase,
         addCaseActivityLog,
-        addLawFirmRegistryEntry,
-        updateLawFirmRegistryEntry,
-        deleteLawFirmRegistryEntry,
         addQuotation,
         updateQuotation,
         addReferralPartner,
@@ -3668,27 +3330,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateReceipt,
         addPaymentVoucher,
         updatePaymentVoucher,
-        approvePaymentVoucher,
         addRetainer,
         addInvoice,
         updateInvoice,
         addPayment,
-        updatePayment,
-        deletePayment,
         addTimeEntry,
         updateTimeEntry,
-        deleteTimeEntry,
         addExpense,
         updateExpense,
-        deleteExpense,
         addGeneralLedgerEntry,
         addDeadline,
         addActivityLog,
         sequenceCounters,
         getNextSequenceId,
         incrementSequenceCounter,
-        resetSequenceCounters,
-        factoryResetSystem,
       }}
     >
       {children}

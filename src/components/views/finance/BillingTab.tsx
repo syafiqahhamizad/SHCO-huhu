@@ -69,14 +69,16 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
     ? F.scopedReceipts.slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).map((r: Receipt) => { const acc = r.accountSet === 'CLIENT' ? 'Client account' : 'Office'; return { kind: 'receipt' as DocKind, key: r.id, no: r.id, client: r.receivedFrom || '—', ref: 'for ' + (r.forNo || r.description || '—') + ' · ' + (r.paymentMethod || '—'), date: F.dShort(r.date), amt: rm(Number(r.amount || 0)), x: acc, status: r.historical ? 'Historical' : 'Issued', action: 'View', onAct: () => F.setView({ kind: 'receipt', id: r.id }), view: () => F.setView({ kind: 'receipt', id: r.id }) }; })
     : docT === 'Invoice' ? [] : (docT === 'Quotation' ? quotes : proformas).slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).map((q: Quotation) => { const a = F.actionsFor('quotation', q)[0]; const kase = F.qCase(q); return { kind: 'quotation' as DocKind, key: q.id, no: q.id, client: q.clientName || '—', ref: `${q.fileRef || kase?.ref || '—'} · ${q.practiceArea || '—'}`, date: F.dShort(q.date), amt: rm(Number(q.total || 0)), x: q.payInto || 'Office', status: F.qStatus(q), action: a, onAct: () => F.act('quotation', q, a), view: () => F.setView({ kind: 'quotation', id: q.id }) }; });
   /* ---- fees by file (lib/moneyByFile: same figures as each file's Money tab) ---- */
-  const { cases = [], invoices = [], payments = [], retainers = [], quotations = [], setCurrentCaseId, setCaseSubTab, setCurrentView } = useApp();
+  const { cases = [], invoices = [], payments = [], retainers = [], quotations = [], setCurrentCaseId, setCaseSubTab, setCurrentView, canViewModule } = useApp();
   const [bfF, setBfF] = useState<FeesFilter>('All');
   const byFileAll = cases.filter((c) => F.ownCase(c)).map((c) => ({ c, m: moneyForFile(c, { invoices, payments, retainers, quotations }) }))
     .filter(({ c, m }) => (isOpenFile(c) && (m.agreed > 0 || m.billed > 0)) || m.outstanding > 0.005)
     .sort((a, b) => b.m.agreed - a.m.agreed || b.m.billed - a.m.billed);
   const byFile = byFileAll.filter(({ m }) => feesFilter(bfF, m));
   const bfTot = sumMoney(byFile.map((x) => x.m));
-  const openFile = (id: string) => { setCaseSubTab('money'); setCurrentCaseId(id); setCurrentView('cases'); };
+  // Accounts have no Cases page, so for them the rows are not links.
+  const canOpenFile = canViewModule('cases');
+  const openFile = (id: string) => { if (!canOpenFile) return; setCaseSubTab('money'); setCurrentCaseId(id); setCurrentView('cases'); };
   const BF = 'display:grid;grid-template-columns:minmax(0,1.6fr) 44px 92px 92px 92px 96px 120px 104px;gap:10px;';
 
   const docNewClick = () => (docT === 'Receipt' ? F.openForm('moneyIn', { account: 'Office' }) : F.openNew(docT));
@@ -145,7 +147,7 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
         <div style={css(BF + 'padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>File · client</span><span>PIC</span><span style={css('text-align:right')}>Agreed</span><span style={css('text-align:right')}>Billed</span><span style={css('text-align:right')}>Received</span><span style={css('text-align:right')}>Outstanding</span><span>Billed of agreed</span><span style={css('text-align:right')}>Client acct</span></div>
         {byFile.length === 0 && <div style={css('padding:12px 14px;font-size:11.5px;color:#5B6478')}>{byFileAll.length ? 'No files match this filter.' : 'No files with agreed fees or bills yet.'}</div>}
         {byFile.map(({ c, m }) => { const pic = (c.partners || [])[0] || ''; const pct = billedPct(m); const client = F.clientName(String(c.clientId || '').split(',')[0].trim()) || c.clientName || '—'; return (
-          <div key={c.id} onClick={() => openFile(c.id)} className="hover:bg-[#F6F8FA]" style={css(BF + 'align-items:center;padding:8px 14px;border-bottom:1px solid #F0F2F5;cursor:pointer')}>
+          <div key={c.id} onClick={() => openFile(c.id)} className={canOpenFile ? 'hover:bg-[#F6F8FA]' : undefined} style={css(BF + 'align-items:center;padding:8px 14px;border-bottom:1px solid #F0F2F5;' + (canOpenFile ? 'cursor:pointer' : ''))}>
             <span style={css('min-width:0')}><span style={css('display:block;font-size:11.5px;font-weight:700;color:#16223A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{c.title}</span><span style={css('display:block;font-size:10px;color:#5B6478;white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{client} · {c.ref}</span></span>
             <span style={css(`width:22px;height:22px;border-radius:9999px;display:grid;place-items:center;font-size:9px;font-weight:700;color:#fff;background:${picColor(pic)}`)}>{pic || '—'}</span>
             <span style={css('text-align:right;font-size:11.5px;color:#16223A')}>{rm(m.agreed)}</span>

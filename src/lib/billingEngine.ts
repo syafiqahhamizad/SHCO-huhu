@@ -6,15 +6,13 @@
  * - Conveyancing → SRO 2023 scale fees (auto from consideration/loan amount)
  * - Litigation & others → court level × stage fee matrix (editable after auto-fill)
  */
-import { QuotationLineItem, TimeEntry } from '../types';
+import { QuotationLineItem } from '../types';
 
 /** Fallback rate when no Firm & Practice Settings rate is passed in — kept in sync with
  * DEFAULT_PRACTICE_SETTINGS.sstRate. Prefer passing the real configured rate. */
 const SST_RATE = 0.08;
 
-export type BillingDocType = 'Quotation' | 'Proforma' | 'Invoice' | 'Receipt';
-
-export interface BillingTotals {
+interface BillingTotals {
   fees: number;           // professional fees
   disbursements: number;  // never SST-chargeable
   reimbursements: number; // SST-chargeable, same as fees
@@ -84,16 +82,3 @@ export function computeTotals(items: QuotationLineItem[], applySst = false, rate
   };
 }
 
-/** Converts approved, billable time into invoice-ready professional-fee rows. */
-export function buildTimeEntryItems(entries: TimeEntry[]): QuotationLineItem[] {
-  return entries
-    .filter((entry) => entry.billable && !entry.billed && !entry.writtenOff && isApprovedForBilling(entry.approvalStatus))
-    .map((entry) => ({
-      description: `${entry.description || 'Professional services'} (${entry.date}, ${entry.hours}h)`,
-      category: 'Fee - Fixed',
-      amount: round2(entry.hours * entry.rate),
-      quantity: entry.hours,
-      unitPrice: entry.rate,
-      chargeType: 'Per Quantity',
-    }));
-}

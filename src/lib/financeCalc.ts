@@ -45,13 +45,13 @@ export const periodKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getM
 export const inPeriod = (s: unknown, key: string) => { const t = parseDate(s); return !!t && periodKey(new Date(t)) === key; };
 
 /* ------------------------------ invoice composition ------------------------------ */
-export interface LineLike { category?: string; amount?: number; quantity?: number; unitPrice?: number; chargeType?: string }
+interface LineLike { category?: string; amount?: number; quantity?: number; unitPrice?: number; chargeType?: string }
 const lineTotal = (i: LineLike) => {
   const q = Number(i.quantity ?? 1), u = Number(i.unitPrice ?? i.amount ?? 0);
   const t = i.chargeType === 'Per Quantity' ? q * u : u;
   return Number.isFinite(t) ? t : 0;
 };
-export interface Composition { fees: number; reimb: number; disb: number; sst: number; total: number }
+interface Composition { fees: number; reimb: number; disb: number; sst: number; total: number }
 /**
  * What an invoice is made of. `fees + reimb` is the firm's income (SST-able), `disb` is money
  * paid out for the client (recovered, never income), `sst` is owed to Customs.

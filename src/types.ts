@@ -825,16 +825,6 @@ export interface Quotation {
   planRowLabel?: string;
 }
 
-export interface QuoteTemplate {
-  id: string;
-  practiceArea: string;
-  courtLevel: string;
-  stage: string;
-  description: string;
-  category: 'Fee - Fixed' | 'Disbursement' | 'Reimbursement';
-  amount: number;
-}
-
 export interface ReferralPartner {
   id: string;
   name: string;
@@ -1172,14 +1162,6 @@ export interface TrialBalanceRow {
   balance: number;
 }
 
-export interface CashFlowRow {
-  month: string;
-  opening: number;
-  moneyIn: number;
-  moneyOut: number;
-  closing: number;
-}
-
 export interface ThreeWayRecRow {
   month: string;
   bankStatement: number;
@@ -1405,13 +1387,6 @@ export interface ModulePermissions {
 
 export type RolePermissionsMatrix = Record<Role, Record<string, ModulePermissions>>;
 
-export interface DocTemplate {
-  id: string;
-  name: string;
-  category: string;
-  contentSnippet?: string;
-}
-
 export interface NotificationItem {
   id: string;
   title: string;
@@ -1532,14 +1507,6 @@ export interface SequenceCounters {
   leadSeq: number;
   expenseSeq: number;
   journalSeq?: number;
-}
-
-export interface PracticeAreaConfig {
-  id: string;
-  name: string;
-  code: string;
-  color?: string;
-  description?: string;
 }
 
 /** One row in the firm's office compliance register (My Dashboard → Compliance sub-tab). */

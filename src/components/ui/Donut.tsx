@@ -1,6 +1,6 @@
 import React from 'react';
 
-export interface DonutSegment {
+interface DonutSegment {
   label: string;
   value: number;
   color: string;

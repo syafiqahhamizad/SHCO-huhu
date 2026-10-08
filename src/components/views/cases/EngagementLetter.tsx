@@ -8,7 +8,7 @@ import { courtOf, lawyersOf, staffOf } from './caseModel';
 import { css } from './caseUi';
 
 /** The file's branch: the branch of the lawyer in charge, else of the first partner on the file. */
-export const branchOfCase = (c: Pick<Case, 'lawyerInCharge' | 'lawyers' | 'partners'> | undefined, users: User[] = []): string | undefined => {
+const branchOfCase = (c: Pick<Case, 'lawyerInCharge' | 'lawyers' | 'partners'> | undefined, users: User[] = []): string | undefined => {
   if (!c) return undefined;
   const staff = staffOf(users);
   const byName = (n: string) => users.find((u) => u.name.trim().toLowerCase() === n.trim().toLowerCase());
@@ -72,7 +72,7 @@ export const LangToggle: React.FC<{ value: DocLang; onChange: (l: DocLang) => vo
 );
 
 /** View on screen, PDF, Print and Word for one client document (same HTML for all four). */
-export const DocActions: React.FC<{ title: string; label: string; html: string; onDone?: (what: string) => void }> = ({ title, label, html, onDone }) => {
+const DocActions: React.FC<{ title: string; label: string; html: string; onDone?: (what: string) => void }> = ({ title, label, html, onDone }) => {
   const [open, setOpen] = useState(false);
   const file = title.replace(/[\\/:*?"<>|]+/g, '-');
   return (

@@ -659,7 +659,7 @@ const FinanceTab: React.FC = () => {
           {funds.length === 0 && (
             <div className="px-3.5 py-4 text-center text-[11px]" style={{ color: SLATE }}>No reserve funds set up yet. Add one below.</div>
           )}
-          {funds.map((f, i) => {
+          {funds.map((f) => {
             const { pct, label: eta } = fundProgress(f);
             const color = !(Number(f.target) > 0) ? '#C9D3E0' : pct >= 75 ? GREEN : pct >= 40 ? '#C9A86A' : '#B2542F';
             return (

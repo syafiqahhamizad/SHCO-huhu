@@ -130,12 +130,6 @@ const VIEW_ALIASES: Record<string, string> = {
   firmSettings: 'practiceSettings',
   'firm-settings': 'practiceSettings',
   'practice-settings': 'practiceSettings',
-  bankAccounts: 'officeAccounts',
-  'bank-accounts': 'officeAccounts',
-  bankReconciliation: 'officeAccounts',
-  'bank-reconciliation': 'officeAccounts',
-  trustAuditLogs: 'retainers',
-  'trust-audit-logs': 'retainers',
 };
 
 /** The sidebar item id that matches the current view. */

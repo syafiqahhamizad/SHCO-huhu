@@ -22,13 +22,11 @@ const CaseStatusView = React.lazy(() => PracticeViews.then((module) => ({ defaul
 const DeadlinesView = React.lazy(() => PracticeViews.then((module) => ({ default: module.DeadlinesView })));
 const ReferralView = React.lazy(() => PracticeViews.then((module) => ({ default: module.ReferralView })));
 const FileClosingView = React.lazy(() => PracticeViews.then((module) => ({ default: module.FileClosingView })));
-const SimplifiedAccountingView = React.lazy(() => import('./components/views/SimplifiedAccountingView').then((module) => ({ default: module.SimplifiedAccountingView })));
 // Accounts & Finance (design pack finance_latest) replaces Accounting Centre, Finance & Billing,
 // Quotations, reimbursement approvals and the trust pages as what users see. The old view files
 // are kept (not deleted) but no longer routed to for these ids.
 const AccountsFinanceView = React.lazy(() => import('./components/views/finance/AccountsFinanceView').then((module) => ({ default: module.AccountsFinanceView })));
 const PracticeSettingsView = React.lazy(() => import('./components/views/PracticeSettingsView').then((module) => ({ default: module.PracticeSettingsView })));
-const TrustAuditLogsView = React.lazy(() => import('./components/views/TrustAuditLogsView').then((module) => ({ default: module.TrustAuditLogsView })));
 const InventoryView = React.lazy(() => import('./components/views/InventoryView').then((module) => ({ default: module.InventoryView })));
 const StaffPortalView = React.lazy(() => import('./components/views/staff/StaffPortalView').then((module) => ({ default: module.StaffPortalView })));
 const MyClaimsView = React.lazy(() => import('./components/views/staff/MyClaimsView').then((module) => ({ default: module.MyClaimsView })));
@@ -214,32 +212,12 @@ const MainContent: React.FC = () => {
       case 'file-closing':
         return <FileClosingView />;
 
-      // Accounts & Finance ids (accountingCentre, billing, quotations, time, retainers, statement,
-      // officeAccounts, approvals, payroll, reports, coa, gl, trialBalance, …) are handled above.
-      // Bank accounts / reconciliation and staff claims entry stay on SimplifiedAccountingView.
-      case 'bankAccounts':
-      case 'bank-accounts':
-      case 'bankReconciliation':
-      case 'bank-reconciliation':
-        return <SimplifiedAccountingView />;
-
-      case 'trustAuditLogs':
-      case 'trust-audit-logs':
-        return <TrustAuditLogsView />;
       case 'inventory':
         return <InventoryView />;
 
       // System Integrations
       case 'logs':
         return <ActivityLogsView />;
-      case 'users':
-      case 'roles':
-      case 'practiceSettings':
-      case 'practice-settings':
-      case 'firmSettings':
-      case 'firm-settings':
-      case 'settings':
-        return <PracticeSettingsView />;
       case 'guide':
         return <StaffGuideView />;
       case 'about':
@@ -260,7 +238,7 @@ const MainContent: React.FC = () => {
         <main className="flex-1 min-w-0 flex flex-col gap-4 p-4 pt-16 md:px-7 md:pt-6 md:pb-12 overflow-y-auto bg-[#F6F8FA] dark:bg-[#0A0E1A]">
           <Header />
           <PageToolbar />
-          {DASHBOARD_TAB_VIEWS.includes(currentView) && !isFinanceView(currentView) && <DashboardTabs />}
+          {DASHBOARD_TAB_VIEWS.includes(currentView) && <DashboardTabs />}
           <div className="min-w-0">
             <Suspense
               fallback={(

@@ -7,7 +7,7 @@ import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../../../context/AppContext';
 import type {
-  Case, Expense, FinanceProof, FinanceSignatory, GeneralLedgerEntry, Invoice, ManualJournal, Payslip,
+  Case, Expense, FinanceProof, FinanceSignatory, GeneralLedgerEntry, Invoice, Payslip,
   PaymentVoucher, Quotation, Receipt, Retainer, TravelClaim, User,
 } from '../../../types';
 import { getPracticeSettings, savePracticeSettings, twoSignatoryThreshold, type SinkingFund } from '../../../services/templateService';
@@ -69,7 +69,7 @@ import { defaultPlanFor, planRows, type PlanRow } from '../../../lib/engagementL
 import type { QuotationPaymentPlan } from '../../../types';
 
 export type DocKind = 'quotation' | 'invoice' | 'receipt';
-export interface DocRef { kind: DocKind; id: string }
+interface DocRef { kind: DocKind; id: string }
 export interface EditorState {
   kind?: DocKind; id?: string; type: 'Quotation' | 'Proforma' | 'Invoice';
   client: string; ref: string; matter: string; area: string; account: 'Office' | 'Client account';
@@ -78,9 +78,9 @@ export interface EditorState {
   /** Quotation only: how the client pays. */
   plan: QuotationPaymentPlan;
 }
-export interface FormState { kind: string; vals: Record<string, any> }
-export interface PaperState { title: string; sub: string; html: string; pdf?: () => void; xls?: () => void; toggles?: { label: string; on: boolean; go: () => void }[]; extra?: React.ReactNode }
-export interface ImportState { src: 'Template' | 'Bank' | 'Software'; acc: 'Office' | 'Client account' | 'Petty cash'; raw: string[][] | null; fileName: string }
+interface FormState { kind: string; vals: Record<string, any> }
+interface PaperState { title: string; sub: string; html: string; pdf?: () => void; xls?: () => void; toggles?: { label: string; on: boolean; go: () => void }[]; extra?: React.ReactNode }
+interface ImportState { src: 'Template' | 'Bank' | 'Software'; acc: 'Office' | 'Client account' | 'Petty cash'; raw: string[][] | null; fileName: string }
 
 export interface ApItem {
   key: string; kind: 'travel' | 'expense' | 'pv' | 'journal' | 'writeoff' | 'referral'; id: string;
@@ -91,7 +91,7 @@ export interface PayItem {
   key: string; kind: 'travel' | 'expense' | 'pv'; id: string; no: string; payee: string; what: string;
   method: 'Bank transfer' | 'Online portal' | 'Cheque' | 'To staff bank'; details: string; from: 'Office' | 'Disbursement' | 'Client account'; amount: number;
 }
-export interface CbRow {
+interface CbRow {
   key: string; t: number; who: string; what: string; no: string; inn: number; out: number; src: 'Auto' | 'Historical' | 'Manual';
   proofs: FinanceProof[]; owner: string; open?: () => void; attach?: (files: FileList | null) => void;
 }
@@ -1337,4 +1337,3 @@ export function useFinanceController(initialTab: FinTab) {
 }
 
 export type FinanceCtrl = ReturnType<typeof useFinanceController>;
-export type { TravelClaim, ManualJournal };

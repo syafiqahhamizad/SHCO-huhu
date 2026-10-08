@@ -24,7 +24,7 @@ export const GOOGLE_SCOPES = {
   gmail: 'https://www.googleapis.com/auth/gmail.send',
 } as const;
 
-export type GoogleService = keyof typeof GOOGLE_SCOPES;
+type GoogleService = keyof typeof GOOGLE_SCOPES;
 
 const GOOGLE_SERVICE_LABEL: Record<GoogleService, string> = {
   drive: 'Google Drive', calendar: 'Google Calendar', tasks: 'Google Tasks', gmail: 'Gmail',
@@ -34,7 +34,7 @@ const API_NAME: Record<GoogleService, string> = {
 };
 const CLOUD_PROJECT = 'gen-lang-client-0565207218';
 
-export type GoogleErrorCode =
+type GoogleErrorCode =
   | 'not_configured' | 'not_signed_in' | 'access_denied' | 'popup_blocked' | 'popup_closed' | 'partial_grant'
   | 'api_disabled' | 'unauthorized' | 'forbidden' | 'not_found' | 'rate_limited' | 'unavailable'
   | 'bad_request' | 'network' | 'unknown';
@@ -84,7 +84,7 @@ const gsi = () => (window as unknown as { google?: GoogleGlobal }).google?.accou
 
 let gsiLoading: Promise<void> | null = null;
 /** Loads https://accounts.google.com/gsi/client once. Safe to call early (e.g. on mount) to make the later click faster. */
-export const loadGoogleIdentity = (): Promise<void> => {
+const loadGoogleIdentity = (): Promise<void> => {
   if (gsi()) return Promise.resolve();
   if (gsiLoading) return gsiLoading;
   gsiLoading = new Promise<void>((resolve, reject) => {

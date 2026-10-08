@@ -4,7 +4,6 @@ import {
   Case,
   LawFirmRegistryEntry,
   Quotation,
-  QuoteTemplate,
   ReferralPartner,
   OfficeBucket,
   ChartOfAccount,
@@ -13,9 +12,7 @@ import {
   PaymentVoucher,
   GeneralLedgerEntry,
   TrialBalanceRow,
-  CashFlowRow,
   ThreeWayRecRow,
-  DocTemplate,
   Deadline,
   Meeting,
   Programme,
@@ -477,17 +474,6 @@ export const INITIAL_CASES: Case[] = [
   },
 ];
 
-export const INITIAL_QUOTE_TEMPLATES: QuoteTemplate[] = [
-  { id: 'TMP-001', practiceArea: 'Civil Litigation', courtLevel: "Magistrate's Court", stage: 'Full Trial', description: 'Retainer & Interim charges', category: 'Fee - Fixed', amount: 2000 },
-  { id: 'TMP-002', practiceArea: 'Civil Litigation', courtLevel: "Magistrate's Court", stage: 'Full Trial', description: 'Trial fee', category: 'Fee - Fixed', amount: 2000 },
-  { id: 'TMP-003', practiceArea: 'Civil Litigation', courtLevel: "Magistrate's Court", stage: 'Full Trial', description: 'Court filing fee', category: 'Disbursement', amount: 30 },
-  { id: 'TMP-004', practiceArea: 'Civil Litigation', courtLevel: "Magistrate's Court", stage: 'Full Trial', description: 'Photocopy, travel, phone/courier', category: 'Reimbursement', amount: 150 },
-  { id: 'TMP-008', practiceArea: 'Civil Litigation', courtLevel: 'Sessions Court', stage: 'Full Trial', description: 'Retainer & Interim charges', category: 'Fee - Fixed', amount: 10000 },
-  { id: 'TMP-009', practiceArea: 'Civil Litigation', courtLevel: 'Sessions Court', stage: 'Full Trial', description: 'Trial fee', category: 'Fee - Fixed', amount: 10000 },
-  { id: 'TMP-010', practiceArea: 'Civil Litigation', courtLevel: 'Sessions Court', stage: 'Full Trial', description: 'Court filing fee', category: 'Disbursement', amount: 50 },
-  { id: 'TMP-011', practiceArea: 'Civil Litigation', courtLevel: 'Sessions Court', stage: 'Full Trial', description: 'Photocopy, travel, phone/courier', category: 'Reimbursement', amount: 300 },
-];
-
 export const INITIAL_QUOTATIONS: Quotation[] = [];
 
 export const INITIAL_REFERRALS: ReferralPartner[] = [];
@@ -526,15 +512,7 @@ export const INITIAL_GENERAL_LEDGER: GeneralLedgerEntry[] = [];
 
 export const INITIAL_TRIAL_BALANCE: TrialBalanceRow[] = [];
 
-export const INITIAL_CASH_FLOW: CashFlowRow[] = [];
-
 export const INITIAL_3WAY_REC: ThreeWayRecRow[] = [];
-
-export const INITIAL_DOC_TEMPLATES: DocTemplate[] = [
-  { id: 'TPL1', name: 'Engagement Letter', category: 'Engagement Letter' },
-  { id: 'TPL2', name: 'Legal Notice (Demand Letter)', category: 'Legal Notice' },
-  { id: 'TPL3', name: 'Fee Agreement', category: 'Fee Agreement' },
-];
 
 export const INITIAL_DEADLINES: Deadline[] = [];
 

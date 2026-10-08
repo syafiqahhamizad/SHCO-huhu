@@ -76,5 +76,3 @@ export const ConnectedDataBar: React.FC = () => {
     </section>
   );
 };
-
-export default ConnectedDataBar;

@@ -54,7 +54,7 @@ export const ruleLabel = (codes: string[], need: number): string => {
   return 'any ' + k + ' of ' + codes.join(', ');
 };
 
-export interface ResolvedApproval {
+interface ResolvedApproval {
   people: User[];
   codes: string[];
   /** How many must approve (already capped to the number of people). */

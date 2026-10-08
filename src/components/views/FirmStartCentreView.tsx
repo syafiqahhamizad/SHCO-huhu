@@ -323,9 +323,11 @@ export const FirmStartCentreView: React.FC = () => {
               </button>
             </p>
             <div className="flex flex-wrap gap-1.5 pt-px">
-              <button type="button" onClick={() => setIsNewCaseModalOpen(true)} className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#3D6B9C] px-2.5 py-1.5 text-[11.5px] font-bold text-white transition hover:bg-[#3D6B9C]">
-                <Plus className="h-3.5 w-3.5" /> New matter
-              </button>
+              {canOpen('cases') && (
+                <button type="button" onClick={() => setIsNewCaseModalOpen(true)} className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#3D6B9C] px-2.5 py-1.5 text-[11.5px] font-bold text-white transition hover:bg-[#3D6B9C]">
+                  <Plus className="h-3.5 w-3.5" /> New matter
+                </button>
+              )}
               <button type="button" onClick={() => setCurrentView('staff-portal')} className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-2.5 py-1.5 text-[11.5px] font-bold text-white transition hover:bg-white/20">
                 <Contact className="h-3.5 w-3.5" /> Staff directory
               </button>

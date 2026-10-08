@@ -22,7 +22,7 @@ const PRE: Record<string, [string, string, TaskKind, number][]> = {
   Criminal: [['Appeal deadline (14 days)', 'Notice of appeal deadline', 'Rules of Court', 14], ['Trial date', 'Trial', 'Key date', 0]],
 };
 
-export const weeklyInfo = (c: Case) => {
+const weeklyInfo = (c: Case) => {
   const wk = [...(c.weeklyStatus || [])].sort((a, b) => (a.week < b.week ? 1 : -1));
   const now = mondayOf();
   const cur = wk.find((x) => x.week === now);

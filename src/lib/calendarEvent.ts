@@ -4,7 +4,7 @@
 
 export const COURT_TIME_ZONE = 'Asia/Kuala_Lumpur';
 
-export type CalendarEventTime = { date: string } | { dateTime: string; timeZone: string };
+type CalendarEventTime = { date: string } | { dateTime: string; timeZone: string };
 
 const isRealDate = (d: string) => {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);

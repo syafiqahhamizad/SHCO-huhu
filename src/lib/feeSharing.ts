@@ -17,8 +17,8 @@ export const DEFAULT_RULES: FsRules = { own: 70, intro: 20, hand: 50 };
 
 export interface FsPerson { id: string; code: string; name: string; t: PersonType; pay: string; sal: number; ded: Record<string, number> }
 export interface FsFile { id: string; ref: string; client: string; matter: string; amount: number; intro: string; hands: string[]; cu?: Record<string, number>; rules?: FsRules }
-export interface FsRow extends FsFile { sh: Record<string, number>; firm: number; firmPct: number; rf: FsRules; custom: boolean; sumOk: boolean }
-export interface FsTotals { amt: number; ref: number; files: [string, string, string, number, number][]; refFiles: [string, string, number, number, number][] }
+interface FsRow extends FsFile { sh: Record<string, number>; firm: number; firmPct: number; rf: FsRules; custom: boolean; sumOk: boolean }
+interface FsTotals { amt: number; ref: number; files: [string, string, string, number, number][]; refFiles: [string, string, number, number, number][] }
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 export const isPartnerType = (t: string) => t === 'Owner' || t === 'Partner';
@@ -67,7 +67,6 @@ export function computeFeeSharing(people: FsPerson[], files: FsFile[], rules: Fs
   });
   return { rows, tot, firm, total: r2(files.reduce((t, f) => t + (Number(f.amount) || 0), 0)), SPL, costs, firmProfit, dist, splitSum, splitOk: !partners.length || Math.abs(splitSum - 100) < 0.01, pp, allOk: rows.every((r) => r.sumOk) };
 }
-export type FeeSharingResult = ReturnType<typeof computeFeeSharing>;
 
 /** Part of money received (already net of SST and disbursements) that is professional fees, not reimbursements. */
 export const professionalFeesPart = (income: number, comp: { fees: number; reimb: number }): number => {

@@ -46,7 +46,7 @@ export const addDaysIso = (base: string, n: number) => {
   return localIso(new Date(y, m - 1, d + n));
 };
 
-export const bucketOf = (due: string, todayStr: string, weekStr: string): Bucket =>
+const bucketOf = (due: string, todayStr: string, weekStr: string): Bucket =>
   !due ? 'later' : due < todayStr ? 'overdue' : due === todayStr ? 'today' : due <= weekStr ? 'week' : 'later';
 
 export function useMyWorkRows() {

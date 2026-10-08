@@ -289,7 +289,7 @@ const onFile = (c: Pick<Case, 'id' | 'ref'>, caseId?: string, fileRef?: string) 
 
 /* ------------------------------------------------------------------ money on the file */
 
-export interface MoneyInputs {
+interface MoneyInputs {
   invoices: Invoice[]; payments: Payment[]; retainers: Retainer[]; quotations: Quotation[];
   timeEntries: TimeEntry[]; expenses: Expense[]; travelClaims: TravelClaim[];
 }

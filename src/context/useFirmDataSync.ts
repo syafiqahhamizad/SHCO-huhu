@@ -9,7 +9,7 @@ type AnyList = Record<string, unknown>[];
 /** Lists shown newest first: re-sorted on load so new items from others land on top. */
 const NEWEST_FIRST: Record<string, string> = { notifications: 'timestamp', logs: 'ts', auditLogs: 'timestamp', trustAuditLogs: 'timestamp' };
 
-export interface FirmDataSyncArgs {
+interface FirmDataSyncArgs {
   /** Signed in, not preview, and the firm's data is split. */
   enabled: boolean;
   /** The signed-in person's real e-mail (not a "View as" preview). */

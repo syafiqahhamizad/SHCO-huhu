@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { escapeHtml } from '../../lib/html';
 import type { Case, Client } from '../../types';
 import { css } from '../views/finance/financeModel';
 import { courtOf, fmt, lawyerOf, openedOf, partiesOf, practiceOf } from '../views/cases/caseModel';
@@ -13,7 +14,7 @@ interface FileCoverModalProps {
   onPrinted?: (copies: number) => void;
 }
 
-const esc = (s: string) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const esc = escapeHtml;
 
 /** A4 cover sheet for the physical folder (design: Working File › Print file cover). Every
  * active client, opposing party and opposing solicitor on record is printed. */

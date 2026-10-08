@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { escapeHtml } from '../../../../lib/html';
 import type { CaseDocument } from '../../../../types';
 import { exportToWordDoc } from '../../../../lib/exportUtils';
 import { EngagementLetterActions, LangToggle, engagementInputFor } from '../EngagementLetter';
@@ -11,7 +12,7 @@ import { histEntry, newId, type WF } from '../wf';
 
 const LOE = 'Letter of Engagement';
 const TEMPLATES = [LOE, 'Letter to client: next court date', 'Letter to opposing solicitors', 'Affidavit (blank, with intitulement)', 'Notice of change of solicitors', 'Closing letter to client'];
-const esc = (s: string) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const esc = escapeHtml;
 
 export const LettersTab: React.FC<{ w: WF }> = ({ w }) => {
   const { c, parties, me, ro } = w;

@@ -20,8 +20,8 @@ export const investmentSummary = (log: Pick<FundMove, 'kind' | 'amount' | 'place
   return { putIn, returns, value: r2(putIn + returns), byPlace: [...byPlace.entries()].filter(([, v]) => Math.abs(v) > 0.004).sort((a, b) => b[1] - a[1]) };
 };
 
-export interface SplitTarget { key: string; name: string; pct: number; target: number; balance: number }
-export interface SplitPart { key: string; name: string; pct: number; amount: number; full: boolean }
+interface SplitTarget { key: string; name: string; pct: number; target: number; balance: number }
+interface SplitPart { key: string; name: string; pct: number; amount: number; full: boolean }
 /**
  * Split one fee received across the funds by their Split %. A fund that has reached its target is
  * skipped (its share stays as free cash); no fund is filled past its target.

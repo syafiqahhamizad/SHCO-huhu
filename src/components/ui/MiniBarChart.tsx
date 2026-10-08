@@ -1,6 +1,6 @@
 import React from 'react';
 
-export interface BarDatum {
+interface BarDatum {
   label: string;
   value: number;
   color: string;

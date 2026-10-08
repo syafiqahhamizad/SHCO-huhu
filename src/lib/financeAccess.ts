@@ -11,7 +11,7 @@
  */
 import type { User } from '../types';
 
-export type FinRoleKey = 'M' | 'P' | 'A' | 'R' | 'S';
+type FinRoleKey = 'M' | 'P' | 'A' | 'R' | 'S';
 export type FinTab = 'overview' | 'billing' | 'trust' | 'office' | 'approvals' | 'payroll' | 'books' | 'reports';
 
 /** [tab key, tab label, roles that see the tab, sidebar view id, roles that see the sidebar item] */
@@ -60,7 +60,7 @@ export const isFinanceView = (viewId: string) => Object.prototype.hasOwnProperty
 
 /** Role key used by the finance module. Managing Partner = a Partner with the firm admin /
  * super-admin flag (same rule My Dashboard uses for its Managing Partner-only tiles). */
-export const finRoleKey = (currentRole: string | undefined, currentUser: Partial<User> | undefined, isAdmin: boolean): FinRoleKey => {
+export const finRoleKey = (currentRole: string | undefined, currentUser: Partial<User> | undefined, _isAdmin: boolean): FinRoleKey => {
   const role = String(currentRole || currentUser?.role || '');
   if (role === 'Client') return 'S';
   if (/account/i.test(role)) return 'A';
