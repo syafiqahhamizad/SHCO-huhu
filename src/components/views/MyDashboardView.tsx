@@ -5,6 +5,7 @@ import type { Invoice, Retainer } from '../../types';
 import { identityTokens, isMine } from '../../lib/identity';
 import { caseFinder, isIssued, owedBalance, paidByInvoice } from '../../lib/financeMetrics';
 import { parseLocal } from '../../lib/localDate';
+import { finRoleKey } from '../../lib/financeAccess';
 import { getPracticeSettings } from '../../services/templateService';
 import ClientAccountTab from './dashboard/ClientAccountTab';
 import ComplianceTab, { complianceStatusOf } from './dashboard/ComplianceTab';
@@ -48,8 +49,9 @@ const ALLOW: Record<Tier, QKey[]> = {
 export const MyDashboardView: React.FC = () => {
   const { cases, invoices, payments, retainers, leaveApplications, quotations, currentUser, currentRole } = useApp() as any;
 
-  // Managing Partner = the Super Admin only (an admin partner is not MP).
-  const isMP = Boolean(currentUser?.isSuperAdmin) || String(currentUser?.email || '').toLowerCase() === 'syafiqahhamizad@shcolaw.com';
+  // Managing Partner = the Super Admin only (an admin partner is not MP), and only while in the
+  // Partner role (switching role previews that role's dashboard) — same rule as financeAccess.
+  const isMP = finRoleKey(currentRole, currentUser, false) === 'M';
   const tier: Tier = isMP ? 'mp' : currentRole === 'Partner' ? 'partner' : 'staff';
   const allowed = ALLOW[tier];
 

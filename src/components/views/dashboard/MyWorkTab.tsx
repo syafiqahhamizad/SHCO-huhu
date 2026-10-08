@@ -648,7 +648,7 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
 
       {decisionList.length > 0 && (
         <div className={card}>
-          <div className="flex flex-wrap items-center gap-2 bg-[#16223A] px-3.5 py-2">
+          <div className="flex flex-wrap items-center gap-2 px-3.5 py-2" style={{ backgroundColor: '#16223A' }}>
             <Gavel className="h-3.5 w-3.5 text-white" />
             <strong className="text-[12.5px] text-white">Needs your decision</strong>
             <span className="rounded-[10px] bg-[#B23A2E] px-2 text-[10.5px] font-bold text-white">{pendingDecisions}</span>
@@ -683,7 +683,7 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
         <div className="flex min-w-0 flex-col gap-3.5">
           {/* My to-do */}
           <div className={`${card} shadow-[0_1px_3px_rgba(0,0,0,.06)]`}>
-            <div className="flex flex-wrap items-center gap-2.5 bg-[#16223A] px-3.5 py-2.5 text-white">
+            <div className="flex flex-wrap items-center gap-2.5 px-3.5 py-2.5 text-white" style={{ backgroundColor: '#16223A' }}>
               <Scale className="h-4 w-4 text-[#FBF2E9]" />
               <div>
                 <strong className="block text-[14.5px]" style={serif}>My to-do</strong>
@@ -834,7 +834,7 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
               <strong className="text-[12.5px] text-[#16223A]">Your meetings</strong>
               <div className="ml-1.5 flex rounded-md bg-[#F0F2F5] p-0.5">
                 {(['today', 'week'] as const).map((t) => (
-                  <button key={t} type="button" onClick={() => setMeetingTab(t)} className="rounded px-[9px] py-[3px] text-[10.5px] font-bold" style={{ backgroundColor: meetingTab === t ? '#fff' : 'transparent', color: meetingTab === t ? '#16223A' : '#5B6478' }}>
+                  <button key={t} type="button" onClick={() => setMeetingTab(t)} className="whitespace-nowrap rounded px-[9px] py-[3px] text-[10.5px] font-bold" style={{ backgroundColor: meetingTab === t ? '#fff' : 'transparent', color: meetingTab === t ? '#16223A' : '#5B6478' }}>
                     {t === 'today' ? 'Today' : 'This week'}
                   </button>
                 ))}
