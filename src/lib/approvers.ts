@@ -29,11 +29,13 @@ export const APPROVAL_ITEMS: [string, string, string, string][] = [
   ['leave', 'Staff leave', 'Staff Portal › Leave', 'any partner'],
 ];
 
-/** People who can be picked as approvers: active partners and accountants, the Super Admin first. */
+/** People who can be picked as approvers: any active staff member (the Super Admin decides),
+ * Super Admin first, then partners, Accounts, everyone else. Clients and the outside reviewer are left out. */
+const POOL_ORDER: Record<string, number> = { Partner: 0, Accountant: 1 };
 export const approverPool = (users: User[]): User[] =>
   users
-    .filter((u) => u.status !== 'Inactive' && (u.role === 'Partner' || u.role === 'Accountant' || u.isSuperAdmin))
-    .sort((a, b) => Number(!!b.isSuperAdmin) - Number(!!a.isSuperAdmin) || (a.role === b.role ? 0 : a.role === 'Partner' ? -1 : 1) || a.name.localeCompare(b.name));
+    .filter((u) => u.status !== 'Inactive' && u.role !== 'Client' && u.role !== 'Reviewer')
+    .sort((a, b) => Number(!!b.isSuperAdmin) - Number(!!a.isSuperAdmin) || (POOL_ORDER[a.role] ?? 2) - (POOL_ORDER[b.role] ?? 2) || a.name.localeCompare(b.name));
 
 /** Short code shown on the chips: the user code, else initials (bin / binti left out). */
 export const approverCode = (u: Partial<User>): string =>

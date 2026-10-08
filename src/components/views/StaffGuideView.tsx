@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { finRoleKey } from '../../lib/financeAccess';
+import { canSeeClientBilling, finGrants, finRoleKey } from '../../lib/financeAccess';
 import { usePracticeSettings } from './settings/settingsShared';
 
 /**
@@ -20,7 +20,8 @@ const ROLES: [GuideRole, string, string][] = [
 /** One step; `sub` are the small points under it (what you will see, what to pick). */
 type Step = string | { t: string; sub?: string[] };
 interface Section {
-  id: string; title: string; roles: GuideRole[] | 'all';
+  /** 'admin' = admins only (any role); 'billing' = Partner / Accounts tabs, or anyone given billing access. */
+  id: string; title: string; roles: GuideRole[] | 'all' | 'admin' | 'billing';
   /** Detailed topics: what it is, who does it, and what you need before you start. */
   what?: string; who?: string; before?: string[];
   intro?: string; steps?: Step[];
@@ -449,23 +450,161 @@ const SECTIONS: Section[] = [
     ],
     mistakes: ['Not recording who referred the client — referral fees and reports depend on it.'] },
 
-  { id: 'finhome', title: 'Finance Home', roles: ['accounts', 'partner'], intro: '*Finance Home* shows what needs attention: overdue bills, payments to match, approvals waiting and month-end items. Each tab is also in the menu: *Billing & Collections*, *Client Account (SAR 1990)*, *Office Account*, *Approvals*, *Payroll* and *Books & Reports*.' },
-  { id: 'billing', title: 'Billing and collections', roles: ['accounts'], steps: [
-    'In *Billing & Collections*, *Fees by file* shows agreed, billed, received and owing for every file.',
-    'Bill from the file’s unbilled time and costs, or from an accepted quotation.',
-    'Record each payment against its invoice. The file’s partners are notified when an invoice is paid.',
-  ] },
-  { id: 'prepare', title: 'Preparing payments for approval', roles: ['accounts'], steps: [
-    'Claims and payment requests arrive in *Approvals*. Accounts prepare and check; partners approve.',
-    'Once approved, pay from the right account and attach the proof. The claimant is notified.',
-  ], tip: 'The client account can never go below zero for a client or file. The portal blocks it.' },
-  { id: 'payroll', title: 'Payroll', roles: ['accounts'], steps: [
-    'Open *Payroll*. EPF, SOCSO and EIS are worked out from the official tables; PCB and zakat are entered by hand.',
-    'Check the month, then send it for approval. Staff see only their own payslips in the Staff Portal.',
-  ] },
-  { id: 'books', title: 'Books and month end', roles: ['accounts'], intro: '*Books & Reports* holds the ledger, trial balance and reports. Work through the month-end checklist there before closing the month.' },
-
-  /* ---------------------------------------------------------------- everyone */
+  /* ---------------------------------------------------------------- Part C: billing and money */
+  { id: 'finhome', title: 'Finance pages: where things are', roles: 'billing',
+    what: 'The *Finance & Accounts* group in the left menu holds billing, the client account, office money, approvals, payroll and the books. You only see the pages you are allowed.',
+    who: 'Only people the Super Admin allows in *Users & Roles › Billing & money* (by default partners and Accounts; the reviewer can look only).',
+    steps: [
+      { t: 'The pages:', sub: [
+        '*Finance Home* — alerts for Accounts, the month’s net, *Who owes us, by age*, and *How money moves, A to Z*.',
+        '*Billing & Collections* — quotations, proformas, invoices, receipts, fees by file, work not billed yet.',
+        '*Client Account (SAR 1990)* — money we hold for clients: ledgers, statements, 3-way reconciliation.',
+        '*Office Account* — office bank, office expenses, disbursement account, sinking funds.',
+        '*Approvals* — claims, payment requests, journals and referral fees waiting for a signature.',
+        '*Payroll* — staff payslips and partner pay.',
+        '*Accounting* and *Reports* — chart of accounts, general ledger, trial balance, reports.',
+      ] },
+      { t: 'Three big buttons at the top start almost everything:', sub: ['[[Bill]] — a quotation, proforma or invoice.', '[[Money in]] — attach the bank slip and pick who paid.', '[[Money out]] — attach the bill and say what it is for: *Office expense*, *Paid on behalf of a client*, *Pay out of client money*, *Transfer fees to office*, or *Staff claim or salary*.'] },
+      { t: 'You never pick a ledger account: every invoice, receipt, expense and journal posts itself to the books.' },
+    ],
+    stuck: [['“Finance & Accounts is restricted”', 'You are not allowed to see billing and money. Your own claims are in My Claims and your payslip in Staff Portal.']] },
+  { id: 'billing', title: 'Quotation → proforma → invoice → receipt', roles: 'billing',
+    what: 'How a fee travels: a *quotation* (fee estimate before we start, with the payment plan) → a *proforma* (request to pay a deposit / stage, not income yet) → an *invoice* (bill for work done, with SST and e-Invoice) → a *receipt* (proof we received money).',
+    who: 'Partners prepare and send quotations for their files; Accounts issues invoices and records money in.',
+    steps: [
+      { t: 'Open *Billing & Collections*. The four cards at the top — *Quotation*, *Proforma*, *Invoice*, *Receipt* — switch the list below and show how many are open.' },
+      { t: 'New quotation: [[+ New quotation]] (or [[Bill]] at the top). Fill in:', sub: [
+        '*Document*, *Practice area* (loads the fee template lines), *Pay into* (office or client account).',
+        'Client name, *Matter*, *File ref.*, *Your Ref*, *Subject*.',
+        '*Scope of work* — the paragraph above the fees.',
+        'Lines: description and amount for professional fees, disbursements, reimbursements; [[+ Add line]]. SST is added where it applies.',
+        '*Payment plan*: *Pay in full*, *Stages* (each stage a % or RM and *When payable*, e.g. “On close of pleadings”; [[+ Add stage]]; they must add up to the total), or *Monthly instalments* (months, upfront amount — the schedule is worked out).',
+        '*Terms* — one per line as “Heading: text”.',
+        '[[Save as draft]] or [[Save & view]].',
+      ] },
+      { t: 'The gold button on each row is the next step, by status:', sub: [
+        'Draft / Ready → [[Send]].', 'Sent → [[Mark accepted]] (or *Resend*).', 'Accepted → [[Make proforma]] / *Issue proforma: <stage>* for each stage, or [[Convert to invoice]] when the work is done.',
+        'Proforma → *Record payment* / *Remind* / *Convert to invoice*.', 'Invoice Draft → [[Issue]]; issued → *Record paid* / *Remind*; no money yet → *Void*.',
+        'The ⋯ (*More actions*) menu has the rest (view, Word, PDF / Print, request write-off…).',
+      ] },
+      { t: 'The accepted quotation is also what the file’s *Letter of Engagement* uses for its fee breakdown and payment plan.' },
+      { t: 'Money received: [[Money in]] (or *Record paid* on the invoice) → *Received from*, *Date received*, *This money is* (payment of an invoice, or deposit / money held for client), how (online transfer, cheque, cash), amount, and attach the *proof of payment*. A receipt (HQ-OR-…) is made and numbered by account.' },
+      { t: 'Below the invoices: *Fees by file* (agreed, billed, received, outstanding for each file — same as the file’s Money tab) and *Work not billed yet* (time + disbursements, oldest first) with [[Create invoice]].' },
+    ],
+    cases: [
+      ['Client paid more than the invoice', 'The balance shows as owed back to the client. Refund it or keep it in the client account.'],
+      ['Cannot collect', 'Use *Request write-off* in the ⋯ menu — it goes to Approvals.'],
+      ['e-Invoice', 'LHDN MyInvois is not connected yet; the e-Invoice column shows the status once it is.'],
+    ],
+    mistakes: ['Invoicing without the quotation — the file’s budget and Letter of Engagement then do not match.', 'Recording money in without attaching the proof.'] },
+  { id: 'trust', title: 'Client Account (SAR 1990)', roles: 'billing',
+    what: 'Money we hold for clients (deposits, purchase price, stamp duty money). Under the Solicitors’ Account Rules 1990 it is never office income: it can only move to office after an invoice to that same client, and no client ledger may go below zero.',
+    who: 'Accounts records; partners view and sign. Paying out of client money needs two signatories.',
+    steps: [
+      { t: 'Open *Client Account (SAR 1990)*. Search a client name or file ref to see the *Balance held*, *Last activity* and status for each ledger.' },
+      { t: 'Click a ledger to see its entries; choose the *Period* and [[View statement]] (PDF) or *Excel*.' },
+      { t: 'Money in for a client: [[Money in]] → *This money is: Deposit / money held for client* → pick the client ledger (client + matter).' },
+      { t: 'Paying out: [[Money out]] → *Pay out of client money* → *From client ledger*, *Pay to*, amount, supporting document (letter, redemption statement, invoice). It goes to Approvals for two signatories.' },
+      { t: 'Taking our fees: [[Money out]] → *Transfer fees to office* against an issued invoice of the same client.' },
+      { t: 'Monthly: *3-way reconciliation* — key in the three figures (bank statement, cash book, ledgers), upload the bank statement, tick items in the cash book not yet on the statement until the *Adjusted bank balance* matches; sign-off opens when the difference is RM 0.00.' },
+      { t: '*Monthly client statements* are made on the 1st for every ledger with a balance; send them from the list (*Send by*, *Last sent*).' },
+    ],
+    mistakes: ['Paying a client’s cost from office money and forgetting to bill it back — use *Paid on behalf of a client* so it is billed automatically.'] },
+  { id: 'approvals', title: 'Approvals: claims, payment requests and journals', roles: 'billing',
+    what: 'Anything that needs a signature before money moves: staff claims, payment requests (PV), manual journals, write-offs and referral fees. Who signs each one is set in *Settings › Who approves*.',
+    who: 'The approvers set by the Super Admin sign. Accounts pays what is approved.',
+    steps: [
+      { t: 'Open *Approvals*. You are also notified of each new item. Filter by *Year* and *Type*.' },
+      { t: '*Waiting for approval*: each item shows who asked, what for, the file, amount and the receipts. Open the receipt to check it.' },
+      { t: 'Click [[Approve · <your code>]] to sign, or [[Reject]] with a reason. When enough people have signed it moves on; the person who asked is notified.' },
+      { t: 'Accounts: *Approved · to pay* lists what is ready to pay with the payment details from the staff form. Pay it, then drop the bank / portal receipt on the row to mark it paid — it posts to the cash book of the account it was paid from.' },
+      { t: '*Referral fees*: from Leads & Referrals; the % is of professional fees actually received this month (excluding disbursements and SST).' },
+      { t: '[[Drive folder ↗]] opens the item’s receipts in Google Drive.' },
+    ],
+    mistakes: ['Approving without opening the receipt.'] },
+  { id: 'prepare', title: 'Office money, payroll and the books', roles: 'billing',
+    what: 'The office side: office expenses, the disbursement account, sinking funds, monthly payroll, and the accounting records.',
+    who: 'Accounts (and partners for approval).',
+    steps: [
+      { t: '*Office Account*: office bank balances, *Office expenses* (add with [[Money out]] › *Office expense*), the *Disbursement account* (costs paid for client files; unbilled ones go on the next invoice automatically) and *Sinking funds* ([[+ Add fund]] to save ahead for known bills).' },
+      { t: '*Payroll* each month:', sub: [
+        'Click a staff name to key in the full payslip (draft only): basic, allowances, referral, fee sharing, bonus, deductions. EPF, SOCSO + EIS are worked out from the official tables.',
+        '*Bonus for everyone*: same amount, % of basic or months of basic → [[Apply bonus]].',
+        'Then the button walks the steps: [[Mark as checked]] → [[Approve payroll]] (by whoever is set in Who approves) → [[Mark as paid & release payslips]]. Staff then see their payslip in Staff Portal.',
+        'Partners are paid by share statement (fee sharing), not payslip.',
+      ] },
+      { t: '*Accounting*: chart of accounts ([[Edit accounts]]), general ledger, trial balance, latest automatic postings. *Manual journal* is for corrections only and always goes to Approvals. *Import past transactions* is a one-time setup from Bukku / Excel.' },
+      { t: '*Reports*: the accountant’s report pack, profit, cash flow, client-account reports — [[View]] or *Excel*.' },
+    ],
+    mistakes: ['Using a manual journal instead of the proper Money in / Money out form.'] },
+  /* ---------------------------------------------------------------- Part D: admin and Super Admin */
+  { id: 'users', title: 'Users & Roles: adding people and what they can see', roles: 'admin',
+    what: '*Firm & Practice Settings → Users & Roles* is the list of everyone who can sign in, their role, branch, admin right, *Billing & money* access and whether they are switched on.',
+    who: 'Admins add and edit people. Only the Super Admin can make someone an admin, switch someone off, or decide *Billing & money*.',
+    steps: [
+      { t: 'Open *Firm & Practice Settings* → *Users & Roles*. The line *Access list:* shows whether the sign-in list is published (it must say *published ✓* for changes to take effect).' },
+      { t: 'Add someone: [[+ Add person]] → *Display name*, *Full name (as per IC)*, *User code* (2–4 letters, unique, used in file numbers), *Email*, *Role*, *Branch*, and *Admin* (Super Admin only) → save.', sub: ['@shcolaw.com staff sign in with Google — no password is made. An outside e-mail gets a password and a verification e-mail they must click first.', 'A staff record with the next Staff ID is made; they appear in Staff Portal, Payroll and the referrer list.'] },
+      { t: 'On each row you can change: the *Role* (Partner, Lawyer, Assistant, Accountant, Reviewer (auditor)), the *Branch*, *Admin* (click to switch), and the user code (click it).' },
+      { t: '*Billing & money* (Super Admin only): *By role* (partners and Accounts see & edit, the reviewer sees, everyone else nothing), or for this one person *No*, *See only* or *See & edit*. This decides who sees quotations, invoices, receipts, the client account, claims and amounts — the database enforces it.' },
+      { t: '[[Check access]] opens that person’s own permissions (next topic). *2-step login* is a record; the actual 2-step is set in Google Workspace.' },
+      { t: 'Someone leaving: [[Switch off]] (Super Admin) — login is blocked at once, their history stays. [[Reactivate]] brings them back. *Remove* only appears for switched-off people.' },
+    ],
+    stuck: [['Access list: “… change(s) giving more access need your OK”', 'A change was made from another session. Super Admin: click *Review*, then *Publish*.'], ['A new person sees “Waiting for access”', 'The access list is not published yet — check the Access list line.']],
+    mistakes: ['Giving Admin to get someone into billing — Admin is settings and users only. Use *Billing & money* instead.'] },
+  { id: 'perms', title: 'Permissions & limits, and Who approves', roles: 'admin',
+    what: '*Permissions & limits* decides what each role (and each person) can open and do. *Who approves* decides who signs each approval. Both are yours to set — nothing is fixed to partners.',
+    who: 'The Super Admin (and admins allowed to change permissions).',
+    steps: [
+      { t: '*Permissions & limits*: Step 1, set each role; Step 2, check each person and change only where needed. Each row is a tab or a job; the boxes are *V* (can see), *A* (can add / submit), *E* (can edit / approve).', sub: ['A sub-tab can never have more than its tab (greyed = blocked by the tab).', 'Jobs you can give to anyone: *Clear a conflict check*, *Approve closing a file*, *Reopen a closed file*, *Delete a file*, *Delete clients*, *View as*, *Firm Start Centre (edit)*, *HR records*…', 'Per person: *Reset to role* puts them back to their role’s boxes.', '[[+ Add custom role]] for a role the firm needs.'] },
+      { t: '*Who approves*: for each item (fee sharing, payroll, partner pay, office payments, client account payments, reconciliation, referral fees, staff claims, write-offs, emergency fund, investments, client statements, staff leave) tick the approvers and choose whether *all* or *any N* must approve.', sub: ['You can pick anyone. For money items the person must also have *Billing & money* on, or they cannot open what they approve.', 'Not set yet = the portal’s default rule shown in *Result*.', 'Every approval is written to Activity Logs.'] },
+    ],
+    mistakes: ['Changing a role when only one person needs it — change that person instead.'] },
+  { id: 'settings', title: 'Firm settings: letterhead, banks, numbering, practice areas, fee templates', roles: 'admin',
+    what: 'The firm’s own details used on every document and file.',
+    who: 'Admins.',
+    steps: [
+      { t: '*Firm & Letterhead*: letterhead by branch ([[Upload header image]] — a screenshot of the Word header), *Partners on letterhead* (name, qualifications, Syarie partner), e-mails by purpose, the *File reference (Our Ref)* pattern with its example, and *Finance document details* (printed on quotations, invoices, receipts, statements, payslips).' },
+      { t: '*Banks, Numbering & SST*: office and client bank accounts with opening balances ([[+ Add account]]), document numbering, SST registration no. and start date.' },
+      { t: '*Practice areas & codes*: the areas shown when opening a file, and their matter codes ([[Add area]], [[Add code]]). Codes must be unique; existing files keep their numbers.' },
+      { t: '*Fee templates*: for each practice area, the default quotation lines and scope of work that load into a new quotation.' },
+      { t: '*Lists & sources*: public holidays (used for leave days), lead sources and other pick lists.' },
+    ],
+    mistakes: ['Changing the file-number pattern mid-year without telling staff.'] },
+  { id: 'google', title: 'Google Drive, Calendar and e-mail setup', roles: 'admin',
+    what: 'Where uploads are kept (three Shared Drives), the court diary calendar, and the account that sends notification e-mails.',
+    who: 'The Super Admin / IT, once. Afterwards only to check.',
+    steps: [
+      { t: 'Open *Firm & Practice Settings* → *Google, e-mail & backup*.' },
+      { t: '*Google Drive storage*: paste the link of each Shared Drive:', sub: ['*SHCO Portal* — files, clients, matters (all staff are members).', '*Finance* — claims, payment vouchers, bank-in proofs, client-account papers, engagement & billing, backups (only the people you allow). If not set, these go into a Finance folder inside SHCO Portal that all staff can see.', '*HR* — staff records (partners / admin only).', 'Click [[Test connection]]: it writes a tiny file to each drive, reads it back and deletes it.'] },
+      { t: '*Matters folder names by practice area*: rename the folders new files go into (SHCO Portal › Matters › <area> › <NNN - title>).' },
+      { t: 'Existing files without a folder: in *Cases*, click the bar *N files have no Google Drive folder yet* once — it creates them all. Paste old-drive links per file in Edit matter details → *Old folder*.' },
+      { t: '*Google Calendar, Tasks & Gmail*: the *Court diary Calendar ID* (Google Calendar → the calendar’s *Settings and sharing* → *Integrate calendar*) → [[Test Calendar]].' },
+      { t: '*Notification e-mails*: the sending account and its Google *App password* → [[Save e-mail settings]] → [[Send test e-mail to me]]. The password can never be read back; paste a new one to change it.' },
+    ],
+    stuck: [['Test connection fails for one drive', 'The signed-in account is not a member (Manager / Content manager) of that Shared Drive, or the link is wrong.']] },
+  { id: 'logs', title: 'Activity Logs, Recycle Bin and editing the Firm Start Centre', roles: 'admin',
+    what: 'Checking who did what, restoring deleted items, and keeping the home page up to date.',
+    who: 'Admins (Activity Logs); people allowed *Firm Start Centre (edit)*.',
+    steps: [
+      { t: '*Activity Logs* (System): every sign-in, setting change, approval and record change with time, user, action and details. Use the search box (name, action or word). Amounts show as RM ••• for people without billing access.' },
+      { t: '*Recycle Bin* (box button at the top): deleted records with who and when. [[Restore Record]] puts one back.' },
+      { t: 'Firm Start Centre: click [[Edit content]] (top of the page) or [[Edit this tab]] on a shelf. Then:', sub: ['*Publish a firm notice* — title, details, type (announcement, policy, alert, holiday / office closure) and event date.', '[[+ Add module]] — a new tile (name + page). Edit or delete tiles with their small buttons.', '*Add shelf*, *Add card*, *Add link*, *Edit group* — shelves of policies / templates and the quick links.', 'Click [[Done editing]] when finished.'] },
+      { t: 'Staff Guide: [[+ Video]] on any topic to add its video link (Google Drive or YouTube).' },
+    ] },
+  /* ---------------------------------------------------------------- Part E: clients */
+  { id: 'portal', title: 'Client Portal: inviting a client and what they see', roles: ['partner', 'lawyer', 'assistant'],
+    what: 'Clients can sign in at portal.shcolaw.com (Client Access) to see their own files’ progress and court dates, documents we share, their bills and receipts, their client-account statement, and to message the team. It is read-only for them.',
+    who: 'Whoever looks after the client sets it up. Clients see only their own files.',
+    steps: [
+      { t: 'Open the client (Clients) → *Portal access* tab.' },
+      { t: 'Click [[Create portal login]]. The *Login e-mail* gets the sign-in details (*Login sent* shows when). Later: [[Resend login details]] or [[Reset password]].' },
+      { t: '*What this client can see*: progress and court dates, documents we share, bills and receipts, client account statement, messages with the team (questions go to the lawyer in charge).' },
+      { t: 'Share a document: on the file’s *Letters & e-sign* tab tick *Share with client* on it.' },
+      { t: '[[Preview portal]] shows exactly what the client sees, with their files, documents and bills. Nothing you do in preview is sent to the client.' },
+      { t: 'Stop access: [[Disable access]] (and *Enable access* to turn it back on). *Last signed in* shows when they last used it.' },
+    ],
+    cases: [['The client cannot sign in', 'Check the login e-mail is right, then *Reset password*. They must use the *Client Access* tab, not Staff SSO.']],
+    mistakes: ['Sharing internal notes or drafts — only tick *Share with client* on final documents.'] },
 ];
 
 /** *bold* and [[Button]] → styled spans. */
@@ -489,7 +628,13 @@ export const StaffGuideView: React.FC = () => {
   const [videoDraft, setVideoDraft] = useState('');
   const mine = roleOf(finRoleKey(currentRole, currentUser, isAdmin), String(currentUser?.role || currentRole || ''));
   const [role, setRole] = useState<GuideRole>(mine);
-  const sections = useMemo(() => SECTIONS.filter((s) => s.roles === 'all' || s.roles.includes(role)), [role]);
+  const isAdminViewer = Boolean(currentUser?.isAdmin || currentUser?.isSuperAdmin);
+  const seesBilling = canSeeClientBilling(finRoleKey(currentRole, currentUser, isAdmin), finGrants(currentUser));
+  const sections = useMemo(() => SECTIONS.filter((s) =>
+    s.roles === 'all' ? true
+      : s.roles === 'admin' ? isAdminViewer
+        : s.roles === 'billing' ? role === 'partner' || role === 'accounts' || seesBilling
+          : s.roles.includes(role)), [role, isAdminViewer, seesBilling]);
   const video = settings.guideVideos?.[role] || '';
   const roleLabel = ROLES.find(([k]) => k === role)?.[1] || '';
   const topicVideos = settings.guideTopicVideos || {};

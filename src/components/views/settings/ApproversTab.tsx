@@ -24,8 +24,9 @@ export const ApproversTab = ({ C }: { C: SettingsCtx }) => {
       <div style={css('display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Who approves</strong><span style={css(S.sub)}>tick the people who can approve each item, then choose whether all of them or only some must approve · every approve button in the system follows this list</span></div>
       <div style={css('display:flex;gap:14px;flex-wrap:wrap;padding:8px 14px;background:#FBFCFD;border-bottom:1px solid #EEF1F5')}>
         {pool.map((u) => <span key={u.id} style={css('font-size:10.5px;color:#5B6478')}><strong style={css('color:#16223A')}>{approverCode(u)}</strong> {u.name} · {designRole(u)}</span>)}
-        {!pool.length && <span style={css('font-size:10.5px;color:#5B6478')}>No active partners or accountants yet. Add them in Users &amp; Roles.</span>}
+        {!pool.length && <span style={css('font-size:10.5px;color:#5B6478')}>No active staff yet. Add them in Users &amp; Roles.</span>}
       </div>
+      <div style={css('padding:7px 14px;font-size:10.5px;line-height:1.5;color:#8A6534;background:#FDF8EE;border-bottom:1px solid #EEF1F5')}>You can pick anyone. For money items (claims, payments, payroll, fee sharing…) the person must also have <strong>Billing &amp; money</strong> switched on in Users &amp; Roles, or they cannot open what they approve.</div>
       <div style={css(GRID + 'padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>What needs approval</span><span>Approvers</span><span>Rule</span><span>Result</span></div>
       {APPROVAL_ITEMS.map(([id, label, where, fallback]) => {
         const r = rules[id];

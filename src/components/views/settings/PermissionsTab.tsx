@@ -104,7 +104,7 @@ export const PermissionsTab = ({ C, view, setView }: { C: SettingsCtx; view: 'ro
             </div>
           ))}
         </>}
-        <div style={css('display:flex;gap:14px;flex-wrap:wrap;padding:9px 14px;background:#F6F8FA;font-size:10.5px;color:#5B6478')}><span><strong style={css('color:#2F6F4E')}>V</strong> can see the tab</span><span><strong style={css('color:#2F5680')}>A</strong> can add / submit</span><span><strong style={css('color:#8C2F4C')}>E</strong> can edit / approve</span><span>A sub-tab can never have more than its tab (greyed = blocked by the tab).</span><span>Lawyers and Assistants only ever see files they are on.</span><span>Managing Partner always has everything.</span></div>
+        <div style={css('display:flex;gap:14px;flex-wrap:wrap;padding:9px 14px;background:#F6F8FA;font-size:10.5px;color:#5B6478')}><span><strong style={css('color:#2F6F4E')}>V</strong> can see the tab</span><span><strong style={css('color:#2F5680')}>A</strong> can add / submit</span><span><strong style={css('color:#8C2F4C')}>E</strong> can edit / approve</span><span>A sub-tab can never have more than its tab (greyed = blocked by the tab).</span><span>Lawyers and Assistants only ever see files they are on.</span><span>The Super Admin always has everything.</span></div>
       </div>
 
       <div style={css('display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start')}>

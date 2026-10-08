@@ -32,7 +32,7 @@ export const AccountsFinanceView = ({ initialTab = 'overview' }: { initialTab?: 
     return (
       <div style={css('border-radius:12px;border:1px solid #DDE3EB;background:#fff;padding:24px;max-width:640px;margin:24px auto;text-align:center;color:#16223A')}>
         <strong style={css('font-family:ui-serif, Georgia, serif;font-size:16px')}>Finance &amp; Accounts is restricted</strong>
-        <p style={css('margin:6px 0 0;font-size:12px;line-height:1.5;color:#5B6478')}>Only Accounts and Partners use these pages. You can see your own claims in My Claims and your payslip in Staff Portal.</p>
+        <p style={css('margin:6px 0 0;font-size:12px;line-height:1.5;color:#5B6478')}>Only people the Super Admin allows (Users &amp; Roles › Billing &amp; money) use these pages. You can see your own claims in My Claims and your payslip in Staff Portal.</p>
       </div>
     );
   }

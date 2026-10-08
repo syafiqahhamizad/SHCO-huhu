@@ -12,8 +12,8 @@ const users = [
 ];
 
 describe('approvers', () => {
-  it('pool: active partners and accountants, Super Admin first', () => {
-    expect(approverPool(users).map((x) => x.id)).toEqual(['s', 'a', 'n']);
+  it('pool: any active staff, Super Admin first, then partners, Accounts, others', () => {
+    expect(approverPool(users).map((x) => x.id)).toEqual(['s', 'a', 'n', 'l']);
   });
   it('codes fall back to initials', () => expect(approverCode(users[2])).toBe('NR'));
   it('labels', () => {
@@ -23,12 +23,12 @@ describe('approvers', () => {
   });
   it('not set up = null (existing routing stays)', () => {
     expect(resolveApproval('claims', users, undefined)).toBeNull();
-    expect(resolveApproval('claims', users, { claims: { approvers: ['l', 'z'], need: 1 } })).toBeNull();
+    expect(resolveApproval('claims', users, { claims: { approvers: ['z'], need: 1 } })).toBeNull(); // only a switched-off person
   });
-  it('resolves people, need capped, lawyers and switched-off people dropped', () => {
-    const r = resolveApproval('leave', users, { leave: { approvers: ['s', 'a', 'l'], need: 5 } });
-    expect(r?.people.map((x) => x.id)).toEqual(['s', 'a']);
-    expect(r?.need).toBe(2);
-    expect(r?.label).toBe('SH & AH');
+  it('resolves people (anyone you pick, e.g. a lawyer), need capped, switched-off people dropped', () => {
+    const r = resolveApproval('leave', users, { leave: { approvers: ['s', 'a', 'l', 'z'], need: 5 } });
+    expect(r?.people.map((x) => x.id)).toEqual(['s', 'a', 'l']);
+    expect(r?.need).toBe(3);
+    expect(r?.label).toBe('SH, AH & DH');
   });
 });
