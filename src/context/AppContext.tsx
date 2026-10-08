@@ -204,7 +204,8 @@ interface AppContextType {
   retryCloudSync: () => void;
   addUser: (newUser: User) => boolean;
   deleteUser: (userId: string) => boolean;
-  updateUserStaffProfile: (userId: string, profile: User['staffProfile']) => void;
+  /** `silent`: no toast / audit line (e.g. ticking a private to-do). */
+  updateUserStaffProfile: (userId: string, profile: User['staffProfile'], opts?: { silent?: boolean }) => void;
   updateUserIdentity: (userId: string, updates: { name?: string; code?: string }) => boolean;
   renameCaseRef: (caseId: string, newRef: string, reason: string) => boolean;
   addStaffGoal: (userId: string, goal: StaffGoal) => void;
@@ -1141,9 +1142,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return true;
   };
 
-  const updateUserStaffProfile = (userId: string, profile: User['staffProfile']) => {
+  const updateUserStaffProfile = (userId: string, profile: User['staffProfile'], opts?: { silent?: boolean }) => {
     setUsers((prev) => prev.map((user) => (user.id === userId ? { ...user, staffProfile: profile } : user)));
     if (userId === currentUser.id) setCurrentUser((prev) => ({ ...prev, staffProfile: profile }));
+    if (opts?.silent) return;
     logAuditEvent('UPDATE', 'USERS', userId, profile?.staffId || userId, 'Staff profile updated.');
     showToast('Staff profile saved.');
   };

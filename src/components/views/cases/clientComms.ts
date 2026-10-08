@@ -79,7 +79,10 @@ export async function addHearingToDiary(w: WF, c: Case, h: Hearing, attendees: s
 /* ------------------------------------------------------------------ Google Tasks */
 
 /** Syncs a task to the signed-in user's Google Tasks — only when it is assigned to them. */
-export async function syncTask(w: WF, t: Task): Promise<void> {
+/** What task sync needs (the Working File passes its whole `w`; My Dashboard passes just these). */
+export type TaskSyncCtx = Pick<WF, 'c' | 'me' | 'meCode' | 'meId' | 'saveWith' | 'toast'>;
+
+export async function syncTask(w: TaskSyncCtx, t: Task): Promise<void> {
   const mineTask = t.assignedTo === w.me || t.assignedTo === w.meCode;
   if (!w.meId || !mineTask) return;
   try {
@@ -90,7 +93,7 @@ export async function syncTask(w: WF, t: Task): Promise<void> {
   }
 }
 
-export async function unsyncTask(w: WF, t: Task): Promise<void> {
+export async function unsyncTask(w: Pick<WF, 'meId' | 'toast'>, t: Task): Promise<void> {
   const id = t.googleTaskIds?.[w.meId];
   if (!id) return;
   try { await deleteGoogleTask(id); } catch (e) { w.toast('Deleted here, but not from Google Tasks: ' + googleErrorMessage(e)); }

@@ -124,7 +124,13 @@ export const Header: React.FC = () => {
         return { title: 'Firm Start Centre', sub: 'Announcements, people, policies and portals' };
       case 'myDashboard':
       case 'dashboard':
-        return { title: 'My Dashboard', sub: 'Your tasks, court dates, approvals and unbilled work' };
+      {
+        const rk = finRoleKey(currentRole, currentUser, isAdmin);
+        return {
+          title: 'My Dashboard',
+          sub: rk === 'M' ? 'Your work, plus how the firm is doing' : rk === 'P' ? 'Your work, your team and your new business' : 'Your tasks, meetings and court dates',
+        };
+      }
       case 'firmDashboard':
         return { title: 'Firm-Wide Dashboard', sub: 'Firm-wide operational and financial snapshot' };
       case 'leads':
