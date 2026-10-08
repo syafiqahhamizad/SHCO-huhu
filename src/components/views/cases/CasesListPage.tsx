@@ -109,7 +109,7 @@ export const CasesListPage: React.FC = () => {
 
       <div style={css('display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px')}>
         {cards.map((c) => (
-          <button key={c.label} type="button" onClick={() => setStatus(c.on && c.key ? '' : c.key)} style={css(`display:flex;flex-direction:column;gap:4px;text-align:left;border-radius:10px;padding:12px;cursor:pointer;background:#fff;border:1px solid ${c.on ? c.color : '#DDE3EB'};border-top:4px solid ${c.color};box-shadow:${c.on ? '0 0 0 1px ' + c.color : 'none'}`)}>
+          <button key={c.label} type="button" onClick={() => setStatus(c.on && c.key ? '' : c.key)} style={css(`display:flex;flex-direction:column;gap:4px;text-align:left;border-radius:10px;padding:12px;cursor:pointer;background:#fff;border-style:solid;border-width:4px 1px 1px;border-color:${c.color} ${c.on ? c.color : '#DDE3EB'} ${c.on ? c.color : '#DDE3EB'};box-shadow:${c.on ? '0 0 0 1px ' + c.color : 'none'}`)}>
             <span style={css('font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#5B6478')}>{c.label}</span>
             <span style={css(`font-size:24px;font-weight:700;color:${c.color}`)}>{c.count}</span>
           </button>

@@ -10,7 +10,7 @@ const SEL = 'border:1px solid #DDE3EB;border-radius:6px;padding:4px 6px;font-siz
 const driveLink = (id?: string) => (id ? <a href={folderUrl(id)} target="_blank" rel="noopener noreferrer" title="Open the Google Drive folder" style={css('display:inline-block;font-size:10px;font-weight:700;color:#3D6B9C')}>Drive folder ↗</a> : null);
 
 export const ApprovalsTab = ({ F }: { F: FinanceCtrl }) => {
-  const { apF, setApF, rk } = F;
+  const { apF, setApF } = F;
   const thr = twoSignatoryThreshold();
   const lim = thr % 1000 === 0 ? `RM ${thr / 1000}k` : `RM ${thr.toLocaleString('en-MY')}`;
   const T: Record<ApItem['type'], [string, string]> = { 'Staff claim': ['#E7EEF6', '#2F5680'], 'Payment voucher': ['#F1EBF6', '#6B3D8C'], 'Referral fees': ['#F7E9EE', '#8C2F4C'], 'Client account': ['#FBEDE9', '#B23A2E'], 'Write-off': ['#FBF2E9', '#8A6534'] };
