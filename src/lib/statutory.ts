@@ -70,10 +70,10 @@ const sen = (rm: number) => Math.round((Number(rm) || 0) * 100);
 const rmOf = (s: number) => Math.round(s) / 100;
 const ceilDiv = (a: number, b: number) => Math.ceil(a / b);
 
-export interface Share { employee: number; employer: number }
-export interface EpfResult extends Share { ok: boolean; part?: 'A' | 'E'; note?: string; warning?: string }
-export interface SocsoResult extends Share { ok: boolean; category?: 1 | 2; skbbk: number; note?: string }
-export interface EisResult extends Share { ok: boolean; exempt?: string; note?: string }
+interface Share { employee: number; employer: number }
+interface EpfResult extends Share { ok: boolean; part?: 'A' | 'E'; note?: string; warning?: string }
+interface SocsoResult extends Share { ok: boolean; category?: 1 | 2; skbbk: number; note?: string }
+interface EisResult extends Share { ok: boolean; exempt?: string; note?: string }
 
 /** EPF for a Malaysian citizen (Third Schedule Parts A / E). `period` = 'YYYY-MM' of the wages. */
 export function calcEpf(wage: number, age: number, period: string): EpfResult {
@@ -144,10 +144,10 @@ function dobFromNric(nric?: string, now = new Date()): { y: number; m: number; d
 
 const ageOn = (dob: { y: number; m: number; d: number }, y: number, m: number, d: number) => y - dob.y - (m < dob.m || (m === dob.m && d < dob.d) ? 1 : 0);
 
-export interface StatutoryPerson { birthday?: string; nric?: string; nationality?: string }
-export interface WageItems { basic: number; allowances: number; referralFee: number; profitShare: number; bonus: number }
+interface StatutoryPerson { birthday?: string; nric?: string; nationality?: string }
+interface WageItems { basic: number; allowances: number; referralFee: number; profitShare: number; bonus: number }
 
-export interface StatutoryResult {
+interface StatutoryResult {
   /** false = cannot be automated for this person / period; everything must be keyed in. */
   ok: boolean;
   reason?: string;

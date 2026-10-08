@@ -107,7 +107,7 @@ export async function signInClientWithPassword(email: string, password: string):
   return result.user;
 }
 
-export interface ProvisionedAccount {
+interface ProvisionedAccount {
   id: string;
   email: string;
   /** Empty when no password was set (Google Workspace staff, or an account that already existed). */

@@ -19,7 +19,7 @@ const metaRef = doc(db, 'firm', 'main');
 const colRef = (key: string) => collection(db, 'firm', 'main', key);
 const configRef = (name: string) => doc(db, 'firm', 'main', 'config', name);
 
-export type SplitState = 'none' | 'migrating' | 'done';
+type SplitState = 'none' | 'migrating' | 'done';
 
 export async function readSplitState(): Promise<SplitState> {
   const snap = await getDoc(metaRef);

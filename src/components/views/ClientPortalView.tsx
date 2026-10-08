@@ -26,7 +26,7 @@ import { docHtml, pdf, tableHtml } from '../../lib/financeDocs';
 import { getPracticeSettings } from '../../services/templateService';
 import { openLegacyDataUrl, openStoredFile, prepareStorage, storeFinanceProof, storeMatterFile } from '../../services/fileStorageService';
 
-export const PREVIEW_CLIENT_KEY = 'shco_portal_preview_client';
+const PREVIEW_CLIENT_KEY = 'shco_portal_preview_client';
 
 const BG = '#F4F1EA';
 const PREVIEW_NOTE = 'Preview: nothing is sent';

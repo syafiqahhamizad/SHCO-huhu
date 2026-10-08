@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { css } from './caseUi';
 
-export interface PickOption { value: string; label: string; hint?: string }
+interface PickOption { value: string; label: string; hint?: string }
 
 /**
  * Searchable multi-select: chosen people show as chips; type to filter the list, click (or Enter)

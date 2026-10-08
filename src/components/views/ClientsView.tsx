@@ -604,7 +604,7 @@ const ClientList: React.FC<{
 
       <div style={css('display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px')}>
         {cards.map((cd) => { const on = card === cd.key; return (
-          <button key={cd.label} type="button" onClick={() => setCard(on ? '' : cd.key)} aria-pressed={on} style={css(`display:flex;flex-direction:column;gap:4px;text-align:left;border-radius:10px;padding:12px;cursor:pointer;background:#fff;border:1px solid ${on ? cd.color : '#DDE3EB'};border-top:4px solid ${cd.color};box-shadow:${on ? '0 0 0 1px ' + cd.color : 'none'}`)}>
+          <button key={cd.label} type="button" onClick={() => setCard(on ? '' : cd.key)} aria-pressed={on} style={css(`display:flex;flex-direction:column;gap:4px;text-align:left;border-radius:10px;padding:12px;cursor:pointer;background:#fff;border-style:solid;border-width:4px 1px 1px;border-color:${cd.color} ${on ? cd.color : '#DDE3EB'} ${on ? cd.color : '#DDE3EB'};box-shadow:${on ? '0 0 0 1px ' + cd.color : 'none'}`)}>
             <span style={css('font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#5B6478')}>{cd.label}</span>
             <span style={css(`font-size:24px;font-weight:700;color:${cd.color}`)}>{cd.count}</span>
             <span style={css('font-size:10.5px;color:#5B6478')}>{cd.note}</span>

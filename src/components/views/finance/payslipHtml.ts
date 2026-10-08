@@ -2,8 +2,9 @@
  * "[not on file]" until HR fills the employee record. */
 import type { Payslip, User } from '../../../types';
 import * as SD from '../../../lib/financeDocs';
+import { escapeHtml } from '../../../lib/html';
 
-const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string);
+const esc = escapeHtml;
 const f2 = (n: number) => Number(n || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export const payslipHtml = (u: User, p: Payslip, monthLabel: string, payDate: string, calc: { gross: number; net: number; erEpf: number; erSocso: number }) => {

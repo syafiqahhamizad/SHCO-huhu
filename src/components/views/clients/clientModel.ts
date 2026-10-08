@@ -30,7 +30,7 @@ export const useSelectedClientId = () => useSyncExternalStore(clientsNav.subscri
 /* ------------------------------------------------------------------ KYC */
 export type KycReqKey = 'nric' | 'addr' | 'sof' | 'ssm' | 'einfo' | 'br' | 'dir';
 /** Required documents by client type: [key, label, hint]. */
-export const KYC_REQUIREMENTS: Record<Client['type'], [KycReqKey, string, string][]> = {
+const KYC_REQUIREMENTS: Record<Client['type'], [KycReqKey, string, string][]> = {
   Individual: [
     ['nric', 'NRIC / passport copy', 'Front and back, clear copy'],
     ['addr', 'Proof of address', 'Utility bill or bank statement, not older than 3 months'],
@@ -57,7 +57,7 @@ export const requirementOf = (k: KycDoc, type: Client['type']): KycReqKey | null
   return null;
 };
 
-export type KycState = 'Missing' | 'To verify' | 'Verified';
+type KycState = 'Missing' | 'To verify' | 'Verified';
 export const KYC_PILL: Record<KycState, Pill> = {
   Missing: { t: 'Missing', ...P.a },
   'To verify': { t: 'To verify', ...P.b },
@@ -93,7 +93,7 @@ export const kycOverall = (c: Client): Pill & { done: boolean } => {
 export const otherKycDocs = (c: Client) => (c.kyc || []).filter((k) => !requirementOf(k, c.type));
 
 /* ------------------------------------------------------------------ conflict */
-export type ConflictState = 'Clear' | 'Pending Partner Review' | 'Flagged' | 'Not Started';
+type ConflictState = 'Clear' | 'Pending Partner Review' | 'Flagged' | 'Not Started';
 export const conflictOf = (c: Client): ConflictState => (c.conflictCheck?.status || 'Not Started');
 export const conflictPill = (c: Client): Pill => {
   const s = conflictOf(c);
@@ -103,9 +103,9 @@ export const conflictPill = (c: Client): Pill => {
 /* ------------------------------------------------------------------ portal */
 export type PortalStatus = NonNullable<Client['portal']>['status'];
 export type PortalVisibility = NonNullable<Client['portal']>['visibility'];
-export const DEFAULT_VISIBILITY: PortalVisibility = { progress: true, documents: true, bills: true, statement: true, messages: true };
+const DEFAULT_VISIBILITY: PortalVisibility = { progress: true, documents: true, bills: true, statement: true, messages: true };
 /** Portal status; older records: login created → Active, invite only → Invited. */
-export const portalStatusOf = (c: Client): PortalStatus =>
+const portalStatusOf = (c: Client): PortalStatus =>
   c.portal?.status || (c.portalAccessEnabled ? 'Active' : c.lastPortalInviteSent ? 'Invited' : 'Not set up');
 export const portalOf = (c: Client): NonNullable<Client['portal']> => ({
   status: portalStatusOf(c),

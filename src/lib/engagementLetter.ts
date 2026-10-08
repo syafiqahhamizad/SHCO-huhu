@@ -15,13 +15,14 @@
  */
 import type { Quotation, QuotationPaymentPlan, QuotationPaymentStage } from '../types';
 import { splitSst } from './billingEngine';
+import { escapeHtml } from './html';
 
 export type DocLang = 'EN' | 'BM';
 export type FeeLine = [string, number];
 
 /* ------------------------------------------------------------------ payment plan */
 
-export const esc = (s: string | undefined | null) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const esc = escapeHtml;
 const DOTS = '<span style="letter-spacing:1px">……………………………</span>';
 const BODY = "font-family:'Times New Roman',Times,serif;font-size:12pt;line-height:1.45;color:#000";
 
@@ -42,10 +43,10 @@ export const schedule = (total: number, months: number, upfront: number): [strin
 
 export const ARR_TERMS = 'Early Settlement: In the event the matter is settled before the completion of the instalment period, all payments made shall be non-refundable, and the outstanding balance for the remaining unpaid months shall be charged at ten per cent (10%) of the settlement sum.\nDisbursements & Reimbursements: Charged in accordance with the agreed quotation. Any additional disbursements and/or reimbursements incurred shall be notified to and borne by the Client, and any unused portion of disbursements paid shall be refunded to the Client accordingly.\nWork shall not proceed if instalment payments are not settled, unless otherwise agreed in writing.';
 /** BM translation of ARR_TERMS (used in BM documents when the terms were not changed). */
-export const ARR_TERMS_BM = 'Penyelesaian Awal: Sekiranya perkara ini diselesaikan sebelum tamat tempoh ansuran, semua bayaran yang telah dibuat tidak akan dikembalikan, dan baki tertunggak bagi bulan-bulan yang belum dibayar akan dikenakan sebanyak sepuluh peratus (10%) daripada jumlah penyelesaian.\nPengeluaran & Bayaran Balik: Dikenakan menurut sebut harga yang dipersetujui. Sebarang pengeluaran dan/atau bayaran balik tambahan yang dilakukan akan dimaklumkan kepada dan ditanggung oleh Anakguam, dan sebarang baki pengeluaran yang telah dibayar tetapi tidak digunakan akan dikembalikan kepada Anakguam sewajarnya.\nKerja tidak akan diteruskan sekiranya bayaran ansuran tidak dijelaskan, melainkan dipersetujui sebaliknya secara bertulis.';
+const ARR_TERMS_BM = 'Penyelesaian Awal: Sekiranya perkara ini diselesaikan sebelum tamat tempoh ansuran, semua bayaran yang telah dibuat tidak akan dikembalikan, dan baki tertunggak bagi bulan-bulan yang belum dibayar akan dikenakan sebanyak sepuluh peratus (10%) daripada jumlah penyelesaian.\nPengeluaran & Bayaran Balik: Dikenakan menurut sebut harga yang dipersetujui. Sebarang pengeluaran dan/atau bayaran balik tambahan yang dilakukan akan dimaklumkan kepada dan ditanggung oleh Anakguam, dan sebarang baki pengeluaran yang telah dibayar tetapi tidak digunakan akan dikembalikan kepada Anakguam sewajarnya.\nKerja tidak akan diteruskan sekiranya bayaran ansuran tidak dijelaskan, melainkan dipersetujui sebaliknya secara bertulis.';
 
 /** Litigation stages (editable on the quotation). Equal shares until the firm changes them. */
-export const DEFAULT_LIT_STAGES: QuotationPaymentStage[] = [
+const DEFAULT_LIT_STAGES: QuotationPaymentStage[] = [
   { label: 'Filing', pct: 25, due: 'On signing this letter, before filing' },
   { label: 'Pleadings', pct: 25, due: 'On close of pleadings' },
   { label: 'Trial', pct: 25, due: 'Before the trial dates' },
@@ -127,7 +128,7 @@ const partnersColumn = (ps: LetterheadPartner[]) => {
   return blk('PARTNERS', ps.filter((p) => !p.syarie)) + (ps.some((p) => p.syarie) ? '<div style="height:3pt"></div>' : '') + blk(ps.filter((p) => p.syarie).length > 1 ? 'SYARIE PARTNERS' : 'SYARIE PARTNER', ps.filter((p) => p.syarie));
 };
 /** Letterhead: firm block (uploaded header image or built-in name, taglines and address) with the partners column. */
-export const letterheadHtml = (lh: LetterheadInfo): string => {
+const letterheadHtml = (lh: LetterheadInfo): string => {
   const firm = lh.image
     ? `<img src="${esc(lh.image)}" alt="${esc(lh.firmName)}" style="width:100%;max-width:470px;height:auto;display:block">`
     : `${lh.logo ? `<img src="${esc(lh.logo)}" alt="${esc(lh.firmName)}" width="240" style="width:240px;height:auto;display:block">` : `<div style="font-size:18pt;font-weight:bold;letter-spacing:1px">${esc(lh.firmName)}</div>`}<div style="font-size:8.5pt;font-style:italic;color:#3D6B9C;line-height:1.4;margin-top:4px">${esc(lh.tag1 || '')}${lh.tag2 ? '<br>' + esc(lh.tag2) : ''}</div>`;

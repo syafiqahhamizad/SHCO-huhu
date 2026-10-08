@@ -1,13 +1,13 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { AlertTriangle, Trash2, ShieldAlert, X } from 'lucide-react';
 
-export interface ConfirmationDetails {
+interface ConfirmationDetails {
   label: string;
   value: string;
   badge?: string;
 }
 
-export interface ConfirmationOptions {
+interface ConfirmationOptions {
   title: string;
   message: string;
   details?: ConfirmationDetails[];

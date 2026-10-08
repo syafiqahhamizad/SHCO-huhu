@@ -22,7 +22,7 @@ import type { StaffProfile, User } from '../types';
 
 export type Tier = 'firm' | 'books' | 'hr' | 'users' | 'own' | 'claims';
 
-export interface CollectionDef {
+interface CollectionDef {
   /** The AppContext / old sharedState key. */
   key: string;
   tier: Tier;
@@ -52,7 +52,6 @@ export const COLLECTIONS: CollectionDef[] = [
   def('users', 'users'),
 ];
 
-export const COLLECTION_KEYS = COLLECTIONS.map((c) => c.key);
 export const collectionDef = (key: string) => COLLECTIONS.find((c) => c.key === key);
 
 /** Single settings documents: firm/main/config/<name> = { value }. */
@@ -60,7 +59,7 @@ export const CONFIG_KEYS = ['sequenceCounters', 'rolesMatrix', 'customRoles', 'p
 export type ConfigKey = (typeof CONFIG_KEYS)[number];
 
 /** Who may read each tier, by access-list role (lowercase, as in practiceSystem/access). */
-export const TIER_READERS: Record<Tier, string[]> = {
+const TIER_READERS: Record<Tier, string[]> = {
   firm: ['partner', 'lawyer', 'assistant', 'accountant', 'reviewer'],
   users: ['partner', 'lawyer', 'assistant', 'accountant', 'reviewer'],
   books: ['partner', 'accountant', 'reviewer'],
@@ -79,7 +78,7 @@ export const canReadTier = (tier: Tier, role: string, isAdminOrOwner: boolean, i
 };
 
 /** Small stable string hash (FNV-1a, hex) for records without an id. */
-export function hash(s: string): string {
+function hash(s: string): string {
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
   return (h >>> 0).toString(16).padStart(8, '0');
@@ -122,9 +121,6 @@ const PUBLIC_PROFILE_FIELDS: (keyof StaffProfile)[] = [
   'staffId', 'fullName', 'designation', 'department', 'phone', 'joinDate', 'employmentType', 'officeLocation', 'bio',
   'birthday', 'callToBarDate', 'celebrationOptOut', 'targets', 'targetHoursPerMonth',
 ];
-
-/** Fields on the user record only admins / the owner may change. */
-export const PROTECTED_USER_FIELDS = ['id', 'email', 'role', 'isAdmin', 'isSuperAdmin', 'status', 'navOverrides', 'code'];
 
 /** Split a user into the public user document and the private staff-profile document. */
 export function splitUser(u: User): { pub: Record<string, unknown>; priv: Record<string, unknown> | null } {

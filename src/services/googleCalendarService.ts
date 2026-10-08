@@ -17,7 +17,7 @@ import { parseAddressList } from '../lib/emailMime';
 
 const API = 'https://www.googleapis.com/calendar/v3';
 
-export interface CourtEventInput {
+interface CourtEventInput {
   /** Defaults to the court diary calendar from Firm Settings. */
   calendarId?: string;
   title: string;
@@ -33,7 +33,7 @@ export interface CourtEventInput {
   attendees?: string[];
 }
 
-export interface CourtEventResult { eventId: string; htmlLink: string; calendarId: string }
+interface CourtEventResult { eventId: string; htmlLink: string; calendarId: string }
 
 /** The court diary Calendar ID from Firm Settings ('' if not set). */
 const getCourtDiaryCalendarId = () => parseCalendarId(getPracticeSettings().courtDiaryCalendarId || '');
@@ -108,7 +108,7 @@ async function deleteCourtEvent(eventId: string, opts: { calendarId?: string; no
   }
 }
 
-export interface GoogleTestResult { ok: boolean; message: string }
+interface GoogleTestResult { ok: boolean; message: string }
 
 /** Settings "Test": creates a short test event in the court diary, then deletes it. */
 export async function testCourtDiary(calendarId?: string): Promise<GoogleTestResult & { calendarName?: string }> {

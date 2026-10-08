@@ -29,7 +29,7 @@ export interface MoneySources {
   receipts?: Receipt[];
 }
 
-export interface MoneyBill {
+interface MoneyBill {
   id: string;
   date: string;
   /** What the bill is for (subject / matter), '' when not recorded. */
@@ -47,12 +47,12 @@ export interface MoneyBill {
   inv: Invoice;
 }
 
-export interface LedgerLine { id: string; date: string; doc: string; desc: string; dr: number; cr: number; /** signed: + in, − out */ amount: number; bal: number; caseId?: string }
-export interface OfficeLine { date: string; doc: string; desc: string; dr: number; cr: number; bal: number }
+interface LedgerLine { id: string; date: string; doc: string; desc: string; dr: number; cr: number; /** signed: + in, − out */ amount: number; bal: number; caseId?: string }
+interface OfficeLine { date: string; doc: string; desc: string; dr: number; cr: number; bal: number }
 
-export interface MoneyTotals { agreed: number; billed: number; received: number; outstanding: number; writtenOff: number; clientAccount: number }
+interface MoneyTotals { agreed: number; billed: number; received: number; outstanding: number; writtenOff: number; clientAccount: number }
 
-export interface FileMoney extends MoneyTotals {
+interface FileMoney extends MoneyTotals {
   caseId: string;
   ref: string;
   bills: MoneyBill[];
@@ -71,10 +71,10 @@ const onFile = (c: Pick<Case, 'id' | 'ref'>, caseId?: string, fileRef?: string) 
   (!!caseId && (caseId === c.id || caseId === c.ref)) || (!!fileRef && fileRef === c.ref);
 
 /** Signed client-ledger amount of one retainer entry. */
-export const retainerSigned = (r: Pick<Retainer, 'type' | 'amount'>) => (r.type === 'Deposit' ? 1 : -1) * Number(r.amount || 0);
+const retainerSigned = (r: Pick<Retainer, 'type' | 'amount'>) => (r.type === 'Deposit' ? 1 : -1) * Number(r.amount || 0);
 
 /** One invoice as a bill row (voided invoices are left out by the callers). */
-export const billOf = (inv: Invoice, payments: Payment[], receipts: Receipt[] = []): MoneyBill => {
+const billOf = (inv: Invoice, payments: Payment[], receipts: Receipt[] = []): MoneyBill => {
   const comp = invoiceComposition(inv);
   const paidOnly = payments.filter((p) => p.invoiceId === inv.id).reduce((s, p) => s + Number(p.amount || 0), 0);
   const issued = isIssued(inv);
@@ -101,7 +101,7 @@ const totalsOfBills = (bills: MoneyBill[]) => {
 };
 
 /** Running client-account ledger, oldest first. */
-export const clientLedgerOf = (entries: Retainer[]): LedgerLine[] => {
+const clientLedgerOf = (entries: Retainer[]): LedgerLine[] => {
   let run = 0;
   return [...entries].sort(byDate).map((r) => {
     const amount = retainerSigned(r);
@@ -111,7 +111,7 @@ export const clientLedgerOf = (entries: Retainer[]): LedgerLine[] => {
 };
 
 /** Agreed fees on a file: accepted quotation(s), else quotations not declined (no proformas). */
-export const agreedOf = (c: Pick<Case, 'id' | 'ref'>, quotations: Quotation[]) => {
+const agreedOf = (c: Pick<Case, 'id' | 'ref'>, quotations: Quotation[]) => {
   const quotes = quotations.filter((q) => q.documentType !== 'Proforma' && onFile(c, q.caseId, q.fileRef) && q.status !== 'Declined');
   const accepted = quotes.filter((q) => q.status === 'Accepted');
   // Nothing accepted yet: use only the newest quote, so a revised quote is not added on top of the first.
@@ -156,7 +156,7 @@ export const casesOfClient = (client: Pick<Client, 'id' | 'name'>, cases: Case[]
 /** True while a file is still open (not closed or archived). */
 export const isOpenFile = (c: Pick<Case, 'status'>) => c.status === 'Active' || c.status === 'Pending';
 
-export interface ClientMoney extends MoneyTotals {
+interface ClientMoney extends MoneyTotals {
   files: FileMoney[];
   /** Every bill for the client (its files, plus bills raised to the client without a file), newest first. */
   bills: MoneyBill[];

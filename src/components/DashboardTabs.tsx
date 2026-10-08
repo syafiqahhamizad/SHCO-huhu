@@ -3,51 +3,14 @@ import { Building2, Landmark, LayoutDashboard, Share2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { finRoleKey, finGrants, finTabsFor } from '../lib/financeAccess';
 
-const ACCOUNTING_VIEWS = [
-  'accountingCentre',
-  'accounting-centre',
-  'accounting',
-  'bankAccounts',
-  'bank-accounts',
-  'bankReconciliation',
-  'bank-reconciliation',
-  'reimbursements-claims',
-  'claimsManagement',
-  'claims-management',
-  'travelClaims',
-  'travel-claims',
-  'expenses',
-  'paymentVouchers',
-  'pv',
-  'time',
-  'retainers',
-  'statement',
-  'officeAccounts',
-  'office-accounts',
-  'coa',
-  'gl',
-  'tb',
-  'trialBalance',
-  'balanceSheet',
-  'balance-sheet',
-  'cashFlow',
-  'cashflow',
-  'billingReports',
-  'reports-billing',
-  'trustReports',
-  'reports-trust',
-  'officeReports',
-  'reports-office',
-] as const;
-
-export const DASHBOARD_TAB_VIEWS = [
+/** Views that show the dashboard tab strip above the page. */
+export const DASHBOARD_TAB_VIEWS: string[] = [
   'dashboard',
   'myDashboard',
   'leadsReferrals',
   'leads-referrals',
   'firmDashboard',
-  ...ACCOUNTING_VIEWS,
-] as const;
+];
 
 /** Dashboard tab strip (design: My Dashboard → dashTabs). */
 export const DashboardTabs: React.FC = () => {

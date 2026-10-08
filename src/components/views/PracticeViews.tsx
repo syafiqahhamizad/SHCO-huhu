@@ -1101,7 +1101,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                   Drop Task Here
                 </div>
               ) : (
-                pendingTasks.map(({ task, caseId, caseRef, caseTitle, lawyerInCharge }) => (
+                pendingTasks.map(({ task, caseId, caseRef, caseTitle }) => (
                   <div
                     key={task.id}
                     draggable
@@ -1220,7 +1220,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                   Drop Active Actions Here
                 </div>
               ) : (
-                inProgressTasks.map(({ task, caseId, caseRef, caseTitle, lawyerInCharge }) => (
+                inProgressTasks.map(({ task, caseId, caseRef, caseTitle }) => (
                   <div
                     key={task.id}
                     draggable
@@ -1462,7 +1462,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                   Drop Completed Actions Here
                 </div>
               ) : (
-                completedTasks.map(({ task, caseId, caseRef, caseTitle, lawyerInCharge }) => (
+                completedTasks.map(({ task, caseId, caseRef, caseTitle }) => (
                   <div
                     key={task.id}
                     draggable

@@ -40,7 +40,7 @@ const stripSecrets = (v: unknown, removed: { n: number }): unknown => {
   return v;
 };
 
-export interface FileRefIndexEntry {
+interface FileRefIndexEntry {
   /** Where the reference sits, e.g. `sharedState.travelClaims[TC-0012].attachments[0]`. */
   where: string;
   name: string;
@@ -98,7 +98,7 @@ const pad = (n: number) => String(n).padStart(2, '0');
 const backupFileName = (d = new Date()) =>
   'SHCO-portal-backup-' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes()) + '.json';
 
-export interface BackupResult {
+interface BackupResult {
   fileName: string;
   bytes: number;
   source: 'cloud' | 'this-device';

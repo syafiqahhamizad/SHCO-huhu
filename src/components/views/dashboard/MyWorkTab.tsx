@@ -167,6 +167,7 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
     updateUserStaffProfile,
     savePrivateTodos,
     showToast,
+    canViewModule,
   } = useApp() as any;
   const mine = (v?: unknown) => isMine(v, me);
 
@@ -398,14 +399,17 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
   const seeBilling = canSeeClientBilling(finRk, finGrants(currentUser));
   const canOpen = (view: string) => !isFinanceView(view) || canSeeFinanceView(view, finRk);
   const CASE_TAB: Partial<Record<Stream, string>> = { task: 'tasks', deadline: 'tasks', hearing: 'court', signature: 'letters', matter: 'overview', unbilled: 'time', approval: 'time' };
+  // Roles without Cases (e.g. Accounts) must not be sent to a page that only says Access Restricted.
+  const canCases = canViewModule('cases');
   const openCase = (caseId: string, sub = 'overview') => {
+    if (!canCases) { showToast('Cases is not open to your role.'); return; }
     setCaseSubTab(sub);
     setCurrentCaseId(caseId);
     setCurrentView('cases');
   };
   const openMatter = (r: WorkRow) => {
-    if (r.caseId && (r.view === 'cases' || !canOpen(r.view))) { openCase(r.caseId, CASE_TAB[r.stream] || 'overview'); return; }
-    if (!r.view || !canOpen(r.view)) return;
+    if (r.caseId && (r.view === 'cases' || !canOpen(r.view) || !canViewModule(r.view))) { openCase(r.caseId, CASE_TAB[r.stream] || 'overview'); return; }
+    if (!r.view || !canOpen(r.view) || !canViewModule(r.view)) return;
     setCurrentCaseId(null);
     setCurrentView(r.view);
   };
@@ -639,7 +643,7 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
               type="button"
               onClick={() => {
                 if (k.filter) { setFilter((f) => (f === k.filter ? 'all' : k.filter!)); setList('matter'); }
-                else if (k.view) { setCurrentCaseId(null); setCurrentView(k.view); }
+                else if (k.view && canViewModule(k.view)) { setCurrentCaseId(null); setCurrentView(k.view); }
               }}
               className="flex min-h-[142px] flex-col gap-2 rounded-xl p-4 text-left text-white hover:brightness-110"
               style={{ backgroundColor: k.color, boxShadow: `0 10px 15px -3px rgba(0,0,0,.1),0 4px 6px -4px rgba(0,0,0,.1),0 0 0 ${ringOn ? '3px #FBF2E9' : '1px rgba(0,0,0,.05)'}` }}
@@ -809,9 +813,11 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
             <div className="flex items-center gap-2 bg-[#F6F8FA] px-3.5 py-[9px] text-[10.5px] text-[#5B6478]">
               <CheckCircle2 className="h-3.5 w-3.5 text-[#2F6F4E]" />
               <span>{open(matterRows).length} open matter items · {open(privRows).length} private · {doneTodayCount} completed today</span>
-              <button type="button" onClick={() => (list === 'matter' ? setCurrentView('tasks') : window.open('https://tasks.google.com/', '_blank', 'noopener'))} className="ml-auto font-bold text-[#8A6D3B]">
-                {list === 'matter' ? 'All matter tasks ->' : 'Open in Google Tasks ->'}
-              </button>
+              {(list !== 'matter' || canCases) && (
+                <button type="button" onClick={() => (list === 'matter' ? setCurrentView('tasks') : window.open('https://tasks.google.com/', '_blank', 'noopener'))} className="ml-auto font-bold text-[#8A6D3B]">
+                  {list === 'matter' ? 'All matter tasks ->' : 'Open in Google Tasks ->'}
+                </button>
+              )}
             </div>
           </div>
 
@@ -820,7 +826,7 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
             <div className="flex items-center gap-2 border-b border-[#DDE3EB] px-3.5 py-2.5">
               <Clock className="h-3.5 w-3.5 text-[#8A6D3B]" />
               <strong className="text-[14px] text-[#16223A]" style={serif}>Recently accessed</strong>
-              <button type="button" onClick={() => { setCurrentCaseId(null); setCurrentView('cases'); }} className="ml-auto text-[10.5px] font-bold text-[#8A6D3B]">My matters -&gt;</button>
+              {canCases && <button type="button" onClick={() => { setCurrentCaseId(null); setCurrentView('cases'); }} className="ml-auto text-[10.5px] font-bold text-[#8A6D3B]">My matters -&gt;</button>}
             </div>
             {recent.length === 0 ? (
               <p className="px-4 py-6 text-center text-[11px] text-[#94A3B8]">No recently accessed matters.</p>
@@ -879,7 +885,7 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
               <Gavel className="h-[15px] w-[15px] text-[#6B3D8C]" />
               <strong className="text-[14px] text-[#16223A]" style={serif}>Court &amp; deadlines</strong>
               <span className="text-[10.5px] text-[#5B6478]">next 7 days</span>
-              <button type="button" onClick={() => setCurrentView('calendar')} className="ml-auto text-[10.5px] font-bold text-[#8A6D3B]">Calendar -&gt;</button>
+              {canViewModule('calendar') && <button type="button" onClick={() => setCurrentView('calendar')} className="ml-auto text-[10.5px] font-bold text-[#8A6D3B]">Calendar -&gt;</button>}
             </div>
             {agenda.length === 0 ? (
               <p className="px-4 py-6 text-center text-[11px] text-[#94A3B8]">No court dates or deadlines in the next 7 days.</p>
@@ -1083,5 +1089,3 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
     </div>
   );
 };
-
-export default MyWorkTab;

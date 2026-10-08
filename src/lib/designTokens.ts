@@ -35,5 +35,3 @@ export const tintText = {
 
 /** Apply as style={{ fontFamily: serifFont }} — Tailwind's own `font-serif` utility does NOT map to this. */
 export const serifFont = "'Source Serif 4', Georgia, Cambria, 'Times New Roman', serif";
-
-export type SemanticColor = keyof typeof tint;

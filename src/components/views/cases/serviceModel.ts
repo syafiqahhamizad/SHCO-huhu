@@ -8,9 +8,9 @@ import { prepareStorage, storeMatterFile, type StoredMatterFile } from '../../..
 import { actionOf, deriveMatchKey, isDeadline, isDone, proofTypeFor, todayIso } from './caseModel';
 import { histEntry, newId } from './wf';
 
-export type ServiceAction = NonNullable<ServiceRecord['action']>;
+type ServiceAction = NonNullable<ServiceRecord['action']>;
 
-export interface ServiceDraft {
+interface ServiceDraft {
   dir: ServiceAction;
   date: string;
   doc: string;

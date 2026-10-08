@@ -315,5 +315,3 @@ export const StaffGuideView: React.FC = () => {
     </div>
   );
 };
-
-export default StaffGuideView;

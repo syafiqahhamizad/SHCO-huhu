@@ -49,7 +49,7 @@ function ensureTaskList(): Promise<string> {
   return p;
 }
 
-export interface GoogleTaskInput {
+interface GoogleTaskInput {
   /** Set when the task was synced before; it is updated in place (or re-created if it was deleted in Google). */
   googleTaskId?: string;
   title: string;

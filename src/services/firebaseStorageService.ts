@@ -29,7 +29,7 @@ export const validateClaimFile = (file: File): string | null => {
 };
 
 /** Turns a Firebase Storage error into something a staff member can act on. */
-export const describeStorageError = (err: unknown): string => {
+const describeStorageError = (err: unknown): string => {
   const code = String((err as { code?: string })?.code || '');
   switch (code) {
     case 'storage/unauthorized':

@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { RecycleBinModal } from './RecycleBinModal';
 import { useAmountText } from '../lib/useAmountText';
-import { FIN_TABS, FINANCE_VIEW_TO_TAB, canSeeFinanceView, finRoleKey, isFinanceView } from '../lib/financeAccess';
+import { FIN_TABS, FINANCE_VIEW_TO_TAB, canSeeFinanceView, finGrants, finRoleKey, isFinanceView } from '../lib/financeAccess';
 
 export const Header: React.FC = () => {
   const {
@@ -55,7 +55,7 @@ export const Header: React.FC = () => {
 
   const searchResults = useMemo(() => {
     if (!query) return { matters: [] as typeof cases, clientsList: [] as typeof clients, documents: [] as { id: string; label: string; sub: string; view: string }[] };
-    const matters = cases
+    const matters = !canViewModule('cases') ? [] : cases
       .filter((c: any) => [c.ref, c.title, c.clientName, c.practiceArea].some((v: any) => String(v || '').toLowerCase().includes(query)))
       .slice(0, 5);
     const clientsList = !canViewModule('clients') ? [] : clients
@@ -74,12 +74,12 @@ export const Header: React.FC = () => {
   // A notification about a file opens that file on the matching tab (hearing → Court, tag → Tasks);
   // anything else opens the page named in linkTab.
   const openNotification = (n: { linkTab?: string; linkId?: string }) => {
-    const kase = n.linkId ? cases.find((c: any) => c.id === n.linkId) : undefined;
+    const kase = n.linkId && canViewModule('cases') ? cases.find((c: any) => c.id === n.linkId) : undefined;
     if (kase) {
       setCaseSubTab(n.linkTab === 'hearings' ? 'court' : n.linkTab === 'tasks' ? 'tasks' : 'overview');
       setCurrentCaseId(kase.id);
       setCurrentView('cases');
-    } else if (n.linkTab) {
+    } else if (n.linkTab && (isFinanceView(n.linkTab) ? canSeeFinanceView(n.linkTab, finRoleKey(currentRole, currentUser, isAdmin), finGrants(currentUser)) : canViewModule(n.linkTab))) {
       setCurrentCaseId(null);
       setCurrentView(n.linkTab);
     } else return;
@@ -168,14 +168,6 @@ export const Header: React.FC = () => {
       case 'fileClosing':
       case 'file-closing':
         return { title: 'File Closing', sub: 'Invoice, client account and document checks before closing a file' };
-      case 'bankAccounts':
-      case 'bank-accounts':
-      case 'bankReconciliation':
-      case 'bank-reconciliation':
-        return { title: 'Bank Accounts', sub: 'Bank balances and reconciliation' };
-      case 'trustAuditLogs':
-      case 'trust-audit-logs':
-        return { title: 'Client Account Audit Log', sub: 'SAR 1990 audit trail of client account entries' };
       case 'users':
       case 'roles':
       case 'practiceSettings':

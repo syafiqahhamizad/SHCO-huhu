@@ -12,7 +12,7 @@ import {
 } from './caseModel';
 import { histEntry, newId, type WF } from './wf';
 import { OverviewTab } from './tabs/OverviewTab';
-import { StatusTab, WeeklyStatusModal, weeklyInfo } from './tabs/StatusTab';
+import { StatusTab, WeeklyStatusModal } from './tabs/StatusTab';
 import { CourtTab } from './tabs/CourtTab';
 import { FilingTab } from './tabs/FilingTab';
 import { TasksTab } from './tabs/TasksTab';

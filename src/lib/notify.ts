@@ -1,4 +1,5 @@
 import type { Case, NotificationItem, User } from '../types';
+import { escapeHtml } from './html';
 
 /**
  * Who a notification is for. Tokens:
@@ -42,13 +43,12 @@ export const isReadBy = (n: NotificationItem, userId: string) => (n.to ? (n.read
 
 /** The e-mail for one recipient: plain text plus a simple HTML copy, with a link back to the portal (no sender name line). */
 export const notificationEmail = (n: Pick<NotificationItem, 'title' | 'message'>, appUrl: string) => {
-  const esc = (x: string) => x.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch] as string));
   const subject = ('[SHCO Portal] ' + n.title).slice(0, 200);
   const text = n.message + '\n\nOpen the portal: ' + appUrl + '\n\nThis is an automatic message from the SHCO practice portal.';
   const html = '<div style="font-family:Arial,sans-serif;font-size:14px;color:#16223A">'
-    + '<p style="margin:0 0 12px"><strong>' + esc(n.title) + '</strong></p>'
-    + '<p style="margin:0 0 12px">' + esc(n.message) + '</p>'
-    + '<p style="margin:0 0 16px"><a href="' + esc(appUrl) + '" style="color:#2F4F7A;font-weight:bold">Open the portal</a></p>'
+    + '<p style="margin:0 0 12px"><strong>' + escapeHtml(n.title) + '</strong></p>'
+    + '<p style="margin:0 0 12px">' + escapeHtml(n.message) + '</p>'
+    + '<p style="margin:0 0 16px"><a href="' + escapeHtml(appUrl) + '" style="color:#2F4F7A;font-weight:bold">Open the portal</a></p>'
     + '<p style="margin:0;font-size:12px;color:#94A3B8">Automatic message from the SHCO practice portal.</p></div>';
   return { subject, text, html };
 };

@@ -11,14 +11,16 @@ export const ComprehensiveDashboardView: React.FC = () => {
   const app = useApp() as any;
   const {
     cases = [], clients = [], deadlines = [], timeEntries = [], expenses = [], users = [], leads = [],
-    setCurrentView, setCurrentCaseId, setCaseSubTab,
+    setCurrentView, setCurrentCaseId, setCaseSubTab, canViewModule,
   } = app;
+  // Accounts see this page but not Cases: no links into pages that would say Access Restricted.
+  const canCases = canViewModule('cases');
 
   const [unbilledFilter, setUnbilledFilter] = useState<'All' | 'Time entries' | 'Disbursements' | 'Vouchers'>('All');
 
   const today = new Date().toISOString().slice(0, 10);
   const weekEnd = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
-  const openMatter = (id: string, sub = 'overview') => { setCaseSubTab(sub); setCurrentCaseId(id); setCurrentView('cases'); };
+  const openMatter = (id: string, sub = 'overview') => { if (!canCases) return; setCaseSubTab(sub); setCurrentCaseId(id); setCurrentView('cases'); };
 
   const activeMatters = cases.filter((c: any) => c.status === 'Active');
   const dormantFiles = cases.filter((c: any) => c.status === 'Pending');
@@ -166,7 +168,7 @@ export const ComprehensiveDashboardView: React.FC = () => {
           <div className="overflow-hidden rounded-xl border border-[#DDE3EB] bg-white">
             <div className="flex items-center justify-between px-4 py-2.5 text-[13px] font-bold text-white" style={{ backgroundColor: palette.navy }}>
               <span>Matter to-do · firm-wide</span>
-              <button type="button" onClick={() => setCurrentView('tasks')} className="cursor-pointer text-[11px] font-bold text-white">All →</button>
+              {canCases && <button type="button" onClick={() => setCurrentView('tasks')} className="cursor-pointer text-[11px] font-bold text-white">All →</button>}
             </div>
             {openTasks.slice(0, 6).map((task: any, i: number) => (
               <div key={task.id || i} className="border-b border-[#F0F2F5] px-4 py-2.5 last:border-0">
@@ -179,7 +181,7 @@ export const ComprehensiveDashboardView: React.FC = () => {
           <div className="overflow-hidden rounded-xl border border-[#DDE3EB] bg-white">
             <div className="flex items-center justify-between px-4 py-2.5 text-[13px] font-bold text-white" style={{ backgroundColor: palette.purple }}>
               <span>Hearings · firm-wide</span>
-              <button type="button" onClick={() => setCurrentView('hearings')} className="cursor-pointer text-[11px] font-bold text-white">All →</button>
+              {canCases && <button type="button" onClick={() => setCurrentView('hearings')} className="cursor-pointer text-[11px] font-bold text-white">All →</button>}
             </div>
             {weekHearings.slice(0, 6).map((h: any) => (
               <button type="button" key={h.id} onClick={() => openMatter(h.caseId, 'court')} className="flex w-full items-center justify-between gap-3 border-b border-[#F0F2F5] px-4 py-2.5 text-left last:border-0 hover:bg-[#F6F8FA]">
@@ -194,7 +196,7 @@ export const ComprehensiveDashboardView: React.FC = () => {
           <div className="overflow-hidden rounded-xl border border-[#DDE3EB] bg-white">
             <div className="flex items-center justify-between px-4 py-2.5 text-[13px] font-bold text-white" style={{ backgroundColor: palette.red }}>
               <span>Deadlines this week</span>
-              <button type="button" onClick={() => setCurrentView('deadlines')} className="cursor-pointer text-[11px] font-bold text-white">All →</button>
+              {canCases && <button type="button" onClick={() => setCurrentView('deadlines')} className="cursor-pointer text-[11px] font-bold text-white">All →</button>}
             </div>
             {weekDeadlines.slice(0, 6).map((d: any) => (
               <div key={d.id} className="border-b border-[#F0F2F5] px-4 py-2.5 last:border-0">
@@ -207,7 +209,7 @@ export const ComprehensiveDashboardView: React.FC = () => {
           <div className="overflow-hidden rounded-xl border border-[#DDE3EB] bg-white">
             <div className="flex items-center justify-between border-b border-[#DDE3EB] px-4 py-2.5 text-[13px] font-bold text-[#16223A]">
               <span>Recently accessed matters · firm-wide</span>
-              <button type="button" onClick={() => { setCurrentCaseId(null); setCurrentView('cases'); }} className="cursor-pointer text-[11px] font-bold text-[#8A6D3B]">All →</button>
+              {canCases && <button type="button" onClick={() => { setCurrentCaseId(null); setCurrentView('cases'); }} className="cursor-pointer text-[11px] font-bold text-[#8A6D3B]">All →</button>}
             </div>
             {[...cases].filter((c: any) => c.lastAccessed).sort((a: any, b: any) => String(b.lastAccessed).localeCompare(String(a.lastAccessed))).slice(0, 6).map((c: any) => (
               <button type="button" key={c.id} onClick={() => openMatter(c.id)} className="flex w-full items-center justify-between gap-3 border-b border-[#F0F2F5] px-4 py-2.5 text-left last:border-0 hover:bg-[#F6F8FA]">

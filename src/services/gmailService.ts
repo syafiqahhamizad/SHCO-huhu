@@ -7,7 +7,7 @@ import { buildGmailRaw } from '../lib/emailMime';
  * Returns Google's message ID only after Gmail accepted the message; throws otherwise.
  */
 
-export interface SendEmailInput {
+interface SendEmailInput {
   to: string | string[];
   cc?: string | string[];
   subject: string;

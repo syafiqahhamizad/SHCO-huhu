@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { escapeHtml } from '../../../../lib/html';
 import type { CaseDocument } from '../../../../types';
 import { exportToWordDoc } from '../../../../lib/exportUtils';
 import { EngagementLetterActions, LangToggle, engagementInputFor } from '../EngagementLetter';
@@ -15,7 +16,7 @@ const TEMPLATES = [LOE, 'Letter to client: next court date', 'Letter to opposing
 /** Upload categories → where the file goes (matter sub-folder in SHCO Portal, or SHCO Finance). */
 const ENGAGEMENT = 'Engagement & Billing';
 const UPLOAD_CATS = ['Correspondence', 'Court Papers', 'Client Documents', 'Research', 'Closing', ENGAGEMENT];
-const esc = (s: string) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const esc = escapeHtml;
 
 export const LettersTab: React.FC<{ w: WF }> = ({ w }) => {
   const { c, parties, me, ro } = w;

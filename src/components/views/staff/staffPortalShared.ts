@@ -3,6 +3,7 @@ import type { Case, ClaimAttachment, ClaimDocument, Client, Expense, PaymentVouc
 import { isMine, partnerCode } from '../../../lib/identity';
 import { financeDocType, firstDriveFolderId, type FinanceDocType } from '../../../lib/claimFilters';
 import { getPracticeSettings } from '../../../services/templateService';
+import { escapeHtml } from '../../../lib/html';
 
 /* ------------------------------------------------------------------ formatting */
 
@@ -41,8 +42,7 @@ export const dMonY = (iso?: string) => {
   return d + ' ' + MONTHS_SHORT[m - 1] + ' ' + y;
 };
 
-export const esc = (s: unknown) =>
-  String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+export const esc = escapeHtml;
 
 /* ------------------------------------------------------------------ shared inline styles */
 
@@ -113,7 +113,7 @@ const maskAccount = (acc?: string) => {
   return d.length >= 8 ? d.slice(0, 4) + ' **** ' + d.slice(-4) : d;
 };
 
-export interface StaffIdentity {
+interface StaffIdentity {
   name: string;
   position: string;
   staffNo: string;
