@@ -1,32 +1,28 @@
 import React, { useState } from 'react';
 import type { CaseDocument } from '../../../../types';
 import { exportToWordDoc } from '../../../../lib/exportUtils';
-import { EngagementLetterActions, LangToggle, WarrantToActActions, engagementInputFor, warrantInputFor } from '../WarrantToAct';
-import type { DocLang } from '../../../../lib/warrantToAct';
+import { EngagementLetterActions, LangToggle, engagementInputFor } from '../EngagementLetter';
+import { quotationForFile, type DocLang } from '../../../../lib/engagementLetter';
 import { useApp } from '../../../../context/AppContext';
 import { prepareStorage, storeMatterFile, openLegacyDataUrl, openStoredFile, useStorageLabel } from '../../../../services/fileStorageService';
 import { css, S, Card } from '../caseUi';
 import { courtOf, daysFrom, fmt, isoOf, lawyerOf } from '../caseModel';
 import { histEntry, newId, type WF } from '../wf';
 
-const LOE = 'Quotation & Letter of Engagement';
-const WTA = 'Warrant to Act';
-const TEMPLATES = [LOE, WTA, 'Letter to client: next court date', 'Letter to opposing solicitors', 'Affidavit (blank, with intitulement)', 'Notice of change of solicitors', 'Closing letter to client'];
+const LOE = 'Letter of Engagement';
+const TEMPLATES = [LOE, 'Letter to client: next court date', 'Letter to opposing solicitors', 'Affidavit (blank, with intitulement)', 'Notice of change of solicitors', 'Closing letter to client'];
 const esc = (s: string) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 export const LettersTab: React.FC<{ w: WF }> = ({ w }) => {
   const { c, parties, me, ro } = w;
-  const { clients = [], quotations = [], users = [], updateQuotation } = useApp();
+  const { clients = [], quotations = [], users = [] } = useApp();
   const storage = useStorageLabel();
   const [tpl, setTpl] = useState(TEMPLATES[0]);
   const [busy, setBusy] = useState(false);
-  // Quotation & Letter of Engagement: a quotation of this file (proformas excluded), newest first.
-  const fileQuotes = quotations.filter((q) => q.documentType !== 'Proforma' && ((!!q.caseId && (q.caseId === c.id || q.caseId === c.ref)) || (!!q.fileRef && q.fileRef === c.ref)) && q.status !== 'Declined').sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.id).localeCompare(String(a.id)));
-  const [qid, setQid] = useState('');
-  const quote = fileQuotes.find((q) => q.id === qid) || fileQuotes[0];
-  const [wLang, setWLang] = useState<DocLang>('EN');
-  const [qLang, setQLang] = useState<Record<string, DocLang>>({});
-  const lang: DocLang = (quote && (qLang[quote.id] || quote.language)) || 'EN';
+  // Letter of Engagement: fees from the file's accepted quotation, else its latest one not declined.
+  // Quotations the viewer cannot read are simply absent → the letter says "as per our quotation".
+  const quote = quotationForFile(quotations, c);
+  const [lang, setLang] = useState<DocLang>('EN');
   const court = courtOf(c);
   const client = parties.find((p) => p.side === 'client' && !p.dischargedOn);
   const clientRec = clients.find((x) => x.id === (client?.clientId || client?.id)) || clients.find((x) => x.name === client?.name);
@@ -88,18 +84,16 @@ export const LettersTab: React.FC<{ w: WF }> = ({ w }) => {
           <div style={css('border:1px solid #EEF1F5;border-radius:8px')}>
             {fields.map(([k, v]) => <div key={k} style={css('display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px;padding:7px 12px;border-top:1px solid #F0F2F5;font-size:12.5px')}><span style={css('color:#4A5468')}>{k}</span><span style={css('color:#16223A;font-weight:600')}>{v}</span></div>)}
           </div>
-          {tpl === LOE && (fileQuotes.length && quote ? (
+          {tpl === LOE && (
             <div style={css('display:flex;flex-direction:column;gap:10px')}>
-              <label style={css('display:flex;flex-direction:column;gap:5px')}><span style={css(S.label)}>Quotation</span><select value={quote.id} onChange={(e) => setQid(e.target.value)} style={css(S.input)}>{fileQuotes.map((q) => <option key={q.id} value={q.id}>{q.id} · {q.status} · RM {Number(q.total || 0).toLocaleString('en-MY', { minimumFractionDigits: 2 })}</option>)}</select></label>
               <div style={css('display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between')}>
-                <LangToggle value={lang} onChange={(l) => { setQLang((m) => ({ ...m, [quote.id]: l })); if (!ro) updateQuotation(quote.id, { language: l }); }} />
-                <EngagementLetterActions input={engagementInputFor(quote, c, clientRec, users, lang)} onDone={(what) => { if (what !== 'viewed') w.save({}, 'Letter of Engagement (' + quote.id + ', ' + lang + '): ' + what, 'Document Upload'); }} />
+                <LangToggle value={lang} onChange={setLang} />
+                <EngagementLetterActions input={engagementInputFor(c, clientRec, quote, users, lang)} onDone={(what) => { if (what !== 'viewed') w.save({}, 'Letter of Engagement (' + lang + '): ' + what, 'Document Upload'); }} />
               </div>
-              <span style={css('font-size:11.5px;color:#4A5468')}>Fees and payment plan come from {quote.id} in Billing; the Warrant to Act is the last page.</span>
+              <span style={css('font-size:11.5px;color:#4A5468')}>{quote ? 'Fees and payment plan from quotation ' + quote.id + ' in Billing (' + quote.status + ').' : 'No quotation on this file that you can see, so the letter says the fees are as per our quotation (no figures are made up).'}</span>
             </div>
-          ) : <div style={css('font-size:12px;color:#4A5468;line-height:1.5')}>No quotation on this file yet, so there is no Letter of Engagement to show (fees are never made up). Make the quotation in Billing, or use the standalone <button type="button" onClick={() => setTpl(WTA)} style={css('border:0;background:none;padding:0;font:inherit;font-weight:700;color:#2F4F7A;text-decoration:underline;cursor:pointer')}>Warrant to Act</button>.</div>)}
-          {tpl === WTA && <div style={css('display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between')}><LangToggle value={wLang} onChange={setWLang} /><WarrantToActActions input={warrantInputFor(c, clientRec, undefined, wLang, users)} onDone={(what) => { if (what !== 'viewed') w.save({}, 'Warrant to Act (' + wLang + '): ' + what, 'Document Upload'); }} /></div>}
-          {tpl !== LOE && tpl !== WTA && <div style={css('display:flex;gap:8px;justify-content:flex-end;align-items:center')}><span style={css('font-size:11.5px;color:#4A5468')}>Downloads a Word draft</span><button type="button" onClick={gen} style={css(S.btnPriL)}>Generate draft</button></div>}
+          )}
+          {tpl !== LOE && <div style={css('display:flex;gap:8px;justify-content:flex-end;align-items:center')}><span style={css('font-size:11.5px;color:#4A5468')}>Downloads a Word draft</span><button type="button" onClick={gen} style={css(S.btnPriL)}>Generate draft</button></div>}
         </div>
       </Card>
       <Card>

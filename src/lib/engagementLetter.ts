@@ -1,24 +1,29 @@
 /**
- * Quotation & Letter of Engagement (Sebut Harga & Surat Perlantikan) — one client document per
- * quotation, in English or Bahasa Malaysia, with the Warrant to Act as its last page.
+ * Letter of Engagement (Surat Perlantikan) — the client document for a file, in English or Bahasa
+ * Malaysia, prepared from Cases (the file's Letters tab and the new-file screen).
  *
  *   letterhead (partners column) → bilingual Your Ref / Our Ref / Date → addressee → salutation
  *   → RE: (matter, court, suit no., parties) → appreciation → 1 Scope → 2 Team → 3 Fees (the real
- *   quotation lines) → 4 Payment plan (full / stages / monthly instalments) → 5 Terms → Yours
- *   faithfully → acceptance → page break → Warrant to Act.
+ *   quotation lines, read-only) → 4 Payment plan (full / stages / monthly instalments) → 5 Authority
+ *   and terms (the firm's own clauses: Autoriti, Fi Guaman, Penamatan, Indemniti, Had
+ *   Tanggungjawab) → 6 Other terms → Yours faithfully → acceptance.
  *
- * Fee figures only ever come from a real quotation: with no `fees` the fee and payment sections
- * are left out. Pure (no React, no settings, no Firebase) so it is unit-tested; the screens build
- * the input from the quotation, the file, the client record and Firm & Practice Settings.
+ * Fee figures only ever come from a real quotation in Billing: with no `fees` the letter says the
+ * fees are as per the firm's quotation and leaves the fee table and payment plan out. Pure (no
+ * React, no settings, no Firebase) so it is unit-tested; the screens build the input from the
+ * file, its quotation, the client record and Firm & Practice Settings.
  */
-import type { QuotationPaymentPlan, QuotationPaymentStage } from '../types';
+import type { Quotation, QuotationPaymentPlan, QuotationPaymentStage } from '../types';
 import { splitSst } from './billingEngine';
-import { BODY, DOTS, esc, warrantBodyHtml, type DocLang, type WarrantInput } from './warrantToAct';
 
-export type { DocLang } from './warrantToAct';
+export type DocLang = 'EN' | 'BM';
 export type FeeLine = [string, number];
 
 /* ------------------------------------------------------------------ payment plan */
+
+export const esc = (s: string | undefined | null) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const DOTS = '<span style="letter-spacing:1px">……………………………</span>';
+const BODY = "font-family:'Times New Roman',Times,serif;font-size:12pt;line-height:1.45;color:#000";
 
 const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -78,6 +83,17 @@ export const planRows = (plan: QuotationPaymentPlan | undefined, total: number):
 /** Sum of the plan rows (to warn when stages do not add up to the quotation total). */
 export const planTotal = (plan: QuotationPaymentPlan | undefined, total: number) => r2(planRows(plan, total).reduce((a, r) => a + r.amount, 0));
 
+/* ------------------------------------------------------------------ which quotation */
+
+/** The quotation the letter's fees come from: the file's accepted quotation (latest), else its
+ * latest quotation that was not declined. Proformas never count. None → undefined. */
+export const quotationForFile = (quotes: Quotation[] | undefined, file: { id: string; ref: string }): Quotation | undefined => {
+  const mine = (quotes || []).filter((q) => q && q.documentType !== 'Proforma' && q.status !== 'Declined'
+    && ((!!q.caseId && (q.caseId === file.id || q.caseId === file.ref)) || (!!q.fileRef && q.fileRef === file.ref)));
+  const newest = (a: Quotation, b: Quotation) => String(b.date || '').localeCompare(String(a.date || '')) || String(b.id).localeCompare(String(a.id));
+  return mine.filter((q) => q.status === 'Accepted').sort(newest)[0] || mine.sort(newest)[0];
+};
+
 /* ------------------------------------------------------------------ letterhead */
 
 export interface LetterheadPartner { name: string; quals: string; syarie?: boolean }
@@ -135,7 +151,7 @@ export interface EngagementInput {
   scope?: string;
   /** Partners and lawyers on the file, by name. */
   team: { name: string; role: 'Partner' | 'Lawyer' }[];
-  /** The real quotation lines. Omitted → no fee or payment section. */
+  /** The real quotation lines. Omitted → "as per our quotation", no fee table or payment plan. */
   fees?: { prof: FeeLine[]; disb: FeeLine[]; reimb: FeeLine[]; sstRate: number };
   plan?: QuotationPaymentPlan;
   /** Instalment terms ("Heading: text" per line); defaults to ARR_TERMS / ARR_TERMS_BM. */
@@ -143,8 +159,6 @@ export interface EngagementInput {
   /** Office account the client pays into: [account name, bank, account no.]. */
   bank?: [string, string, string];
   firmName?: string;
-  /** Leave out the Warrant to Act page (default: included). */
-  noWarrant?: boolean;
 }
 
 const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -159,56 +173,87 @@ const WORDS_BM = ['kosong', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tuj
 /** Opposite side, for the RE: block ("PLAINTIFF: … / DEFENDANT: …"). */
 const OPPOSITE: Record<string, string> = { plaintiff: 'Defendant', defendant: 'Plaintiff', appellant: 'Respondent', respondent: 'Applicant', applicant: 'Respondent', plaintif: 'Defendan', defendan: 'Plaintif', pemohon: 'Responden', responden: 'Pemohon', purchaser: 'Vendor', vendor: 'Purchaser', landlord: 'Tenant', tenant: 'Landlord', buyer: 'Seller', seller: 'Buyer' };
 
+/** Pronouns for an individual, a company, or unknown (both, as on the firm's form). */
+const pron = (type: EngagementInput['client']['type'], lang: DocLang) => {
+  if (lang === 'BM') {
+    const w = type === 'Corporate' ? 'Kami' : type === 'Individual' ? 'Saya' : 'Saya/Kami';
+    return { S: w, s: w.toLowerCase(), me: w.toLowerCase(), my: w.toLowerCase(), am: '' };
+  }
+  if (type === 'Corporate') return { S: 'We', s: 'we', me: 'us', my: 'our', am: 'are' };
+  if (type === 'Individual') return { S: 'I', s: 'I', me: 'me', my: 'my', am: 'am' };
+  return { S: 'I/We', s: 'I/we', me: 'me/us', my: 'my/our', am: 'am/are' };
+};
+
+/** The client's authority and the firm's own terms, in the client's voice: [heading, paragraph html].
+ * BM is the firm's own wording; EN is a faithful translation of it. */
+export const authorityClauses = (i: { client: Pick<EngagementInput['client'], 'type'>; firmName?: string; lang?: DocLang }): [string, string][] => {
+  const firm = esc((i.firmName || 'Syafiqah Hamizad & Co').replace(/\.+$/, ''));
+  if ((i.lang || 'EN') === 'BM') {
+    const { S, s } = pron(i.client.type, 'BM');
+    const T = `<strong>Tetuan ${firm}.</strong>`;
+    return [
+      ['Autoriti', `${S} dengan ini memberi kuasa dan melantik <strong>Tetuan ${firm}.,</strong> dan/atau mana-mana peguam yang terlibat untuk mewakili dan/atau bertindak bagi pihak ${s} dalam perkara yang dinyatakan di atas dan menyediakan dan menguruskan semua perkara berkaitan dan/atau sebarang rundingan dan/atau perbincangan, dan/atau berurusan dengan semua pihak ketiga yang berkaitan termasuk agensi kerajaan, institusi kewangan, atau mana-mana pihak berkuasa lain yang berkaitan dengan perkara ini.`],
+      ['Fi Guaman dan kos-kos pengeluaran berkaitan', `${S} mengakui dan bersetuju bahawa ${s} bertanggungjawab membayar semua yuran guaman, kos, dan perbelanjaan yang berkaitan dengan perkara ini. Dengan perlantikan ini, jumlah pembayaran awal <em>(retainer)</em> adalah tidak dikembalikan. ${S} juga bersetuju bahawa firma ini berhak untuk menolak sebarang yuran dan perbelanjaan yang belum dijelaskan daripada sebarang bayaran yang diterima oleh ${s} melalui ${T} berhubung dengan perkara ini sehingga semua tunggakan diselesaikan, sepertimana Aturan 9.02 Kaedah Majlis Peguam. Sebarang kegagalan untuk membuat pembayaran dalam masa yang ditetapkan boleh menyebabkan kelewatan atau penggantungan dalam perkhidmatan guaman.`],
+      ['Penamatan servis', `${S} faham bahawa mana-mana pihak boleh menamatkan perkhidmatan ini dengan memberikan notis bertulis. Sekiranya penamatan berlaku, ${s} bersetuju untuk menjelaskan semua yuran guaman dan perbelanjaan yang masih belum dibayar sehingga tarikh penamatan.`],
+      ['Indemniti', `${S} selanjutnya bersetuju untuk indemniti dan memastikan ${T} tidak mengalami sebarang tuntutan, dakwaan, kerugian, liabiliti, ganti rugi, kos dan perbelanjaan (termasuk yuran guaman atas dasar peguam-anak guam) yang timbul daripada atau berkaitan dengan sebarang arahan yang diberikan oleh ${s}, sebarang tindakan, ketinggalan, keingkaran atau salah nyataan oleh ${s}, atau sebarang langkah yang diambil secara wajar oleh firma dalam mewakili ${s}. ${S} juga mengakui bahawa ${s} tidak akan mempunyai sebarang tuntutan atau hak tindakan terhadap ${T} berkenaan dengan sebarang kerugian, kerosakan, perbelanjaan atau akibat buruk dalam apa jua bentuk yang ${s} alami, kecuali jika kerugian tersebut berpunca secara langsung daripada kecuaian melampau, penipuan, atau salah laku disengajakan oleh firma.`],
+      ['Had Tanggungjawab', `${S} mengakui bahawa tanggungjawab firma guaman ini adalah terhad sebagaimana yang dibenarkan oleh undang-undang dan tidak termasuk sebarang kerugian tidak langsung atau kerugian berbangkit yang dialami oleh ${s} berhubung perkhidmatan yang diberikan.`],
+    ];
+  }
+  const { S, s, me, my, am } = pron(i.client.type, 'EN');
+  const M = `<strong>Messrs. ${firm}.</strong>`;
+  return [
+    ['Authority', `${S} hereby authorise and appoint <strong>Messrs. ${firm}.,</strong> and/or any of its lawyers involved, to represent and/or act on ${my} behalf in the matter stated above and to prepare and attend to all related matters and/or any negotiations and/or discussions, and/or to deal with all relevant third parties, including government agencies, financial institutions or any other authority, in connection with this matter.`],
+    ['Legal fees and related disbursements', `${S} acknowledge and agree that ${s} ${am} responsible for paying all legal fees, costs and expenses relating to this matter. Upon this appointment, the initial payment <em>(retainer)</em> is non-refundable. ${S} also agree that the Firm is entitled to deduct any unpaid fees and expenses from any money received by ${me} through ${M} in connection with this matter until all arrears are settled, in accordance with Rule 9.02 of the Bar Council Rules. Any failure to make payment within the time stipulated may cause delay in, or suspension of, the legal services.`],
+    ['Termination of services', `${S} understand that either party may terminate these services by giving written notice. If termination occurs, ${s} agree to settle all legal fees and expenses that remain unpaid up to the date of termination.`],
+    ['Indemnity', `${S} further agree to indemnify and hold ${M} harmless against any claims, demands, losses, liabilities, damages, costs and expenses (including legal fees on a solicitor-and-client basis) arising from or in connection with any instructions given by ${me}, any act, omission, default or misrepresentation by ${me}, or any step reasonably taken by the Firm in representing ${me}. ${S} also acknowledge that ${s} shall have no claim or right of action against ${M} in respect of any loss, damage, expense or adverse consequence of any kind suffered by ${me}, except where such loss arises directly from the gross negligence, fraud or wilful misconduct of the Firm.`],
+    ['Limitation of liability', `${S} acknowledge that the liability of this law firm is limited to the extent permitted by law and does not include any indirect or consequential loss suffered by ${me} in connection with the services provided.`],
+  ];
+};
+
 const TX = {
   EN: {
-    title: 'QUOTATION & LETTER OF ENGAGEMENT', yourRef: 'Your Ref', ourRef: 'Our Ref', date: 'Date', quot: 'Quotation No.', byHand: 'BY HAND / EMAIL', attn: 'Attention', dear: 'Dear Sir/Madam,',
+    title: 'LETTER OF ENGAGEMENT', yourRef: 'Your Ref', ourRef: 'Our Ref', date: 'Date', quot: 'Quotation No.', byHand: 'BY HAND / EMAIL', attn: 'Attention', dear: 'Dear Sir/Madam,',
     re: 'RE', inMatter: 'IN THE MATTER OF', suit: 'SUIT NO.', other: 'OTHER PARTY', client: 'CLIENT',
-    thanks: 'Thank you for your instructions and for the opportunity to act for you in the above matter. We set out below the scope of our engagement, our proposed fees and the terms on which we will act. Together with the Warrant to Act at the end, this letter forms our agreement with you.',
+    thanks: 'Thank you for your instructions and for the opportunity to act for you in the above matter. We set out below the scope of our engagement, our proposed fees and the terms on which we will act. This letter forms our agreement with you.',
     scope: 'Scope of legal services', scopeLead: 'Our legal services will principally involve the following:-', scopeNone: 'As discussed with you and set out in our quotation.',
     team: 'Our team', teamLead: 'The lawyers principally responsible for this matter are:', partner: 'Partner', lawyer: 'Lawyer', teamNote: 'We will inform you of any change in the team.', teamNone: 'The partner in charge of this file will inform you of the lawyers handling the matter.',
-    fees: 'Proposed fees', feesLead: 'Our fees for the scope of work above, as set out in our quotation', desc: 'DESCRIPTION', amt: 'AMOUNT (RM)', prof: 'Professional fees', disb: 'Disbursements', reimb: 'Reimbursements', sub: 'Sub-total', net: 'Total (excluding SST)', sst: (p: number) => `SST @ ${p}% (on professional fees & reimbursements)`, sstNa: 'SST: Not applicable', total: 'TOTAL',
+    fees: 'Proposed fees', feesLead: 'Our fees for the scope of work above, as set out in our quotation', feesNone: 'Our fees, disbursements and payment terms for the scope of work above are as per our quotation.', desc: 'DESCRIPTION', amt: 'AMOUNT (RM)', prof: 'Professional fees', disb: 'Disbursements', reimb: 'Reimbursements', sub: 'Sub-total', net: 'Total (excluding SST)', sst: (p: number) => `SST @ ${p}% (on professional fees & reimbursements)`, sstNa: 'SST: Not applicable', total: 'TOTAL',
     feeNotes: ['Disbursements are paid to third parties (court, land office, searches and the like) at cost; any unused balance will be refunded to you.', 'Work outside the scope above, or required by events beyond our control, will be charged separately and quoted to you first.'],
     plan: 'Payment plan', full: (t: string) => `The total sum of <b>RM${t}</b> is payable in full upon your acceptance of this letter, before we commence work.`,
     stagesLead: (t: string) => `The total sum of <b>RM${t}</b> is payable in stages as follows:`, no: 'No.', stage: 'Stage', pct: '%', when: 'When payable',
     instLead: (t: string, n: number, w: string) => `The total sum of <b>RM${t}</b> (inclusive of disbursements and reimbursements) is payable by monthly instalments over ${w} (${n}) months:`, month: 'Month', upfront: 'Upfront Payment', fullPay: 'Full Payment', instTerms: 'Instalment terms',
     pay: 'Payment to be made by transfer to:', accName: 'Name', bank: 'Bank', accNo: 'Account No.',
-    terms: 'Terms of engagement',
+    auth: 'Authority and terms of engagement', authLead: 'By signing the acceptance below, the Client confirms and agrees as follows:',
+    terms: 'Other terms',
     termList: [
-      ['Billing', 'Our invoices are payable within fourteen (14) days of the date of the invoice. We may issue interim invoices and proformas as the matter progresses, in line with the payment plan above and subject to our quotation.'],
-      ['Initial payment and retainer', 'We will commence work upon receipt of the signed letter, the signed Warrant to Act and the first payment under the payment plan, which includes the initial disbursements. Upon this appointment, the initial payment (retainer) is non-refundable.'],
-      ['Deduction of unpaid fees', 'The Firm is entitled to deduct any unpaid fees and expenses from any money received by you through the Firm in connection with this matter until all arrears are settled, in accordance with Rule 9.02 of the Bar Council Rules. Failure to pay within the time stipulated may cause delay in, or suspension of, our services.'],
-      ['Termination', 'Either party may terminate this engagement by written notice. You will pay our fees for work done and all disbursements and expenses incurred up to the date of termination. We may also terminate this engagement if our invoices or requests for payment are not settled within the time set out above, if these terms are not honoured, or where professional or legal rules require it.'],
-      ['Indemnity', 'You agree to indemnify the Firm against any claims, losses, liabilities, costs and expenses arising from your instructions or from any act, omission, default or misrepresentation on your part, as set out in full in the Warrant to Act below.'],
-      ['Limitation of liability', 'Our liability is limited to the extent permitted by law and does not include any indirect or consequential loss, save for loss arising directly from our gross negligence, fraud or wilful misconduct, as set out in the Warrant to Act below.'],
+      ['Billing', 'Our invoices are payable within fourteen (14) days of the date of the invoice. We may issue interim invoices and proformas as the matter progresses, in line with our quotation and its payment plan.'],
+      ['Commencement', 'We will commence work upon receipt of this letter signed by you and the first payment under our quotation, which includes the initial disbursements.'],
       ['Governing law', 'This letter and all matters arising from or connected with it are governed by the laws of Malaysia, and the courts of Malaysia shall have exclusive jurisdiction.'],
     ] as [string, string][],
-    close: 'If the above is acceptable to you, kindly sign the acceptance below and the Warrant to Act, and return a copy of this letter to us. Should you have any questions, please do not hesitate to contact the undersigned.',
-    yf: 'Yours faithfully,', fob: 'for and on behalf of', accept: (we: string) => `${we} hereby confirm acceptance of all the above terms and conditions.`, sign: 'Signature', name: 'Name', ic: 'NRIC No.', date2: 'Date', desig: 'Designation', dulyAuth: 'duly authorised signatory of', stamp: 'Company stamp',
+    close: 'If the above is acceptable to you, kindly sign the acceptance below and return a copy of this letter to us. Should you have any questions, please do not hesitate to contact the undersigned.',
+    yf: 'Yours faithfully,', fob: 'for and on behalf of', accept: (we: string, s: string) => `${we} confirm that ${s} have read and understood the contents of this Letter of Engagement and agree to be bound by the terms stated herein.`, sign: 'Signature', name: 'Name', ic: 'NRIC No.', date2: 'Date', desig: 'Designation', dulyAuth: 'duly authorised signatory of', stamp: 'Company stamp',
   },
   BM: {
-    title: 'SEBUT HARGA & SURAT PERLANTIKAN', yourRef: 'Rujukan Tuan', ourRef: 'Rujukan Kami', date: 'Tarikh', quot: 'No. Sebut Harga', byHand: 'SERAHAN TANGAN / E-MEL', attn: 'U.P.', dear: 'Tuan/Puan,',
+    title: 'SURAT PERLANTIKAN', yourRef: 'Rujukan Tuan', ourRef: 'Rujukan Kami', date: 'Tarikh', quot: 'No. Sebut Harga', byHand: 'SERAHAN TANGAN / E-MEL', attn: 'U.P.', dear: 'Tuan/Puan,',
     re: 'PER', inMatter: 'DALAM PERKARA', suit: 'NO. GUAMAN', other: 'PIHAK LAWAN', client: 'ANAKGUAM',
-    thanks: 'Terima kasih atas arahan tuan/puan dan peluang yang diberikan kepada kami untuk bertindak bagi pihak tuan/puan dalam perkara di atas. Bersama-sama ini kami nyatakan skop perkhidmatan, cadangan fi guaman dan terma-terma perlantikan kami. Surat ini, bersama Waran untuk Bertindak di bahagian akhir, merupakan perjanjian kami dengan tuan/puan.',
+    thanks: 'Terima kasih atas arahan tuan/puan dan peluang yang diberikan kepada kami untuk bertindak bagi pihak tuan/puan dalam perkara di atas. Bersama-sama ini kami nyatakan skop perkhidmatan, cadangan fi guaman dan terma-terma perlantikan kami. Surat ini merupakan perjanjian kami dengan tuan/puan.',
     scope: 'Skop perkhidmatan guaman', scopeLead: 'Perkhidmatan guaman kami secara amnya melibatkan perkara-perkara berikut:-', scopeNone: 'Seperti yang telah dibincangkan dengan tuan/puan dan dinyatakan dalam sebut harga kami.',
     team: 'Pasukan kami', teamLead: 'Peguam yang bertanggungjawab secara langsung bagi perkara ini ialah:', partner: 'Rakan Kongsi', lawyer: 'Peguam', teamNote: 'Kami akan memaklumkan tuan/puan sekiranya terdapat sebarang perubahan dalam pasukan ini.', teamNone: 'Rakan kongsi yang menguruskan fail ini akan memaklumkan tuan/puan peguam yang mengendalikan perkara ini.',
-    fees: 'Cadangan fi guaman', feesLead: 'Fi guaman kami bagi skop kerja di atas, sebagaimana dalam sebut harga kami', desc: 'BUTIRAN', amt: 'JUMLAH (RM)', prof: 'Fi profesional', disb: 'Pengeluaran (disbursement)', reimb: 'Bayaran balik (reimbursement)', sub: 'Jumlah kecil', net: 'Jumlah (tidak termasuk SST)', sst: (p: number) => `SST @ ${p}% (atas fi profesional & bayaran balik)`, sstNa: 'SST: Tidak berkenaan', total: 'JUMLAH KESELURUHAN',
+    fees: 'Cadangan fi guaman', feesLead: 'Fi guaman kami bagi skop kerja di atas, sebagaimana dalam sebut harga kami', feesNone: 'Fi guaman, pengeluaran dan terma pembayaran bagi skop kerja di atas adalah seperti dalam sebut harga kami.', desc: 'BUTIRAN', amt: 'JUMLAH (RM)', prof: 'Fi profesional', disb: 'Pengeluaran (disbursement)', reimb: 'Bayaran balik (reimbursement)', sub: 'Jumlah kecil', net: 'Jumlah (tidak termasuk SST)', sst: (p: number) => `SST @ ${p}% (atas fi profesional & bayaran balik)`, sstNa: 'SST: Tidak berkenaan', total: 'JUMLAH KESELURUHAN',
     feeNotes: ['Pengeluaran ialah bayaran kepada pihak ketiga (mahkamah, pejabat tanah, carian dan seumpamanya) pada kos sebenar; sebarang baki yang tidak digunakan akan dikembalikan kepada tuan/puan.', 'Kerja di luar skop di atas, atau yang diperlukan akibat perkara di luar kawalan kami, akan dikenakan secara berasingan dan dimaklumkan kepada tuan/puan terlebih dahulu.'],
     plan: 'Pelan pembayaran', full: (t: string) => `Jumlah keseluruhan sebanyak <b>RM${t}</b> hendaklah dibayar sepenuhnya selepas tuan/puan menerima surat ini, sebelum kami memulakan kerja.`,
     stagesLead: (t: string) => `Jumlah keseluruhan sebanyak <b>RM${t}</b> hendaklah dibayar mengikut peringkat seperti berikut:`, no: 'Bil.', stage: 'Peringkat', pct: '%', when: 'Bila perlu dibayar',
     instLead: (t: string, n: number, w: string) => `Jumlah keseluruhan sebanyak <b>RM${t}</b> (termasuk pengeluaran dan bayaran balik) hendaklah dibayar secara ansuran bulanan selama ${w} (${n}) bulan:`, month: 'Bulan', upfront: 'Bayaran Pendahuluan', fullPay: 'Bayaran Penuh', instTerms: 'Terma ansuran',
     pay: 'Bayaran hendaklah dibuat melalui pindahan ke akaun berikut:', accName: 'Nama', bank: 'Bank', accNo: 'No. Akaun',
-    terms: 'Terma-terma perlantikan',
+    auth: 'Autoriti dan terma-terma perlantikan', authLead: 'Dengan menandatangani pengesahan di bawah, Anakguam mengesahkan dan bersetuju seperti berikut:',
+    terms: 'Terma-terma lain',
     termList: [
-      ['Pengebilan', 'Invois kami hendaklah dijelaskan dalam tempoh empat belas (14) hari dari tarikh invois. Kami boleh mengeluarkan invois interim dan invois proforma mengikut perkembangan perkara ini, selaras dengan pelan pembayaran di atas dan tertakluk kepada sebut harga kami.'],
-      ['Bayaran awal dan retainer', 'Kami akan memulakan kerja setelah menerima surat ini dan Waran untuk Bertindak yang telah ditandatangani serta bayaran pertama di bawah pelan pembayaran, termasuk pengeluaran awal. Dengan perlantikan ini, jumlah pembayaran awal (retainer) adalah tidak dikembalikan.'],
-      ['Penolakan fi yang belum dijelaskan', 'Firma ini berhak untuk menolak sebarang yuran dan perbelanjaan yang belum dijelaskan daripada sebarang bayaran yang diterima oleh tuan/puan melalui firma ini berhubung dengan perkara ini sehingga semua tunggakan diselesaikan, sepertimana Aturan 9.02 Kaedah Majlis Peguam. Sebarang kegagalan untuk membuat pembayaran dalam masa yang ditetapkan boleh menyebabkan kelewatan atau penggantungan dalam perkhidmatan guaman.'],
-      ['Penamatan', 'Mana-mana pihak boleh menamatkan perlantikan ini dengan memberikan notis bertulis. Tuan/puan hendaklah menjelaskan fi bagi kerja yang telah dilakukan serta semua pengeluaran dan perbelanjaan yang ditanggung sehingga tarikh penamatan. Kami juga boleh menamatkan perlantikan ini sekiranya invois atau permintaan bayaran kami tidak dijelaskan dalam masa yang ditetapkan di atas, sekiranya terma-terma ini tidak dipatuhi, atau sekiranya dikehendaki oleh peraturan profesional atau undang-undang.'],
-      ['Indemniti', 'Tuan/puan bersetuju untuk mengindemnikan firma ini terhadap sebarang tuntutan, kerugian, liabiliti, kos dan perbelanjaan yang timbul daripada arahan tuan/puan atau daripada sebarang tindakan, ketinggalan, keingkaran atau salah nyataan oleh tuan/puan, sebagaimana dinyatakan sepenuhnya dalam Waran untuk Bertindak di bawah.'],
-      ['Had tanggungjawab', 'Tanggungjawab kami adalah terhad sebagaimana yang dibenarkan oleh undang-undang dan tidak termasuk sebarang kerugian tidak langsung atau kerugian berbangkit, kecuali kerugian yang berpunca secara langsung daripada kecuaian melampau, penipuan atau salah laku disengajakan oleh kami, sebagaimana dinyatakan dalam Waran untuk Bertindak di bawah.'],
+      ['Pengebilan', 'Invois kami hendaklah dijelaskan dalam tempoh empat belas (14) hari dari tarikh invois. Kami boleh mengeluarkan invois interim dan invois proforma mengikut perkembangan perkara ini, selaras dengan sebut harga kami dan pelan pembayarannya.'],
+      ['Permulaan kerja', 'Kami akan memulakan kerja setelah menerima surat ini yang telah ditandatangani oleh tuan/puan dan bayaran pertama di bawah sebut harga kami, termasuk pengeluaran awal.'],
       ['Undang-undang yang terpakai', 'Surat ini dan semua perkara yang timbul daripadanya atau berkaitan dengannya adalah tertakluk kepada undang-undang Malaysia, dan mahkamah Malaysia mempunyai bidang kuasa eksklusif.'],
     ] as [string, string][],
-    close: 'Sekiranya perkara di atas dipersetujui, sila tandatangan pengesahan di bawah dan Waran untuk Bertindak, dan kembalikan salinan surat ini kepada kami. Sekiranya tuan/puan mempunyai sebarang pertanyaan, sila hubungi kami.',
-    yf: 'Yang benar,', fob: 'bagi pihak', accept: (we: string) => `${we} dengan ini mengesahkan penerimaan semua terma dan syarat di atas.`, sign: 'Tandatangan', name: 'Nama', ic: 'No. K/P.', date2: 'Tarikh', desig: 'Jawatan', stamp: 'Cop syarikat', dulyAuth: 'penandatangan yang diberi kuasa bagi',
+    close: 'Sekiranya perkara di atas dipersetujui, sila tandatangan pengesahan di bawah dan kembalikan salinan surat ini kepada kami. Sekiranya tuan/puan mempunyai sebarang pertanyaan, sila hubungi kami.',
+    yf: 'Yang benar,', fob: 'bagi pihak', accept: (we: string, s: string) => `${we} mengesahkan bahawa ${s} telah membaca dan memahami kandungan Surat Perlantikan ini dan bersetuju untuk terikat dengan terma-terma yang dinyatakan.`, sign: 'Tandatangan', name: 'Nama', ic: 'No. K/P.', date2: 'Tarikh', desig: 'Jawatan', stamp: 'Cop syarikat', dulyAuth: 'penandatangan yang diberi kuasa bagi',
   },
 };
 
@@ -225,7 +270,7 @@ export const feeTotals = (f: NonNullable<EngagementInput['fees']>) => {
   return { prof, disb, reimb, sst, net, total: r2(net + sst) };
 };
 
-/** The combined Quotation & Letter of Engagement (+ Warrant to Act) as one HTML document. */
+/** The Letter of Engagement as one HTML document (view, PDF / print and Word). */
 export function engagementLetterHtml(i: EngagementInput): string {
   const lang = i.lang || 'EN';
   const t = TX[lang];
@@ -237,7 +282,7 @@ export function engagementLetterHtml(i: EngagementInput): string {
 
   // Ref / date block (bilingual labels as on the firm letterhead) and addressee.
   const refRow = (en: string, bm: string, v: string) => `<tr><td style="padding:1px 6px 1px 0;white-space:nowrap">${en} / <i>${bm}</i></td><td style="padding:1px 6px">:</td><td style="padding:1px 0">${v}</td></tr>`;
-  const refs = `<table style="border-collapse:collapse;${F};margin:0 0 12pt">${refRow('Your Ref', 'Rujukan Tuan', esc(i.yourRef || 'Kindly Advised'))}${refRow('Our Ref', 'Rujukan Kami', esc(i.ourRef || '-'))}${refRow('Date', 'Tarikh', esc(i.date))}${i.quotationNo ? refRow('Quotation No.', 'No. Sebut Harga', esc(i.quotationNo)) : ''}</table>`;
+  const refs = `<table style="border-collapse:collapse;${F};margin:0 0 12pt">${refRow('Your Ref', 'Rujukan Tuan', esc(i.yourRef || 'Kindly Advised'))}${refRow('Our Ref', 'Rujukan Kami', esc(i.ourRef || '-'))}${refRow('Date', 'Tarikh', esc(i.date))}</table>`;
   const addressee = `<table style="width:100%;border-collapse:collapse;${F};margin:0 0 12pt"><tr><td style="vertical-align:top;padding:0"><b>${esc(i.client.name).toUpperCase()}</b>${i.client.address ? '<br>' + lines(i.client.address) : ''}${co && i.client.contactPerson ? `<br><br>${t.attn}: ${esc(i.client.contactPerson)}` : ''}</td><td style="vertical-align:top;padding:0;text-align:right;width:200px"><b>${t.byHand}</b>${i.client.email ? '<br>' + esc(i.client.email) : ''}</td></tr></table>`;
 
   // RE: block — matter, court, suit no. and parties from the file.
@@ -292,22 +337,21 @@ export function engagementLetterHtml(i: EngagementInput): string {
     }
     if (i.bank) pb += `<p style="margin:8pt 0 2pt">${t.pay}</p><table style="${F};border-collapse:collapse;margin-left:12pt"><tr><td style="padding:1px 8px 1px 0">${t.accName}</td><td>: ${esc(i.bank[0])}</td></tr><tr><td style="padding:1px 8px 1px 0">${t.bank}</td><td>: ${esc(i.bank[1])}</td></tr><tr><td style="padding:1px 8px 1px 0">${t.accNo}</td><td>: ${esc(i.bank[2])}</td></tr></table>`;
     body += sec(t.plan, pb);
+  } else {
+    body += sec(t.fees, `<p style="${P}">${t.feesNone}</p>`);
   }
 
-  // Terms
+  // Authority (the firm's own clauses, in the client's voice) and the other terms.
+  body += sec(t.auth, `<p style="${P}">${t.authLead}</p>` + authorityClauses({ client: i.client, firmName: i.firmName, lang }).map(([h, x], k) => `<p style="${P}"><b>(${String.fromCharCode(97 + k)}) ${h}.</b> ${x}</p>`).join(''));
   body += sec(t.terms, t.termList.map(([h, x], k) => `<p style="${P}"><b>(${String.fromCharCode(97 + k)}) ${h}.</b> ${x}</p>`).join(''));
 
   // Close, signature for the firm, client's acceptance.
-  const we = co ? (lang === 'BM' ? 'Kami' : 'We') : (lang === 'BM' ? 'Saya' : 'I');
+  const pr = pron(i.client.type, lang);
   body += `<p style="${P};margin-top:12pt">${t.close}</p><p style="margin:14pt 0 0">${t.yf}<br>${t.fob} <b>${lang === 'BM' ? 'TETUAN ' : ''}${esc(firmRaw.toUpperCase())}</b></p><p style="margin:40pt 0 0">______________________________</p>`;
   const accept = co
     ? `<p style="margin:36pt 0 0">______________________________<br>${t.name}: ${DOTS}<br>${t.ic}: ${DOTS}<br>${t.desig}: ${DOTS}<br>${t.dulyAuth} <b>${esc(i.client.name).toUpperCase()}</b><br>${t.date2}: ${DOTS}<br>${t.stamp}:</p>`
     : `<p style="margin:36pt 0 0">______________________________<br>${t.name}: ${i.client.name ? esc(i.client.name) : DOTS}<br>${t.ic}: ${i.client.idNo ? esc(i.client.idNo) : DOTS}<br>${t.date2}: ${DOTS}</p>`;
-  body += `<div style="border-top:1px solid #000;margin:22pt 0 0;padding-top:10pt"><p style="${P}">${t.accept(we)}</p>${accept}</div></div>`;
+  body += `<div style="border-top:1px solid #000;margin:22pt 0 0;padding-top:10pt"><p style="${P}">${t.accept(pr.S, pr.s)}</p>${accept}</div></div>`;
 
-  if (!i.noWarrant) {
-    const w: WarrantInput = { client: { name: i.client.name, type: i.client.type, idNo: i.client.idNo, address: i.client.address }, matterTitle: m.title, side: m.side, court: m.court, suitNo: m.suitNo, otherParty: m.otherParty, fileRef: i.ourRef, firmName: i.firmName, date: i.date, lang };
-    body += `<br clear="all" style="page-break-before:always"><div style="page-break-before:always"></div>` + letterheadHtml(i.letterhead) + warrantBodyHtml(w);
-  }
   return `<div style="${BODY}">${body}</div>`;
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_LETTERHEAD_PARTNERS, defaultPlanFor, engagementLetterHtml, feeTotals, longDate, planRows, planTotal, schedule, type EngagementInput } from './engagementLetter';
+import { DEFAULT_LETTERHEAD_PARTNERS, authorityClauses, defaultPlanFor, engagementLetterHtml, feeTotals, longDate, planRows, planTotal, quotationForFile, schedule, type EngagementInput } from './engagementLetter';
+import type { Quotation } from '../types';
 
 const lh = { firmName: 'SYAFIQAH HAMIZAD & CO', tag1: 'Advocates & Solicitors', address: '8-23-03 Bangi Sentral', partners: DEFAULT_LETTERHEAD_PARTNERS };
 const base: EngagementInput = {
@@ -36,7 +37,7 @@ describe('payment plan', () => {
 });
 
 describe('engagementLetterHtml', () => {
-  it('EN: letterhead with partners, bilingual refs, addressee, RE with court and parties, sections, warrant', () => {
+  it('EN: letterhead with partners, bilingual refs, addressee, RE with court and parties, sections, authority clauses', () => {
     const h = engagementLetterHtml(base);
     expect(h).toContain('PARTNERS');
     expect(h).toContain('KHAIRUNNISA BINTI SHOBAT SETTIC');
@@ -46,7 +47,8 @@ describe('engagementLetterHtml', () => {
     expect(h).toContain('Date / <i>Tarikh</i>');
     expect(h).toContain('<b>TEST CLIENT</b><br>No. 1, Jalan Test<br>Kuala Lumpur');
     expect(h).toContain('Dear Sir/Madam,');
-    expect(h).toContain('QUOTATION &amp; LETTER OF ENGAGEMENT');
+    expect(h).toContain('LETTER OF ENGAGEMENT');
+    expect(h).not.toContain('QUOTATION &amp;');
     expect(h).toContain('IN THE MATTER OF HIGH COURT SHAH ALAM');
     expect(h).toContain('PLAINTIFF: TEST CLIENT');
     expect(h).toContain('DEFENDANT: TEST PARTY');
@@ -55,9 +57,15 @@ describe('engagementLetterHtml', () => {
     expect(h).toContain('Rule 9.02 of the Bar Council Rules');
     expect(h).toContain('laws of Malaysia');
     expect(h).toContain('for and on behalf of <b>SYAFIQAH HAMIZAD &amp; CO</b>');
-    expect(h).toContain('I hereby confirm acceptance');
-    expect(h).toContain('page-break-before:always');
-    expect(h).toContain('WARRANT TO ACT');
+    expect(h).toContain('I confirm that I have read and understood the contents of this Letter of Engagement');
+    expect(h).toContain('AUTHORITY AND TERMS OF ENGAGEMENT');
+    expect(h).toContain('I hereby authorise and appoint <strong>Messrs. Syafiqah Hamizad &amp; Co.,</strong>');
+    expect(h).toContain('the initial payment <em>(retainer)</em> is non-refundable');
+    for (const x of ['Authority.', 'Legal fees and related disbursements.', 'Termination of services.', 'Indemnity.', 'Limitation of liability.']) expect(h).toContain(x);
+    // One document only: no separate warrant page or title.
+    expect(h).not.toMatch(/warrant/i);
+    expect(h).not.toContain('page-break-before');
+    expect(h).not.toMatch(/Managing Partner/i);
     expect(h).not.toMatch(/\b(Mr|Ms|Mrs|Encik)\.? Test/);
   });
   it('fees come from the quotation lines, SST on fees + reimbursements only', () => {
@@ -69,25 +77,34 @@ describe('engagementLetterHtml', () => {
     expect(h).toContain('5,558.00'); // 50% stage
     expect(h).toContain('Hong Leong Bank Berhad');
   });
-  it('no quotation → no fee or payment section (never invented)', () => {
-    const h = engagementLetterHtml({ ...base, fees: undefined });
-    expect(h).not.toContain('PROPOSED FEES');
+  it('no quotation → "as per our quotation", no fee table or payment plan (never invented)', () => {
+    const h = engagementLetterHtml({ ...base, fees: undefined, plan: undefined });
+    expect(h).toContain('PROPOSED FEES');
+    expect(h).toContain('as per our quotation');
     expect(h).not.toContain('PAYMENT PLAN');
+    expect(h).not.toContain('AMOUNT (RM)');
     expect(h).not.toMatch(/RM ?[0-9]/);
-    expect(h).toContain('WARRANT TO ACT');
+    expect(h).not.toMatch(/[0-9],[0-9]{3}\.[0-9]{2}/);
+    const bm = engagementLetterHtml({ ...base, lang: 'BM', fees: undefined, plan: undefined });
+    expect(bm).toContain('seperti dalam sebut harga kami');
+    expect(bm).not.toContain('PELAN PEMBAYARAN');
   });
-  it('BM: Malay text and the firm’s BM warrant', () => {
+  it('BM: Malay text and the firm’s own BM clauses inside the letter', () => {
     const h = engagementLetterHtml({ ...base, lang: 'BM', plan: { kind: 'Instalments', months: 3, upfront: 5000 } });
     expect(h).toContain('Tuan/Puan,');
-    expect(h).toContain('SEBUT HARGA &amp; SURAT PERLANTIKAN');
+    expect(h).toContain('SURAT PERLANTIKAN');
+    expect(h).not.toContain('SEBUT HARGA &amp;');
     expect(h).toContain('DALAM PERKARA HIGH COURT SHAH ALAM');
     expect(h).toContain('Aturan 9.02 Kaedah Majlis Peguam');
     expect(h).toContain('ansuran bulanan selama tiga (3) bulan');
     expect(h).toContain('Bulan 1 (Bayaran Pendahuluan)');
     expect(h).toContain('Penyelesaian Awal');
     expect(h).toContain('Yang benar,');
-    expect(h).toContain('WARAN UNTUK BERTINDAK');
-    expect(h).toContain('Saya dengan ini memberi kuasa');
+    expect(h).not.toMatch(/waran/i);
+    expect(h).toContain('Saya dengan ini memberi kuasa dan melantik <strong>Tetuan Syafiqah Hamizad &amp; Co.,</strong>');
+    expect(h).toContain('sepertimana Aturan 9.02 Kaedah Majlis Peguam');
+    for (const x of ['Autoriti.', 'Fi Guaman dan kos-kos pengeluaran berkaitan.', 'Penamatan servis.', 'Indemniti.', 'Had Tanggungjawab.']) expect(h).toContain(x);
+    expect(h).toContain('Saya mengesahkan bahawa saya telah membaca dan memahami kandungan Surat Perlantikan ini');
     // Default litigation stages are printed in BM; stages the firm typed stay as typed.
     const st = engagementLetterHtml({ ...base, lang: 'BM', plan: defaultPlanFor('Civil Litigation') });
     expect(st).toContain('Pemfailan');
@@ -99,7 +116,8 @@ describe('engagementLetterHtml', () => {
     expect(h).toContain('Attention: Ali bin Abu');
     expect(h).toContain('duly authorised signatory of <b>TEST SDN BHD</b>');
     expect(h).toContain('Company stamp');
-    expect(h).toContain('We hereby confirm acceptance');
+    expect(h).toContain('We confirm that we have read and understood');
+    expect(h).toContain('We hereby authorise and appoint');
     expect(h).toContain('payable in full');
   });
   it('without a suit the RE line is the matter title', () => {
@@ -110,5 +128,28 @@ describe('engagementLetterHtml', () => {
   it('long dates in both languages', () => {
     expect(longDate(new Date(2026, 7, 9), 'EN')).toBe('9 August 2026');
     expect(longDate(new Date(2026, 7, 9), 'BM')).toBe('9 Ogos 2026');
+  });
+});
+
+describe('authorityClauses', () => {
+  it('Kami for a company, Saya/Kami when the client type is unknown; escapes the firm name', () => {
+    expect(authorityClauses({ lang: 'BM', client: { type: 'Corporate' } })[0][1]).toMatch(/^Kami dengan ini/);
+    expect(authorityClauses({ lang: 'BM', client: {} })[0][1]).toMatch(/^Saya\/Kami dengan ini/);
+    expect(authorityClauses({ client: {}, firmName: 'A & <B>' })[0][1]).toContain('A &amp; &lt;B&gt;');
+    expect(authorityClauses({ client: {} }).map(([h]) => h)).toEqual(['Authority', 'Legal fees and related disbursements', 'Termination of services', 'Indemnity', 'Limitation of liability']);
+  });
+});
+
+describe('quotationForFile', () => {
+  const file = { id: 'CASE-1', ref: 'SHC/SH/L/TC/001/10-26' };
+  const q = (id: string, p: Partial<Quotation>): Quotation => ({ id, date: '2026-10-01', practiceArea: '', fileRef: file.ref, leadId: '', clientName: '', status: 'Draft', total: 0, billedSoFar: 0, remaining: 0, courtLevel: '', stage: '', feeMethod: 'Template', subtype: '', approvalStatus: 'Pending', approvedBy: '', approvedDate: '', lineItems: [], ...p });
+  it('accepted quotation first, else the latest not declined; proformas and other files never count', () => {
+    const list = [q('Q1', { status: 'Accepted', date: '2026-09-01' }), q('Q2', { status: 'Sent', date: '2026-10-05' }), q('Q3', { status: 'Declined', date: '2026-10-08' }), q('P1', { documentType: 'Proforma', status: 'Accepted', date: '2026-10-09' }), q('X1', { status: 'Accepted', fileRef: 'OTHER', date: '2026-10-09' })];
+    expect(quotationForFile(list, file)?.id).toBe('Q1');
+    expect(quotationForFile(list.filter((x) => x.id !== 'Q1'), file)?.id).toBe('Q2');
+    expect(quotationForFile([q('Q4', { fileRef: '', caseId: 'CASE-1' })], file)?.id).toBe('Q4');
+    expect(quotationForFile([q('Q3', { status: 'Declined' })], file)).toBeUndefined();
+    expect(quotationForFile([], file)).toBeUndefined();
+    expect(quotationForFile(undefined, file)).toBeUndefined();
   });
 });

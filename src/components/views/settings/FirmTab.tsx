@@ -88,7 +88,7 @@ export const FirmTab = ({ C }: { C: SettingsCtx }) => {
         <div style={css(S.foot)}>Documents use the letterhead of the file’s branch. Upload a screenshot of the header from Word (logo to email line) to use it exactly.</div>
       </div>
       <div style={css('grid-column:1 / -1;overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
-        <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Partners on letterhead</strong><span style={css('margin-left:8px;font-size:10.5px;color:#5B6478')}>the partners column on the Quotation &amp; Letter of Engagement and the Warrant to Act · in this order</span></div>
+        <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Partners on letterhead</strong><span style={css('margin-left:8px;font-size:10.5px;color:#5B6478')}>the partners column on the Letter of Engagement · in this order</span></div>
         <div style={css('display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 120px 80px;gap:10px;padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>Name</span><span>Qualifications</span><span>Heading</span><span></span></div>
         {partners.map((p, i) => (
           <div key={i + '-' + partners.length} style={css('display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 120px 80px;gap:10px;align-items:center;padding:6px 14px;border-bottom:1px solid #F0F2F5')}>

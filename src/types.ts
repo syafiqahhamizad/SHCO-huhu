@@ -816,7 +816,7 @@ export interface Quotation {
   payInto?: 'Office' | 'Client account';
   /** Per-document SST rate actually used (0.06 / 0.08) when sstApplied. */
   sstRate?: number;
-  /** Language of the client documents (Quotation & Letter of Engagement, Warrant to Act). */
+  /** Language last chosen for client documents (kept on older quotations; the Letter of Engagement picks its own in Cases). */
   language?: 'EN' | 'BM';
   /** How the client pays: in full, by stages or by monthly instalments. */
   paymentPlan?: QuotationPaymentPlan;

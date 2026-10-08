@@ -75,8 +75,7 @@ export interface EditorState {
   client: string; ref: string; matter: string; area: string; account: 'Office' | 'Client account';
   lines: SD.DocLines; yourRef: string; tin: string; subject: string; desc: string; arrangement: string; sstRate: number;
   inst: SD.DocInstalments | null;
-  /** Quotation only: language of the client documents and how the client pays. */
-  lang: 'EN' | 'BM';
+  /** Quotation only: how the client pays. */
   plan: QuotationPaymentPlan;
 }
 export interface FormState { kind: string; vals: Record<string, any> }
@@ -182,8 +181,6 @@ export function useFinanceController(initialTab: FinTab) {
   const [fundEdit, setFundEdit] = useState(false);
   const [fundsDraft, setFundsDraft] = useState<SinkingFund[] | null>(null);
   const [view, setView] = useState<DocRef | null>(null);
-  /** Billing › quotation › Letter of Engagement: the quotation whose client document is open. */
-  const [loe, setLoe] = useState<string | null>(null);
   /** Sub-pages (design: chips under the page): Client Account, Office Account, Approvals, Payroll. */
   const [trSub, setTrSub] = useState<'l' | 'c' | 'r' | 's'>('l');
   const [ofSub, setOfSub] = useState<'e' | 'c' | 'd' | 'f' | 'm' | 'i'>('e');
@@ -867,7 +864,6 @@ export function useFinanceController(initialTab: FinTab) {
   const act = (kind: DocKind, rec: Quotation | Invoice | Receipt, a: string) => {
     const docNo = rec.id;
     if (a === 'View') { if (kind === 'quotation') { const p = quotations.find((x) => x.documentType === 'Proforma' && x.sourceQuotationId === rec.id); setView({ kind: 'quotation', id: p ? p.id : rec.id }); } else setView({ kind, id: rec.id }); return; }
-    if (a === 'Letter of Engagement') { setView(null); setLoe(rec.id); return; }
     if (rk === 'R') { toastMsg('Read-only access.'); return; }
     if (a === 'Send' || a === 'Resend') { const q = rec as Quotation; app.updateQuotation(q.id, { status: 'Sent', documentSentDate: todayIso(), documentSentBy: me }); toastMsg(`${docNo} marked as sent to ${q.clientName} · email the PDF from your mailbox`); return; }
     if (a === 'Mark accepted') { app.updateQuotation(rec.id, { status: 'Accepted' }); toastMsg(docNo + ' accepted'); return; }
@@ -987,20 +983,19 @@ export function useFinanceController(initialTab: FinTab) {
     if (!(canPrepare || rk === 'P')) { toastMsg('Not available for your role.'); return; }
     const area = 'Litigation';
     setView(null);
-    setEd({ type: type === 'Receipt' ? 'Invoice' : type, client: '', ref: '', matter: '', area, account: 'Office', lines: SD.fromTemplate(area), yourRef: 'Kindly Advised', tin: '-', subject: '', desc: SD.AREAS[area].desc, arrangement: '', sstRate: SD.defaultSstRate(), inst: null, lang: 'EN', plan: defaultPlanFor(area) });
+    setEd({ type: type === 'Receipt' ? 'Invoice' : type, client: '', ref: '', matter: '', area, account: 'Office', lines: SD.fromTemplate(area), yourRef: 'Kindly Advised', tin: '-', subject: '', desc: SD.AREAS[area].desc, arrangement: '', sstRate: SD.defaultSstRate(), inst: null, plan: defaultPlanFor(area) });
   };
   const editDoc = (kind: DocKind, rec: Quotation | Invoice, copy = false) => {
     const ref: DocRef = { kind, id: rec.id }; const d = buildDoc(ref); if (!d || d.type === 'Receipt') return;
     setView(null);
     setEd({ ...(copy ? {} : { kind, id: rec.id }), type: d.type, client: d.client, ref: d.ref || '', matter: d.matter || '', area: d.area || 'Litigation', account: d.account === 'Client account' ? 'Client account' : 'Office', yourRef: d.yourRef || 'Kindly Advised', tin: d.tin || '-', subject: d.subject || '', desc: d.desc || '', arrangement: d.arrangement || '', sstRate: d.sstRate || 0, inst: d.inst ? { ...d.inst } : null, lines: { prof: SD.clone(d.lines?.prof), disb: SD.clone(d.lines?.disb), reimb: SD.clone(d.lines?.reimb) },
-      lang: (kind === 'quotation' && (rec as Quotation).language) || 'EN',
       plan: kind === 'quotation' ? (planOf(rec as Quotation) || { kind: 'Full' }) : { kind: d.inst && d.inst.on ? 'Instalments' : 'Full' } });
   };
-  /** Quotation fields saved from the editor: language, payment plan (instalments also as the fee arrangement). */
+  /** Quotation fields saved from the editor: payment plan (instalments also as the fee arrangement). */
   const planFields = (e: EditorState): Partial<Quotation> => {
     const inst = e.plan.kind === 'Instalments' ? { on: true, months: e.inst?.months || 8, upfront: e.inst?.upfront || 0, terms: e.inst?.terms ?? SD.ARR_TERMS } : null;
     const paymentPlan: QuotationPaymentPlan = e.plan.kind === 'Instalments' ? { kind: 'Instalments', months: inst!.months, upfront: inst!.upfront } : e.plan.kind === 'Stages' ? { kind: 'Stages', stages: (e.plan.stages || []).map((x) => ({ label: x.label, ...(x.amount != null ? { amount: x.amount } : { pct: Number(x.pct) || 0 }), ...(x.due ? { due: x.due } : {}) })) } : { kind: 'Full' };
-    return { language: e.lang, paymentPlan, feeArrangement: inst };
+    return { paymentPlan, feeArrangement: inst };
   };
   const saveEd = (andView: boolean) => {
     const e = ed; if (!e) return;
@@ -1331,7 +1326,7 @@ export function useFinanceController(initialTab: FinTab) {
     staff, slipOf, slipCalc, slipStatutory, periodSlips, payStep, payNext, refFeeFor,
     cashBook, openingBalance, cbAcc, setCbAcc, attachTo,
     docT, setDocT, invF, setInvF, apF, setApF, fundEdit, setFundEdit, fundsDraft, setFundsDraft,
-    view, setView, loe, setLoe, planStatus, planOf, ed, setEd, saveEd, sendReminder, duplicateDoc: (kind: DocKind, rec: Quotation | Invoice) => { editDoc(kind, rec, true); toastMsg(rec.id + ' copied · save it as a new draft'); }, openNew, editDoc, form, setForm, openForm, saveForm,
+    view, setView, planStatus, planOf, ed, setEd, saveEd, sendReminder, duplicateDoc: (kind: DocKind, rec: Quotation | Invoice) => { editDoc(kind, rec, true); toastMsg(rec.id + ' copied · save it as a new draft'); }, openNew, editDoc, form, setForm, openForm, saveForm,
     imp, setImp, importFile, importRows, postImport,
     faRead, markRead, toggleClose, closeKey,
     SC, picColor, rm, rm2, fd, dShort,

@@ -13,7 +13,6 @@ import { AccountingTab } from './AccountingTab';
 import { ReportsTab } from './ReportsTab';
 import { FinanceGuide } from './FinanceGuide';
 import { DocViewModal, DocEditModal, FormModal, ImportModal } from './FinanceModals';
-import { EngagementLetterModal } from './EngagementLetterModal';
 import { PaperModal, ReminderModal } from './FinancePaperModals';
 import { PayslipFormModal } from './PayslipFormModal';
 
@@ -85,7 +84,6 @@ export const AccountsFinanceView = ({ initialTab = 'overview' }: { initialTab?: 
       )}
       {F.imp && <ImportModal F={F} />}
       {F.view && <DocViewModal F={F} />}
-      {F.loe && <EngagementLetterModal F={F} />}
       {F.ed && <DocEditModal F={F} />}
       {F.rem && <ReminderModal F={F} />}
       {F.paper && <PaperModal F={F} />}

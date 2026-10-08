@@ -1,19 +1,11 @@
 import React, { useState } from 'react';
 import { FileText, Printer, Eye, FileDown, X } from 'lucide-react';
 import type { Case, Client, Quotation, User } from '../../../types';
-import { warrantToActHtml, type DocLang, type WarrantInput } from '../../../lib/warrantToAct';
-import { engagementLetterHtml, letterheadHtml, longDate, type EngagementInput, type FeeLine } from '../../../lib/engagementLetter';
-import { AREAS, BANK, FIRM, areaFromName, letterheadFor, loadLogos, pdf, word } from '../../../lib/financeDocs';
+import { engagementLetterHtml, longDate, type DocLang, type EngagementInput, type FeeLine } from '../../../lib/engagementLetter';
+import { AREAS, BANK, areaFromName, letterheadFor, loadLogos, pdf, word } from '../../../lib/financeDocs';
 import { itemAmount, recordSstRate } from '../finance/financeModel';
 import { courtOf, lawyersOf, staffOf } from './caseModel';
 import { css } from './caseUi';
-
-/** "9th day of October 2026" — kept for callers that date a warrant the long way. */
-export const datedLine = (d = new Date()) => {
-  const n = d.getDate();
-  const th = n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th';
-  return `${n}${th} day of ${d.toLocaleString('en-GB', { month: 'long' })} ${d.getFullYear()}`;
-};
 
 /** The file's branch: the branch of the lawyer in charge, else of the first partner on the file. */
 export const branchOfCase = (c: Pick<Case, 'lawyerInCharge' | 'lawyers' | 'partners'> | undefined, users: User[] = []): string | undefined => {
@@ -25,38 +17,14 @@ export const branchOfCase = (c: Pick<Case, 'lawyerInCharge' | 'lawyers' | 'partn
   return cands.find((u) => u && u.branch)?.branch;
 };
 
-/** Warrant details from a file and its client record, on the file's branch letterhead. */
-export const warrantInputFor = (c: Case, client?: Client, otherParty?: string, lang: DocLang = 'EN', users: User[] = []): WarrantInput => {
-  loadLogos();
-  const court = courtOf(c);
-  return {
-    client: {
-      name: client?.name || c.clientName || '',
-      type: client?.type,
-      idNo: client ? (client.type === 'Corporate' ? client.registrationNo : client.icNo || client.icNumber) : c.clientsList?.[0]?.icOrRegNo,
-      address: client?.address,
-    },
-    matterTitle: c.title,
-    side: c.clientRole,
-    court: court.name,
-    suitNo: court.suit,
-    otherParty: otherParty || c.opposingParty || (c.opposingParties || [])[0],
-    fileRef: c.ref,
-    firmName: 'Syafiqah Hamizad & Co',
-    firmAddress: FIRM.addr,
-    date: longDate(new Date(), lang),
-    lang,
-    letterhead: letterheadHtml(letterheadFor(branchOfCase(c, users))),
-  };
-};
-
-/** Quotation & Letter of Engagement input from the REAL quotation, its file and client. */
-export const engagementInputFor = (q: Quotation, kase: Case | undefined, client: Client | undefined, users: User[] = [], lang: DocLang = q.language || 'EN'): EngagementInput => {
+/** Letter of Engagement input from the file, its client and (when there is one the viewer can
+ * read) the file's quotation in Billing. No quotation → the letter says "as per our quotation". */
+export const engagementInputFor = (kase: Case, client: Client | undefined, q: Quotation | undefined, users: User[] = [], lang: DocLang = 'EN', otherParty?: string): EngagementInput => {
   loadLogos();
   const staff = staffOf(users);
-  const court = kase ? courtOf(kase) : { name: '', suit: '' };
-  const fees = { prof: [] as FeeLine[], disb: [] as FeeLine[], reimb: [] as FeeLine[], sstRate: recordSstRate(q) };
-  (q.lineItems || []).forEach((i) => {
+  const court = courtOf(kase);
+  const fees = { prof: [] as FeeLine[], disb: [] as FeeLine[], reimb: [] as FeeLine[], sstRate: q ? recordSstRate(q) : 0 };
+  (q?.lineItems || []).forEach((i) => {
     if ((i.category as string) === 'Tax') return;
     const row: FeeLine = [i.description || '', itemAmount(i)];
     (i.category === 'Disbursement' ? fees.disb : i.category === 'Reimbursement' ? fees.reimb : fees.prof).push(row);
@@ -65,32 +33,31 @@ export const engagementInputFor = (q: Quotation, kase: Case | undefined, client:
   const team: EngagementInput['team'] = [];
   const seen = new Set<string>();
   const add = (name: string | undefined, role: 'Partner' | 'Lawyer') => { const n = String(name || '').trim(); if (n && !seen.has(n.toLowerCase())) { seen.add(n.toLowerCase()); team.push({ name: n, role }); } };
-  (kase?.partners || []).forEach((code) => add(staff.find((p) => p.code === String(code))?.name, 'Partner'));
-  (kase ? lawyersOf(kase) : []).forEach((n) => add(staff.find((p) => p.name === n || p.code === n)?.name || n, staff.find((p) => p.name === n)?.isPartner ? 'Partner' : 'Lawyer'));
-  const dt = new Date(q.date || Date.now());
-  const area = areaFromName(q.practiceArea || kase?.practiceArea || kase?.type, q.fileRef || kase?.ref);
+  (kase.partners || []).forEach((code) => add(staff.find((p) => p.code === String(code))?.name, 'Partner'));
+  lawyersOf(kase).forEach((n) => add(staff.find((p) => p.name === n || p.code === n)?.name || n, staff.find((p) => p.name === n)?.isPartner ? 'Partner' : 'Lawyer'));
+  const area = areaFromName(q?.practiceArea || kase.practiceArea || kase.type, kase.ref);
   return {
     lang,
     letterhead: letterheadFor(branchOfCase(kase, users)),
-    quotationNo: q.id,
-    ourRef: q.fileRef || kase?.ref,
-    yourRef: q.yourRef && q.yourRef !== '-' ? q.yourRef : 'Kindly Advised',
-    date: longDate(isNaN(dt.getTime()) ? new Date() : dt, lang),
+    quotationNo: hasLines ? q?.id : undefined,
+    ourRef: kase.ref,
+    yourRef: q?.yourRef && q.yourRef !== '-' ? q.yourRef : 'Kindly Advised',
+    date: longDate(new Date(), lang),
     client: {
-      name: client?.name || q.clientName || kase?.clientName || '',
+      name: client?.name || kase.clientName || q?.clientName || '',
       type: client?.type,
-      idNo: client ? (client.type === 'Corporate' ? client.registrationNo : client.icNo || client.icNumber) : kase?.clientsList?.[0]?.icOrRegNo,
+      idNo: client ? (client.type === 'Corporate' ? client.registrationNo : client.icNo || client.icNumber) : kase.clientsList?.[0]?.icOrRegNo,
       address: client?.address,
       email: client?.email,
       contactPerson: client?.contactPerson,
     },
-    matter: { title: q.matter || kase?.title || q.subject || '', court: court.name, suitNo: court.suit, side: kase?.clientRole, otherParty: kase ? kase.opposingParty || (kase.opposingParties || [])[0] : undefined },
-    scope: (q.scope && q.scope.trim()) || AREAS[area]?.desc || '',
+    matter: { title: kase.title || q?.matter || '', court: court.name, suitNo: court.suit, side: kase.clientRole, otherParty: otherParty || kase.opposingParty || (kase.opposingParties || [])[0] },
+    scope: (q?.scope && q.scope.trim()) || AREAS[area]?.desc || '',
     team,
-    fees: hasLines ? fees : undefined,
-    plan: q.paymentPlan || (q.feeArrangement && q.feeArrangement.on ? { kind: 'Instalments', months: q.feeArrangement.months, upfront: q.feeArrangement.upfront } : { kind: 'Full' }),
-    instalmentTerms: q.feeArrangement?.terms,
-    bank: (q.payInto === 'Client account' ? BANK['Client account'] : BANK.Office) as [string, string, string],
+    fees: q && hasLines ? fees : undefined,
+    plan: q ? q.paymentPlan || (q.feeArrangement && q.feeArrangement.on ? { kind: 'Instalments', months: q.feeArrangement.months, upfront: q.feeArrangement.upfront } : { kind: 'Full' }) : undefined,
+    instalmentTerms: q?.feeArrangement?.terms,
+    bank: (q?.payInto === 'Client account' ? BANK['Client account'] : BANK.Office) as [string, string, string],
     firmName: 'Syafiqah Hamizad & Co',
   };
 };
@@ -134,12 +101,8 @@ export const DocActions: React.FC<{ title: string; label: string; html: string; 
   );
 };
 
-/** View, PDF, Print and Word for a standalone Warrant to Act. */
-export const WarrantToActActions: React.FC<{ input: WarrantInput; onDone?: (what: string) => void }> = ({ input, onDone }) => (
-  <DocActions title={(input.lang === 'BM' ? 'Waran untuk Bertindak ' : 'Warrant to Act ') + (input.fileRef || '')} label={(input.lang === 'BM' ? 'Waran untuk Bertindak' : 'Warrant to Act') + (input.fileRef ? ' · ' + input.fileRef : '')} html={warrantToActHtml(input)} onDone={onDone} />
-);
-
-/** View, PDF, Print and Word for the Quotation & Letter of Engagement (with the Warrant to Act). */
-export const EngagementLetterActions: React.FC<{ input: EngagementInput; onDone?: (what: string) => void }> = ({ input, onDone }) => (
-  <DocActions title={(input.lang === 'BM' ? 'Sebut Harga & Surat Perlantikan ' : 'Letter of Engagement ') + (input.quotationNo || input.ourRef || '')} label={(input.lang === 'BM' ? 'Sebut Harga & Surat Perlantikan' : 'Quotation & Letter of Engagement') + ' · ' + (input.quotationNo || '')} html={engagementLetterHtml(input)} onDone={onDone} />
-);
+/** View, PDF, Print and Word for the Letter of Engagement. */
+export const EngagementLetterActions: React.FC<{ input: EngagementInput; onDone?: (what: string) => void }> = ({ input, onDone }) => {
+  const name = input.lang === 'BM' ? 'Surat Perlantikan' : 'Letter of Engagement';
+  return <DocActions title={name + ' ' + (input.ourRef || '')} label={name + (input.ourRef ? ' · ' + input.ourRef : '')} html={engagementLetterHtml(input)} onDone={onDone} />;
+};

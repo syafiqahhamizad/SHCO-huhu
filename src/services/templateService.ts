@@ -223,8 +223,8 @@ export interface PracticeSettings {
   /** Letterhead tagline lines printed under the firm name on finance documents / payslips. */
   taglineLine1?: string;
   taglineLine2?: string;
-  /** Partners column on the letterhead (Firm & Letterhead tab), printed on the Quotation & Letter
-   * of Engagement and the Warrant to Act. Unset → lib/engagementLetter DEFAULT_LETTERHEAD_PARTNERS. */
+  /** Partners column on the letterhead (Firm & Letterhead tab), printed on the Letter
+   * of Engagement. Unset → lib/engagementLetter DEFAULT_LETTERHEAD_PARTNERS. */
   letterheadPartners?: LetterheadPartner[];
   /** Firm offices. Users pick one (User.branch = branch name); documents use the HQ letterhead. */
   branches?: FirmBranch[];

@@ -534,7 +534,6 @@ export const INITIAL_DOC_TEMPLATES: DocTemplate[] = [
   { id: 'TPL1', name: 'Engagement Letter', category: 'Engagement Letter' },
   { id: 'TPL2', name: 'Legal Notice (Demand Letter)', category: 'Legal Notice' },
   { id: 'TPL3', name: 'Fee Agreement', category: 'Fee Agreement' },
-  { id: 'TPL4', name: 'Warrant to Act', category: 'Court Filing' },
 ];
 
 export const INITIAL_DEADLINES: Deadline[] = [];
