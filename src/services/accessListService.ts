@@ -8,7 +8,10 @@ import type { User } from '../types';
  * Replaces the old Cloud-Function custom claims. firestore.rules and storage.rules read
  * this document to decide who may use the portal:
  *
- *   { users: { <emailKey>: { email, role, admin, active } }, updatedAt, updatedBy }
+ *   { users: { <emailKey>: { email, role, admin, active, billing? } }, updatedAt, updatedBy }
+ *
+ * billing ('none' | 'view' | 'edit') is the Super Admin's per-person choice for billing & money;
+ * absent = by role (partners, accountants, reviewers see; partners, accountants edit).
  *
  * emailKey = lowercase email with every '.' replaced by ',' so it is a plain map key and
  * the rules can compute it from the ID token:
@@ -27,6 +30,7 @@ export interface AccessEntry {
   role: AccessRole;
   admin: boolean;
   active: boolean;
+  billing?: 'none' | 'view' | 'edit';
 }
 
 export type AccessUsers = Record<string, AccessEntry>;
@@ -58,6 +62,7 @@ export function buildAccessList(users: User[]): { users: AccessUsers; skipped: U
       admin: role !== 'client' && role !== 'reviewer' && Boolean(u.isAdmin || u.isSuperAdmin),
       active: u.status !== 'Inactive',
     };
+    if (u.billingAccess && role !== 'client') entry.billing = u.billingAccess;
     const key = emailToAccessKey(email);
     const prev = out[key];
     // Duplicate roster rows for one email: the active one wins.
@@ -67,7 +72,7 @@ export function buildAccessList(users: User[]): { users: AccessUsers; skipped: U
 }
 
 const sameEntry = (a?: AccessEntry, b?: AccessEntry) =>
-  Boolean(a && b && a.email === b.email && a.role === b.role && a.admin === b.admin && a.active === b.active);
+  Boolean(a && b && a.email === b.email && a.role === b.role && a.admin === b.admin && a.active === b.active && (a.billing || '') === (b.billing || ''));
 
 export interface AccessChange {
   key: string;
@@ -80,7 +85,12 @@ export interface AccessChange {
 }
 
 const describe = (e?: AccessEntry) =>
-  !e ? 'no access' : `${e.role}${e.admin ? ' + admin' : ''}${e.active ? '' : ' (switched off)'}`;
+  !e ? 'no access' : `${e.role}${e.admin ? ' + admin' : ''}${e.billing ? ' · billing ' + e.billing : ''}${e.active ? '' : ' (switched off)'}`;
+
+/** How much billing access an entry gives (0 none, 1 see, 2 see & edit), role default when unset. */
+export const billingRank = (e: AccessEntry): number =>
+  e.billing === 'none' ? 0 : e.billing === 'view' ? 1 : e.billing === 'edit' ? 2
+    : ['partner', 'accountant'].includes(e.role) ? 2 : e.role === 'reviewer' ? 1 : 0;
 
 /** Every difference between the published list and the desired one. */
 export function diffAccessLists(published: AccessUsers | null, desired: AccessUsers): AccessChange[] {
@@ -95,7 +105,7 @@ export function diffAccessLists(published: AccessUsers | null, desired: AccessUs
     const afterLive = Boolean(after?.active);
     const grants =
       afterLive &&
-      (!beforeLive || before!.role !== after!.role || (!before!.admin && after!.admin));
+      (!beforeLive || before!.role !== after!.role || (!before!.admin && after!.admin) || billingRank(after!) > billingRank(before!));
     changes.push({
       key,
       email: after?.email || before?.email || key.replace(/,/g, '.'),

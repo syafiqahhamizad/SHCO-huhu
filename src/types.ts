@@ -1214,6 +1214,9 @@ export interface User {
   /** Firm & Practice Settings → "2-step login" flag. Recorded here only; the sign-in itself is
    * enforced by the Google Workspace / Firebase account, not by this app. */
   twoStepLogin?: boolean;
+  /** Billing & money access set by the Super Admin for this person ('' / absent = by role:
+   * partners, Accounts and reviewers see; partners and Accounts edit). Enforced by firestore.rules. */
+  billingAccess?: '' | 'none' | 'view' | 'edit';
 }
 
 export interface StaffProfile {

@@ -86,10 +86,10 @@ describe('after the split', () => {
     await assertFails(getDoc(doc(as(people.client.email), 'firm', 'main', 'cases', 'CS-1')));
   });
 
-  it('books: lawyers cannot read; accountants and admins can', async () => {
+  it('books: lawyers and non-finance admins cannot read; accountants can', async () => {
     await assertFails(getDoc(doc(as(people.lawyer.email), 'firm', 'main', 'generalLedger', 'GL-1')));
     await assertSucceeds(getDoc(doc(as(people.accountant.email), 'firm', 'main', 'generalLedger', 'GL-1')));
-    await assertSucceeds(getDoc(doc(as(people.assistantAdmin.email), 'firm', 'main', 'generalLedger', 'GL-1')));
+    await assertFails(getDoc(doc(as(people.assistantAdmin.email), 'firm', 'main', 'generalLedger', 'GL-1')));
     await assertFails(setDoc(doc(as(people.lawyer.email), 'firm', 'main', 'generalLedger', 'GL-2'), { glNo: 2 }));
   });
 
@@ -99,8 +99,8 @@ describe('after the split', () => {
       for (const col of BILLING) await setDoc(doc(db, 'firm', 'main', col, 'X-1'), { id: 'X-1', caseId: 'CS-1', amount: 100 });
     }));
 
-    it('partners, Accounts and admins read and write', async () => {
-      for (const who of [people.partner.email, people.accountant.email, people.assistantAdmin.email, OWNER]) {
+    it('partners, Accounts and the owner read and write', async () => {
+      for (const who of [people.partner.email, people.accountant.email, OWNER]) {
         const db = as(who);
         for (const col of BILLING) {
           await assertSucceeds(getDoc(doc(db, 'firm', 'main', col, 'X-1')));
@@ -111,8 +111,8 @@ describe('after the split', () => {
       }
     });
 
-    it('lawyers and assistants cannot read (get or list) or write any of it', async () => {
-      for (const who of [people.lawyer.email, people.assistant.email]) {
+    it('lawyers, assistants and admins who are not finance cannot read (get or list) or write any of it', async () => {
+      for (const who of [people.lawyer.email, people.assistant.email, people.assistantAdmin.email]) {
         const db = as(who);
         for (const col of BILLING) {
           await assertFails(getDoc(doc(db, 'firm', 'main', col, 'X-1')));
@@ -137,9 +137,66 @@ describe('after the split', () => {
 
     it('clients get none of it', () => assertFails(getDoc(doc(as(people.client.email), 'firm', 'main', 'invoices', 'X-1'))));
 
-    it('time entries and expenses stay open to lawyers (they log their own)', async () => {
+    it('time entries stay open to lawyers (they log their own)', async () => {
       await assertSucceeds(setDoc(doc(as(people.lawyer.email), 'firm', 'main', 'timeEntries', 'T-1'), { id: 'T-1', hours: 1 }));
-      await assertSucceeds(setDoc(doc(as(people.lawyer.email), 'firm', 'main', 'expenses', 'E-1'), { id: 'E-1', amount: 1 }));
+    });
+
+    it('the Super Admin decides per person: billing off for a partner, on for a lawyer', async () => {
+      await seed(async (db) => {
+        const users: Record<string, unknown> = {};
+        Object.values(people).forEach((p) => { users[key(p.email)] = { ...p, active: true }; });
+        (users[key(people.partner.email)] as Record<string, unknown>).billing = 'none';
+        (users[key(people.lawyer.email)] as Record<string, unknown>).billing = 'view';
+        (users[key(people.assistant.email)] as Record<string, unknown>).billing = 'edit';
+        await setDoc(doc(db, 'practiceSystem', 'access'), { users });
+      });
+      await assertFails(getDoc(doc(as(people.partner.email), 'firm', 'main', 'invoices', 'X-1')));
+      await assertFails(setDoc(doc(as(people.partner.email), 'firm', 'main', 'invoices', 'X-9'), { id: 'X-9', amount: 1 }));
+      await assertSucceeds(getDoc(doc(as(people.lawyer.email), 'firm', 'main', 'invoices', 'X-1')));
+      await assertFails(setDoc(doc(as(people.lawyer.email), 'firm', 'main', 'invoices', 'X-9'), { id: 'X-9', amount: 1 }));
+      await assertSucceeds(setDoc(doc(as(people.assistant.email), 'firm', 'main', 'invoices', 'X-9'), { id: 'X-9', amount: 1 }));
+      await assertSucceeds(getDoc(doc(as(OWNER), 'firm', 'main', 'invoices', 'X-1')));
+    });
+  });
+
+  describe('claims and payment vouchers: your own, or finance', () => {
+    const CLAIMS = ['travelClaims', 'expenses', 'paymentVouchers'];
+    beforeEach(() => seed(async (db) => {
+      for (const col of CLAIMS) {
+        await setDoc(doc(db, 'firm', 'main', col, 'L-1'), { id: 'L-1', amount: 10, approvalStatus: 'Pending Approval', _ownerEmail: people.lawyer.email });
+        await setDoc(doc(db, 'firm', 'main', col, 'A-1'), { id: 'A-1', amount: 20, approvalStatus: 'Pending Approval', _ownerEmail: people.assistant.email });
+      }
+    }));
+
+    it('staff read, add and change only their own while it waits', async () => {
+      const db = as(people.lawyer.email);
+      for (const col of CLAIMS) {
+        await assertSucceeds(getDoc(doc(db, 'firm', 'main', col, 'L-1')));
+        await assertSucceeds(getDocs(query(collection(db, 'firm', 'main', col), where('_ownerEmail', '==', people.lawyer.email))));
+        await assertFails(getDoc(doc(db, 'firm', 'main', col, 'A-1')));
+        await assertFails(getDocs(collection(db, 'firm', 'main', col)));
+        await assertSucceeds(setDoc(doc(db, 'firm', 'main', col, 'L-2'), { id: 'L-2', amount: 5, approvalStatus: 'Pending Approval', _ownerEmail: people.lawyer.email }));
+        await assertFails(setDoc(doc(db, 'firm', 'main', col, 'L-3'), { id: 'L-3', amount: 5, approvalStatus: 'Approved', _ownerEmail: people.lawyer.email }));
+        await assertFails(setDoc(doc(db, 'firm', 'main', col, 'X-1'), { id: 'X-1', amount: 5, approvalStatus: 'Pending Approval', _ownerEmail: people.assistant.email }));
+        await assertSucceeds(updateDoc(doc(db, 'firm', 'main', col, 'L-1'), { amount: 12 }));
+        await assertFails(updateDoc(doc(db, 'firm', 'main', col, 'L-1'), { approvalStatus: 'Approved' }));
+        await assertFails(updateDoc(doc(db, 'firm', 'main', col, 'A-1'), { amount: 1 }));
+      }
+    });
+
+    it('admins who are not finance see only their own too', async () => {
+      for (const col of CLAIMS) await assertFails(getDocs(collection(as(people.assistantAdmin.email), 'firm', 'main', col)));
+    });
+
+    it('partners and Accounts see and approve all; reviewers only read', async () => {
+      for (const col of CLAIMS) {
+        for (const who of [people.partner.email, people.accountant.email]) {
+          await assertSucceeds(getDocs(collection(as(who), 'firm', 'main', col)));
+          await assertSucceeds(updateDoc(doc(as(who), 'firm', 'main', col, 'L-1'), { approvalStatus: 'Approved' }));
+        }
+        await assertSucceeds(getDocs(collection(as(people.reviewer.email), 'firm', 'main', col)));
+        await assertFails(updateDoc(doc(as(people.reviewer.email), 'firm', 'main', col, 'A-1'), { approvalStatus: 'Approved' }));
+      }
     });
   });
 

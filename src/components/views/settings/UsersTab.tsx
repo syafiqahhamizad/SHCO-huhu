@@ -8,7 +8,7 @@ import { css, S, Txt, type SettingsCtx } from './settingsShared';
 import { designRole, isManagingPartner, isSuper, personChanges, SUPER_EMAIL } from './permissionModel';
 
 const PC = ['#16223A', '#3D6B9C', '#6B3D8C', '#2E7D7A', '#8A6534', '#5E6F2F', '#8C2F4C'];
-const GRID = 'display:grid;grid-template-columns:minmax(0,1.5fr) 150px 110px 100px 120px 84px 100px 176px;gap:10px;';
+const GRID = 'display:grid;grid-template-columns:minmax(0,1.5fr) 150px 110px 100px 128px 120px 84px 100px 176px;gap:10px;';
 const SEL = 'border:1px solid #DDE3EB;border-radius:6px;padding:5px 6px;font-size:11px;color:#16223A;background:#fff';
 
 const initials = (name: string) => name.split(' ').filter((w) => w && !/^(binti|bin|a\/l)$/i.test(w)).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
@@ -30,6 +30,11 @@ const lastLoginLabel = (ts?: string) => {
 
 const roleFromDesign = (v: string): { role: Role; mp: boolean } =>
   v === 'Managing Partner' ? { role: 'Partner', mp: true } : v === 'Reviewer (auditor)' ? { role: 'Reviewer', mp: false } : { role: v as Role, mp: false };
+
+/** Plain words for a person's billing access ('' = what their role gives). */
+const BILLING_LABEL = (u: User, v: User['billingAccess']): string =>
+  v === 'none' ? 'No' : v === 'view' ? 'See only' : v === 'edit' ? 'See & edit'
+    : u.role === 'Partner' || u.role === 'Accountant' ? 'See & edit' : u.role === 'Reviewer' ? 'See only' : 'No';
 
 export const UsersTab = ({ C }: { C: SettingsCtx }) => {
   const app = useApp();
@@ -81,7 +86,7 @@ export const UsersTab = ({ C }: { C: SettingsCtx }) => {
     <div style={css(S.card)}>
       <div style={css('display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>People &amp; roles</strong><span style={css(S.sub)}>{active + ' active people'} · role decides what each person can open; their files decide what data they see</span><button type="button" onClick={() => (canAdmin ? setAdding(true) : C.msg('Only an admin can add people'))} style={css('margin-left:auto;border:0;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:#16223A;color:#fff;cursor:pointer;font-family:inherit')}>+ Add person</button></div>
       <AccessListStatusLine />
-      <div style={css(GRID + 'padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>Name · email</span><span>Role</span><span>Branch</span><span>Admin</span><span>Access</span><span>2-step login</span><span>Last login</span><span></span></div>
+      <div style={css(GRID + 'padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>Name · email</span><span>Role</span><span>Branch</span><span>Admin</span><span title="Quotations, invoices, payments, receipts, client account, claims and vouchers. Only the Super Admin decides.">Billing &amp; money</span><span>Access</span><span>2-step login</span><span>Last login</span><span></span></div>
       {users.length === 0 && <div style={css('padding:14px;font-size:11px;color:#5B6478')}>No users in the roster yet. Add the first person with “+ Add person”.</div>}
       {users.map((u, i) => {
         const on = u.status !== 'Inactive';
@@ -108,6 +113,14 @@ export const UsersTab = ({ C }: { C: SettingsCtx }) => {
             <select value={rv} onChange={(e) => onRole(u, e.target.value)} style={css(SEL)}>{(ROLES.includes(rv) ? ROLES : [...ROLES, rv]).map((r) => <option key={r} value={r}>{r}</option>)}</select>
             <select value={u.branch || hqName} onChange={(e) => { if (updateUserAccount(u.id, { branch: e.target.value })) { C.log('User Branch Changed', u.name + ' → ' + e.target.value); C.msg(u.name + ' · ' + e.target.value); } }} style={css(SEL)}>{(branches.includes(u.branch || hqName) ? branches : [...branches, u.branch as string]).map((b) => <option key={b} value={b}>{b}</option>)}</select>
             <button type="button" onClick={() => toggleAdmin(u)} title={u.email === SUPER_EMAIL ? 'Managing Partner: always Super admin' : 'Click to switch admin on/off (— → Admin → Super admin → —)'} style={css(`justify-self:start;border:0;border-radius:10px;padding:2px 9px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;background:${adm ? '#16223A' : '#F0F2F5'};color:${adm ? '#fff' : '#94A3B8'}`)}>{sup ? 'Super admin' : adm ? 'Admin' : '—'}</button>
+            {u.role === 'Client' ? <span style={css('font-size:10.5px;color:#94A3B8')}>own bills only</span>
+              : sup ? <span style={css('font-size:10.5px;font-weight:700;color:#16223A')}>Everything</span>
+                : <select value={u.billingAccess || ''} disabled={!isSuper(currentUser)} title={isSuper(currentUser) ? 'Who sees billing & money: you decide per person' : 'Only the Super Admin decides who sees billing'} onChange={(e) => { const v = e.target.value as User['billingAccess']; if (updateUserAccount(u.id, { billingAccess: v })) { const t = BILLING_LABEL(u, v); C.log('Billing Access Changed', u.name + ': ' + t); C.msg(u.name + ' · billing: ' + t); } }} style={css(SEL + (u.billingAccess ? ';border-color:#8A6534;color:#8A6534' : ''))}>
+                    <option value="">{'By role (' + BILLING_LABEL(u, '') + ')'}</option>
+                    <option value="none">No</option>
+                    <option value="view">See only</option>
+                    <option value="edit">See &amp; edit</option>
+                  </select>}
             <button type="button" onClick={() => C.go('perms', { who: u.id })} style={css('justify-self:start;display:flex;flex-direction:column;align-items:flex-start;border:1px solid #DDE3EB;border-radius:6px;padding:3px 8px;background:#fff;cursor:pointer;font-family:inherit')}><span style={css('font-size:10.5px;font-weight:700;color:#2F5680')}>Check access</span><span style={css(`font-size:9.5px;color:${nX ? '#8A6534' : '#94A3B8'}`)}>{isManagingPartner(u) ? 'everything' : nX ? nX + ' change' + (nX > 1 ? 's' : '') + ' from role' : 'same as role'}</span></button>
             <button type="button" onClick={() => { if (updateUserAccount(u.id, { twoStepLogin: !fa })) { C.log('2-step Login Changed', u.name + ': ' + (fa ? 'Off' : 'On')); C.msg(u.name + ' · 2-step login ' + (fa ? 'off' : 'on')); } }} title="Recorded here; the sign-in itself is enforced by the Google Workspace / Firebase account" style={css(`justify-self:start;border:0;border-radius:10px;padding:2px 9px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;background:${fa ? '#E6EFE9' : '#FBEDE9'};color:${fa ? '#2F6F4E' : '#B23A2E'}`)}>{fa ? 'On' : 'Off'}</button>
             <span style={css('font-size:10.5px;color:#5B6478')}>{lastLoginLabel(u.lastLoginAt)}</span>
@@ -118,7 +131,7 @@ export const UsersTab = ({ C }: { C: SettingsCtx }) => {
           </div>
         );
       })}
-      <div style={css('display:flex;flex-direction:column;gap:3px;padding:9px 14px;background:#F6F8FA;font-size:10.5px;line-height:1.5;color:#5B6478')}><span>Switching someone off blocks their login immediately; their history stays. New staff added here appear automatically in Staff Portal, Payroll and the referrer list.</span><span><strong style={css('color:#16223A')}>Reviewer (auditor)</strong>: outside auditor login, read-only. Sees Cases and the Client Account (SAR 1990) only; cannot add, edit or approve.</span><span><strong style={css('color:#16223A')}>Client</strong>: invited from the client’s profile (Clients → Client Portal). Sees only their own files, documents and bills in the Client Portal.</span><span><strong style={css('color:#16223A')}>Admin</strong>: can manage Users &amp; Roles, Settings and Activity Logs on top of their role. The Managing Partner is Super admin and cannot be switched off.</span><span><strong style={css('color:#16223A')}>Check access</strong>: opens that person’s own access. Access is set by role first, then changed per person where needed.</span></div>
+      <div style={css('display:flex;flex-direction:column;gap:3px;padding:9px 14px;background:#F6F8FA;font-size:10.5px;line-height:1.5;color:#5B6478')}><span>Switching someone off blocks their login immediately; their history stays. New staff added here appear automatically in Staff Portal, Payroll and the referrer list.</span><span><strong style={css('color:#16223A')}>Reviewer (auditor)</strong>: outside auditor login, read-only. Sees Cases and the Client Account (SAR 1990) only; cannot add, edit or approve.</span><span><strong style={css('color:#16223A')}>Client</strong>: invited from the client’s profile (Clients → Client Portal). Sees only their own files, documents and bills in the Client Portal.</span><span><strong style={css('color:#16223A')}>Billing &amp; money</strong>: you decide per person. By role, partners and Accounts see and edit, reviewers see; everyone else (admins too) sees no amounts, bills, claims or vouchers except their own claims.</span><span><strong style={css('color:#16223A')}>Admin</strong>: can manage Users &amp; Roles, Settings and Activity Logs on top of their role. The Managing Partner is Super admin and cannot be switched off.</span><span><strong style={css('color:#16223A')}>Check access</strong>: opens that person’s own access. Access is set by role first, then changed per person where needed.</span></div>
       {adding && <AddPersonModal C={C} roles={ROLES} branches={branches} hq={hqName} onClose={() => setAdding(false)} />}
     </div>
   );

@@ -1,5 +1,6 @@
 import React from 'react';
 import { useApp } from '../../../../context/AppContext';
+import { useAmountText } from '../../../../lib/useAmountText';
 import { css, S, Card } from '../caseUi';
 import { whenF } from '../caseModel';
 import type { WF } from '../wf';
@@ -8,10 +9,11 @@ import type { WF } from '../wf';
  * firm audit log. Read-only. */
 export const HistoryTab: React.FC<{ w: WF }> = ({ w }) => {
   const { auditLogs = [] } = useApp();
+  const amt = useAmountText();
   const { c } = w;
   const rows = [
     ...(c.activityLogs || []).map((a) => ({ key: a.id, at: a.timestamp, who: a.actor, what: a.title + (a.description && a.description !== a.title ? ' — ' + a.description : '') })),
-    ...auditLogs.filter((a) => a.recordId === c.id && a.action !== 'UPDATE').map((a) => ({ key: a.id, at: a.timestamp, who: a.performedBy, what: a.details })),
+    ...auditLogs.filter((a) => a.recordId === c.id && a.action !== 'UPDATE').map((a) => ({ key: a.id, at: a.timestamp, who: a.performedBy, what: amt(a.details) })),
   ].sort((a, b) => (String(a.at).replace(' ', 'T') < String(b.at).replace(' ', 'T') ? 1 : -1));
   return (
     <Card>

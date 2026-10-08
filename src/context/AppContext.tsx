@@ -231,7 +231,7 @@ interface AppContextType {
   /** Firm & Practice Settings: drop all of one person's own changes ("Reset to role"). */
   resetUserNavOverrides: (userId: string) => void;
   /** Firm & Practice Settings → Users & Roles: active/switched off, branch, 2-step flag. */
-  updateUserAccount: (userId: string, patch: { status?: User['status']; branch?: string; twoStepLogin?: boolean }) => boolean;
+  updateUserAccount: (userId: string, patch: { status?: User['status']; branch?: string; twoStepLogin?: boolean; billingAccess?: User['billingAccess'] }) => boolean;
 
   // Data State
   leads: Lead[];
@@ -2311,7 +2311,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (userId === currentUser.id) setCurrentUser((prev) => ({ ...prev, navOverrides: {} }));
   };
 
-  const updateUserAccount = (userId: string, patch: { status?: User['status']; branch?: string; twoStepLogin?: boolean }): boolean => {
+  const updateUserAccount = (userId: string, patch: { status?: User['status']; branch?: string; twoStepLogin?: boolean; billingAccess?: User['billingAccess'] }): boolean => {
     const isSuperAdminUser = currentUser.email === 'syafiqahhamizad@shcolaw.com' || Boolean(currentUser.isSuperAdmin);
     if (!(isSuperAdminUser || currentUser.isAdmin)) {
       showToast('Only an admin can change user accounts.');
@@ -2319,6 +2319,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     const target = users.find((u) => u.id === userId);
     if (!target) return false;
+    if (patch.billingAccess !== undefined && !isSuperAdminUser) {
+      showToast('Only the Super Admin decides who sees billing.');
+      return false;
+    }
     if (patch.status === 'Inactive') {
       if (!isSuperAdminUser) {
         showToast('Only the Super Admin can switch a user off.');
@@ -2331,7 +2335,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...patch } : u)));
     if (userId === currentUser.id) setCurrentUser((prev) => ({ ...prev, ...patch }));
-    if (patch.status !== undefined && target.email) approveAccessChange(target.email);
+    if ((patch.status !== undefined || patch.billingAccess !== undefined) && target.email) approveAccessChange(target.email);
     logAuditEvent('UPDATE', 'USERS', userId, target.name, `Account updated: ${Object.entries(patch).map(([k, v]) => `${k} = ${v}`).join(', ')}.`);
     return true;
   };

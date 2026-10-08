@@ -30,7 +30,7 @@ import type { TaskDraft } from '../../ui';
 import { palette, serifFont, tint } from '../../../lib/designTokens';
 import { parseLocal, toLocalMonth } from '../../../lib/localDate';
 import { caseFinder, isIssued, owedBalance, paidByInvoice } from '../../../lib/financeMetrics';
-import { canSeeClientBilling, canSeeFinanceView, finRoleKey, isFinanceView } from '../../../lib/financeAccess';
+import { canSeeClientBilling, finGrants, canSeeFinanceView, finRoleKey, isFinanceView } from '../../../lib/financeAccess';
 import { driveViewUrl } from '../../../services/googleDriveService';
 import { deleteGoogleTask, upsertGoogleTask } from '../../../services/googleTasksService';
 import { googleErrorMessage, hasValidGoogleToken } from '../../../services/googleWorkspaceAuth';
@@ -395,7 +395,7 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
   const finRk = finRoleKey(currentRole, currentUser, isAdmin);
   // Billed / collected / receivables come from invoices and payments: partners, Accounts and
   // reviewers only (lawyers and assistants get no billing records, so the tiles are hidden).
-  const seeBilling = canSeeClientBilling(finRk);
+  const seeBilling = canSeeClientBilling(finRk, finGrants(currentUser));
   const canOpen = (view: string) => !isFinanceView(view) || canSeeFinanceView(view, finRk);
   const CASE_TAB: Partial<Record<Stream, string>> = { task: 'tasks', deadline: 'tasks', hearing: 'court', signature: 'letters', matter: 'overview', unbilled: 'time', approval: 'time' };
   const openCase = (caseId: string, sub = 'overview') => {

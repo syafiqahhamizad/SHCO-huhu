@@ -11,6 +11,7 @@ import {
   Archive,
 } from 'lucide-react';
 import { RecycleBinModal } from './RecycleBinModal';
+import { useAmountText } from '../lib/useAmountText';
 import { FIN_TABS, FINANCE_VIEW_TO_TAB, canSeeFinanceView, finRoleKey, isFinanceView } from '../lib/financeAccess';
 
 export const Header: React.FC = () => {
@@ -38,6 +39,7 @@ export const Header: React.FC = () => {
     isNewCaseModalOpen,
     setIsNewCaseModalOpen,
   } = useApp();
+  const amt = useAmountText();
   const selectedClientId = useSelectedClientId();
   const selectedClient = currentView === 'clients' && selectedClientId ? clients.find((c: any) => c.id === selectedClientId) : undefined;
   const selectedCase = currentView === 'cases' && currentCaseId ? cases.find((c: any) => c.id === currentCaseId) : undefined;
@@ -435,10 +437,10 @@ export const Header: React.FC = () => {
 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-1">
-                            <span className="font-bold text-xs text-[#16223A] truncate">{n.title}</span>
+                            <span className="font-bold text-xs text-[#16223A] truncate">{amt(n.title)}</span>
                             <span className="text-[9.5px] font-mono text-slate-400 shrink-0">{n.timestamp}</span>
                           </div>
-                          <p className="text-[11px] text-slate-600 mt-0.5 leading-tight">{n.message}</p>
+                          <p className="text-[11px] text-slate-600 mt-0.5 leading-tight">{amt(n.message)}</p>
                           {!n.read && (
                             <span className="inline-block mt-1 text-[9px] font-bold bg-amber-200 text-amber-900 px-1.5 py-0.2 rounded">
                               UNREAD

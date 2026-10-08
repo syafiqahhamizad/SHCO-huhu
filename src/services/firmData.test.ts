@@ -23,9 +23,19 @@ describe('collection layout', () => {
       expect(canReadTier(collectionDef(k)!.tier, 'partner', false)).toBe(true);
     }
   });
-  it('time entries and expenses stay with every firm user', () => {
+  it('time entries stay with every firm user; claims and vouchers are per person', () => {
     expect(collectionDef('timeEntries')?.tier).toBe('firm');
-    expect(collectionDef('expenses')?.tier).toBe('firm');
+    for (const k of ['travelClaims', 'expenses', 'paymentVouchers']) expect(collectionDef(k)?.tier).toBe('claims');
+    expect(canReadTier('claims', 'lawyer', false)).toBe(false);
+    expect(canReadTier('claims', 'accountant', false)).toBe(true);
+  });
+
+  it('admins who are not finance get no books; the Super Admin decides per person', () => {
+    expect(canReadTier('books', 'lawyer', true)).toBe(false);
+    expect(canReadTier('books', 'partner', false, false, 'none')).toBe(false);
+    expect(canReadTier('books', 'lawyer', false, false, 'view')).toBe(true);
+    expect(canReadTier('claims', 'assistant', false, false, 'edit')).toBe(true);
+    expect(canReadTier('books', 'lawyer', false, true)).toBe(true);
   });
 });
 
@@ -118,6 +128,11 @@ describe('SyncLedger (live updates vs local edits)', () => {
     expect(L.changes('payslips', M({ P1: { _ownerEmail: 'me@x', v: 2 }, P2: { _ownerEmail: 'other@x', v: 1 } }), 'me@x'))
       .toEqual([{ id: 'P1', data: { _ownerEmail: 'me@x', v: 2 } }]);
     expect(L.changes('payslips', new Map(), 'me@x')).toEqual([]);
+  });
+  it('own claims: I can withdraw mine, never delete anyone else\'s', () => {
+    const L = new SyncLedger();
+    L.merge('travelClaims', M({ C1: { _ownerEmail: 'me@x', v: 1 }, C2: { _ownerEmail: 'other@x', v: 1 } }), new Map(), 'own');
+    expect(L.changes('travelClaims', new Map(), 'me@x')).toEqual([{ id: 'C1', data: null }]);
   });
   it('after a save is counted, the same data is not sent twice', () => {
     const L = new SyncLedger();

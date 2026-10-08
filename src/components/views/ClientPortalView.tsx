@@ -19,7 +19,7 @@ import type { Case, CaseDocument, Client, Hearing, Invoice, Receipt, Task, User 
 import { css, invoiceToDoc, quotationToDoc, receiptToDoc, type Lookups } from './finance/financeModel';
 import { courtOf, isDeadline, isDone, isoOf, lawyerOf, practiceOf, stageKey, stageMessage, staffOf, stagesFor, todayIso } from './cases/caseModel';
 import { casesOfClient, moneyForClient } from '../../lib/moneyByFile';
-import { canSeeClientBilling, finRoleKey } from '../../lib/financeAccess';
+import { canSeeClientBilling, finGrants, finRoleKey } from '../../lib/financeAccess';
 import { courtEventTimes } from '../../lib/calendarEvent';
 import { whatsappLink } from '../../lib/whatsapp';
 import { docHtml, pdf, tableHtml } from '../../lib/financeDocs';
@@ -113,7 +113,7 @@ export const ClientPortalView: React.FC = () => {
   const preview = !isClientLogin;
   // Staff preview: bills and the client account only for people who see billing (partners,
   // Accounts, reviewers). Lawyers and assistants get no billing records, so those parts are hidden.
-  const previewBilling = !preview || canSeeClientBilling(finRoleKey(currentRole, currentUser, isAdmin));
+  const previewBilling = !preview || canSeeClientBilling(finRoleKey(currentRole, currentUser, isAdmin), finGrants(currentUser));
 
   const [cid, setCid] = useState<string>(() => {
     try { return sessionStorage.getItem(PREVIEW_CLIENT_KEY) || ''; } catch { return ''; }

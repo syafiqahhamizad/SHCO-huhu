@@ -6,7 +6,8 @@ import { useApp } from '../../context/AppContext';
 import type { Case, Client, ClientHistoryEntry, CorporateEntityCategory, KycDoc } from '../../types';
 import { NewClientModal } from '../NewClientModal';
 import { css } from './finance/financeModel';
-import { canSeeClientBilling, canSeeFinanceView, finRoleKey } from '../../lib/financeAccess';
+import { hideAmounts } from '../../lib/hideAmounts';
+import { canSeeClientBilling, finGrants, canSeeFinanceView, finRoleKey } from '../../lib/financeAccess';
 import { casesOfClient, isOpenFile, moneyForClient, moneyForFile, type MoneySources } from '../../lib/moneyByFile';
 import { parseDate } from '../../lib/financeCalc';
 import { exportToCsv } from '../../lib/exportUtils';
@@ -66,7 +67,7 @@ export const ClientsView: React.FC = () => {
   const tier: Tier = rk === 'M' || rk === 'A' ? 'fin' : rk === 'P' ? 'partner' : 'lawyer';
   // Bills, receipts and the client account: partners, Accounts and reviewers only. Lawyers and
   // assistants get no billing records, so the Money tab and "Owes us" figures are not shown.
-  const seeBilling = canSeeClientBilling(rk);
+  const seeBilling = canSeeClientBilling(rk, finGrants(currentUser));
   const FILE_COLS = 'display:grid;grid-template-columns:220px minmax(200px,1fr) 140px 150px ' + (seeBilling ? '100px ' : '') + '80px;gap:12px;';
   const me = currentUser?.name || 'Staff';
 
@@ -432,7 +433,7 @@ export const ClientsView: React.FC = () => {
       const cr = auditLogs.find((a) => a.collection === 'CLIENTS' && a.recordId === c.id && a.action === 'CREATE');
       if (c.createdAt || cr) push(c.createdAt || cr?.timestamp, 'Client registered as ' + (c.type === 'Corporate' ? c.entityCategory || 'Company' : 'Individual'), cr?.performedBy || '', '#16223A');
     }
-    auditLogs.filter((a) => a.collection === 'CLIENTS' && a.recordId === c.id && a.action !== 'CREATE' && a.details !== 'Client record updated.').forEach((a) => push(a.timestamp, a.details, a.performedBy, '#4A5468'));
+    auditLogs.filter((a) => a.collection === 'CLIENTS' && a.recordId === c.id && a.action !== 'CREATE' && a.details !== 'Client record updated.').forEach((a) => push(a.timestamp, seeBilling ? a.details : hideAmounts(a.details), a.performedBy, '#4A5468'));
     rows.sort((a, b) => b.t - a.t);
     return (
       <div style={css('border-radius:12px;border:1px solid #DDE3EB;background:#fff;overflow:hidden')}>

@@ -46,7 +46,7 @@ export async function migrateToCollections(readOld: () => Promise<Record<string,
   const state = (await readOld()) || {};
 
   const users = (Array.isArray(state.users) ? state.users : []) as User[];
-  const emailOf = (id: string) => (users.find((u) => u.id === id)?.email || '').toLowerCase();
+  const emailOf = (id: string) => (users.find((u) => u.id === id || (!!id && u.name.toLowerCase() === id.toLowerCase()))?.email || '').toLowerCase();
   const counts: Record<string, number> = {};
   const writes: { key: string; id: string; data: DocumentData }[] = [];
 
@@ -99,7 +99,7 @@ export function subscribeCollection(
     }, (err) => {
       if (stopped) return;
       const denied = String((err as { code?: string }).code || '').includes('permission-denied');
-      if (denied && scope === 'all' && collectionDef(key)?.tier === 'hr') listen('own');
+      if (denied && scope === 'all' && ['hr', 'claims'].includes(String(collectionDef(key)?.tier))) listen('own');
       else { if (!denied) console.error('Live data for ' + key + ' stopped', err); onData(new Map(), 'none'); }
     });
   };

@@ -107,9 +107,11 @@ service cloud.firestore {
       return splitStarted() && get(metaPath()).data.get('state', '') == 'done';
     }
 
-    // firm  — every firm user;  books — partners, accountants, reviewers (read), admins, owner
+    // firm  — every firm user;  books — whoever the Super Admin allows (default partners, accountants, reviewers read)
     //         (ledgers, bank, and client billing: quotations, invoices, payments, receipts,
     //         client-account entries — lawyers and assistants get none of it);
+    // claims — staff claims, expense claims and payment vouchers: the person who made it, or
+    //         finance (partners, accountants, reviewers read; partners/accountants write);
     // hr    — partners, accountants, admins, owner, or the person's own document;
     // own   — only the person it belongs to (private to-dos), nobody else;
     // users — everyone reads; admins write; people may update their own non-sensitive fields.
@@ -117,22 +119,34 @@ service cloud.firestore {
       return col in ['manualJournals', 'financeConfig', 'bankAccounts', 'bankReconciliationEntries', 'trustAuditLogs', 'generalLedger', 'clientAccountChecks',
                      'quotations', 'invoices', 'payments', 'receipts', 'retainers'] ? 'books'
         : col in ['payslips', 'staffPrivate'] ? 'hr'
+        : col in ['travelClaims', 'expenses', 'paymentVouchers'] ? 'claims'
         : col == 'privateTodos' ? 'own'
         : col == 'users' ? 'users'
         : col == 'config' ? 'config'
-        : col in ['leads', 'clients', 'cases', 'referralPartners', 'paymentVouchers', 'travelClaims',
+        : col in ['leads', 'clients', 'cases', 'referralPartners',
                   'deadlines', 'attendanceRecords', 'leaveApplications', 'meetings', 'programmes',
-                  'notifications', 'lawFirmRegistry', 'deletedRecords', 'timeEntries', 'expenses', 'announcements', 'auditLogs',
+                  'notifications', 'lawFirmRegistry', 'deletedRecords', 'timeEntries', 'announcements', 'auditLogs',
                   'firmStartCentrePages', 'inventoryItems', 'logs'] ? 'firm'
         : 'none';
     }
 
+    // Billing & money: the Super Admin decides per person (access list 'billing': none / view /
+    // edit). Not set = by role: partners and accountants see and edit, reviewers see. Admin is a
+    // settings/users right, not a finance one.
+    function billingSet(level, roles) {
+      let users = accessUsers();
+      let key = accessKey();
+      return emailVerified() && key in users && users[key].get('active', false) == true &&
+        (users[key].get('billing', '') in level ||
+         (users[key].get('billing', '') == '' && users[key].get('role', '') in roles));
+    }
+
     function booksReader() {
-      return isAdminOrOwner() || listedActiveWithRole(['partner', 'accountant', 'reviewer']);
+      return isOwner() || billingSet(['view', 'edit'], ['partner', 'accountant', 'reviewer']);
     }
 
     function booksWriter() {
-      return isAdminOrOwner() || listedActiveWithRole(['partner', 'accountant']);
+      return isOwner() || billingSet(['edit'], ['partner', 'accountant']);
     }
 
     function hrStaff() {
@@ -154,6 +168,7 @@ service cloud.firestore {
       allow read: if (splitDone() || isOwner()) && (
         (tierOf(col) in ['firm', 'users', 'config'] && isFirmUser()) ||
         (tierOf(col) == 'books' && booksReader()) ||
+        (tierOf(col) == 'claims' && (booksReader() || (isFirmUser() && ownDoc(resource.data)))) ||
         (tierOf(col) == 'hr' && (hrStaff() || (isFirmUser() && ownDoc(resource.data)))) ||
         (tierOf(col) == 'own' && isFirmUser() && ownDoc(resource.data))
       );
@@ -162,10 +177,22 @@ service cloud.firestore {
       allow create, update, delete: if (!splitDone() && isOwner()) || (splitDone() && (
         (tierOf(col) == 'firm' && isFirmUser()) ||
         (tierOf(col) == 'books' && booksWriter()) ||
+        (tierOf(col) == 'claims' && booksWriter()) ||
         (tierOf(col) == 'hr' && hrStaff()) ||
         (tierOf(col) == 'config' && (docId in ['rolesMatrix', 'customRoles'] ? isOwner() : isFirmUser())) ||
         (tierOf(col) == 'users' && isAdminOrOwner())
       ));
+
+      // Your own claim / payment request: create it, and change or withdraw it while it is
+      // still waiting (never its approval status — approvers do that).
+      allow create: if splitDone() && tierOf(col) == 'claims' && isFirmUser() && ownDoc(request.resource.data) &&
+        request.resource.data.get('approvalStatus', 'Pending Approval') in ['Pending Approval', 'Pending PIC Approval', 'Draft', 'Pending', ''];
+      allow update: if splitDone() && tierOf(col) == 'claims' && isFirmUser() &&
+        ownDoc(resource.data) && ownDoc(request.resource.data) &&
+        request.resource.data.get('approvalStatus', '') == resource.data.get('approvalStatus', '') &&
+        resource.data.get('approvalStatus', 'Pending Approval') in ['Pending Approval', 'Pending PIC Approval', 'Draft', 'Pending', ''];
+      allow delete: if splitDone() && tierOf(col) == 'claims' && isFirmUser() && ownDoc(resource.data) &&
+        resource.data.get('approvalStatus', 'Pending Approval') in ['Pending Approval', 'Pending PIC Approval', 'Draft', 'Pending', ''];
 
       // Private to-dos: only the person they belong to — no partner, Accounts or admin access.
       allow create, update: if splitDone() && tierOf(col) == 'own' && isFirmUser() &&
@@ -180,7 +207,7 @@ service cloud.firestore {
       // everything except role, admin, status, e-mail and permissions.
       allow update: if splitDone() && col == 'users' && isFirmUser() &&
         (resource.data.get('email', '').lower() == myEmail() || hrStaff()) &&
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'email', 'role', 'isAdmin', 'isSuperAdmin', 'status', 'navOverrides', 'code']);
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'email', 'role', 'isAdmin', 'isSuperAdmin', 'status', 'navOverrides', 'code', 'billingAccess']);
 
       // Adding yourself to the roster at first sign-in, with the role the owner gave you.
       allow create: if splitDone() && col == 'users' && isFirmUser() &&

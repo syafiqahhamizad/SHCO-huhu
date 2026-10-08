@@ -63,6 +63,8 @@ export const isFinanceView = (viewId: string) => Object.prototype.hasOwnProperty
 export const finRoleKey = (currentRole: string | undefined, currentUser: Partial<User> | undefined, isAdmin: boolean): FinRoleKey => {
   const role = String(currentRole || currentUser?.role || '');
   if (role === 'Client') return 'S';
+  // The Super Admin switched billing & money off for this person.
+  if (currentUser?.billingAccess === 'none' && String(currentUser?.email || '').toLowerCase() !== 'syafiqahhamizad@shcolaw.com') return 'S';
   if (/account/i.test(role)) return 'A';
   if (role === 'Reviewer') return 'R';
   // Managing Partner = the Super Admin only; an admin partner is still a Partner here.
@@ -75,7 +77,11 @@ export const finRoleKey = (currentRole: string | undefined, currentUser: Partial
  * Settings › Permissions › By person › "Books & Reports" (finance.reports) set to View opens
  * Accounting and Reports for that person.
  */
-export const finGrants = (u?: Partial<User> | null): FinTab[] => (u?.navOverrides?.['finance.reports']?.v ? ['books', 'reports'] : []);
+export const finGrants = (u?: Partial<User> | null): FinTab[] => [
+  ...(u?.navOverrides?.['finance.reports']?.v ? (['books', 'reports'] as FinTab[]) : []),
+  // Super Admin's per-person "Billing & money: see / see & edit" (Users & Roles).
+  ...(u?.billingAccess === 'view' || u?.billingAccess === 'edit' ? (['billing', 'trust'] as FinTab[]) : []),
+];
 
 export const finTabsFor = (rk: FinRoleKey, grants: FinTab[] = []) => FIN_TABS.filter((t) => t[2].includes(rk) || grants.includes(t[0]));
 
@@ -95,8 +101,8 @@ export const canSeeFinanceNav = (viewId: string, rk: FinRoleKey, grants: FinTab[
 
 
 /**
- * Client billing (quotations, invoices, payments, receipts, client-account entries) is for
- * Managing Partner, partners, Accounts and reviewers only — the same people who see the Client
+ * Client billing (quotations, invoices, payments, receipts, client-account entries) is, unless the
+ * Super Admin sets it per person (User.billingAccess), for Managing Partner, partners, Accounts and reviewers only — the same people who see the Client
  * Account page. Lawyers, assistants and clients get none of these records from the database
  * (firestore.rules: books tier), so screens hide bills and money figures for them.
  */

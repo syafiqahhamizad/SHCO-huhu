@@ -70,7 +70,7 @@ export function useFirmDataSync(a: FirmDataSyncArgs) {
       }
       return docsFor(key, (cur[key] || []) as AnyList, emailOf);
     };
-    const emailOf = (id: string) => (((listsRef.current.users || []) as unknown as User[]).find((u) => u.id === id)?.email || '').toLowerCase();
+    const emailOf = (id: string) => (((listsRef.current.users || []) as unknown as User[]).find((u) => u.id === id || (!!id && u.name.toLowerCase() === id.toLowerCase()))?.email || '').toLowerCase();
 
     const unsubs = COLLECTIONS.map((def) => subscribeCollection(def.key, a.myEmail, (incoming, scope) => {
       const merged = L.merge(def.key, incoming, localDocs(def.key), scope);
@@ -109,7 +109,7 @@ export function useFirmDataSync(a: FirmDataSyncArgs) {
     const L = ledger.current;
     const changed = Object.keys(a.lists).filter((k) => prevLists.current[k] !== a.lists[k]);
     prevLists.current = { ...a.lists };
-    const emailOf = (id: string) => (((a.lists.users || []) as unknown as User[]).find((u) => u.id === id)?.email || '').toLowerCase();
+    const emailOf = (id: string) => (((a.lists.users || []) as unknown as User[]).find((u) => u.id === id || (!!id && u.name.toLowerCase() === id.toLowerCase()))?.email || '').toLowerCase();
 
     const push = (key: string, docs: Map<string, Record<string, unknown>>) => {
       if (L.scope.get(key) === 'none' && docs.size > 0) {

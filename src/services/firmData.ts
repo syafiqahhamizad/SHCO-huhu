@@ -20,7 +20,7 @@
  */
 import type { StaffProfile, User } from '../types';
 
-export type Tier = 'firm' | 'books' | 'hr' | 'users' | 'own';
+export type Tier = 'firm' | 'books' | 'hr' | 'users' | 'own' | 'claims';
 
 export interface CollectionDef {
   /** The AppContext / old sharedState key. */
@@ -36,8 +36,8 @@ const def = (key: string, tier: Tier, idOf: CollectionDef['idOf'] = byId): Colle
 
 /** Every list the app keeps. `users` is split into `users` (public) + `staffPrivate` (hr). */
 export const COLLECTIONS: CollectionDef[] = [
-  ...['leads', 'clients', 'cases', 'referralPartners', 'paymentVouchers', 'travelClaims', 'deadlines', 'attendanceRecords', 'leaveApplications', 'meetings', 'programmes', 'notifications',
-    'lawFirmRegistry', 'deletedRecords', 'timeEntries', 'expenses', 'announcements', 'auditLogs', 'firmStartCentrePages', 'inventoryItems',
+  ...['leads', 'clients', 'cases', 'referralPartners', 'deadlines', 'attendanceRecords', 'leaveApplications', 'meetings', 'programmes', 'notifications',
+    'lawFirmRegistry', 'deletedRecords', 'timeEntries', 'announcements', 'auditLogs', 'firmStartCentrePages', 'inventoryItems',
   ].map((k) => def(k, 'firm')),
   def('logs', 'firm', (r) => 'LOG-' + hash([r.ts, r.user, r.action, r.details].map(String).join('|'))),
   ...['quotations', 'invoices', 'payments', 'receipts', 'retainers'].map((k) => def(k, 'books')),
@@ -45,6 +45,8 @@ export const COLLECTIONS: CollectionDef[] = [
   def('generalLedger', 'books', (r) => 'GL-' + String(r.glNo ?? '') + '-' + String(r.docNo ?? '')),
   def('clientAccountChecks', 'books', (r) => String(r.itemKey ?? '')),
   def('payslips', 'hr'),
+  // Claims and payment vouchers: the person who made it, or finance.
+  ...['travelClaims', 'expenses', 'paymentVouchers'].map((k) => def(k, 'claims')),
   def('privateTodos', 'own'),
   def('staffPrivate', 'hr'),
   def('users', 'users'),
@@ -64,11 +66,17 @@ export const TIER_READERS: Record<Tier, string[]> = {
   books: ['partner', 'accountant', 'reviewer'],
   hr: ['partner', 'accountant'],
   own: [],
+  claims: ['partner', 'accountant', 'reviewer'],
 };
 
-/** Can this person read the whole collection? (owner and admins always can.) */
-export const canReadTier = (tier: Tier, role: string, isAdminOrOwner: boolean) =>
-  tier !== 'own' && (isAdminOrOwner || TIER_READERS[tier].includes(role.toLowerCase()));
+/** Can this person read the whole collection? The owner always can; admins only for non-finance
+ * tiers; for books / claims the Super Admin's per-person billing choice wins over the role. */
+export const canReadTier = (tier: Tier, role: string, isAdminOrOwner: boolean, isOwner = false, billing: '' | 'none' | 'view' | 'edit' = '') => {
+  if (tier === 'own') return false;
+  if (isOwner) return true;
+  if (tier === 'books' || tier === 'claims') return billing ? billing !== 'none' : TIER_READERS[tier].includes(role.toLowerCase());
+  return isAdminOrOwner || TIER_READERS[tier].includes(role.toLowerCase());
+};
 
 /** Small stable string hash (FNV-1a, hex) for records without an id. */
 export function hash(s: string): string {
@@ -166,6 +174,9 @@ export function docsFor(key: string, list: Record<string, unknown>[], ownerEmail
   list.forEach((r, i) => {
     const data = clean(r) as Record<string, unknown>;
     if (key === 'payslips' && ownerEmailOf) data._ownerEmail = ownerEmailOf(String(r.userId || ''));
+    // Claims / payment vouchers belong to the person who made them (by name or user id).
+    if (ownerEmailOf && (key === 'travelClaims' || key === 'expenses')) data._ownerEmail = ownerEmailOf(String(r.claimantId || r.claimant || ''));
+    if (ownerEmailOf && key === 'paymentVouchers') data._ownerEmail = ownerEmailOf(String(r.preparedById || r.preparedBy || r.claimant || ''));
     if (key === 'privateTodos') data._ownerEmail = String(r.ownerEmail || '').toLowerCase();
     m.set(ids[i], data);
   });
@@ -213,8 +224,13 @@ export class SyncLedger {
     if (!scope || scope === 'none') return [];
     let target = next;
     if (scope === 'own') target = new Map([...next].filter(([, d]) => String(d._ownerEmail || '') === myEmail.toLowerCase()));
-    const w = diffDocs(target, this.last.get(key) || new Map());
-    return scope === 'own' ? w.filter((x) => x.data !== null) : w;
+    const prev = this.last.get(key) || new Map<string, string>();
+    const w = diffDocs(target, prev);
+    if (scope !== 'own') return w;
+    // Own scope: never deletes, except withdrawing your own claim / payment request.
+    const mineBefore = (id: string) => { try { return String(JSON.parse(prev.get(id) || '{}')._ownerEmail || '') === myEmail.toLowerCase(); } catch { return false; } };
+    const canWithdraw = collectionDef(key)?.tier === 'claims';
+    return w.filter((x) => x.data !== null || (canWithdraw && mineBefore(x.id)));
   }
 
   /** After a successful write: the server now has these. */
