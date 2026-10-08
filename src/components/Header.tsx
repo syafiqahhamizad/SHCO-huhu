@@ -119,7 +119,7 @@ export const Header: React.FC = () => {
     if (isFinanceView(currentView)) {
       // Design: the page title is the open finance page (sidebar drives the pages, no tab strip).
       const tab = FINANCE_VIEW_TO_TAB[currentView];
-      return { title: FIN_TABS.find((t) => t[0] === tab)?.[1] || 'Finance & Accounts', sub: 'Finance & Accounts · restricted to Accounts, Partners and Managing Partner' };
+      return { title: FIN_TABS.find((t) => t[0] === tab)?.[1] || 'Finance & Accounts', sub: 'Finance & Accounts · restricted to Accounts, Partners and Super Admin' };
     }
     switch (currentView) {
       case 'firmStartCentre':

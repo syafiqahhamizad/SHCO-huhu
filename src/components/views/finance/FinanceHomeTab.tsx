@@ -41,7 +41,7 @@ export const FinanceHomeTab = ({ F }: { F: FinanceCtrl }) => {
   /* ---------------- Month-end close ---------------- */
   const acct = users.find((u) => /account/i.test(String(u.role)) && u.status !== 'Inactive');
   const mpUser = users.find((u) => u.isSuperAdmin) || currentUser;
-  const AC = acct ? initials(acct.name) : 'AC', MP = initials(mpUser?.name) || 'MP';
+  const AC = acct ? initials(acct.name) : 'AC', MP = initials(mpUser?.name) || 'SA';
   const staffN = F.staff.length;
   const waitingClaims = F.apItems.filter((a) => a.type === 'Staff claim' || a.type === 'Payment voucher').length;
   const old60 = F.unbilled.filter((u) => u.oldest > 60);

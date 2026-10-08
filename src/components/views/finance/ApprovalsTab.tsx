@@ -37,7 +37,7 @@ export const ApprovalsTab = ({ F }: { F: FinanceCtrl }) => {
             {done && <span style={css(`justify-self:end;font-size:10.5px;font-weight:700;color:${d === 'ok' ? '#2F6F4E' : d ? '#B23A2E' : '#8A6534'}`)}>{d === 'ok' ? 'Approved ✓' + (signedCodes.length ? ' · ' + signedCodes.join(' & ') : '') : d ? 'Rejected' : 'With ' + F.ruleFor(F.apId(a)).label + ' to approve'}</span>}
           </div>
         ); })}
-        <div style={css('padding:9px 14px;background:#F6F8FA;font-size:10.5px;color:#5B6478')}>Under {lim}: any partner · {lim} and above, or anything from the client account: Managing Partner + 1 more signatory · items set up in Firm &amp; Practice Settings › Who approves follow that list</div>
+        <div style={css('padding:9px 14px;background:#F6F8FA;font-size:10.5px;color:#5B6478')}>Under {lim}: any partner · {lim} and above, or anything from the client account: Super Admin + 1 more signatory · items set up in Firm &amp; Practice Settings › Who approves follow that list</div>
       </div>
       )}
       {F.apSub === 'p' && (

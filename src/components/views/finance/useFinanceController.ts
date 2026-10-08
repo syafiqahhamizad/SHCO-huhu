@@ -516,7 +516,7 @@ export function useFinanceController(initialTab: FinTab) {
     const r = ruleFor(apId(item));
     if (r.configured) return r.rule;
     if (item.kind === 'writeoff' || item.kind === 'referral') return r.rule;
-    return needsTwoSignatories(formTotalOf(item).total, twoSignatoryThreshold(), item.clientAccount) ? 'needs the Managing Partner + 1 more signatory' : 'any partner can approve';
+    return needsTwoSignatories(formTotalOf(item).total, twoSignatoryThreshold(), item.clientAccount) ? 'needs the Super Admin + 1 more signatory' : 'any partner can approve';
   };
   /** Can the signed-in person sign this item now? */
   const canSignItem = (item: ApItem) => { const r = ruleFor(apId(item)); return r.configured ? r.canSign(currentUser) : item.kind === 'writeoff' || item.kind === 'referral' ? isMP : canApprove; };
@@ -548,7 +548,7 @@ export function useFinanceController(initialTab: FinTab) {
       complete = step.complete;
     } else {
       // Threshold from Firm & Practice Settings → Permissions & limits (default RM 5,000).
-      // Per claim / PV FORM (sum of its items), Managing Partner + 1 at the threshold and above.
+      // Per claim / PV FORM (sum of its items), Super Admin + 1 at the threshold and above.
       const needTwo = needsTwoSignatories(formTotalOf(item).total, twoSignatoryThreshold(), item.clientAccount);
       complete = item.kind === 'writeoff' || item.kind === 'referral' ? isMP : needTwo ? sigs.length >= 2 && sigs.some((s) => s.isManagingPartner) : true;
     }
@@ -571,7 +571,7 @@ export function useFinanceController(initialTab: FinTab) {
       else if (item.kind === 'expense') app.updateExpense(item.id, { signatories: sigs });
       else if (item.kind === 'pv') app.updatePaymentVoucher(item.id, { signatories: sigs });
       else if (item.kind === 'journal') app.updateManualJournal(item.id, { signatories: sigs });
-      toastMsg(rule.configured ? 'Signed · ' + rule.rule : 'Signed · needs the Managing Partner + 1 more signatory');
+      toastMsg(rule.configured ? 'Signed · ' + rule.rule : 'Signed · needs the Super Admin + 1 more signatory');
       return;
     }
     if (item.kind === 'travel') app.updateTravelClaim(item.id, { approvalStatus: 'Approved', approvedBy: me, approvedAt: at, signatories: sigs });
@@ -672,9 +672,9 @@ export function useFinanceController(initialTab: FinTab) {
   const payNext = () => {
     if (!periodSlips.length) { toastMsg('No payslips for ' + monthName + ' yet. Click a staff row to key in their payslip.'); return; }
     if (payStep >= 3) return;
-    if (payStep === 0 && !canPrepare) { toastMsg('Payroll is checked by Accounts or the Managing Partner.'); return; }
+    if (payStep === 0 && !canPrepare) { toastMsg('Payroll is checked by Accounts or the Super Admin.'); return; }
     if (payStep === 1) {
-      // Payroll approval follows Who approves (default: Managing Partner); several approvers sign in turn.
+      // Payroll approval follows Who approves (default: Super Admin); several approvers sign in turn.
       const r = ruleFor('payroll');
       if (!r.canSign(currentUser)) { toastMsg('Payroll ' + r.rule + '.'); return; }
       if (r.need > 1) { const cur = signoffs('payroll:' + period); if (cur[myCode]) { toastMsg('You have already approved. Waiting for ' + (r.need - r.count(cur)) + ' more.'); return; } if (!signOff('payroll', period)) return; }
@@ -886,7 +886,7 @@ export function useFinanceController(initialTab: FinTab) {
     }
     if (a === 'Void') {
       const inv = rec as Invoice;
-      if (!(canPrepare || isMP)) { toastMsg('Invoices are voided by Accounts or the Managing Partner.'); return; }
+      if (!(canPrepare || isMP)) { toastMsg('Invoices are voided by Accounts or the Super Admin.'); return; }
       if (invPaid(inv) > 0.005) { toastMsg(inv.id + ' has payments: refund or reallocate them before voiding.'); return; }
       const reason = typeof window !== 'undefined' ? window.prompt(`Void ${inv.id}? It stays on file as Voided and its postings are reversed. Reason:`) : '';
       if (!reason || !reason.trim()) return;
@@ -1266,7 +1266,7 @@ export function useFinanceController(initialTab: FinTab) {
   /* ------------------------------ month-end close ------------------------------ */
   const closeKey = (id: string) => `${period}:${id}`;
   const toggleClose = (id: string) => {
-    if (!canPrepare) { toastMsg('The month-end checklist is kept by Accounts and the Managing Partner.'); return; }
+    if (!canPrepare) { toastMsg('The month-end checklist is kept by Accounts and the Super Admin.'); return; }
     const cur = { ...(settings.monthEndClose || {}) };
     if (cur[closeKey(id)]) delete cur[closeKey(id)]; else cur[closeKey(id)] = { by: me, at: new Date().toISOString() };
     saveSettings({ monthEndClose: cur });
