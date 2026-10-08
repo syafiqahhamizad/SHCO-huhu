@@ -56,7 +56,7 @@ import {
   LifeBuoy,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { canSeeFinanceView, finRoleKey, isFinanceView } from '../../lib/financeAccess';
+import { canSeeFinanceView, finGrants, finRoleKey, isFinanceView } from '../../lib/financeAccess';
 import { FirmAnnouncement, FirmAnnouncementCategory } from '../../types';
 
 interface QuickLink {
@@ -300,7 +300,7 @@ export const FirmStartCentreView: React.FC = () => {
   // A tile shows only to people who can open its page: finance pages follow lib/financeAccess,
   // everything else the same module check App.tsx uses.
   const finRk = finRoleKey(currentRole, currentUser, isAdmin);
-  const canOpen = (view: string) => (isFinanceView(view) ? canSeeFinanceView(view, finRk) : !canViewModule || canViewModule(view));
+  const canOpen = (view: string) => (isFinanceView(view) ? canSeeFinanceView(view, finRk, finGrants(currentUser)) : !canViewModule || canViewModule(view));
   const tiles = launcherTiles.filter((tile) => canOpen(tile.view));
   const openTile = (view: string) => { setCurrentCaseId(null); setCurrentView(view); };
 

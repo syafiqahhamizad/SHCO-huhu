@@ -1,7 +1,7 @@
 import React from 'react';
 import { Building2, Landmark, LayoutDashboard, Share2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { finRoleKey, finTabsFor } from '../lib/financeAccess';
+import { finRoleKey, finGrants, finTabsFor } from '../lib/financeAccess';
 
 const ACCOUNTING_VIEWS = [
   'accountingCentre',
@@ -55,7 +55,7 @@ export const DashboardTabs: React.FC = () => {
 
   // "Accounts & Compliance" opens the first Accounts & Finance tab this person may use
   // (none for staff, so the tab is left out for them).
-  const finView = finTabsFor(finRoleKey(currentRole, currentUser, isAdmin))[0]?.[3];
+  const finView = finTabsFor(finRoleKey(currentRole, currentUser, isAdmin), finGrants(currentUser))[0]?.[3];
 
   const tabs = [
     {

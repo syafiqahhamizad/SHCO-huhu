@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canSeeFinanceNav, canSeeFinanceView, FIN_TABS, FINANCE_VIEW_TO_TAB, finRoleKey, finTabsFor, isFinanceView } from './financeAccess';
+import { canSeeFinanceNav, canSeeFinanceView, FIN_TABS, FINANCE_VIEW_TO_TAB, finGrants, finRoleKey, finTabsFor, isFinanceView } from './financeAccess';
 import type { User } from '../types';
 
 const OWNER = 'syafiqahhamizad@shcolaw.com';
@@ -87,5 +87,16 @@ describe('canSeeFinanceNav', () => {
     expect(canSeeFinanceNav('accountingCentre', 'M')).toBe(true);
     expect(canSeeFinanceNav('accounting', 'M')).toBe(true);
     expect(canSeeFinanceNav('coa', 'M')).toBe(false);
+  });
+});
+
+describe('per-person grant for Accounting & Reports', () => {
+  const lawyer = { role: 'Lawyer', email: 'l@shcolaw.com' } as Partial<User>;
+  it('a lawyer does not see Reports by default', () => expect(canSeeFinanceView('reports', 'S', finGrants(lawyer))).toBe(false));
+  it('granting Books & Reports to one person opens Accounting and Reports only', () => {
+    const g = finGrants({ ...lawyer, navOverrides: { 'finance.reports': { v: 1, a: 0, e: 0 } } } as Partial<User>);
+    expect(canSeeFinanceView('reports', 'S', g)).toBe(true);
+    expect(canSeeFinanceNav('accounting', 'S', g)).toBe(true);
+    expect(canSeeFinanceView('payroll', 'S', g)).toBe(false);
   });
 });

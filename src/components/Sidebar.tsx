@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { FIN_TABS, FINANCE_VIEW_TO_TAB, canSeeFinanceNav, finRoleKey, isFinanceView } from '../lib/financeAccess';
+import { FIN_TABS, FINANCE_VIEW_TO_TAB, canSeeFinanceNav, finGrants, finRoleKey, isFinanceView } from '../lib/financeAccess';
 import {
   Home,
   LayoutDashboard,
@@ -179,7 +179,7 @@ export const Sidebar: React.FC = () => {
   const groups = NAV_GROUPS
     .map((g) => ({
       ...g,
-      items: g.items.filter((item) => (isFinanceView(item.id) ? canSeeFinanceNav(item.id, rk) : canViewModule(item.id))),
+      items: g.items.filter((item) => (isFinanceView(item.id) ? canSeeFinanceNav(item.id, rk, finGrants(currentUser)) : canViewModule(item.id))),
     }))
     .filter((g) => g.items.length > 0);
 

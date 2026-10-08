@@ -17,7 +17,7 @@ import { identityTokens, isMine } from '../../../lib/identity';
 import * as SD from '../../../lib/financeDocs';
 import { whatsappLink } from '../../../lib/whatsapp';
 import { statutoryForPayslip, STATUTORY_VERSION } from '../../../lib/statutory';
-import { finRoleKey, finTabsFor, FIN_TABS, type FinTab } from '../../../lib/financeAccess';
+import { finRoleKey, finGrants, finTabsFor, FIN_TABS, type FinTab } from '../../../lib/financeAccess';
 import { approverCode } from '../../../lib/approvers';
 import { computeFeeSharing, DEFAULT_RULES, isPartnerType, professionalFeesPart, type FsFile, type FsPerson, type PersonType } from '../../../lib/feeSharing';
 import { configuredSign, finRule, type FinApprovalId } from '../../../lib/financeApproval';
@@ -108,7 +108,7 @@ export function useFinanceController(initialTab: FinTab) {
   const canApprove = rk === 'M' || rk === 'P';
   const canPrepare = rk === 'M' || rk === 'A';
   const me = currentUser?.name || 'You';
-  const TABS = finTabsFor(rk);
+  const TABS = finTabsFor(rk, finGrants(app.currentUser));
 
   /* ------------------------------ UI state ------------------------------ */
   const [tab, setTabState] = useState<FinTab>(initialTab);

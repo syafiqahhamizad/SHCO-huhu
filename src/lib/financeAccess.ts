@@ -70,19 +70,26 @@ export const finRoleKey = (currentRole: string | undefined, currentUser: Partial
   return 'S';
 };
 
-export const finTabsFor = (rk: FinRoleKey) => FIN_TABS.filter((t) => t[2].includes(rk));
+/**
+ * Finance pages granted to one person on top of their role (owner's choice "whoever I allow"):
+ * Settings › Permissions › By person › "Books & Reports" (finance.reports) set to View opens
+ * Accounting and Reports for that person.
+ */
+export const finGrants = (u?: Partial<User> | null): FinTab[] => (u?.navOverrides?.['finance.reports']?.v ? ['books', 'reports'] : []);
 
-export const canSeeFinanceView = (viewId: string, rk: FinRoleKey): boolean => {
+export const finTabsFor = (rk: FinRoleKey, grants: FinTab[] = []) => FIN_TABS.filter((t) => t[2].includes(rk) || grants.includes(t[0]));
+
+export const canSeeFinanceView = (viewId: string, rk: FinRoleKey, grants: FinTab[] = []): boolean => {
   const tab = FINANCE_VIEW_TO_TAB[viewId];
   if (!tab) return false;
   const row = FIN_TABS.find((t) => t[0] === tab);
-  return !!row && row[2].includes(rk);
+  return !!row && (row[2].includes(rk) || grants.includes(tab));
 };
 
 /** Sidebar visibility (the design's sidebar role strings — Approvals is hidden for Accounts,
  * who prepare but never approve). */
-export const canSeeFinanceNav = (viewId: string, rk: FinRoleKey): boolean => {
+export const canSeeFinanceNav = (viewId: string, rk: FinRoleKey, grants: FinTab[] = []): boolean => {
   const row = FIN_TABS.find((t) => t[3] === viewId);
-  return !!row && row[4].includes(rk);
+  return !!row && (row[4].includes(rk) || grants.includes(row[0]));
 };
 
