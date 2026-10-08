@@ -13,6 +13,7 @@ import { StaffGoalsTab } from './StaffGoalsTab';
 import { StaffAttendanceTab } from './StaffAttendanceTab';
 import { StaffProfileTab } from './StaffProfileTab';
 import { personBits } from '../settings/permissionModel';
+import { StaffSelfView } from './StaffSelfView';
 
 type Tab = 'pay' | 'claims' | 'leave' | 'attendance' | 'goals' | 'profile';
 // Design order (Payslips, My Claims, Leave, Goals & wellbeing); Attendance and the HR-only
@@ -46,7 +47,8 @@ export const StaffPortalView: React.FC = () => {
   const { currentUser, users, payslips, travelClaims, expenses, paymentVouchers, cases, clients, leaveApplications, showToast, isAdmin, rolesMatrix, setCurrentView } = useApp();
   // Employee records are HR-only: admins, or people granted "HR records" in Permissions & limits.
   const canHr = Boolean(isAdmin) || personBits(rolesMatrix || {}, currentUser, 'hrRecords')[0] === '1';
-  const tabs = TABS.filter(([k]) => k !== 'profile' || canHr);
+  // HR sees everyone's Employee records; everyone else sees their own record (read-only) as My profile.
+  const tabs = TABS.map(([k, l]) => [k, k === 'profile' && !canHr ? 'My profile' : l] as [Tab, string]);
   const [tab, setInnerTab] = useState<Exclude<Tab, 'claims'>>('pay');
   // My Claims is its own page (owner's choice); the claims tile opens it.
   const setTab = (t: Tab) => (t === 'claims' ? setCurrentView('reimbursements') : setInnerTab(t));
@@ -107,7 +109,7 @@ export const StaffPortalView: React.FC = () => {
       {tab === 'leave' && <StaffLeaveTab myLeaves={myLeaves} used={used} me={me} />}
       {tab === 'attendance' && <StaffAttendanceTab />}
       {tab === 'goals' && <StaffGoalsTab />}
-      {tab === 'profile' && canHr && <StaffProfileTab lh={lh} />}
+      {tab === 'profile' && (canHr ? <StaffProfileTab lh={lh} /> : <StaffSelfView user={currentUser} />)}
     </div>
   );
 };

@@ -287,6 +287,8 @@ export interface PracticeSettings {
   lastBackup?: { at: string; by: string; fileName: string; driveFileId?: string; webViewLink?: string };
   /** Staff Guide: a walkthrough video link per role (Google Drive or YouTube), set by admins on the guide page. */
   guideVideos?: Partial<Record<'partner' | 'lawyer' | 'assistant' | 'accounts', string>>;
+  /** Staff Guide: one short video per topic (topic id → Google Drive / YouTube link). */
+  guideTopicVideos?: Record<string, string>;
 }
 
 export interface FirmBranch {

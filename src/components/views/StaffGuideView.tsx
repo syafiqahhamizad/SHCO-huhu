@@ -122,11 +122,135 @@ const SECTIONS: Section[] = [
       'Ignoring the bell — court dates, approvals and claim decisions arrive there first.',
     ],
     tip: 'Fastest way to any file: click the search box, type the file number, press the first result.' },
-  { id: 'day', title: 'Your day starts on My Dashboard', roles: 'all', steps: [
-    'Click *My Dashboard*. *My work* lists every task, deadline and hearing assigned to you, across all your files.',
-    'Use the filters *Overdue*, *Today* and *This week*.',
-    'Click a row to open that file on the right tab. Tick a task when it is done.',
-  ] },
+
+  { id: 'day', title: 'Your day starts on My Dashboard', roles: 'all',
+    what: '*My Dashboard* is your own page: everything waiting for *you* across all your files — tasks, court dates, deadlines, approvals — in one list, sorted by how urgent it is.',
+    who: 'Everyone. Partners and people with billing access see a few extra tabs and figures.',
+    steps: [
+      { t: 'Click *My Dashboard* in the left menu (General). It opens on *My work*.', sub: ['The row of buttons at the top are tabs. Everyone has *My work* and *Finance* (for staff, Finance shows only your own pay, claims and bonus). Partners may also see *Client account*, *Partner KPIs* and *Compliance*.', 'The small coloured dot on each tab: green = all fine, gold = worth a look, red = needs attention.'] },
+      { t: 'The coloured tiles give you the count at a glance: *My active matters*, *Deadlines this week*, *My hearings*, *To-do open*, *Waiting on you*, *Unbilled time*.', sub: ['Click a tile to filter the list below to just those items (e.g. *My hearings* shows court dates only). Click it again — or the ✕ on the grey chip — to see everything again.'] },
+      { t: 'If you approve things (leave, quotations…), a dark bar *Needs your decision* appears with a button for each: e.g. [[Approve]] or [[Discuss]]. The person who asked is told straight away.' },
+      { t: 'The main box is *My to-do*. At the top-right choose *Matter* (work on files, everyone involved can see it) or *Private* (your own reminders — nobody else can see them).' },
+      { t: 'Use the round filters *All · Overdue · Today · This week · Later* (the number shows how many). The list is grouped the same way:', sub: ['*Overdue* (red) — past due, clear these first.', '*Today* — due before close of business.', '*This week* — the next seven days.', '*Later* — beyond this week or with no date.', 'Type in *Filter to-do…* to find one item by its words or file number.'] },
+      { t: 'Each row shows: the task, the type (Task, Hearing, Statutory deadline…), the file number and title, the priority flag, and a coloured pill with the due date (e.g. *Due today*, *3 days overdue*).' },
+      { t: 'Finished a task? Click the small square on the left of the row. It is ticked, crossed out and counted in *completed today*. Clicked by mistake? Click it again (*Mark not done*).', sub: ['Court dates, deadlines and approvals have no square — they are done on the file or in Approvals. Click the gold word on the right (*Open*, *Approve*, *Sign off*, *Write up*) to go there.'] },
+      { t: 'To add a task quickly: click the line *Add a task… press Enter to save (due today)*, type it, press Enter.', sub: ['For a date, file, person, priority or checklist click [[More details]] instead, or [[New task]] at the top.', 'If you use Google Tasks, your own tasks also appear there (two-way). The first time, Google asks permission — click Allow.'] },
+      { t: 'On the right: *Recently accessed* files (click to reopen), *Your meetings* ([[+ Book slot]] to book one), and *Court & deadlines* for the next 7 days ([[Calendar ->]] opens the full calendar).' },
+      { t: 'People with billing access also see *My Performance* (billed, collected, new files, referrals against your targets — [[Edit targets]] to set them), *My collection rate* and *My aging receivables*. *Productivity* shows today’s tasks done and your streak.' },
+    ],
+    cases: [
+      ['A file has a next step but no task yet', 'It shows with the next action written on the file. Make it a proper task on the file (Tasks tab) so it has a date and a person.'],
+      ['Something is in my list that is not mine', 'You are named as partner or lawyer on that file, or the task is assigned to you. Ask the partner to change the file’s people, or reassign the task.'],
+    ],
+    stuck: [
+      ['“Nothing here. You’re all caught up.”', 'Nothing is due for you. If you expected something, check the filter (click *All*) and that the task was assigned to you.'],
+      ['“Cases is not open to your role.”', 'You clicked a file but your role cannot open Cases. Ask an admin if you need it.'],
+      ['“Saved here, but Google Tasks did not update”', 'The task is saved in the portal. Google Tasks needs permission again — add any task once and click Allow when Google asks.'],
+    ],
+    mistakes: [
+      'Putting file work in *Private* — colleagues covering for you cannot see it. Use *Matter* for anything about a file.',
+      'Ticking a task done when only part is finished. Use the checklist inside the task instead.',
+    ],
+    tip: 'Start every day with the *Overdue* and *Today* filters, and end the day with nothing red.' },
+  { id: 'alerts', title: 'Notifications (the bell and e-mails)', roles: 'all',
+    what: 'When something needs you — a new task, a court date, a decision, a claim approved or rejected, a file assigned to you — the portal tells you in two places: the *bell* at the top, and an *e-mail* to your @shcolaw.com address from *SHCO Portal*.',
+    who: 'Everyone. You only get notifications meant for you.',
+    steps: [
+      { t: 'Look at the bell at the top-right of any page. A red number = how many you have not read.' },
+      { t: 'Click the bell. The list opens with the newest first; unread ones are highlighted with *UNREAD*.', sub: ['Tabs: *All*, *Hearings*, and *Paid Invoices* (only people with billing access).'] },
+      { t: 'Click a notification. It opens the file or page it is about and is marked as read.' },
+      { t: 'Click *Mark all read* to clear the red number once you have seen everything.' },
+      { t: 'The e-mail has the same message and a link. Clicking the link opens the portal (sign in if asked).' },
+    ],
+    stuck: [
+      ['I get no e-mails', 'Check Spam / Promotions in Gmail and mark *SHCO Portal* as “Not spam”. Still nothing? Tell an admin (Settings → Google, e-mail & backup).'],
+      ['Clicking a notification shows “Access Restricted”', 'It is about a page your role cannot open. Ask whoever sent it, or an admin.'],
+      ['Amounts show as “RM •••”', 'That is on purpose: amounts are only shown to people with billing access.'],
+    ],
+    mistakes: ['Clearing the bell with *Mark all read* without opening the court-date or approval ones.'] },
+  { id: 'leave', title: 'Staff Portal: leave, attendance, payslips, goals and my profile', roles: 'all',
+    what: '*Staff Portal* is your own HR page: apply for leave, record attendance, see your payslips and EA form, set goals, do the monthly check-in, and see your own employee record.',
+    who: 'Every staff member (not clients). You see only your own things. HR people also see *Employee records* for everyone.',
+    steps: [
+      { t: 'Click *Staff Portal* in the left menu (General). The cards at the top show your last *Net pay*, *Annual leave left*, *Claims waiting* and *Goals on track*.' },
+      { t: '*Apply for leave*: open the *Leave* tab and fill in the *Apply for leave* box:', sub: [
+        '*Type of leave*: Annual, Medical, Hospitalisation, Study / exam, Hajj, Umrah, Unpaid…',
+        'Full day, or *Half day (AM)* / *Half day (PM)*.',
+        '*From* and *To*: the first and last day. Weekends and public holidays are not counted.',
+        '*PIC covering my files*: choose the colleague who will look after your files.',
+        'Medical leave: attach the MC. Hajj: attach the Tabung Haji letter (photo is fine).',
+        'Click [[Send to partner]]. Your partner (or whoever the firm set in *Who approves*) and your cover person are notified.',
+      ] },
+      { t: 'Your requests are listed under *My leave* with the status: *Waiting*, *Approved* (by whom), *Rejected* or *Cancelled*. You get a notification when it is decided. [[+ My calendar]] downloads it into your Google / Outlook / Apple calendar.' },
+      { t: '*Attendance* tab: when you arrive click *Clock in*; when you leave click *Clock out*. Working remotely, in court or on site? Choose *Remote*. On leave or not working? Choose *Leave* or *Absent*. Add a note if needed.', sub: ['The time comes from your computer’s clock when you press the button.'] },
+      { t: '*Payslips* tab: one line per month. Click [[View payslip]] to see it exactly as printed, [[PDF / Print]] to save or print, and [[Download EA form]] at year end.', sub: ['A month shows *Not yet* until Accounts sends the payslips. Claims are paid back separately — they are not in your salary.'] },
+      { t: '*Goals & wellbeing* tab: [[+ Add goal]] for personal or career goals (status: Not started, On track, Behind, Done). Once a month answer *How are you feeling at work this month?*, pick topics, write anything you want, choose *With my name* or *Anonymous*, then [[Send check-in]].' },
+      { t: '*My profile* tab: your own employee record (personal, work, payslip and practice details) and your documents (IC, offer letter, contract, practising certificate…). It is read-only — if something is wrong or out of date, tell HR / the admin to correct it.' },
+    ],
+    stuck: [
+      ['“Not enough leave balance”', 'You asked for more days than you have left. Choose fewer days, or Unpaid leave, or speak to your partner.'],
+      ['“No working days in those dates”', 'The dates are all weekend or public holidays. Check the From / To dates.'],
+      ['“Please attach the supporting document”', 'This leave type needs a document (MC, letter). Attach it, then send.'],
+      ['“Uploads blocked”', 'Files cannot be uploaded right now (storage not set up or no permission). Tell an admin; send the document to them meanwhile.'],
+      ['“Staff Portal is available to staff accounts only.”', 'You are signed in with a client account. Sign out and use your @shcolaw.com account.'],
+    ],
+    mistakes: ['Applying for leave without choosing who covers your files.', 'Forgetting to clock out — use *Update clock-out to now* the next morning and add a note.'] },
+  { id: 'claims', title: 'My Claims: getting paid back, and asking the firm to pay someone', roles: 'all',
+    what: '*My Claims* is where you (1) claim back money *you* paid for the firm or a file — mileage, parking, tolls, filing fees, despatch, office items — and (2) ask the firm to pay a vendor directly (*Payment request (PV)*). Approved claims are paid back separately from salary.',
+    who: 'Every staff member. You see only your own claims. Whoever is set in *Who approves* approves them; Accounts pays.',
+    before: ['Your receipts (photo or e-receipt is fine).', 'The file number if the cost is for a client file — it can then be billed to the client.'],
+    steps: [
+      { t: 'Click *My Claims* in the left menu. You see your list, and *My updates* (approved, paid, rejected messages).' },
+      { t: 'Choose what you need:', sub: ['[[+ New claim form]] — *I already paid · the firm pays me back*.', '[[+ Payment request (PV)]] — *The firm pays the vendor directly* (you have not paid).'] },
+      { t: 'Claim form — *C. Items*: fill in one item at a time:', sub: [
+        '*Date* of the expense.',
+        'Type: *Travelling* (mileage, parking, toll), *Disbursement* (for a client file, e.g. filing fee, search) or *Office* (firm overhead, not billed to any client).',
+        '*File*: search by file no., client or matter. Leave it as office if it is not for a client.',
+        'Travelling: enter *Distance (km)*, *Parking (RM)* and *Toll (RM)* — the amount is worked out (staff paid RM 1.00/km).',
+        'Others: *Description* and *Amount (RM)*.',
+        'Receipt: drop the photo into *Receipts: drop here* (or click it to choose the file).',
+        'Click [[+ Add item to form]]. Repeat for each receipt.',
+      ] },
+      { t: 'Check the *TOTAL*, then click [[Submit claim form]]. You see *Claim Form Submitted* and the approver is notified.' },
+      { t: 'Payment request (PV): fill in *Pay to (vendor)*, the amount and description, the file, attach *their invoice or quotation*, and choose *How it is paid*:', sub: ['*Bank transfer* — their bank and account no.', '*Online portal* — which portal (e.g. e-Filing, e-Tanah, STAMPS); Accounts pays there and attaches the portal receipt.', '*Cheque* — who the cheque is payable to.', '*Paid from*: Office account, or Client account if it is the client’s money.', 'Click [[Submit payment request]].'] },
+      { t: 'Follow the status in your list:', sub: ['*Waiting* — with the approver (it says who).', '*Approved* — now with Accounts to pay.', '*Paid* — Accounts has paid you (or the vendor).', '*Rejected* — the reason is in *My updates*.'] },
+      { t: 'Use the *All years* and *All types* filters to find an old claim. [[Drive folder ↗]] opens the folder in Google Drive where its receipts are kept.' },
+    ],
+    cases: [
+      ['Wrong amount after submitting', 'Ask the approver to reject it with a note, then submit a new one with the right amount.'],
+      ['Cost is for a client', 'Always pick the file — it then appears as a disbursement to bill the client (mileage is billed at RM 1.50/km, parking and tolls at cost).'],
+      ['Where are my receipts saved?', 'In the firm’s Google Drive: Finance › <year> › Claims › <form no.> (payment requests: Payment Vouchers › <PV no.>).'],
+    ],
+    stuck: [
+      ['“Add at least one item”', 'Fill in the item and press *+ Add item to form* before submitting.'],
+      ['“Attach the receipt for this item”', 'Each item needs its receipt photo.'],
+      ['“Fill in who to pay and their bank”', 'For a bank-transfer PV, fill in the vendor and their bank account.'],
+      ['“Stored on the device it was uploaded from”', 'Google Drive is not set up yet, so the receipt is only on that computer. Tell an admin.'],
+    ],
+    mistakes: ['Putting several receipts into one item — one receipt, one item.', 'Choosing *Office* for a client cost — the firm then cannot bill it.'] },
+  { id: 'calendar', title: 'Calendar and Hearings', roles: 'all',
+    what: '*Hearings* is the firm-wide list of court dates. *Calendar* shows them on a month grid, and also the firm’s live Google Calendar (court diary).',
+    who: 'Everyone who can open Cases. Court dates are added on the file (Court tab) — these pages only show them.',
+    steps: [
+      { t: 'Click *Hearings* in the left menu (Practice). You see every scheduled court date in the firm: *Date*, *Time*, *Matter Reference*, *Purpose* and *Timing Status* (*Today* / *Upcoming*).' },
+      { t: 'Click *Calendar*. Choose the view with the two buttons at the top:', sub: ['*Court Diary Grid* — the month from the portal’s own court dates, coloured by type (Hearing, PTCM / Mention, Trial / Bicara, Filing Deadline, Consultation). Hover a date to see the file and purpose.', '*Live Google Calendar* — the firm’s Google court diary inside the page. You must be signed in to Chrome with your @shcolaw.com account, and the firm calendar must be shared with you.'] },
+      { t: '[[Add / Open in Signed-In Google Calendar]] opens the court diary in Google Calendar itself, where you can add it to your own list.' },
+    ],
+    stuck: [
+      ['The Live Google Calendar is blank or asks me to sign in', 'Sign in to Chrome / Google with your @shcolaw.com account (not a personal one) and reload. Still blank? Ask the admin to share the firm court diary with you.'],
+      ['A court date is missing', 'It was not entered on the file. Open the file → Court tab and add it (or ask the lawyer in charge).'],
+    ],
+    mistakes: ['Adding court dates only in Google Calendar — always add them on the file so reminders, My work and Hearings know about them.'] },
+  { id: 'help', title: 'My Account, getting help and undoing a mistake', roles: 'all',
+    what: 'Where to see your account, change how the portal looks, and what to do when something goes wrong.',
+    who: 'Everyone.',
+    steps: [
+      { t: '*My Account* (bottom of the left menu, System) shows your name, e-mail and role. Under *Appearance* choose *Light*, *Dark* or *System* (follows your computer).' },
+      { t: 'Something looks wrong or old? First press the round-arrows *refresh* button at the top. Still wrong? Close the tab and open portal.shcolaw.com again.' },
+      { t: 'Deleted something by mistake? Click the box button (*Recycle Bin*) at the top, find it, click [[Restore Record]].' },
+      { t: 'Still stuck? Take a screenshot (Mac: Cmd+Shift+4, Windows: Win+Shift+S) and send it to an admin with the file number and what you clicked.', sub: ['A missing menu or button is usually access: an admin can change it in Firm & Practice Settings → Permissions & limits.'] },
+    ],
+    mistakes: ['Working around a problem in WhatsApp or paper instead of telling an admin — the portal then has the wrong information.'] },
 
   /* ---------------------------------------------------------------- partner */
   { id: 'decide', title: 'Decisions waiting for you', roles: ['partner'], steps: [
@@ -212,20 +336,11 @@ const SECTIONS: Section[] = [
   { id: 'books', title: 'Books and month end', roles: ['accounts'], intro: '*Books & Reports* holds the ledger, trial balance and reports. Work through the month-end checklist there before closing the month.' },
 
   /* ---------------------------------------------------------------- everyone */
-  { id: 'claims', title: 'Claims (My Claims)', roles: 'all', steps: [
-    'Click *My Claims* → [[+ New claim form]] (you paid) or [[+ Payment request (PV)]] (the firm pays someone).',
-    'Add each item with its date, amount, purpose, file and a photo of the receipt.',
-    '[[Submit claim form]]. Approvers and Accounts are notified; you are told when it is approved or rejected.',
-  ] },
-  { id: 'leave', title: 'Leave and payslips (Staff Portal)', roles: 'all', steps: [
-    '*Staff Portal* → *Leave* → pick the type, dates and who covers your files → attach the MC for medical leave → [[Apply for leave]].',
-    'You are notified when it is approved. *Payslips* shows your own payslips; *Goals & wellbeing* holds your goals and monthly check-in.',
-  ] },
-  { id: 'alerts', title: 'Notifications', roles: 'all', intro: 'The bell shows a red number when something needs you; click it to go straight there. Each notification is also e-mailed to your @shcolaw.com address from *SHCO Portal*.' },
-  { id: 'help', title: 'Getting help', roles: 'all', intro: 'Something looks wrong? Press refresh at the top first. Still wrong, or a menu you need is missing? Send a screenshot to an admin. Deleted something by mistake? Admins can restore it from the Recycle Bin.' },
 ];
 
 /** *bold* and [[Button]] → styled spans. */
+const VIDEO_URL = /^https:\/\/(drive\.google\.com|docs\.google\.com|(www\.)?youtube\.com|youtu\.be)\//;
+
 const rich = (text: string): React.ReactNode[] =>
   text.split(/(\[\[[^\]]+\]\]|\*[^*]+\*)/g).filter(Boolean).map((part, i) => {
     if (part.startsWith('[[')) return <span key={i} className="whitespace-nowrap rounded bg-[#16223A] px-1.5 py-0.5 text-[12px] font-bold !text-white">{part.slice(2, -2)}</span>;
@@ -247,6 +362,18 @@ export const StaffGuideView: React.FC = () => {
   const sections = useMemo(() => SECTIONS.filter((s) => s.roles === 'all' || s.roles.includes(role)), [role]);
   const video = settings.guideVideos?.[role] || '';
   const roleLabel = ROLES.find(([k]) => k === role)?.[1] || '';
+  const topicVideos = settings.guideTopicVideos || {};
+  /** Admins paste a Google Drive / YouTube link for one topic (empty = remove). */
+  const setTopicVideo = (id: string, title: string) => {
+    const url = window.prompt('Video link for “' + title + '” (Google Drive or YouTube). Leave empty to remove.', topicVideos[id] || '');
+    if (url === null) return;
+    const v = url.trim();
+    if (v && !VIDEO_URL.test(v)) { window.alert('Paste a Google Drive or YouTube link.'); return; }
+    const next = { ...topicVideos };
+    if (v) next[id] = v; else delete next[id];
+    saveSettings({ guideTopicVideos: next });
+    addActivityLog('Staff Guide Video ' + (v ? 'Set' : 'Removed'), title);
+  };
   const saveVideo = () => {
     const url = videoDraft.trim();
     if (url && !/^https:\/\/(drive\.google\.com|docs\.google\.com|(www\.)?youtube\.com|youtu\.be)\//.test(url)) return;
@@ -304,7 +431,11 @@ export const StaffGuideView: React.FC = () => {
       <div className="flex flex-col gap-3">
         {sections.map((s, i) => (
           <section key={s.id} id={'guide-' + s.id} className="scroll-mt-4 rounded-xl border border-[#DDE3EB] bg-white p-4">
-            <h3 className="m-0 mb-2 flex items-baseline gap-2 font-serif text-[17px] font-bold text-[#16223A]"><span className="font-mono text-[12px] font-medium text-[#8A6D3B]">{String(i + 1).padStart(2, '0')}</span>{s.title}</h3>
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <h3 className="m-0 flex flex-1 items-baseline gap-2 font-serif text-[17px] font-bold text-[#16223A]"><span className="font-mono text-[12px] font-medium text-[#8A6D3B]">{String(i + 1).padStart(2, '0')}</span>{s.title}</h3>
+              {topicVideos[s.id] && <a href={topicVideos[s.id]} target="_blank" rel="noopener noreferrer" className="rounded-lg bg-[#16223A] px-3 py-1.5 text-[12px] font-bold !text-white no-underline">▶ Watch video</a>}
+              {canEditVideo && <button type="button" onClick={() => setTopicVideo(s.id, s.title)} className="cursor-pointer rounded-lg border border-[#DDE3EB] bg-white px-2.5 py-1.5 text-[11.5px] font-bold text-[#16223A]">{topicVideos[s.id] ? 'Change video' : '+ Video'}</button>}
+            </div>
             {(s.what || s.who) && (
               <div className="mb-3 flex max-w-[72ch] flex-col gap-1.5">
                 {s.what && <p className="m-0"><strong className="text-[#16223A]">What it is: </strong>{rich(s.what)}</p>}

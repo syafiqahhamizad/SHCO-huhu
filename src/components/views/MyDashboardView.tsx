@@ -5,7 +5,7 @@ import type { Invoice, Retainer } from '../../types';
 import { identityTokens, isMine } from '../../lib/identity';
 import { caseFinder, isIssued, owedBalance, paidByInvoice } from '../../lib/financeMetrics';
 import { parseLocal } from '../../lib/localDate';
-import { finRoleKey } from '../../lib/financeAccess';
+import { canSeeClientBilling, finGrants, finRoleKey } from '../../lib/financeAccess';
 import { getPracticeSettings } from '../../services/templateService';
 import ClientAccountTab from './dashboard/ClientAccountTab';
 import ComplianceTab, { complianceStatusOf } from './dashboard/ComplianceTab';
@@ -53,7 +53,9 @@ export const MyDashboardView: React.FC = () => {
   // Partner role (switching role previews that role's dashboard) — same rule as financeAccess.
   const isMP = finRoleKey(currentRole, currentUser, false) === 'M';
   const tier: Tier = isMP ? 'mp' : currentRole === 'Partner' ? 'partner' : 'staff';
-  const allowed = ALLOW[tier];
+  // Billing & money switched off for this person (Users & Roles): only their own pay.
+  const seesBilling = canSeeClientBilling(finRoleKey(currentRole, currentUser, false), finGrants(currentUser));
+  const allowed = useMemo(() => ALLOW[tier].filter((k) => seesBilling || !['cacc', 'kpi'].includes(k)), [tier, seesBilling]);
 
   const [q, setQ] = useState<QKey>('mine');
   useEffect(() => {
@@ -143,16 +145,16 @@ export const MyDashboardView: React.FC = () => {
       {q === 'money' && (
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center gap-2.5 rounded-[10px] border border-[#D5E0EC] bg-[#EEF3F9] px-3.5 py-[9px]">
-            <strong className="text-[12px] text-[#16223A]">{tier === 'mp' ? 'Whole firm' : tier === 'partner' ? `Your files only · ${currentUser?.name || ''}` : `Your own money · ${currentUser?.name || ''}`}</strong>
+            <strong className="text-[12px] text-[#16223A]">{tier === 'mp' ? 'Whole firm' : tier === 'partner' && seesBilling ? `Your files only · ${currentUser?.name || ''}` : `Your own money · ${currentUser?.name || ''}`}</strong>
             <span className="text-[11px] text-[#3D5A7A]">
               {tier === 'mp'
                 ? 'You see every partner, file and account. Partners see their own files; staff see their own pay.'
-                : tier === 'partner'
+                : tier === 'partner' && seesBilling
                   ? 'Figures cover matters where you are the partner in charge. Firm-wide P&L, cash and funds are for the admin.'
                   : 'Only your pay, claims, referral fees and bonus. Nobody else’s figures are shown.'}
             </span>
           </div>
-          {tier === 'mp' ? <FinanceTab /> : tier === 'partner' ? <PartnerMoney /> : <StaffMoney />}
+          {tier === 'mp' ? <FinanceTab /> : tier === 'partner' && seesBilling ? <PartnerMoney /> : <StaffMoney />}
         </div>
       )}
       {q === 'cacc' && <ClientAccountTab />}
