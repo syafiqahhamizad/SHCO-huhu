@@ -144,6 +144,13 @@ describe('after the split', () => {
     await assertSucceeds(deleteDoc(doc(as(people.lawyer.email), 'firm', 'main', 'privateTodos', 'P1')));
   });
 
+  it('finance records (fee sharing, funds, sign-offs): Finance people only', async () => {
+    await assertSucceeds(setDoc(doc(as(people.accountant.email), 'firm', 'main', 'financeConfig', 'main'), { value: { feeSharing: {} } }));
+    await assertSucceeds(getDoc(doc(as(people.partner.email), 'firm', 'main', 'financeConfig', 'main')));
+    await assertFails(getDoc(doc(as(people.lawyer.email), 'firm', 'main', 'financeConfig', 'main')));
+    await assertFails(setDoc(doc(as(people.assistant.email), 'firm', 'main', 'financeConfig', 'main'), { value: {} }));
+  });
+
   it('unknown collections are closed', () => assertFails(setDoc(doc(as(OWNER), 'firm', 'main', 'whatever', 'x'), { a: 1 })));
   it('nobody can delete the split marker', () => assertFails(deleteDoc(doc(as(OWNER), 'firm', 'main'))));
 });

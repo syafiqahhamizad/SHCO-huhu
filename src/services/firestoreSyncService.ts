@@ -62,8 +62,9 @@ export function subscribeToCloudState(onChange: (state: CloudState) => void, onE
 export async function writeCloudState(state: CloudState): Promise<void> {
   if (cloudMode === 'split') {
     // Lists are saved record by record by useFirmDataSync; only settings documents come here.
-    const { writeConfig } = await import('./collectionSync');
+    const { writeConfig, writeFinanceConfig } = await import('./collectionSync');
     const { CONFIG_KEYS } = await import('./firmData');
+    if (state.financeSettings !== undefined) await writeFinanceConfig(state.financeSettings);
     await Promise.all(Object.entries(state)
       .filter(([k, v]) => (CONFIG_KEYS as readonly string[]).includes(k) && v !== undefined)
       .map(([k, v]) => writeConfig(k as (typeof CONFIG_KEYS)[number], v)));

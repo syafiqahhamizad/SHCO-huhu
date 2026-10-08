@@ -112,7 +112,7 @@ service cloud.firestore {
     // own   — only the person it belongs to (private to-dos), nobody else;
     // users — everyone reads; admins write; people may update their own non-sensitive fields.
     function tierOf(col) {
-      return col in ['manualJournals', 'bankAccounts', 'bankReconciliationEntries', 'trustAuditLogs', 'generalLedger', 'clientAccountChecks'] ? 'books'
+      return col in ['manualJournals', 'financeConfig', 'bankAccounts', 'bankReconciliationEntries', 'trustAuditLogs', 'generalLedger', 'clientAccountChecks'] ? 'books'
         : col in ['payslips', 'staffPrivate'] ? 'hr'
         : col == 'privateTodos' ? 'own'
         : col == 'users' ? 'users'

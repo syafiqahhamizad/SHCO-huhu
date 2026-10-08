@@ -140,6 +140,20 @@ export async function findSplitUserByEmail(email: string): Promise<Record<string
   return snap.docs[0]?.data();
 }
 
+/* ------------------------------------------------------------------ finance records (books tier) */
+
+/** Finance records kept with the settings (fee sharing, funds, sign-offs …): partners, Accounts, admins, owner only. */
+const financeConfigRef = () => doc(db, 'firm', 'main', 'financeConfig', 'main');
+
+export async function writeFinanceConfig(value: unknown): Promise<void> {
+  await setDoc(financeConfigRef(), { value: clean(value) });
+}
+
+/** Live copy for people allowed to read it; anyone else is simply refused and gets nothing. */
+export function subscribeFinanceConfig(onData: (value: Record<string, unknown>) => void): Unsubscribe {
+  return onSnapshot(financeConfigRef(), (snap) => { if (snap.exists()) onData((snap.data().value || {}) as Record<string, unknown>); }, () => { /* not a finance reader */ });
+}
+
 /* ------------------------------------------------------------------ writing */
 
 /** Writes changed / new / removed documents for one collection (batches of 400). */

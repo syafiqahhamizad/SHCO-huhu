@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { COLLECTIONS, docsFor, fromDoc, mergeUsers, splitUser, stableStringify, SyncLedger, type ConfigKey } from '../services/firmData';
-import { subscribeCollection, subscribeConfig, writeConfig, writeDocs } from '../services/collectionSync';
+import { subscribeCollection, subscribeConfig, subscribeFinanceConfig, writeConfig, writeDocs } from '../services/collectionSync';
+import { applyCloudFinanceSettings } from '../services/templateService';
 import type { User } from '../types';
 
 type AnyList = Record<string, unknown>[];
@@ -97,7 +98,9 @@ export function useFirmDataSync(a: FirmDataSyncArgs) {
       argsRef.current.setConfig(name, value);
     }, () => { configReady.current = true; });
 
-    return () => { unsubs.forEach((u) => u()); unsubConfig(); };
+    const unsubFinance = subscribeFinanceConfig((v) => applyCloudFinanceSettings(v));
+
+    return () => { unsubs.forEach((u) => u()); unsubConfig(); unsubFinance(); };
   }, [a.enabled, a.myEmail]);
 
   // ---- local changes out

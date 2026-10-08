@@ -618,7 +618,19 @@ export function getPracticeSettings(): PracticeSettings {
   return DEFAULT_PRACTICE_SETTINGS;
 }
 
+/**
+ * Finance records kept with the settings but stored apart: firm/main/financeConfig/main, which only
+ * partners, Accounts, admins and the owner can read or write (same people as Finance). The rest of
+ * the settings stays readable by all staff.
+ */
+export const FINANCE_SETTING_KEYS = ['financeSignoffs', 'feeSharing', 'emergencyFund', 'investments', 'fundSplits', 'coaEdits', 'clientBankStatements'] as const;
+type FinanceKey = (typeof FINANCE_SETTING_KEYS)[number];
+const pickFinance = (s: Partial<PracticeSettings>) => Object.fromEntries(FINANCE_SETTING_KEYS.filter((k) => s[k] !== undefined).map((k) => [k, s[k]])) as Partial<Pick<PracticeSettings, FinanceKey>>;
+const omitFinance = (s: PracticeSettings) => { const o = { ...s } as Record<string, unknown>; FINANCE_SETTING_KEYS.forEach((k) => delete o[k]); return o as unknown as PracticeSettings; };
+const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
 export function savePracticeSettings(settings: PracticeSettings): void {
+  const prev = getPracticeSettings();
   try {
     localStorage.setItem('shco_practice_settings', JSON.stringify(settings));
     window.dispatchEvent(new CustomEvent('shco-practice-settings-updated'));
@@ -628,9 +640,23 @@ export function savePracticeSettings(settings: PracticeSettings): void {
   // Was local-only (this browser's localStorage) forever — nobody else in the firm ever
   // saw a Firm & Practice Settings change. Pushes it into the same shared cloud document
   // everything else already syncs through.
-  void writeCloudState({ practiceSettings: settings }).catch((e) => {
+  // Finance records go to their protected document, and only when they actually changed, so a
+  // settings save by someone outside Finance can never overwrite them.
+  const financeChanged = FINANCE_SETTING_KEYS.some((k) => !same(prev[k], settings[k]));
+  void writeCloudState({ practiceSettings: omitFinance(settings), ...(financeChanged ? { financeSettings: pickFinance(settings) } : {}) }).catch((e) => {
     console.error('Practice settings cloud sync failed; this change may only be visible on this device.', e);
   });
+}
+
+/** Finance records arriving from their protected document (only for people who may read them). */
+export function applyCloudFinanceSettings(fin: Partial<PracticeSettings>): void {
+  try {
+    const cur = getPracticeSettings();
+    localStorage.setItem('shco_practice_settings', JSON.stringify({ ...omitFinance(cur), ...pickFinance(fin) }));
+    window.dispatchEvent(new CustomEvent('shco-practice-settings-updated'));
+  } catch (e) {
+    console.error('Failed to apply cloud finance settings:', e);
+  }
 }
 
 /**
@@ -640,7 +666,8 @@ export function savePracticeSettings(settings: PracticeSettings): void {
  */
 export function applyCloudPracticeSettings(settings: PracticeSettings): void {
   try {
-    localStorage.setItem('shco_practice_settings', JSON.stringify(settings));
+    // Keep the finance records this person already has (they arrive separately).
+    localStorage.setItem('shco_practice_settings', JSON.stringify({ ...omitFinance(settings), ...pickFinance(getPracticeSettings()) }));
     window.dispatchEvent(new CustomEvent('shco-practice-settings-updated'));
   } catch (e) {
     console.error('Failed to apply cloud practice settings:', e);
