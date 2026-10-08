@@ -1,88 +1,113 @@
 /**
- * Warrant to Act: the client's written authority for the firm to act. Laid out the way Malaysian
- * firms usually issue it: addressed to the firm on plain paper, court intitulement when there is a
- * suit, numbered clauses, the client's signature (with company stamp for a company), a witness and
- * the firm's acceptance. Built from real client / file details; anything not recorded is left as a
- * dotted blank to fill in by hand. The firm can still edit the Word copy before signing.
+ * Warrant to Act / Waran untuk Bertindak: the client's written authority for the firm to act.
+ *
+ * The clauses are the firm's own Bahasa Malaysia warrant (Autoriti, Fi Guaman dan kos-kos
+ * pengeluaran berkaitan, Penamatan servis, Indemniti, Had Tanggungjawab, confirmation and
+ * signature), used word for word in BM; the English version is a faithful translation of it.
+ * Built from real client / file details; anything not recorded is left as a dotted blank to fill
+ * in by hand. Pure (no React, no settings): used on its own (standalone warrant) and as the last
+ * page of the Quotation & Letter of Engagement (lib/engagementLetter).
  */
+export type DocLang = 'EN' | 'BM';
+
 export interface WarrantInput {
   client: { name: string; type?: 'Individual' | 'Corporate'; idNo?: string; address?: string };
   matterTitle: string;
   side?: string;
   court?: string;
   suitNo?: string;
-  /** Other party (for "BETWEEN … AND …" when there is a suit). */
+  /** Other party (shown with the court heading when there is a suit). */
   otherParty?: string;
   fileRef?: string;
   firmName?: string;
   firmAddress?: string;
   date: string;
+  /** EN (default) or BM. */
+  lang?: DocLang;
+  /** Letterhead HTML placed above the warrant when it is printed on its own. */
+  letterhead?: string;
 }
 
-const esc = (s: string) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-const DOTS = '<span style="letter-spacing:1px">……………………………</span>';
+export const esc = (s: string | undefined | null) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+export const DOTS = '<span style="letter-spacing:1px">……………………………</span>';
 const val = (v: string | undefined) => (v && v.trim() ? esc(v.trim()) : DOTS);
 
+export const BODY = "font-family:'Times New Roman',Times,serif;font-size:12pt;line-height:1.45;color:#000";
 const P = 'margin:0 0 9pt;text-align:justify';
-const BODY = "font-family:'Times New Roman',Times,serif;font-size:12pt;line-height:1.45;color:#000";
+const H = 'margin:10pt 0 2pt;font-weight:bold;text-decoration:underline';
 
-/** The warrant as HTML (A4, Times New Roman 12pt) for view, PDF/print and Word. */
-export function warrantToActHtml(i: WarrantInput): string {
-  const co = i.client.type === 'Corporate';
-  const firm = esc(i.firmName || 'Syafiqah Hamizad & Co');
-  const I = co ? 'We' : 'I', me = co ? 'us' : 'me', my = co ? 'our' : 'my';
-  const idLabel = co ? 'Company No.' : 'NRIC No.';
-  const suit = !!(i.suitNo && i.suitNo.trim());
-  const party = (side?: string) => (side ? ' … ' + esc(side) : '');
+/** Pronouns for an individual, a company, or unknown (both, as on the firm's form). */
+const pron = (type: WarrantInput['client']['type'], lang: DocLang) => {
+  if (lang === 'BM') {
+    const w = type === 'Corporate' ? 'Kami' : type === 'Individual' ? 'Saya' : 'Saya/Kami';
+    return { S: w, s: w.toLowerCase() };
+  }
+  if (type === 'Corporate') return { S: 'We', s: 'we', me: 'us', my: 'our', am: 'are' };
+  if (type === 'Individual') return { S: 'I', s: 'I', me: 'me', my: 'my', am: 'am' };
+  return { S: 'I/We', s: 'I/we', me: 'me/us', my: 'my/our', am: 'am/are' };
+};
 
-  const intitulement = suit
-    ? `<div style="text-align:center;margin:0 0 14pt">
-        <div style="font-weight:bold">${val(i.court).toUpperCase()}</div>
-        <div style="font-weight:bold">${val(i.suitNo)}</div>
-        <div style="margin-top:8pt">BETWEEN</div>
-        <div style="font-weight:bold">${val(i.client.name).toUpperCase()}${party(i.side)}</div>
-        <div>AND</div>
-        <div style="font-weight:bold">${val(i.otherParty).toUpperCase()}</div>
-      </div>`
-    : '';
-
-  const clauses = [
-    `${I}, <strong>${val(i.client.name)}</strong> (${idLabel} ${val(i.client.idNo)}) of ${val(i.client.address)} (“the Client”), hereby appoint and authorise Messrs. ${firm} (“the Firm”) to act for and represent ${me}${i.side ? ' as the ' + esc(i.side) : ''} in the above matter, and in all applications, appeals and enforcement proceedings arising from or connected with it, until the matter is concluded or this warrant is revoked.`,
-    `Without limiting clause 1, the Firm is authorised on ${my} behalf to:
-      <div style="margin:4pt 0 0 18pt">(a) commence, defend and conduct the proceedings, and to prepare, sign, file and serve all cause papers, pleadings, affidavits and other documents;</div>
-      <div style="margin:2pt 0 0 18pt">(b) accept service of all documents and process;</div>
-      <div style="margin:2pt 0 0 18pt">(c) attend and act at all hearings, case management and mediation;</div>
-      <div style="margin:2pt 0 0 18pt">(d) correspond and negotiate with the other parties and their solicitors;</div>
-      <div style="margin:2pt 0 0 18pt">(e) engage counsel, agents or experts where reasonably necessary; and</div>
-      <div style="margin:2pt 0 0 18pt">(f) receive any money payable to ${me} in the matter into the Firm’s client account, to be dealt with in accordance with the Solicitors’ Account Rules 1990 and ${my} written instructions.</div>`,
-    `The Firm shall not settle, compromise or withdraw the matter without ${my} prior instructions.`,
-    `${I} agree to pay the Firm’s professional fees, disbursements and other charges as set out in the Firm’s quotation or letter of engagement, and to place such deposits as the Firm may reasonably require.`,
-    `${I} confirm that the information and documents given to the Firm are true and complete, and ${co ? 'we' : 'I'} will inform the Firm promptly of any change in ${my} address or contact details.`,
-    `${I} may revoke this warrant by written notice to the Firm. Revocation does not affect fees, disbursements and charges incurred up to the date of the notice.`,
+/** The warrant's sections: [heading, paragraph html]. */
+export const warrantClauses = (i: Pick<WarrantInput, 'client' | 'firmName' | 'lang'>): [string, string][] => {
+  const firm = esc((i.firmName || 'Syafiqah Hamizad & Co').replace(/\.+$/, ''));
+  const T = `<strong>Tetuan ${firm}.</strong>`;
+  if ((i.lang || 'EN') === 'BM') {
+    const { S, s } = pron(i.client.type, 'BM');
+    return [
+      ['Autoriti', `${S} dengan ini memberi kuasa dan melantik <strong>Tetuan ${firm}.,</strong> dan/atau mana-mana peguam yang terlibat untuk mewakili dan/atau bertindak bagi pihak ${s} dalam perkara yang dinyatakan di atas dan menyediakan dan menguruskan semua perkara berkaitan dan/atau sebarang rundingan dan/atau perbincangan, dan/atau berurusan dengan semua pihak ketiga yang berkaitan termasuk agensi kerajaan, institusi kewangan, atau mana-mana pihak berkuasa lain yang berkaitan dengan perkara ini.`],
+      ['Fi Guaman dan kos-kos pengeluaran berkaitan', `${S} mengakui dan bersetuju bahawa ${s} bertanggungjawab membayar semua yuran guaman, kos, dan perbelanjaan yang berkaitan dengan perkara ini. Dengan perlantikan ini, jumlah pembayaran awal <em>(retainer)</em> adalah tidak dikembalikan. ${S} juga bersetuju bahawa firma ini berhak untuk menolak sebarang yuran dan perbelanjaan yang belum dijelaskan daripada sebarang bayaran yang diterima oleh ${s} melalui ${T} berhubung dengan perkara ini sehingga semua tunggakan diselesaikan, sepertimana Aturan 9.02 Kaedah Majlis Peguam. Sebarang kegagalan untuk membuat pembayaran dalam masa yang ditetapkan boleh menyebabkan kelewatan atau penggantungan dalam perkhidmatan guaman.`],
+      ['Penamatan servis', `${S} faham bahawa mana-mana pihak boleh menamatkan perkhidmatan ini dengan memberikan notis bertulis. Sekiranya penamatan berlaku, ${s} bersetuju untuk menjelaskan semua yuran guaman dan perbelanjaan yang masih belum dibayar sehingga tarikh penamatan.`],
+      ['Indemniti', `${S} selanjutnya bersetuju untuk indemniti dan memastikan ${T} tidak mengalami sebarang tuntutan, dakwaan, kerugian, liabiliti, ganti rugi, kos dan perbelanjaan (termasuk yuran guaman atas dasar peguam-anak guam) yang timbul daripada atau berkaitan dengan sebarang arahan yang diberikan oleh ${s}, sebarang tindakan, ketinggalan, keingkaran atau salah nyataan oleh ${s}, atau sebarang langkah yang diambil secara wajar oleh firma dalam mewakili ${s}. ${S} juga mengakui bahawa ${s} tidak akan mempunyai sebarang tuntutan atau hak tindakan terhadap ${T} berkenaan dengan sebarang kerugian, kerosakan, perbelanjaan atau akibat buruk dalam apa jua bentuk yang ${s} alami, kecuali jika kerugian tersebut berpunca secara langsung daripada kecuaian melampau, penipuan, atau salah laku disengajakan oleh firma.`],
+      ['Had Tanggungjawab', `${S} mengakui bahawa tanggungjawab firma guaman ini adalah terhad sebagaimana yang dibenarkan oleh undang-undang dan tidak termasuk sebarang kerugian tidak langsung atau kerugian berbangkit yang dialami oleh ${s} berhubung perkhidmatan yang diberikan.`],
+      ['', `${S} mengesahkan bahawa ${s} telah membaca dan memahami kandungan Waran untuk Bertindak ini dan bersetuju untuk terikat dengan terma-terma yang dinyatakan.`],
+    ];
+  }
+  const { S, s, me, my, am } = pron(i.client.type, 'EN') as { S: string; s: string; me: string; my: string; am: string };
+  const M = `<strong>Messrs. ${firm}.</strong>`;
+  return [
+    ['Authority', `${S} hereby authorise and appoint <strong>Messrs. ${firm}.,</strong> and/or any of its lawyers involved, to represent and/or act on ${my} behalf in the matter stated above and to prepare and attend to all related matters and/or any negotiations and/or discussions, and/or to deal with all relevant third parties, including government agencies, financial institutions or any other authority, in connection with this matter.`],
+    ['Legal fees and related disbursements', `${S} acknowledge and agree that ${s} ${am} responsible for paying all legal fees, costs and expenses relating to this matter. Upon this appointment, the initial payment <em>(retainer)</em> is non-refundable. ${S} also agree that the Firm is entitled to deduct any unpaid fees and expenses from any money received by ${me} through ${M} in connection with this matter until all arrears are settled, in accordance with Rule 9.02 of the Bar Council Rules. Any failure to make payment within the time stipulated may cause delay in, or suspension of, the legal services.`],
+    ['Termination of services', `${S} understand that either party may terminate these services by giving written notice. If termination occurs, ${s} agree to settle all legal fees and expenses that remain unpaid up to the date of termination.`],
+    ['Indemnity', `${S} further agree to indemnify and hold ${M} harmless against any claims, demands, losses, liabilities, damages, costs and expenses (including legal fees on a solicitor-and-client basis) arising from or in connection with any instructions given by ${me}, any act, omission, default or misrepresentation by ${me}, or any step reasonably taken by the Firm in representing ${me}. ${S} also acknowledge that ${s} shall have no claim or right of action against ${M} in respect of any loss, damage, expense or adverse consequence of any kind suffered by ${me}, except where such loss arises directly from the gross negligence, fraud or wilful misconduct of the Firm.`],
+    ['Limitation of liability', `${S} acknowledge that the liability of this law firm is limited to the extent permitted by law and does not include any indirect or consequential loss suffered by ${me} in connection with the services provided.`],
+    ['', `${S} confirm that ${s} have read and understood the contents of this Warrant to Act and agree to be bound by the terms stated herein.`],
   ];
+};
 
+/** Labels for the warrant heading and signature, per language. */
+const L = (lang: DocLang) => lang === 'BM'
+  ? { title: 'WARAN UNTUK BERTINDAK', per: 'Per', inMatter: 'DALAM PERKARA', suit: 'NO. GUAMAN', client: 'Anakguam', v: 'LWN', ref: 'Rujukan Kami', sign: 'Tandatangan', name: 'Nama', ic: 'No. K/P.', co: 'No. Syarikat', date: 'Tarikh', desig: 'Jawatan', stamp: 'Cop syarikat', forCo: 'Bagi pihak' }
+  : { title: 'WARRANT TO ACT', per: 'Re', inMatter: 'IN THE MATTER OF', suit: 'SUIT NO.', client: 'Client', v: 'V', ref: 'Our Ref', sign: 'Signature', name: 'Name', ic: 'NRIC No.', co: 'Company No.', date: 'Date', desig: 'Designation', stamp: 'Company stamp', forCo: 'For and on behalf of' };
+
+/** The warrant body (heading, clauses, signature) without letterhead. */
+export function warrantBodyHtml(i: WarrantInput): string {
+  const lang = i.lang || 'EN';
+  const t = L(lang);
+  const co = i.client.type === 'Corporate';
+  const suit = !!(i.suitNo && i.suitNo.trim());
+  const sideTxt = i.side ? ' (' + esc(i.side) + ')' : '';
+  const perLines = suit
+    ? [`${t.inMatter} ${val(i.court).toUpperCase()}`, `${t.suit}: ${val(i.suitNo)}`, ...(i.otherParty && i.otherParty.trim() ? [`${esc(i.client.name).toUpperCase()}${sideTxt} ${t.v} ${esc(i.otherParty.trim()).toUpperCase()}`] : [])]
+    : [val(i.matterTitle).toUpperCase()];
+  const idLine = co ? `${t.co}: ${val(i.client.idNo)}` : `${t.ic}: ${val(i.client.idNo)}`;
+  const head = `<table style="border-collapse:collapse;margin:0 auto 12pt;font-weight:bold">
+      <tr><td style="vertical-align:top;padding:0 10pt 2pt 0;white-space:nowrap">${t.per}:</td><td style="vertical-align:top;padding:0 0 2pt">${perLines.join('<br/>')}</td></tr>
+      <tr><td style="vertical-align:top;padding:8pt 10pt 0 0;white-space:nowrap">${t.client}:</td><td style="vertical-align:top;padding:8pt 0 0">${val(i.client.name).toUpperCase()}${sideTxt}</td></tr>
+    </table>`;
+  const sections = warrantClauses(i).map(([h, p]) => `${h ? `<p style="${H}">${h}</p>` : ''}<p style="${P}${h ? '' : ';margin-top:12pt'}">${p}</p>`).join('');
   const sign = co
-    ? `<table style="width:100%;border-collapse:collapse;margin-top:28pt"><tr>
-        <td style="width:55%;vertical-align:top;padding:0">Signed for and on behalf of<br/><strong>${val(i.client.name)}</strong><br/>by its authorised signatory<br/><br/><br/>…………………………………………<br/>Name: ${DOTS}<br/>Designation: ${DOTS}<br/>Company stamp:</td>
-        <td style="vertical-align:top;padding:0">In the presence of:<br/><br/><br/><br/>…………………………………………<br/>Name: ${DOTS}<br/>NRIC No.: ${DOTS}</td>
-      </tr></table>`
-    : `<table style="width:100%;border-collapse:collapse;margin-top:28pt"><tr>
-        <td style="width:55%;vertical-align:top;padding:0">Signed by the Client<br/><br/><br/><br/>…………………………………………<br/>Name: ${val(i.client.name)}<br/>NRIC No.: ${val(i.client.idNo)}</td>
-        <td style="vertical-align:top;padding:0">In the presence of:<br/><br/><br/><br/>…………………………………………<br/>Name: ${DOTS}<br/>NRIC No.: ${DOTS}</td>
-      </tr></table>`;
-
+    ? `<p style="margin:22pt 0 0"><strong>${t.sign}:</strong></p><p style="margin:36pt 0 0">______________________________<br/>${t.forCo} <strong>${val(i.client.name)}</strong> (${idLine})<br/>${t.name}: ${DOTS}<br/>${t.ic}: ${DOTS}<br/>${t.desig}: ${DOTS}<br/>${t.date}: ${DOTS}<br/>${t.stamp}:</p>`
+    : `<p style="margin:22pt 0 0"><strong>${t.sign}:</strong></p><p style="margin:36pt 0 0">______________________________<br/>${t.name}: ${val(i.client.name)}<br/>${t.ic}: ${val(i.client.idNo)}<br/>${t.date}: ${DOTS}</p>`;
   return `<div style="${BODY}">
-    <div style="text-align:right;font-size:10.5pt;margin-bottom:10pt">Our ref: ${val(i.fileRef)}</div>
-    ${intitulement}
-    <div style="text-align:center;font-weight:bold;font-size:14pt;letter-spacing:1px;text-decoration:underline;margin:0 0 14pt">WARRANT TO ACT</div>
-    <p style="${P}">To:<br/><strong>Messrs. ${firm}</strong><br/>Advocates &amp; Solicitors${i.firmAddress ? '<br/>' + esc(i.firmAddress) : ''}</p>
-    <p style="${P}">Dear Sirs,</p>
-    <p style="${P};font-weight:bold">RE: ${val(i.matterTitle).toUpperCase()}</p>
-    <table style="width:100%;border-collapse:collapse">${clauses.map((c, n) => `<tr><td style="width:24pt;vertical-align:top;padding:0 0 9pt">${n + 1}.</td><td style="vertical-align:top;padding:0 0 9pt;text-align:justify">${c}</td></tr>`).join('')}</table>
-    <p style="${P};margin-top:12pt">Dated this ${val(i.date)}.</p>
+    ${i.fileRef ? `<div style="text-align:right;font-size:10.5pt;margin-bottom:8pt">${t.ref}: ${esc(i.fileRef)}</div>` : ''}
+    <div style="text-align:center;font-weight:bold;font-size:15pt;letter-spacing:.5px;margin:0 0 12pt">${t.title}</div>
+    ${head}
+    ${sections}
     ${sign}
-    <div style="margin-top:26pt;border-top:1px solid #000;padding-top:8pt">
-      <strong>ACCEPTANCE</strong><br/>We, Messrs. ${firm}, accept the above appointment.<br/><br/><br/>…………………………………………<br/>Partner, for and on behalf of Messrs. ${firm}<br/>Date: ${DOTS}
-    </div>
   </div>`;
+}
+
+/** The warrant on its own (A4, Times New Roman 12pt) for view, PDF/print and Word. */
+export function warrantToActHtml(i: WarrantInput): string {
+  return (i.letterhead || '') + warrantBodyHtml(i);
 }

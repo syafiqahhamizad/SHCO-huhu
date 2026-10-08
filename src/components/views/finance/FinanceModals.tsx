@@ -3,6 +3,9 @@ import type { FinanceCtrl, EditorState } from './useFinanceController';
 import { css, DRIVE_REQUIRED_MSG, filesToProofs, proofMissingMsg, proofUploadBlocked, rm2 } from './financeModel';
 import { storageLabel } from '../../../services/fileStorageService';
 import * as SD from '../../../lib/financeDocs';
+import { defaultPlanFor, hasAmt, planRows, planTotal } from '../../../lib/engagementLetter';
+import type { QuotationPaymentStage } from '../../../types';
+import { PlanRowsPanel } from './EngagementLetterModal';
 import { PV_DRAWINGS, PV_SST, PV_STATUTORY } from '../../../lib/financeCalc';
 import type { FinanceProof, Invoice, Quotation } from '../../../types';
 import { getPracticeSettings, DEFAULT_EXPENSE_CATEGORIES } from '../../../services/templateService';
@@ -69,6 +72,7 @@ export const DocViewModal = ({ F }: { F: FinanceCtrl }) => {
   const html = SD.docHtml(d);
   const acts = F.actionsFor(ref.kind, rec).filter((a) => a !== 'View');
   if (ref.kind !== 'receipt' && ['Draft', 'Sent', 'Accepted', 'Unpaid', 'Ready', 'Pending Approval'].includes(d.status || '') && F.rk !== 'R') acts.push('Edit');
+  if (ref.kind === 'quotation' && (rec as Quotation).documentType !== 'Proforma') acts.push('Letter of Engagement');
   if (ref.kind === 'invoice' && d.status === 'Overdue' && (rec as Invoice).writeOffRequest?.status !== 'Pending' && (F.canPrepare || F.canApprove)) acts.push('Request write-off');
   const proofs = (d.proofs || []);
   const hasProofSlot = d.type === 'Receipt' || proofs.length > 0;
@@ -86,6 +90,7 @@ export const DocViewModal = ({ F }: { F: FinanceCtrl }) => {
             <button type="button" onClick={() => F.setView(null)} style={css('border:1px solid rgba(255,255,255,.35);border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:transparent;color:#fff;cursor:pointer;font-family:inherit;white-space:nowrap')}>Close</button>
           </div>
         </div>
+        {ref.kind === 'quotation' && (rec as Quotation).documentType !== 'Proforma' && <PlanRowsPanel F={F} q={rec as Quotation} />}
         {hasProofSlot && (
           <div style={css(`display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-radius:10px;padding:8px 12px;background:${proofs.length ? '#E6EFE9' : '#FBEDE9'}`)}>
             <strong style={css('font-size:11.5px;color:#16223A')}>Proof of payment</strong>
@@ -108,8 +113,13 @@ export const DocEditModal = ({ F }: { F: FinanceCtrl }) => {
   const t = SD.totals({ type: e.type, lines: e.lines, sstRate: e.sstRate });
   const pct = Math.round((e.sstRate || 0) * 100);
   const sum = (L: SD.DocLine[]) => L.reduce((s, x) => s + (Number(x[1]) || 0), 0);
-  const onRef = (v: string) => { const k = F.app.cases.find((c) => c.ref === v.trim()); if (!k) { setE({ ref: v }); return; } const cn = F.clientName(k.clientId.split(',')[0].trim()) || k.clientName || ''; const area = SD.areaFromName(k.practiceArea || k.type, k.ref); setE({ ref: v, matter: e.matter || k.title || '', client: e.client || cn, ...(e.id ? {} : { area, lines: SD.fromTemplate(area), desc: e.type === 'Proforma' ? e.desc : SD.AREAS[area].desc }) }); };
+  const onRef = (v: string) => { const k = F.app.cases.find((c) => c.ref === v.trim()); if (!k) { setE({ ref: v }); return; } const cn = F.clientName(k.clientId.split(',')[0].trim()) || k.clientName || ''; const area = SD.areaFromName(k.practiceArea || k.type, k.ref); setE({ ref: v, matter: e.matter || k.title || '', client: e.client || cn, ...(e.id ? {} : { area, lines: SD.fromTemplate(area), desc: e.type === 'Proforma' ? e.desc : SD.AREAS[area].desc, plan: defaultPlanFor(area) }) }); };
   const sched = e.inst && e.inst.on ? SD.schedule(t.total, e.inst.months, e.inst.upfront) : [];
+  const isQuote = e.type === 'Quotation';
+  const planKindLabel = e.plan.kind === 'Stages' ? 'Stages' : e.plan.kind === 'Instalments' ? 'Monthly instalments' : 'Pay in full';
+  const stageRows = e.plan.kind === 'Stages' ? planRows(e.plan, t.total) : [];
+  const stageSum = e.plan.kind === 'Stages' ? planTotal(e.plan, t.total) : 0;
+  const setStage = (i: number, p: Partial<QuotationPaymentStage>) => setE({ plan: { ...e.plan, stages: (e.plan.stages || []).map((x, j) => (j === i ? { ...x, ...p } : x)) } });
   const sections: [keyof SD.DocLines, string, string][] = [['prof', 'A. Professional fees', pct ? `SST ${pct}%` : 'SST not applicable'], ['disb', 'B. Disbursements', 'paid to third parties · no SST'], ['reimb', 'C. Reimbursements', pct ? `our own costs · SST ${pct}%` : 'our own costs']];
   const sums: [string, number][] = [['Professional fees', t.prof], ['Disbursements', t.disb], ['Reimbursements', t.reimb], ...(e.type === 'Proforma' ? [] : [[pct ? `SST ${pct}%` : 'SST (not applicable)', t.sst] as [string, number]])];
   return (
@@ -119,7 +129,7 @@ export const DocEditModal = ({ F }: { F: FinanceCtrl }) => {
         <div style={css('display:flex;align-items:center;gap:8px;padding:12px 18px;background:#16223A')}><strong style={css('font-size:14px;color:#fff;text-transform:capitalize')}>{(e.id ? 'Edit ' : 'New ') + e.type.toLowerCase()}</strong><button type="button" onClick={() => F.setEd(null)} style={css('margin-left:auto;border:1px solid rgba(255,255,255,.35);border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:transparent;color:#fff;cursor:pointer;font-family:inherit;white-space:nowrap')}>Close</button></div>
         <div style={css('padding:16px 18px;display:flex;flex-direction:column;gap:12px')}>
           {!e.id && <div style={css('display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px;align-items:center')}><span style={css(LBL)}>Document</span><div style={css('display:flex;flex-wrap:wrap;gap:4px')}>{seg(['Quotation', 'Proforma', 'Invoice'], e.type, (v) => setE({ type: v as EditorState['type'] }))}</div></div>}
-          <div style={css('display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px;align-items:center')}><span style={css(LBL)}>Practice area</span><div style={css('display:flex;flex-wrap:wrap;gap:4px')}>{seg(Object.keys(SD.AREAS), e.area, (v) => setE({ area: v, lines: SD.fromTemplate(v), desc: e.type === 'Proforma' ? e.desc : SD.AREAS[v].desc }))}</div></div>
+          <div style={css('display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px;align-items:center')}><span style={css(LBL)}>Practice area</span><div style={css('display:flex;flex-wrap:wrap;gap:4px')}>{seg(Object.keys(SD.AREAS), e.area, (v) => setE({ area: v, lines: SD.fromTemplate(v), desc: e.type === 'Proforma' ? e.desc : SD.AREAS[v].desc, ...(e.id ? {} : { plan: defaultPlanFor(v) }) }))}</div></div>
           <div style={css('display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px;align-items:center')}><span style={css(LBL)}>Pay into</span><div style={css('display:flex;flex-wrap:wrap;gap:4px')}>{seg(['Office', 'Client account'], e.account, (v) => setE({ account: v as EditorState['account'] }))}</div></div>
           <div style={css('display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px')}>
             <label style={css('display:flex;flex-direction:column;gap:4px')}><span style={css(LBL)}>Client</span><input list="fin-clients" value={e.client} onChange={(ev) => setE({ client: ev.target.value })} placeholder="Client name" style={css(INPUT)} /></label>
@@ -132,8 +142,29 @@ export const DocEditModal = ({ F }: { F: FinanceCtrl }) => {
           </div>
           <label style={css('display:flex;flex-direction:column;gap:4px')}><span style={css(LBL)}>Scope of work (paragraph above the fees)</span><textarea value={e.desc} onChange={(ev) => setE({ desc: ev.target.value })} rows={4} style={css(INPUT + ';resize:vertical;line-height:1.45')} /></label>
           <div style={css('display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px;align-items:center')}><span style={css(LBL)}>SST</span><div style={css('display:flex;flex-wrap:wrap;gap:4px')}>{seg(['Not applicable', 'SST 6%', 'SST 8%'], e.sstRate === 0.06 ? 'SST 6%' : e.sstRate === 0.08 ? 'SST 8%' : 'Not applicable', (v) => setE({ sstRate: v === 'SST 6%' ? 0.06 : v === 'SST 8%' ? 0.08 : 0 }))}</div></div>
-          <div style={css('display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px;align-items:center')}><span style={css(LBL)}>Fee arrangement</span><div style={css('display:flex;flex-wrap:wrap;gap:4px')}>{seg(['Pay in full', 'Monthly instalments'], e.inst && e.inst.on ? 'Monthly instalments' : 'Pay in full', (v) => setE({ inst: { months: 8, upfront: 2000, terms: SD.ARR_TERMS, ...(e.inst || {}), on: v === 'Monthly instalments' } }))}</div></div>
-          {e.inst && e.inst.on && (
+          {isQuote && <div style={css('display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px;align-items:center')}><span style={css(LBL)}>Client documents in</span><div style={css('display:flex;flex-wrap:wrap;gap:4px;align-items:center')}>{seg(['English', 'Bahasa Malaysia'], e.lang === 'BM' ? 'Bahasa Malaysia' : 'English', (v) => setE({ lang: v === 'Bahasa Malaysia' ? 'BM' : 'EN' }))}<span style={css('font-size:10px;color:#5B6478;margin-left:6px')}>Quotation &amp; Letter of Engagement and Warrant to Act</span></div></div>}
+          <div style={css('display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px;align-items:center')}><span style={css(LBL)}>{isQuote ? 'Payment plan' : 'Fee arrangement'}</span><div style={css('display:flex;flex-wrap:wrap;gap:4px')}>{isQuote
+            ? seg(['Pay in full', 'Stages', 'Monthly instalments'], planKindLabel, (v) => { const kind = v === 'Stages' ? 'Stages' : v === 'Monthly instalments' ? 'Instalments' : 'Full'; setE({ plan: { ...e.plan, kind, ...(kind === 'Stages' && !(e.plan.stages || []).length ? { stages: defaultPlanFor('Litigation').stages } : {}) }, inst: kind === 'Instalments' ? { months: 8, upfront: 2000, terms: SD.ARR_TERMS, ...(e.inst || {}), on: true } : e.inst ? { ...e.inst, on: false } : null }); })
+            : seg(['Pay in full', 'Monthly instalments'], e.inst && e.inst.on ? 'Monthly instalments' : 'Pay in full', (v) => setE({ inst: { months: 8, upfront: 2000, terms: SD.ARR_TERMS, ...(e.inst || {}), on: v === 'Monthly instalments' } }))}</div></div>
+          {isQuote && e.plan.kind === 'Stages' && (
+            <div style={css('display:flex;flex-direction:column;gap:6px;border:1px solid #DDE3EB;border-radius:8px;padding:10px 12px;background:#F6F8FA')}>
+              <div style={css('display:grid;grid-template-columns:24px minmax(0,1.2fr) 70px 100px minmax(0,1.4fr) 110px 60px;gap:8px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478')}><span>#</span><span>Stage</span><span style={css('text-align:right')}>%</span><span style={css('text-align:right')}>or RM</span><span>When payable</span><span style={css('text-align:right')}>Amount</span><span></span></div>
+              {(e.plan.stages || []).map((st, i) => (
+                <div key={i + '-' + (e.plan.stages || []).length} style={css('display:grid;grid-template-columns:24px minmax(0,1.2fr) 70px 100px minmax(0,1.4fr) 110px 60px;gap:8px;align-items:center')}>
+                  <span style={css('font-size:11px;color:#5B6478')}>{i + 1}</span>
+                  <input value={st.label} onChange={(ev) => setStage(i, { label: ev.target.value })} placeholder="e.g. Filing" style={css(INPUT)} />
+                  <input type="number" min={0} max={100} step="any" aria-label={'Stage ' + (i + 1) + ' percent'} value={hasAmt(st) || st.pct == null ? '' : st.pct} onChange={(ev) => { const v = ev.target.value; setStage(i, { pct: v === '' ? undefined : Number(v), amount: undefined }); }} placeholder="%" style={css(INPUT + ';text-align:right')} />
+                  <input type="number" min={0} step="any" aria-label={'Stage ' + (i + 1) + ' amount'} value={hasAmt(st) ? st.amount : ''} onChange={(ev) => { const v = ev.target.value; setStage(i, v === '' ? { amount: undefined, pct: 0 } : { amount: Number(v), pct: undefined }); }} placeholder="RM" style={css(INPUT + ';text-align:right')} />
+                  <input value={st.due || ''} onChange={(ev) => setStage(i, { due: ev.target.value })} placeholder="e.g. On close of pleadings" style={css(INPUT)} />
+                  <strong style={css('text-align:right;font-size:11.5px;color:#16223A')}>{SD.money(stageRows[i]?.amount || 0)}</strong>
+                  <button type="button" onClick={() => setE({ plan: { ...e.plan, stages: (e.plan.stages || []).filter((_, j) => j !== i) } })} style={css(BTN + ';color:#B23A2E;padding:5px 8px')}>Remove</button>
+                </div>
+              ))}
+              <div style={css('display:flex;align-items:center;gap:10px')}><button type="button" onClick={() => setE({ plan: { ...e.plan, stages: [...(e.plan.stages || []), { label: '', pct: 0 }] } })} style={css('border:0;background:none;font-size:11px;font-weight:700;color:#8A6D3B;cursor:pointer;font-family:inherit')}>+ Add stage</button>
+                <span style={css(`margin-left:auto;font-size:11px;font-weight:700;color:${Math.abs(stageSum - t.total) < 0.01 ? '#2F6F4E' : '#B23A2E'}`)}>{Math.abs(stageSum - t.total) < 0.01 ? 'Stages add up to the total ' + SD.money(t.total) : 'Stages add up to ' + SD.money(stageSum) + ' of ' + SD.money(t.total)}</span></div>
+            </div>
+          )}
+          {e.inst && e.inst.on && (!isQuote || e.plan.kind === 'Instalments') && (
             <div style={css('display:grid;grid-template-columns:130px 120px 150px minmax(0,1fr);gap:10px;align-items:start;border:1px solid #DDE3EB;border-radius:8px;padding:10px 12px;background:#F6F8FA')}>
               <span style={css(LBL + ';padding-top:6px')}>Instalments</span>
               <label style={css('display:flex;flex-direction:column;gap:4px')}><span style={css(LBL)}>Months</span><input value={String(e.inst.months)} onChange={(ev) => setE({ inst: { ...e.inst!, months: Number(ev.target.value.replace(/[^0-9]/g, '')) || 1 } })} style={css(INPUT + ';text-align:right')} /></label>

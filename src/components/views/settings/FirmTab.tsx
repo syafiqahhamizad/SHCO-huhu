@@ -2,6 +2,7 @@ import React from 'react';
 import { DEFAULT_BRANCHES, DEFAULT_PURPOSE_EMAILS, type FirmBranch, type PracticeSettings } from '../../../services/templateService';
 import { css, S, Txt, type SettingsCtx } from './settingsShared';
 import { useApp } from '../../../context/AppContext';
+import { DEFAULT_LETTERHEAD_PARTNERS, type LetterheadPartner } from '../../../lib/engagementLetter';
 import { DRIVE_REQUIRED_MSG, isUploadReady, prepareStorage, storeLetterheadImage } from '../../../services/fileStorageService';
 
 const TAG1 = 'Advocates & Solicitors | Syarie Counsel';
@@ -42,6 +43,8 @@ export const FirmTab = ({ C }: { C: SettingsCtx }) => {
   ];
   const branches: FirmBranch[] = s.branches && s.branches.length ? s.branches : DEFAULT_BRANCHES;
   const emails = s.purposeEmails && s.purposeEmails.length ? s.purposeEmails : DEFAULT_PURPOSE_EMAILS.map((e) => (e.purpose === 'Billing & receipts' ? { ...e, email: s.email || '' } : e));
+  const partners: LetterheadPartner[] = s.letterheadPartners && s.letterheadPartners.length ? s.letterheadPartners : DEFAULT_LETTERHEAD_PARTNERS;
+  const savePartners = (next: LetterheadPartner[], what: string) => { C.save({ letterheadPartners: next }, 'Letterhead Partners Changed', what); C.msg('Partners on letterhead saved'); };
   const PH: Record<string, string> = { 'General enquiries': 'info@shcolaw.com', 'Billing & receipts': 'billing@shcolaw.com', 'Payroll & HR': 'hr@shcolaw.com', 'Client portal': 'noreply@shcolaw.com', 'New leads': 'enquiry@shcolaw.com' };
 
   // The original goes to Google Drive (Firm/Letterhead/). Exception to "metadata only": a small
@@ -83,6 +86,19 @@ export const FirmTab = ({ C }: { C: SettingsCtx }) => {
           </div>
         ))}
         <div style={css(S.foot)}>Documents use the letterhead of the file’s branch. Upload a screenshot of the header from Word (logo to email line) to use it exactly.</div>
+      </div>
+      <div style={css('grid-column:1 / -1;overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
+        <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Partners on letterhead</strong><span style={css('margin-left:8px;font-size:10.5px;color:#5B6478')}>the partners column on the Quotation &amp; Letter of Engagement and the Warrant to Act · in this order</span></div>
+        <div style={css('display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 120px 80px;gap:10px;padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>Name</span><span>Qualifications</span><span>Heading</span><span></span></div>
+        {partners.map((p, i) => (
+          <div key={i + '-' + partners.length} style={css('display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 120px 80px;gap:10px;align-items:center;padding:6px 14px;border-bottom:1px solid #F0F2F5')}>
+            <Txt value={p.name} placeholder="FULL NAME" onCommit={(v) => savePartners(partners.map((x, j) => (j === i ? { ...x, name: v.trim() } : x)), 'Name: ' + (p.name || '—') + ' → ' + (v.trim() || '—'))} style="border:1px solid #DDE3EB;border-radius:6px;padding:5px 7px;font-size:11px;color:#16223A" />
+            <Txt value={p.quals} placeholder="e.g. LLB (Hons) UniSZA" onCommit={(v) => savePartners(partners.map((x, j) => (j === i ? { ...x, quals: v.trim() } : x)), (p.name || 'Partner') + ' qualifications: ' + (v.trim() || '—'))} style="border:1px solid #DDE3EB;border-radius:6px;padding:5px 7px;font-size:11px;color:#16223A" />
+            <select value={p.syarie ? 'SY' : 'P'} onChange={(e) => savePartners(partners.map((x, j) => (j === i ? { ...x, syarie: e.target.value === 'SY' } : x)), (p.name || 'Partner') + ': ' + (e.target.value === 'SY' ? 'Syarie Partner' : 'Partner'))} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:5px 7px;font-size:11px;color:#16223A;background:#fff')}><option value="P">Partner</option><option value="SY">Syarie Partner</option></select>
+            <button type="button" onClick={() => savePartners(partners.filter((_, j) => j !== i), 'Removed ' + (p.name || 'a partner'))} style={css('justify-self:end;border:1px solid #DDE3EB;border-radius:6px;padding:5px 8px;font-size:10.5px;font-weight:700;background:#fff;color:#B23A2E;cursor:pointer')}>Remove</button>
+          </div>
+        ))}
+        <div style={css('display:flex;align-items:center;padding:8px 14px')}><button type="button" onClick={() => savePartners([...partners, { name: '', quals: '' }], 'Added a partner line')} style={css(S.addLink)}>+ Add partner</button></div>
       </div>
       <div style={css('grid-column:1 / -1;overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
         <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Emails by purpose</strong><span style={css('margin-left:8px;font-size:10.5px;color:#5B6478')}>each email is used only for its purpose · the system sends from and shows the right one automatically</span></div>

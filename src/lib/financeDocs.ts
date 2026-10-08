@@ -12,6 +12,10 @@
 //   - logo assets are served from /assets/ (public/assets/sh-*.png).
 import { getPracticeSettings } from '../services/templateService';
 import { splitSst } from './billingEngine';
+import { ARR_TERMS, DEFAULT_LETTERHEAD_PARTNERS, planRows, schedule, type LetterheadInfo } from './engagementLetter';
+import type { QuotationPaymentPlan } from '../types';
+
+export { ARR_TERMS, schedule };
 
 export type DocType = 'Quotation' | 'Proforma' | 'Invoice' | 'Receipt';
 export type DocAccount = 'Office' | 'Client account' | 'Disbursement';
@@ -56,6 +60,8 @@ export interface FinanceDoc {
   terms?: string[];
   arrangement?: string;
   inst?: DocInstalments | null;
+  /** Quotation payment plan: printed as a stages table (instalments use `inst`). */
+  plan?: QuotationPaymentPlan;
   due?: string;
   einv?: string;
   /** Receipt only */
@@ -167,8 +173,6 @@ export const totals = (d: Pick<FinanceDoc, 'type' | 'lines' | 'sstRate' | 'depos
   return { rate, prof, disb, reimb, sProf, sReimb, sst, net, gross, less, total: r2(gross - less) };
 };
 const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty', 'twenty-one', 'twenty-two', 'twenty-three', 'twenty-four'];
-export const schedule = (total: number, months: number, upfront: number): [string, number][] => { total = Math.max(0, Math.round((Number(total) || 0) * 100) / 100); months = Math.max(1, Math.min(24, Math.round(months || 1))); upfront = Math.min(total, Math.max(0, upfront || 0)); if (total === 0) return [['Month 1 (Full Payment)', 0]]; if (months === 1) return [['Month 1 (Full Payment)', total]]; const first = upfront || Math.round(total / months * 100) / 100; const each = Math.max(0, Math.floor((total - first) / (months - 1))); const out: [string, number][] = [['Month 1 (Upfront Payment)', first]]; for (let i = 2; i < months; i++) out.push(['Month ' + i, each]); out.push(['Month ' + months, Math.round((total - first - each * (months - 2)) * 100) / 100]); return out; };
-export const ARR_TERMS = 'Early Settlement: In the event the matter is settled before the completion of the instalment period, all payments made shall be non-refundable, and the outstanding balance for the remaining unpaid months shall be charged at ten per cent (10%) of the settlement sum.\nDisbursements & Reimbursements: Charged in accordance with the agreed quotation. Any additional disbursements and/or reimbursements incurred shall be notified to and borne by the Client, and any unused portion of disbursements paid shall be refunded to the Client accordingly.\nWork shall not proceed if instalment payments are not settled, unless otherwise agreed in writing.';
 const num = (n: number | string | undefined) => Number(n || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const money = (n: number | string | undefined) => 'RM ' + num(n);
 const TITLES: Record<DocType, string> = { Quotation: 'QUOTATION', Proforma: 'PROFORMA INVOICE', Invoice: 'INVOICE', Receipt: 'OFFICIAL RECEIPT' };
@@ -219,6 +223,8 @@ export const docHtml = (d: FinanceDoc): string => {
     body += `<div style="page-break-before:auto;margin-top:16px;${F}"><p style="margin:0 0 6px;font-weight:bold;text-decoration:underline">FEE ARRANGEMENT</p><p style="margin:0 0 8px;text-align:justify">You agree to pay the total professional fees in the sum of <b>RM${num(t.total)}</b> (inclusive of disbursements and reimbursements) as per quotation, by way of monthly instalments over ${WORDS[n] || n} (${n}) months, subject to the following terms:</p>
 <p style="margin:0 0 4px;font-weight:bold">1. Payment Schedule</p><table style="border-collapse:collapse;margin:0 0 8px 18px;${F}">${sch.map(([k, v]) => `<tr><td style="border:1px solid #000;padding:3px 10px;min-width:180px">${k}</td><td style="border:1px solid #000;padding:3px 10px;text-align:right;min-width:100px">RM${num(v)}</td></tr>`).join('')}<tr><td style="border:1px solid #000;padding:3px 10px;font-weight:bold">Total</td><td style="border:1px solid #000;padding:3px 10px;text-align:right;font-weight:bold">RM${num(t.total)}</td></tr></table>
 ${terms.map((x, i) => { const m2 = x.match(/^([^:]{3,40}):\s*(.*)$/); return `<p style="margin:0 0 5px;text-align:justify"><b>${i + 2}. ${m2 ? esc(m2[1]) : 'Terms'}</b><br>${esc(m2 ? m2[2] : x)}</p>`; }).join('')}</div>`; }
+  else if (d.plan && d.plan.kind === 'Stages' && (d.plan.stages || []).length) { const rows = planRows(d.plan, t.total);
+    body += `<div style="margin-top:16px;${F}"><p style="margin:0 0 6px;font-weight:bold;text-decoration:underline">PAYMENT BY STAGES</p><table style="border-collapse:collapse;margin:0 0 8px 18px;${F}">${rows.map((r, i) => `<tr><td style="border:1px solid #000;padding:3px 10px">${i + 1}. ${esc(r.label)}${r.due ? ' <span style="color:#444">(' + esc(r.due) + ')</span>' : ''}</td><td style="border:1px solid #000;padding:3px 10px;text-align:right">${r.pct != null ? r.pct + '%' : ''}</td><td style="border:1px solid #000;padding:3px 10px;text-align:right;min-width:100px">RM${num(r.amount)}</td></tr>`).join('')}<tr><td style="border:1px solid #000;padding:3px 10px;font-weight:bold" colspan="2">Total</td><td style="border:1px solid #000;padding:3px 10px;text-align:right;font-weight:bold">RM${num(rows.reduce((a, r) => a + r.amount, 0))}</td></tr></table></div>`; }
   else if (d.arrangement) body += `<p style="${F};margin:14px 0 2px;font-weight:bold;text-decoration:underline">FEE ARRANGEMENT</p><p style="${F};margin:0;white-space:pre-wrap">${esc(d.arrangement)}</p>`;
   return body + `<p style="${F};margin:24px 0 0;font-size:8.5pt">This is a computer-generated document. No signature is required.</p>`;
 };
@@ -282,5 +288,22 @@ if (typeof window !== 'undefined') {
   applyPracticeSettingsToDocs();
   window.addEventListener('shco-practice-settings-updated', applyPracticeSettingsToDocs);
 }
+
+/** Letterhead for client letters: the file's branch (uploaded header image and address; HQ when
+ * the branch is not known or has no header) with the partners column from Firm & Practice Settings. */
+export const letterheadFor = (branchName?: string): LetterheadInfo => {
+  const s = getPracticeSettings();
+  const brs = s.branches || [];
+  const hq = brs.find((b) => b.hq) || brs[0];
+  const br = brs.find((b) => b.name === branchName) || hq;
+  const useHq = !br || br === hq;
+  return {
+    image: br?.letterheadImage || (useHq ? FIRM.header : '') || hq?.letterheadImage || undefined,
+    logo: LOGO.name,
+    firmName: FIRM.name, tag1: FIRM.tag1, tag2: FIRM.tag2, reg: FIRM.reg,
+    address: useHq ? FIRM.addr : br?.address || FIRM.addr, email: FIRM.email, tel: FIRM.tel,
+    partners: s.letterheadPartners && s.letterheadPartners.length ? s.letterheadPartners : DEFAULT_LETTERHEAD_PARTNERS,
+  };
+};
 
 export const tableHtml = (title: string, period: string, cols: string[], rows: unknown[][]) => topHead(esc(title.toUpperCase()), [['Period', period]]) + `<div style="display:none"></div><div style="${F};text-align:center;margin:0 0 12px">${esc(period)}</div><table style="width:100%;border-collapse:collapse;${F}"><tr>${cols.map((c) => `<td style="${B};font-weight:bold;background:#EFEFEF">${esc(c)}</td>`).join('')}</tr>${rows.map((r) => `<tr>${r.map((c) => `<td style="${B}">${esc(c)}</td>`).join('')}</tr>`).join('')}</table>`;
