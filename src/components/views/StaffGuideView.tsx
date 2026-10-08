@@ -17,14 +17,62 @@ const ROLES: [GuideRole, string, string][] = [
   ['accounts', 'Accounts', 'Billing, payments and payroll'],
 ];
 
-interface Section { id: string; title: string; roles: GuideRole[] | 'all'; intro?: string; steps?: string[]; tip?: string }
+/** One step; `sub` are the small points under it (what you will see, what to pick). */
+type Step = string | { t: string; sub?: string[] };
+interface Section {
+  id: string; title: string; roles: GuideRole[] | 'all';
+  /** Detailed topics: what it is, who does it, and what you need before you start. */
+  what?: string; who?: string; before?: string[];
+  intro?: string; steps?: Step[];
+  /** "If … → do …" for the different situations you may meet. */
+  cases?: [string, string][];
+  /** "You see … → what it means / what to do" (error messages, missing buttons). */
+  stuck?: [string, string][];
+  mistakes?: string[];
+  tip?: string;
+}
 
 const SECTIONS: Section[] = [
-  { id: 'signin', title: 'Signing in', roles: 'all', steps: [
-    'Open *portal.shcolaw.com* in Chrome.',
-    'Click [[Continue with Google Workspace]] and choose your *@shcolaw.com* account.',
-    'If it says you are not on the access list, ask an admin to add you in Users & Roles.',
-  ], tip: 'The first time you use Drive, Calendar or Tasks, Google asks once for permission. Click Allow.' },
+  { id: 'signin', title: 'Signing in (and signing out)', roles: 'all',
+    what: 'The portal is the firm’s own system for files, clients, court dates, claims, leave and billing. Staff sign in with their firm Google account (the same one you use for your @shcolaw.com Gmail). There is no separate portal password.',
+    who: 'Everyone in the firm. Clients and outside people (e.g. the auditor) sign in differently — see “Other situations” below.',
+    before: [
+      'Your *@shcolaw.com* Google account and its password (the one for your firm Gmail). A personal Gmail will not work.',
+      'An admin has added you in *Firm & Practice Settings → Users & Roles* with your role (Partner, Lawyer, Assistant, Accountant…). New staff: ask on your first day, before you try.',
+      'A computer with *Google Chrome*. The portal also opens on a phone browser, but use a computer for daily work.',
+    ],
+    steps: [
+      { t: 'Open Chrome and type *portal.shcolaw.com* in the address bar at the top, then press Enter.', sub: ['Tip: bookmark it (the ☆ star at the end of the address bar) so next time it is one click.'] },
+      { t: 'You see the sign-in page: *SYAFIQAH HAMIZAD & CO · FIRM PRACTICE PORTAL* on the left, and a white box *Welcome back* on the right.', sub: ['The white box has three tabs: *Staff SSO*, *Client Access* and *External Access*. Staff always use *Staff SSO* (it is already selected).'] },
+      { t: 'Click the button [[Continue with Google Workspace]].', sub: ['A small Google window opens on top of the page. If nothing opens, see “Nothing happens” below.'] },
+      { t: 'In the Google window, click your *@shcolaw.com* account.', sub: ['Not in the list? Click *Use another account*, type your full firm e-mail (e.g. *name@shcolaw.com*), click *Next*, type your Google password, click *Next*.', 'If Google asks for a code from your phone (2-step verification), enter it. This is Google’s own check, not the portal’s.'] },
+      { t: 'The Google window closes by itself and the portal opens on the *Firm Start Centre* (the home page). A message at the bottom says *Welcome back, <your name>.*', sub: ['The menu on the left shows only the parts your role may open — colleagues may see a different menu. That is normal.'] },
+      { t: 'The first time you upload a file to Google Drive, or add something to your Calendar, a Google window asks for permission. Choose your @shcolaw.com account and click *Allow*. It asks only once.' },
+      { t: 'You stay signed in on this computer, even after closing Chrome, until you sign out.' },
+      { t: 'To sign out: scroll to the bottom of the left menu, where your name is, and click [[Sign out]].', sub: ['Always sign out on a shared or office front-desk computer, and before lending your laptop.'] },
+    ],
+    cases: [
+      ['Clients', 'They use the *Client Access* tab with their registered e-mail (or Client ID) and the password the firm sent them. They only see their own files and bills. You invite them from the client’s profile (Clients → Client Portal).'],
+      ['Outside people (e.g. the auditor)', 'They use *External Access* with the e-mail and password the admin created. The first time, they must click the link in the verification e-mail before signing in.'],
+      ['New computer or phone', 'Same steps. Sign out on the old one if you no longer use it.'],
+    ],
+    stuck: [
+      ['Nothing happens when I click Continue with Google Workspace', 'Chrome blocked the pop-up window. Look at the right end of the address bar for a small blocked-window icon, click it, choose *Always allow pop-ups from portal.shcolaw.com*, then click the button again.'],
+      ['“Staff access is restricted to verified @shcolaw.com Google Workspace accounts.”', 'You chose a personal Gmail. Click the button again and pick (or type) your @shcolaw.com account.'],
+      ['“Waiting for access” page after signing in', 'You signed in correctly, but the admin has not given you access yet (or it is still being saved). Ask an admin to check you in Users & Roles, then click [[Try again]]. Use [[Sign out]] if you picked the wrong account.'],
+      ['“…has no role assigned yet, so you’ve been given limited (Reviewer) access.”', 'You are not in Users & Roles yet. Tell an admin your name and role; after they add you, sign out and sign in again.'],
+      ['“This staff account has been deactivated.”', 'Your account was switched off. Ask the Super Admin.'],
+      ['“This email is registered as a Client account.”', 'This e-mail is set up as a client. Use your own @shcolaw.com account instead.'],
+      ['“Google sign-in was cancelled.”', 'The Google window was closed before you picked an account. Click the button again.'],
+      ['“Network error while contacting Google.”', 'Check the Wi-Fi / internet, then try again.'],
+      ['A menu I need is missing', 'Your role or your personal access does not include it. Ask an admin; it is set in Firm & Practice Settings → Permissions & limits.'],
+    ],
+    mistakes: [
+      'Signing in with a personal Gmail instead of the @shcolaw.com account.',
+      'Clicking *Client Access* or *External Access* — staff always use *Staff SSO*.',
+      'Leaving the portal signed in on a shared computer.',
+    ],
+    tip: 'Forgot your Google password? The portal cannot reset it — it is your firm Google account. Ask the admin to reset it in the Google Workspace admin page.' },
   { id: 'screen', title: 'Finding your way around', roles: 'all', intro: 'The menu on the left lists only what your role can open. The top bar has the search box (file no., title or client), a refresh button that loads colleagues’ latest changes, and the bell for notifications.' },
   { id: 'day', title: 'Your day starts on My Dashboard', roles: 'all', steps: [
     'Click *My Dashboard*. *My work* lists every task, deadline and hearing assigned to you, across all your files.',
@@ -209,16 +257,56 @@ export const StaffGuideView: React.FC = () => {
         {sections.map((s, i) => (
           <section key={s.id} id={'guide-' + s.id} className="scroll-mt-4 rounded-xl border border-[#DDE3EB] bg-white p-4">
             <h3 className="m-0 mb-2 flex items-baseline gap-2 font-serif text-[17px] font-bold text-[#16223A]"><span className="font-mono text-[12px] font-medium text-[#8A6D3B]">{String(i + 1).padStart(2, '0')}</span>{s.title}</h3>
+            {(s.what || s.who) && (
+              <div className="mb-3 flex max-w-[72ch] flex-col gap-1.5">
+                {s.what && <p className="m-0"><strong className="text-[#16223A]">What it is: </strong>{rich(s.what)}</p>}
+                {s.who && <p className="m-0"><strong className="text-[#16223A]">Who: </strong>{rich(s.who)}</p>}
+              </div>
+            )}
+            {s.before && (
+              <div className="mb-3 max-w-[72ch] rounded-lg border border-[#DDE3EB] bg-[#F6F8FA] px-3 py-2">
+                <strong className="mb-1 block text-[12px] uppercase tracking-[0.08em] text-[#5B6478]">Before you start</strong>
+                <ul className="m-0 flex list-disc flex-col gap-1 pl-5">{s.before.map((t, j) => <li key={j}>{rich(t)}</li>)}</ul>
+              </div>
+            )}
             {s.intro && <p className="m-0 max-w-[72ch]">{rich(s.intro)}</p>}
             {s.steps && (
-              <ol className="m-0 flex list-none flex-col gap-2 p-0">
-                {s.steps.map((t, j) => (
-                  <li key={j} className="grid grid-cols-[26px_minmax(0,1fr)] items-start gap-2.5">
-                    <span className="mt-0.5 grid h-[22px] w-[22px] place-items-center rounded-full border border-[#8A6D3B] bg-[#FBF5EA] font-mono text-[11px] text-[#8A6D3B]">{j + 1}</span>
-                    <span className="max-w-[72ch]">{rich(t)}</span>
-                  </li>
-                ))}
-              </ol>
+              <>
+                {s.what && <strong className="mb-2 block text-[12px] uppercase tracking-[0.08em] text-[#5B6478]">Step by step</strong>}
+                <ol className="m-0 flex list-none flex-col gap-2.5 p-0">
+                  {s.steps.map((st, j) => {
+                    const t = typeof st === 'string' ? st : st.t;
+                    const sub = typeof st === 'string' ? undefined : st.sub;
+                    return (
+                      <li key={j} className="grid grid-cols-[26px_minmax(0,1fr)] items-start gap-2.5">
+                        <span className="mt-0.5 grid h-[22px] w-[22px] place-items-center rounded-full border border-[#8A6D3B] bg-[#FBF5EA] font-mono text-[11px] text-[#8A6D3B]">{j + 1}</span>
+                        <span className="max-w-[72ch]">
+                          {rich(t)}
+                          {sub && <ul className="m-0 mt-1 flex list-disc flex-col gap-0.5 pl-5 text-[13px] text-[#4A5468]">{sub.map((x, y) => <li key={y}>{rich(x)}</li>)}</ul>}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </>
+            )}
+            {s.cases && (
+              <div className="mt-4 max-w-[72ch]">
+                <strong className="mb-1.5 block text-[12px] uppercase tracking-[0.08em] text-[#5B6478]">Other situations</strong>
+                <dl className="m-0 flex flex-col gap-1.5">{s.cases.map(([k, v], j) => <div key={j} className="grid gap-0.5 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-3"><dt className="font-semibold text-[#16223A]">{rich(k)}</dt><dd className="m-0">{rich(v)}</dd></div>)}</dl>
+              </div>
+            )}
+            {s.stuck && (
+              <div className="mt-4 max-w-[72ch]">
+                <strong className="mb-1.5 block text-[12px] uppercase tracking-[0.08em] text-[#5B6478]">If you see this</strong>
+                <dl className="m-0 flex flex-col divide-y divide-[#EEF1F5] rounded-lg border border-[#DDE3EB]">{s.stuck.map(([k, v], j) => <div key={j} className="flex flex-col gap-0.5 px-3 py-2"><dt className="font-semibold text-[#8E2A20]">{rich(k)}</dt><dd className="m-0 text-[13px]">{rich(v)}</dd></div>)}</dl>
+              </div>
+            )}
+            {s.mistakes && (
+              <div className="mt-4 max-w-[72ch]">
+                <strong className="mb-1 block text-[12px] uppercase tracking-[0.08em] text-[#5B6478]">Common mistakes</strong>
+                <ul className="m-0 flex list-disc flex-col gap-1 pl-5">{s.mistakes.map((t, j) => <li key={j}>{rich(t)}</li>)}</ul>
+              </div>
             )}
             {s.tip && <p className="m-0 mt-3 max-w-[72ch] rounded-r-lg border-l-[3px] border-[#8A6D3B] bg-[#FBF5EA] px-3 py-2 text-[13px]">{rich(s.tip)}</p>}
           </section>
