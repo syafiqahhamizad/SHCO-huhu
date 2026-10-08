@@ -123,12 +123,13 @@ export function useMyWorkRows() {
         });
       });
 
-      // Open matters with no scheduled next step.
-      if (c.status === 'Active' && !(c.tasks || []).some((t) => !isTaskDone(t)) && !(c.hearings || []).some((h) => h.status === 'Scheduled')) {
+      // A next action written on the file but not yet made a task. Files with nothing recorded
+      // are not listed: My work shows only real tasks, dates and actions.
+      if (c.status === 'Active' && String(c.nextAction || '').trim() && !(c.tasks || []).some((t) => !isTaskDone(t)) && !(c.hearings || []).some((h) => h.status === 'Scheduled')) {
         out.push({
           id: `matter-${c.id}`,
           stream: 'matter',
-          title: c.nextAction || 'No next action recorded',
+          title: String(c.nextAction),
           matterRef: c.ref,
           matterTitle: c.title,
           caseId: c.id,

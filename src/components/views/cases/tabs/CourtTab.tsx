@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { PeoplePicker } from '../PeoplePicker';
 import type { CourtDiaryEntry, Hearing, MatterCourtChange, MatterParty, Task } from '../../../../types';
 import { css, S, Card, Field, boxStyle } from '../caseUi';
 import { COURT_LEVELS, P, courtOf, lawyerOf as lawyerOfName, daysFrom, fmt, isoOf, legacyFromParties, short, stagesFor, stageIndexOf, practiceOf, todayIso } from '../caseModel';
@@ -246,7 +247,7 @@ export const CourtTab: React.FC<{ w: WF }> = ({ w }) => {
             <Field label="Court date"><input type="date" value={mf.date} onChange={(e) => setMf({ ...mf, date: e.target.value })} style={css(S.input)} /></Field>
             <Field label="Coram (judge / registrar)"><input value={mf.coram} onChange={(e) => setMf({ ...mf, coram: e.target.value })} style={css(S.input)} /></Field>
             <Field label="Medium"><select value={mf.medium} onChange={(e) => setMf({ ...mf, medium: e.target.value as typeof mf.medium })} style={css(S.input)}><option value="OPEN COURT">Open court</option><option value="IN CHAMBERS">In chambers</option><option value="E-REVIEW">e-Review</option></select></Field>
-            <Field label="Our lawyer attending"><input value={mf.ours} onChange={(e) => setMf({ ...mf, ours: e.target.value })} style={css(S.input)} /></Field>
+            <Field label="Our lawyer attending"><PeoplePicker id="memo-ours" options={staff.filter((p) => p.isPartner || p.role === 'Lawyer').map((p) => ({ value: p.name, label: p.name, hint: p.isPartner ? 'Partner' : 'Lawyer' }))} value={String(mf.ours || '').split(',').map((x) => x.trim()).filter(Boolean)} onChange={(v) => setMf({ ...mf, ours: v.join(', ') })} placeholder="Search partners and lawyers" /></Field>
             <Field label="Opponent counsel"><input value={mf.opp} onChange={(e) => setMf({ ...mf, opp: e.target.value })} style={css(S.input)} /></Field>
             <Field label="Client"><select value={mf.client} onChange={(e) => setMf({ ...mf, client: e.target.value as typeof mf.client })} style={css(S.input)}><option value="Not Present">Not present</option><option value="Present">Present</option></select></Field>
             <Field label="Court directions" span="1/-1"><textarea value={mf.dir} onChange={(e) => setMf({ ...mf, dir: e.target.value })} rows={3} placeholder="What the court ordered or directed" style={css(S.input + ';resize:vertical')} /></Field>
