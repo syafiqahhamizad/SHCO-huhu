@@ -1,11 +1,11 @@
 /**
  * Finance approvals that follow Firm & Practice Settings → "Who approves" (lib/approvers) where an
  * item is set up, and the portal's existing finance rules where it is "Not set yet":
- *   - Managing Partner alone: payroll, referral fees, write-offs;
- *   - Managing Partner + 1 more partner: fee sharing, partner pay, client-account payments,
- *     3-way reconciliation, emergency fund and investment movements;
- *   - any partner: office payments and staff claims (two-signatory limit applied separately);
- *   - Accounts: client statements sent to the client.
+ *   - the owner (Super Admin) alone — owner's choice for now: payroll, referral fees, write-offs,
+ *     fee sharing, partner pay, 3-way reconciliation, emergency fund, investment movements and
+ *     client statements;
+ *   - the owner + 1 more partner: client-account payments;
+ *   - any partner: office payments and staff claims (two-signatory limit applied separately).
  * Signatures on settings-held approvals are a map keyed by the signer's code.
  */
 import type { FinanceSignatory, User } from '../types';
@@ -36,8 +36,8 @@ const labelOf = (codes: string[], need: number, mpCodes: string[], otherCodes: s
   return `any ${need} of ${codes.join(', ')}`;
 };
 
-const MP_ONLY: FinApprovalId[] = ['payroll', 'referral', 'writeOff'];
-const MP_PLUS_ONE: FinApprovalId[] = ['feeShare', 'partnerPay', 'clientPay', 'recon', 'emergency', 'investment'];
+const MP_ONLY: FinApprovalId[] = ['payroll', 'referral', 'writeOff', 'feeShare', 'partnerPay', 'recon', 'emergency', 'investment', 'clientStmt'];
+const MP_PLUS_ONE: FinApprovalId[] = ['clientPay'];
 
 /** The rule for a finance approval: the "Who approves" list when set, else the defaults above. */
 export function finRule(id: FinApprovalId, users: User[], rules?: Record<string, ApproverRule>): FinRule {
@@ -48,10 +48,8 @@ export function finRule(id: FinApprovalId, users: User[], rules?: Record<string,
     const active = users.filter((u) => u.status !== 'Inactive');
     const mp = active.filter(isManagingPartnerUser).map(toSigner);
     const partners = active.filter((u) => u.role === 'Partner' && !isManagingPartnerUser(u)).map(toSigner);
-    const accounts = active.filter((u) => /account/i.test(String(u.role))).map(toSigner);
     if (MP_ONLY.includes(id)) { people = mp; need = 1; mpRequired = true; }
     else if (MP_PLUS_ONE.includes(id)) { people = [...mp, ...partners]; need = Math.min(2, Math.max(1, people.length)); mpRequired = mp.length > 0; }
-    else if (id === 'clientStmt') { people = accounts.length ? accounts : mp; need = 1; }
     else { people = [...mp, ...partners]; need = 1; }
   }
   const codes = people.map((p) => p.code);

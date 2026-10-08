@@ -19,7 +19,7 @@ import { whatsappLink } from '../../../lib/whatsapp';
 import { statutoryForPayslip, STATUTORY_VERSION } from '../../../lib/statutory';
 import { finRoleKey, finTabsFor, FIN_TABS, type FinTab } from '../../../lib/financeAccess';
 import { approverCode } from '../../../lib/approvers';
-import { computeFeeSharing, DEFAULT_RULES, isPartnerType, type FsFile, type FsPerson, type PersonType } from '../../../lib/feeSharing';
+import { computeFeeSharing, DEFAULT_RULES, isPartnerType, professionalFeesPart, type FsFile, type FsPerson, type PersonType } from '../../../lib/feeSharing';
 import { configuredSign, finRule, type FinApprovalId } from '../../../lib/financeApproval';
 import {
   GLA,
@@ -739,7 +739,7 @@ export function useFinanceController(initialTab: FinTab) {
         f = { id, ref: k?.ref || x.inv.fileRef || x.inv.id, client: x.inv.partyName || clientName(x.inv.clientId) || '—', matter: k?.title || x.inv.matter || '', amount: 0, intro: o.intro !== undefined ? o.intro : personFor(k?.referredBy)?.id || '', hands: o.hands && o.hands.length ? o.hands : handDefault, cu: o.cu, rules: o.rules };
         by.set(id, f);
       }
-      f.amount = round2(f.amount + x.income);
+      f.amount = round2(f.amount + professionalFeesPart(x.income, invoiceComposition(x.inv)));
     });
     return [...by.values()].sort((a, b) => b.amount - a.amount);
   };

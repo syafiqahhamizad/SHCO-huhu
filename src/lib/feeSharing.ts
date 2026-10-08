@@ -1,6 +1,7 @@
 /**
  * Fee sharing (design pack `Accounts and Finance.dc.html` → Payroll › Fee sharing, shcoPay.compute).
- * On professional fees COLLECTED in the month (SST and disbursements left out):
+ * On professional fees COLLECTED in the month (SST, disbursements and reimbursements left out —
+ * firm rule: fee sharing is on professional fees only):
  *   - one person brought the file in AND is its only handler → `own`% to them, rest to the firm;
  *   - otherwise the introducer gets `intro`% (referral) and the handlers share `hand`% (equal, or
  *     the % set for that file); the rest stays with the firm.
@@ -67,3 +68,9 @@ export function computeFeeSharing(people: FsPerson[], files: FsFile[], rules: Fs
   return { rows, tot, firm, total: r2(files.reduce((t, f) => t + (Number(f.amount) || 0), 0)), SPL, costs, firmProfit, dist, splitSum, splitOk: !partners.length || Math.abs(splitSum - 100) < 0.01, pp, allOk: rows.every((r) => r.sumOk) };
 }
 export type FeeSharingResult = ReturnType<typeof computeFeeSharing>;
+
+/** Part of money received (already net of SST and disbursements) that is professional fees, not reimbursements. */
+export const professionalFeesPart = (income: number, comp: { fees: number; reimb: number }): number => {
+  const base = Number(comp.fees || 0) + Number(comp.reimb || 0);
+  return base > 0 ? Math.round((income * Number(comp.fees || 0) / base) * 100) / 100 : income;
+};

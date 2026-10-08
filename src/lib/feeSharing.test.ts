@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeFeeSharing, type FsPerson } from './feeSharing';
+import { computeFeeSharing, professionalFeesPart, type FsPerson } from './feeSharing';
 
 const P = (id: string, t: FsPerson['t'], pay: string, sal = 0): FsPerson => ({ id, code: id.toUpperCase(), name: id, t, pay, sal, ded: {} });
 const people = [P('sh', 'Owner', 'Profit share only'), P('za', 'Partner', 'Monthly drawing + profit share', 5000), P('dh', 'Associate', 'Salary + fee sharing', 4800), P('nr', 'Staff', 'Salary only', 3900)];
@@ -36,4 +36,9 @@ describe('computeFeeSharing', () => {
     expect(r.firm).toBe(1000);
     expect(r.dist).toBe(0);
   });
+});
+
+describe('professionalFeesPart (fee sharing on professional fees only)', () => {
+  it('leaves reimbursements out', () => expect(professionalFeesPart(1200, { fees: 1000, reimb: 200 })).toBe(1000));
+  it('all fees when there are no reimbursements', () => expect(professionalFeesPart(500, { fees: 500, reimb: 0 })).toBe(500));
 });

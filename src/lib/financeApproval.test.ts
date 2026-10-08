@@ -12,14 +12,21 @@ describe('finRule fallback (Not set yet)', () => {
     expect(r.done({ SH: true })).toBe(true);
     expect(r.configured).toBe(false);
   });
-  it('recon: Managing Partner + 1 partner', () => {
-    const r = finRule('recon', users);
+  it('recon, fee sharing, client statements: the owner alone (owner’s choice for now)', () => {
+    for (const id of ['recon', 'feeShare', 'clientStmt', 'emergency'] as const) {
+      const r = finRule(id, users);
+      expect(r.need).toBe(1);
+      expect(r.people.map((p) => p.code)).toEqual(['SH']);
+      expect(r.done({ ZA: true, AH: true })).toBe(false);
+      expect(r.done({ SH: true })).toBe(true);
+    }
+  });
+  it('client-account payments: the owner + 1 partner', () => {
+    const r = finRule('clientPay', users);
     expect(r.need).toBe(2);
     expect(r.done({ ZA: true, AH: true })).toBe(false);
     expect(r.done({ SH: true, ZA: true })).toBe(true);
-    expect(r.label).toBe('SH + 1 of ZA, AH');
   });
-  it('client statements: Accounts', () => expect(finRule('clientStmt', users).people.map((p) => p.code)).toEqual(['NR']));
   it('office payments: any partner', () => {
     const r = finRule('officePay', users);
     expect(r.need).toBe(1);
