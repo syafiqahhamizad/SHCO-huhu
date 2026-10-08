@@ -5,8 +5,10 @@ import { DEFAULT_PRACTICE_SETTINGS, getPracticeSettings } from '../../../service
 import { builtInFeeTemplates } from '../../../lib/financeDocs';
 import { canSeeFinanceView, finRoleKey } from '../../../lib/financeAccess';
 import { css } from './caseUi';
+import { warrantToActHtml } from '../../../lib/warrantToAct';
+import { exportToWordDoc } from '../../../lib/exportUtils';
 import { activeStorage, ensureMatterFolder, prepareStorage } from '../../../services/fileStorageService';
-import { iso, isFileHandler, partiesOf, stamp, staffOf, type Person } from './caseModel';
+import { fmt, iso, isFileHandler, partiesOf, stamp, staffOf, type Person } from './caseModel';
 
 /* Practice-specific intake (design: New File Form.dc.html). Values are the firm's own choice
  * lists; text fields only carry placeholders — nothing is pre-filled with sample data. */
@@ -54,6 +56,7 @@ export const NewFilePage: React.FC = () => {
   const [opp, setOpp] = useState('');
   // Client initials in the file no. are typed by the firm, never worked out automatically.
   const [initials, setInitials] = useState('');
+  const [makeWta, setMakeWta] = useState(true);
   const [side, setSide] = useState<Record<string, string>>({});
   const [vals, setVals] = useState<Record<string, string>>({});
   const [reviewed, setReviewed] = useState(false);
@@ -118,7 +121,6 @@ export const NewFilePage: React.FC = () => {
   const blocker = !C ? 'Choose the client' : !initials ? 'Type the client initials for the file no.' : !codePart ? 'Choose a matter code' : conflictOpen ? 'Conflict needs partner review' : !title.trim() ? 'Enter a matter title' : !partners.length ? 'Pick a partner in charge' : '';
 
   const fee = (settings.feeTemplates || {})[tag] || builtInFeeTemplates()[tag];
-  const feeTotal = fee ? [...fee.prof, ...fee.disb, ...fee.reimb].reduce((s, l) => s + Number(l.a || 0), 0) : 0;
 
   const fields = (FIELDS[tag] || []).map(([label, opts, ph, key], i, arr) => ({ label, opts, ph, key, k: tag + i, v: vals[tag + i] ?? '', span: arr.length % 2 && i === arr.length - 1 ? '1 / -1' : 'auto' }));
 
@@ -168,6 +170,15 @@ export const NewFilePage: React.FC = () => {
     addCase(kase);
     incrementSequenceCounter('case');
     setDone(kase);
+    if (makeWta) {
+      const ps = getPracticeSettings();
+      const html = warrantToActHtml({
+        client: { name: C.name, type: C.type, idNo: C.type === 'Corporate' ? C.registrationNo : C.icNo || C.icNumber, address: C.address },
+        matterTitle: kase.title, side: partyRole, court: courtLevel ? [levelShort, courtLocation].filter(Boolean).join(' ') : '', suitNo: suit,
+        fileRef: kase.ref, firmName: 'Syafiqah Hamizad & Co', firmAddress: ps.address, date: fmt(today),
+      });
+      exportToWordDoc('Warrant_to_Act_' + kase.ref.replace(/\//g, '-'), html);
+    }
     // Every new file gets its Google Drive folder straight away (Shared Drive › Matters).
     if (activeStorage() === 'drive') {
       void (async () => {
@@ -331,15 +342,14 @@ export const NewFilePage: React.FC = () => {
             </div>
 
             <div style={css('padding:20px 24px;display:flex;flex-direction:column;gap:12px')}>
-              <span style={css('font-family:Georgia,serif;font-size:16px;font-weight:700')}>4. Fees</span>
-              <div style={css('display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border:1px solid #DDE3EB;border-radius:10px;background:#F6F8FA')}>
-                <span style={css('display:flex;flex-direction:column;gap:2px')}><span style={css('font-size:13px;font-weight:700')}>{A.name} quotation</span><span style={css('font-size:12px;color:#5B6478')}>{fee ? 'From the fee template · make the quotation in Accounts & Finance → Billing after the file opens' : 'No fee template for this area yet (Firm Settings → Fee templates)'}</span></span>
-                <span style={css('font-size:15px;font-weight:800;font-variant-numeric:tabular-nums')}>{fee ? 'RM ' + feeTotal.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}</span>
-              </div>
-              <span title="E-signature is not connected yet" style={css('align-self:flex-start;display:flex;align-items:center;gap:10px;font-size:13px;color:#94A3B8;cursor:not-allowed')}>
-                <span style={css('width:34px;height:20px;border-radius:10px;padding:2px;display:flex;justify-content:flex-start;background:#DDE3EB')}><span style={css('width:16px;height:16px;border-radius:9999px;background:#fff')} /></span>
-                Send quotation &amp; engagement letter for e-signature · not connected yet
-              </span>
+              <span style={css('font-family:Georgia,serif;font-size:16px;font-weight:700')}>4. Warrant to Act</span>
+              <label style={css('display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1px solid #DDE3EB;border-radius:10px;background:#F6F8FA;cursor:pointer')}>
+                <input id="newfile-wta" type="checkbox" checked={makeWta} onChange={(e) => setMakeWta(e.target.checked)} style={css('margin-top:3px')} />
+                <span style={css('display:flex;flex-direction:column;gap:2px')}>
+                  <span style={css('font-size:13px;font-weight:700')}>Create the Warrant to Act when the file opens</span>
+                  <span style={css('font-size:12px;color:#5B6478')}>A Word draft filled with the client’s name, IC / company no., address, the matter, court and suit no. Get it signed by the client, then upload the signed copy in the file’s Letters tab.</span>
+                </span>
+              </label>
             </div>
 
             <div style={css('display:flex;align-items:center;gap:10px;padding:14px 24px;border-top:1px solid #EEF1F5;background:#FBFCFD;border-radius:0 0 12px 12px')}>

@@ -1,16 +1,20 @@
 import React, { useState } from 'react';
 import type { CaseDocument } from '../../../../types';
 import { exportToWordDoc } from '../../../../lib/exportUtils';
+import { warrantToActHtml } from '../../../../lib/warrantToAct';
+import { getPracticeSettings } from '../../../../services/templateService';
+import { useApp } from '../../../../context/AppContext';
 import { prepareStorage, storeMatterFile, openLegacyDataUrl, openStoredFile, useStorageLabel } from '../../../../services/fileStorageService';
 import { css, S, Card } from '../caseUi';
 import { courtOf, daysFrom, fmt, isoOf, lawyerOf } from '../caseModel';
 import { histEntry, newId, type WF } from '../wf';
 
-const TEMPLATES = ['Letter to client: next court date', 'Letter to opposing solicitors', 'Affidavit (blank, with intitulement)', 'Notice of change of solicitors', 'Closing letter to client'];
+const TEMPLATES = ['Warrant to Act', 'Letter to client: next court date', 'Letter to opposing solicitors', 'Affidavit (blank, with intitulement)', 'Notice of change of solicitors', 'Closing letter to client'];
 const esc = (s: string) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 export const LettersTab: React.FC<{ w: WF }> = ({ w }) => {
   const { c, parties, me, ro } = w;
+  const { clients = [] } = useApp();
   const storage = useStorageLabel();
   const [tpl, setTpl] = useState(TEMPLATES[0]);
   const [busy, setBusy] = useState(false);
@@ -27,7 +31,13 @@ export const LettersTab: React.FC<{ w: WF }> = ({ w }) => {
     const re = `<p><strong>RE: ${esc(c.title.toUpperCase())}${court.suit ? '<br/>' + esc(court.suit) : ''}</strong></p>`;
     const sign = `<p>Yours faithfully,<br/><br/><br/>${esc(lawyer)}<br/>Syafiqah Hamizad &amp; Co</p>`;
     const intit = `<p style="text-align:center"><strong>${esc((court.name || 'IN THE COURT').toUpperCase())}</strong><br/>${esc(court.suit || '[SUIT NO.]')}</p><p style="text-align:center">BETWEEN</p>${parties.filter((p) => p.side === 'client' && !p.dischargedOn).map((p) => `<p>${esc(p.name)} ... ${esc(p.role)}</p>`).join('')}<p style="text-align:center">AND</p>${parties.filter((p) => p.side === 'opposing').map((p) => `<p>${esc(p.name)} ... ${esc(p.role)}</p>`).join('')}`;
+    const cr = clients.find((x) => x.id === (client?.clientId || client?.id)) || clients.find((x) => x.name === client?.name);
     const body: Record<string, string> = {
+      'Warrant to Act': warrantToActHtml({
+        client: { name: client?.name || cr?.name || '', type: cr?.type, idNo: client?.icOrRegNo || (cr ? (cr.type === 'Corporate' ? cr.registrationNo : cr.icNo || cr.icNumber) : ''), address: cr?.address },
+        matterTitle: c.title, side: c.clientRole, court: court.name, suitNo: court.suit, fileRef: c.ref,
+        firmName: 'Syafiqah Hamizad & Co', firmAddress: getPracticeSettings().address, date: today,
+      }),
       [TEMPLATES[0]]: `${head}<p>${esc(client?.name || '[Client]')}</p>${re}<p>We write to inform you that the next court date for the above matter is <strong>${esc(nh ? fmt(nh.date) : '[date]')}</strong>${nh ? ' (' + esc(nh.purpose) + ')' : ''}. ${nh?.clientAttendanceRequired === 'Compulsory' ? 'Your attendance is required.' : 'We will inform you if your attendance is required.'}</p>${sign}`,
       [TEMPLATES[1]]: `${head}<p>${esc(sol?.name || '[Opposing solicitors]')}</p>${re}<p>We refer to the above matter.</p><p>[Body of letter]</p>${sign}`,
       [TEMPLATES[2]]: `${intit}<p style="text-align:center"><strong>AFFIDAVIT</strong></p><p>I, [name], [NRIC], of full age and residing at [address], do hereby solemnly and sincerely affirm and say as follows:</p><p>1. [ ]</p>`,
