@@ -492,10 +492,10 @@ const ProfileTab: React.FC<{ c: Client; ccPill: Pill; ccState: string; tier: Tie
   const panel = ccState === 'Clear' ? '#F6F8FA' : ccState === 'Flagged' ? '#FBF1EF' : '#F2F6FA';
   const bd = ccState === 'Clear' ? '#DDE3EB' : ccState === 'Flagged' ? '#E8BDB5' : '#C9D7E8';
   const note = cc ? 'Checked by ' + (cc.checkedBy || '—') + ' on ' + (ddmmyyyy(cc.checkedDate) || '—') + '. ' + (cc.notes || '') : 'No conflict check recorded for this client yet.';
-  const opts: [string, string, { bg: string; fg: string }][] = [['Clear', 'Clear', P.g], ['Pending Partner Review', 'Partner review', P.b], ['Flagged', 'Flagged', P.r]];
+  const opts: [string, string, { bg: string; fg: string }][] = [['Clear', 'Clear', P.g], ['Pending Partner Review', 'Needs review', P.b], ['Flagged', 'Flagged', P.r]];
   const saveCC = () => {
     if (!ccEd) return;
-    if (ccEd.s === 'Clear' && ccState !== 'Clear' && !canClear) { showToast('You do not have permission to clear a conflict check. Send it for partner review.'); return; }
+    if (ccEd.s === 'Clear' && ccState !== 'Clear' && !canClear) { showToast('You do not have permission to clear a conflict check. Send it for review (someone allowed in Settings › Permissions clears it).'); return; }
     const d = new Date().toISOString();
     save({ conflictCheck: { status: ccEd.s as NonNullable<Client['conflictCheck']>['status'], notes: ccEd.note.trim(), checkedBy: currentUser?.name || 'Staff', checkedDate: d.slice(0, 10) } }, 'Conflict check updated: ' + ccEd.s, 'conflict');
     setCcEd(null);

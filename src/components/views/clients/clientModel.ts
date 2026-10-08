@@ -97,7 +97,7 @@ type ConflictState = 'Clear' | 'Pending Partner Review' | 'Flagged' | 'Not Start
 export const conflictOf = (c: Client): ConflictState => (c.conflictCheck?.status || 'Not Started');
 export const conflictPill = (c: Client): Pill => {
   const s = conflictOf(c);
-  return s === 'Flagged' ? { t: 'Flagged', ...P.r } : s === 'Pending Partner Review' ? { t: 'Partner review', ...P.b } : s === 'Clear' ? { t: 'Clear', ...P.g } : { t: 'Not checked', ...P.n };
+  return s === 'Flagged' ? { t: 'Flagged', ...P.r } : s === 'Pending Partner Review' ? { t: 'Needs review', ...P.b } : s === 'Clear' ? { t: 'Clear', ...P.g } : { t: 'Not checked', ...P.n };
 };
 
 /* ------------------------------------------------------------------ portal */

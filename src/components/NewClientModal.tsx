@@ -53,7 +53,7 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({ isOpen, onClose,
         ? { status: 'Pending Partner Review', notes: hits.join(' '), checkedBy: me, checkedDate: now.slice(0, 10) }
         : { status: 'Clear', notes: 'No match against existing clients or opposing parties.', checkedBy: me, checkedDate: now.slice(0, 10) },
       autoConflictMatches: hits.map((h) => ({ label: 'Possible conflict', detail: h })),
-      history: [{ at: now, by: me, what: 'Client registered as ' + (isCo ? 'Company' : 'Individual') + (hits.length ? '. Possible conflict: partner review needed' : ''), kind: hits.length ? 'conflict' : 'edit' }],
+      history: [{ at: now, by: me, what: 'Client registered as ' + (isCo ? 'Company' : 'Individual') + (hits.length ? '. Possible conflict: review needed' : ''), kind: hits.length ? 'conflict' : 'edit' }],
     };
     addClient(c);
     onClose();
@@ -80,7 +80,7 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({ isOpen, onClose,
               <label key={label} style={css(`display:flex;flex-direction:column;gap:4px;grid-column:${col}`)}><span style={css('font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#5B6478')}>{label}</span><input value={v} onChange={(e) => on(e.target.value)} placeholder={ph} style={css('width:100%;border:1px solid #DDE3EB;border-radius:6px;padding:8px 10px;font-size:12px;color:#16223A;outline-color:#3D6B9C')} /></label>
             ))}
           </div>
-          {hits.length > 0 && <div style={css('display:flex;gap:10px;padding:10px 12px;border-radius:8px;background:#F6E4E1;border:1px solid #E8BDB5')}><AlertTriangle size={16} color="#8E2A20" style={css('flex-shrink:0;margin-top:1px')} /><span style={css('font-size:11.5px;line-height:1.5;color:#8E2A20')}><strong>Possible conflict.</strong> {hits.join(' ')} The client will be saved as "Partner review".</span></div>}
+          {hits.length > 0 && <div style={css('display:flex;gap:10px;padding:10px 12px;border-radius:8px;background:#F6E4E1;border:1px solid #E8BDB5')}><AlertTriangle size={16} color="#8E2A20" style={css('flex-shrink:0;margin-top:1px')} /><span style={css('font-size:11.5px;line-height:1.5;color:#8E2A20')}><strong>Possible conflict.</strong> {hits.join(' ')} The client will be saved as "Needs review".</span></div>}
           {!hits.length && name.trim().length >= 4 && <div style={css('display:flex;gap:10px;padding:10px 12px;border-radius:8px;background:#E6EFE9')}><CheckCircle2 size={16} color="#1F5A3B" style={css('flex-shrink:0')} /><span style={css('font-size:11.5px;color:#1F5A3B')}>No match against existing clients or opposing parties.</span></div>}
         </div>
         <div style={css('display:flex;align-items:center;gap:10px;padding:12px 20px;border-top:1px solid #DDE3EB;background:#F6F8FA;border-radius:0 0 12px 12px')}><span style={css('font-size:11px;color:#5B6478')}>Conflict check runs as you type</span><button type="button" onClick={onClose} style={css('margin-left:auto;border:1px solid #DDE3EB;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;background:#fff;color:#16223A;cursor:pointer')}>Cancel</button><button type="button" onClick={save} style={css('border:0;border-radius:8px;padding:8px 16px;font-size:12px;font-weight:700;background:#16223A;color:#fff;cursor:pointer')}>Save client</button></div>

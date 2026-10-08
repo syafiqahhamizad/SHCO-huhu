@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Task, User } from '../../types';
 import { getUsername } from '../../lib/stringUtils';
+import { partnerCode } from '../../lib/identity';
+import { can, isSuper } from './settings/permissionModel';
 import {
   Clock,
   Calendar as CalendarIcon,
@@ -2400,7 +2402,14 @@ export const ReferralView: React.FC = () => {
 
 /* ================= 9. FILE CLOSING CHECKLIST (MALAYSIAN BAR RISK MANAGEMENT COMPLIANT) ================= */
 export const FileClosingView: React.FC = () => {
-  const { cases, updateCase, showToast, setCurrentView, setCurrentCaseId, setCaseSubTab } = useApp();
+  const { cases, updateCase, showToast, setCurrentView, setCurrentCaseId, setCaseSubTab, currentUser, currentRole, rolesMatrix, users = [] } = useApp();
+  // Same rule as the file's close panel: Settings › Permissions › Approve closing a file
+  // (partners only for files they are partner in charge of).
+  const myCode = partnerCode(currentUser) || '';
+  const canApproveCase = (cs: { partners?: string[] }) =>
+    isSuper(currentUser) || (can(rolesMatrix || ({} as never), currentUser, 'cases.approveClose') && (currentRole !== 'Partner' || (cs.partners || []).includes(myCode)));
+  const partnerNames = (cs: { partners?: string[] }) =>
+    (cs.partners || []).map((code) => users.find((u) => partnerCode(u) === code)?.name || code).join(', ') || '—';
   const closeRequests = cases.filter((c) => c.closeRequest?.status === 'Pending');
 
   const [checkedItems, setCheckedItems] = useState<Record<string, { inv: boolean; trust: boolean; docs: boolean; letter: boolean; boxNo: string }>>({});
@@ -2426,6 +2435,7 @@ export const FileClosingView: React.FC = () => {
   };
 
   const handleCloseMatter = (cs: any) => {
+    if (!canApproveCase(cs)) return showToast('You cannot approve closing this file. Who can is set in Settings › Permissions.');
     const c = checkedItems[cs.id] || { inv: false, trust: false, docs: false, letter: false, boxNo: '' };
     if (!c.inv || !c.trust || !c.docs || !c.letter) {
       return alert('All 4 Malaysian Bar Council Risk Management compliance checks MUST be verified before closing the matter file!');
@@ -2520,7 +2530,7 @@ export const FileClosingView: React.FC = () => {
                     <span className="font-bold text-[#16223A] text-sm">{cs.title}</span>
                   </div>
                   <span className="text-[10.5px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                    Lead Partner: Syafiqah Hamizad
+                    Partner in charge: {partnerNames(cs)}
                   </span>
                 </div>
 
@@ -2594,9 +2604,10 @@ export const FileClosingView: React.FC = () => {
 
                   <button
                     onClick={() => handleCloseMatter(cs)}
-                    disabled={!allChecked}
+                    disabled={!allChecked || !canApproveCase(cs)}
+                    title={canApproveCase(cs) ? undefined : 'Only people allowed in Settings › Permissions (partners: their own files) can approve'}
                     className={`font-bold px-4 py-2 rounded-lg cursor-pointer transition-all flex items-center gap-1.5 shadow-xs ${
-                      allChecked
+                      allChecked && canApproveCase(cs)
                         ? 'bg-[#16223A] hover:bg-[#16223A] text-white'
                         : 'bg-slate-200 text-slate-500 cursor-not-allowed border border-slate-300'
                     }`}

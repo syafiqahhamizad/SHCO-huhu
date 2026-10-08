@@ -78,13 +78,13 @@ export const RequestCloseModal: React.FC<{ w: WF; onClose: () => void }> = ({ w,
         })}
         <div style={css('display:grid;grid-template-columns:1fr;gap:10px;padding:12px 0')}>
           <label style={css('display:flex;flex-direction:column;gap:6px')}><span style={css(S.label)}>Outcome</span><select value={outcome} onChange={(e) => setOutcome(e.target.value)} style={css(S.input)}><option value="">Choose outcome</option>{OUTCOMES.map((o) => <option key={o} value={o}>{o}</option>)}</select></label>
-          <label style={css('display:flex;flex-direction:column;gap:6px')}><span style={css(S.label)}>Note to partner</span><textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="Anything the partner should know" style={css(S.input + ';resize:vertical')} /></label>
+          <label style={css('display:flex;flex-direction:column;gap:6px')}><span style={css(S.label)}>Note to the approver</span><textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="Anything the approver should know" style={css(S.input + ';resize:vertical')} /></label>
         </div>
       </div>
       <div style={css('padding:14px 20px;display:flex;align-items:center;gap:10px;border-top:1px solid #EEF1F5')}>
         <span style={css(`padding:3px 10px;border-radius:10px;font-size:12px;font-weight:700;background:${left ? '#FFF4E5' : '#E6EFE9'};color:${left ? '#7A4300' : '#1F5A3B'}`)}>{left ? left + ' item' + (left > 1 ? 's' : '') + ' left' : 'All clear'}</span>
         <button type="button" onClick={onClose} style={css('margin-left:auto;' + S.btnSecL)}>Cancel</button>
-        <button type="button" onClick={send} style={css(S.btnPriL + (outcome ? '' : ';opacity:.5'))}>Send to partner</button>
+        <button type="button" onClick={send} style={css(S.btnPriL + (outcome ? '' : ';opacity:.5'))}>Send for approval</button>
       </div>
     </Modal>
   );
@@ -172,7 +172,7 @@ export const ClosedBanner: React.FC<{ w: WF; canReopen: boolean; onPrint: () => 
     <>
       <div style={css('display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:10px;background:#EEF1F5;border:1px solid #DDE3EB;font-size:12.5px;color:#16223A;flex-wrap:wrap')}>
         <strong>{c.status === 'Archive' ? 'Archived' : 'Closed'}{c.closedDate ? ' ' + fmt(c.closedDate) : ''}{c.closedBy ? ' · approved by ' + c.closedBy : ''}{c.closeOutcome ? ' · ' + c.closeOutcome : ''}.</strong>
-        <span>The file is read-only. Reopening needs a partner.</span>
+        <span>The file is read-only. Reopening needs someone allowed in Settings › Permissions.</span>
         {canReopen && <button type="button" onClick={reopen} style={css('margin-left:auto;' + S.btnSec)}>Reopen file</button>}
       </div>
       <Card>

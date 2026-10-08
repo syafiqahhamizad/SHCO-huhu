@@ -121,7 +121,7 @@ export const NewFilePage: React.FC = () => {
   const refFor = (no: string) => ['SHC', ...sortedPartners, ...(lawyer ? [lawyer] : []), ...(codePart ? [codePart] : []), initials || '??', no, mmyy].join('/');
   const ref = refFor(done ? '' : '###');
 
-  const blocker = !C ? 'Choose the client' : !initials ? 'Type the client initials for the file no.' : !codePart ? 'Choose a matter code' : conflictOpen ? 'Conflict needs partner review' : !title.trim() ? 'Enter a matter title' : !partners.length ? 'Pick a partner in charge' : '';
+  const blocker = !C ? 'Choose the client' : !initials ? 'Type the client initials for the file no.' : !codePart ? 'Choose a matter code' : conflictOpen ? 'Conflict needs review' : !title.trim() ? 'Enter a matter title' : !partners.length ? 'Pick a partner in charge' : '';
 
 
   const fields = (FIELDS[tag] || []).map(([label, opts, ph, key], i, arr) => ({ label, opts, ph, key, k: tag + i, v: vals[tag + i] ?? '', span: arr.length % 2 && i === arr.length - 1 ? '1 / -1' : 'auto' }));
