@@ -64,7 +64,7 @@ import {
   TrustAuditLog,
   InventoryItem,
   BankReconciliationEntry,
-  Payslip,
+  Payslip, PrivateTodo,
   ComplianceItem,
   ComplaintRecord,
   Milestone,
@@ -272,6 +272,9 @@ interface AppContextType {
   toggleClientAccountCheck: (itemKey: string) => void;
   /** Accounts & Finance → Payroll. */
   payslips: Payslip[];
+  /** The signed-in person's own private to-dos (owner-only storage). */
+  privateTodos: PrivateTodo[];
+  savePrivateTodos: (fn: (list: PrivateTodo[]) => PrivateTodo[]) => void;
   addPayslip: (p: Payslip) => void;
   updatePayslip: (id: string, updates: Partial<Payslip>) => void;
   /** Moves the given payslips one step along Draft → Checked → Approved → Paid. */
@@ -1678,6 +1681,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Payroll payslips (Accounts & Finance -> Payroll owns the mutators; Staff Portal only reads
   // the current user's Approved/Paid slips). Starts empty — no sample payslips.
+  // Private to-dos: kept only in memory and the owner-only collection (never in this browser's storage).
+  const [privateTodos, setPrivateTodos] = useState<PrivateTodo[]>([]);
   const [payslips, setPayslips] = useState<Payslip[]>(() => {
     return readStored(STORAGE_KEY + '_payslips', [] as Payslip[]);
   });
@@ -2738,6 +2743,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     generalLedger: setGeneralLedger,
     clientAccountChecks: setClientAccountChecks,
     payslips: setPayslips,
+    privateTodos: setPrivateTodos,
     users: setUsers,
   } as unknown as Record<string, (v: never[]) => void>;
   const DELETED_TYPE: Record<string, DeletedRecord['entityType']> = {
@@ -2746,7 +2752,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useFirmDataSync({
     enabled: isAuthenticated && !SAFE_PREVIEW_MODE && firmSplit,
     myEmail: (firebaseAuth.currentUser?.email || '').toLowerCase(),
-    lists: { leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims, receipts, deadlines, invoices, payments, retainers, attendanceRecords, leaveApplications, meetings, programmes, notifications, lawFirmRegistry, deletedRecords, timeEntries, expenses, announcements, auditLogs, firmStartCentrePages, inventoryItems, logs, manualJournals, bankAccounts, bankReconciliationEntries, trustAuditLogs, generalLedger, clientAccountChecks, payslips, users } as unknown as Record<string, Record<string, unknown>[]>,
+    lists: { leads, clients, cases, quotations, referralPartners, paymentVouchers, travelClaims, receipts, deadlines, invoices, payments, retainers, attendanceRecords, leaveApplications, meetings, programmes, notifications, lawFirmRegistry, deletedRecords, timeEntries, expenses, announcements, auditLogs, firmStartCentrePages, inventoryItems, logs, manualJournals, bankAccounts, bankReconciliationEntries, trustAuditLogs, generalLedger, clientAccountChecks, payslips, privateTodos, users } as unknown as Record<string, Record<string, unknown>[]>,
     setList: (key, list) => splitSetters[key]?.(list as never[]),
     config: { sequenceCounters, rolesMatrix, customRoles },
     setConfig: (name: ConfigKey, value) => {
@@ -3582,6 +3588,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         clientAccountChecks,
         toggleClientAccountCheck,
         payslips,
+        privateTodos: privateTodos.filter((t) => t.ownerEmail === (firebaseAuth.currentUser?.email || currentUser.email || '').toLowerCase()),
+        savePrivateTodos: (fn: (list: PrivateTodo[]) => PrivateTodo[]) => setPrivateTodos((prev) => fn(prev)),
         addPayslip,
         updatePayslip,
         advancePayslipStatus,

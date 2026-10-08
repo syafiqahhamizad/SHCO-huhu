@@ -1217,9 +1217,6 @@ export interface StaffProfile {
    * Additive field — no target-hours data existed before, so this defaults to 160 (a standard
    * full-time month) rather than being fabricated per person. */
   targetHoursPerMonth?: number;
-  /** My Dashboard → My to-do → Private: the person's own to-dos with no file attached. Kept on the
-   * private staff profile (not in the public roster) and shown only to that person. */
-  privateTodos?: Task[];
   /** Career & personal development goals shown on the Team tab's expanded row (My Dashboard -> Team).
    * Added and edited by the Managing Partner via addStaffGoal/updateStaffGoal. */
   goals?: StaffGoal[];
@@ -1716,3 +1713,7 @@ export interface ManualJournal {
   clientId?: string;
   caseId?: string;
 }
+
+/** My Dashboard → My to-do → Private: a person's own to-do with no file attached. Stored in its own
+ * owner-only collection: nobody else can read it, not even partners or admins. */
+export interface PrivateTodo extends Task { ownerEmail: string }

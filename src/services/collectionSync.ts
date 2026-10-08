@@ -103,7 +103,7 @@ export function subscribeCollection(
       else { if (!denied) console.error('Live data for ' + key + ' stopped', err); onData(new Map(), 'none'); }
     });
   };
-  listen('all');
+  listen(collectionDef(key)?.tier === 'own' ? 'own' : 'all');
   return () => { stopped = true; unsub?.(); };
 }
 

@@ -133,6 +133,17 @@ describe('after the split', () => {
     await assertSucceeds(b.commit());
   });
 
+  it('private to-dos: only their owner, not even partners or admins', async () => {
+    const mine = { id: 'P1', ownerEmail: people.lawyer.email, _ownerEmail: people.lawyer.email, title: 'Call bank' };
+    await assertSucceeds(setDoc(doc(as(people.lawyer.email), 'firm', 'main', 'privateTodos', 'P1'), mine));
+    await assertSucceeds(getDocs(query(collection(as(people.lawyer.email), 'firm', 'main', 'privateTodos'), where('_ownerEmail', '==', people.lawyer.email))));
+    await assertFails(getDoc(doc(as(people.partner.email), 'firm', 'main', 'privateTodos', 'P1')));
+    await assertFails(getDoc(doc(as(people.assistantAdmin.email), 'firm', 'main', 'privateTodos', 'P1')));
+    await assertFails(getDoc(doc(as(OWNER), 'firm', 'main', 'privateTodos', 'P1')));
+    await assertFails(setDoc(doc(as(people.partner.email), 'firm', 'main', 'privateTodos', 'P2'), { ...mine, id: 'P2' }));
+    await assertSucceeds(deleteDoc(doc(as(people.lawyer.email), 'firm', 'main', 'privateTodos', 'P1')));
+  });
+
   it('unknown collections are closed', () => assertFails(setDoc(doc(as(OWNER), 'firm', 'main', 'whatever', 'x'), { a: 1 })));
   it('nobody can delete the split marker', () => assertFails(deleteDoc(doc(as(OWNER), 'firm', 'main'))));
 });

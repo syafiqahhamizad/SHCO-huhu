@@ -23,7 +23,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useApp } from '../../../context/AppContext';
-import type { Case, Meeting, Task } from '../../../types';
+import type { Case, Meeting, PrivateTodo, Task } from '../../../types';
 import { isMine } from '../../../lib/identity';
 import { Donut, MiniBarChart, ProgressBar, TaskFormModal, blankTaskDraft } from '../../ui';
 import type { TaskDraft } from '../../ui';
@@ -165,6 +165,7 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
     setCaseSubTab,
     updateCase,
     updateUserStaffProfile,
+    savePrivateTodos,
     showToast,
   } = useApp() as any;
   const mine = (v?: unknown) => isMine(v, me);
@@ -215,11 +216,15 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
     },
   });
 
+  // Private to-dos live in their own owner-only store (nobody else can read them).
   const savePrivate = (fn: (list: Task[]) => Task[]) => {
-    const u = userRef.current;
-    if (!u?.id) return;
-    const profile = u.staffProfile || {};
-    updateUserStaffProfile(u.id, { ...profile, privateTodos: fn(profile.privateTodos || []) }, { silent: true });
+    const email = String(userRef.current?.email || '').toLowerCase();
+    if (!email) return;
+    savePrivateTodos((prev: PrivateTodo[]) => {
+      const others = prev.filter((t) => t.ownerEmail !== email);
+      const mine = prev.filter((t) => t.ownerEmail === email);
+      return [...others, ...fn(mine).map((t) => ({ ...t, ownerEmail: email }))];
+    });
   };
 
   const syncPrivate = async (t: Task) => {
@@ -260,7 +265,7 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
 
   const openTaskForm = (scope: 'matter' | 'private', preset?: Partial<TaskDraft>) => {
     const defaultCase = [...myOwnCases].sort((a, b) => String(b.lastAccessed || '').localeCompare(String(a.lastAccessed || '')))[0];
-    setTaskForm({ scope, draft: { ...blankTaskDraft(myName), caseId: scope === 'matter' ? defaultCase?.id || '' : '', kind: 'Task', syncGoogle: false, ...preset } });
+    setTaskForm({ scope, draft: { ...blankTaskDraft(myName), caseId: scope === 'matter' ? defaultCase?.id || '' : '', kind: 'Task', syncGoogle: scope === 'private', ...preset } });
   };
 
   const draftOf = (t: Task, caseId: string): TaskDraft => ({
@@ -467,7 +472,8 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
 
   const filesBroughtIn = useMemo(() => myOwnCases.filter((c) => c.referredBy && mine(c.lawyerInCharge)).length, [myOwnCases, me]);
 
-  const targets = currentUser?.staffProfile?.targets || { billed: 50000, collected: 30000, files: 25, referrals: 10 };
+  // No invented targets: zero until the person sets their own with "Edit targets".
+  const targets = currentUser?.staffProfile?.targets || { billed: 0, collected: 0, files: 0, referrals: 0 };
   const setTargets = (patch: Partial<typeof targets>) => {
     if (!currentUser?.id) return;
     updateUserStaffProfile(currentUser.id, { ...(currentUser.staffProfile || {}), targets: { ...targets, ...patch } } as any);

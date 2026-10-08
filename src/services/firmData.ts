@@ -14,10 +14,11 @@
  *           (payslips, the private part of staff profiles: IC, bank, pay, address …)
  *   users — every firm user reads; admins/owner write; a person may update their own
  *           non-sensitive fields (never role / admin / status / email / permissions)
+ *   own   — only the person it belongs to, nobody else (private to-dos)
  */
 import type { StaffProfile, User } from '../types';
 
-export type Tier = 'firm' | 'books' | 'hr' | 'users';
+export type Tier = 'firm' | 'books' | 'hr' | 'users' | 'own';
 
 export interface CollectionDef {
   /** The AppContext / old sharedState key. */
@@ -42,6 +43,7 @@ export const COLLECTIONS: CollectionDef[] = [
   def('generalLedger', 'books', (r) => 'GL-' + String(r.glNo ?? '') + '-' + String(r.docNo ?? '')),
   def('clientAccountChecks', 'books', (r) => String(r.itemKey ?? '')),
   def('payslips', 'hr'),
+  def('privateTodos', 'own'),
   def('staffPrivate', 'hr'),
   def('users', 'users'),
 ];
@@ -59,11 +61,12 @@ export const TIER_READERS: Record<Tier, string[]> = {
   users: ['partner', 'lawyer', 'assistant', 'accountant', 'reviewer'],
   books: ['partner', 'accountant', 'reviewer'],
   hr: ['partner', 'accountant'],
+  own: [],
 };
 
 /** Can this person read the whole collection? (owner and admins always can.) */
 export const canReadTier = (tier: Tier, role: string, isAdminOrOwner: boolean) =>
-  isAdminOrOwner || TIER_READERS[tier].includes(role.toLowerCase());
+  tier !== 'own' && (isAdminOrOwner || TIER_READERS[tier].includes(role.toLowerCase()));
 
 /** Small stable string hash (FNV-1a, hex) for records without an id. */
 export function hash(s: string): string {
@@ -161,6 +164,7 @@ export function docsFor(key: string, list: Record<string, unknown>[], ownerEmail
   list.forEach((r, i) => {
     const data = clean(r) as Record<string, unknown>;
     if (key === 'payslips' && ownerEmailOf) data._ownerEmail = ownerEmailOf(String(r.userId || ''));
+    if (key === 'privateTodos') data._ownerEmail = String(r.ownerEmail || '').toLowerCase();
     m.set(ids[i], data);
   });
   return m;

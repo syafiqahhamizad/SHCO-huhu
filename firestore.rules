@@ -109,10 +109,12 @@ service cloud.firestore {
 
     // firm  — every firm user;  books — partners, accountants, reviewers (read), admins, owner;
     // hr    — partners, accountants, admins, owner, or the person's own document;
+    // own   — only the person it belongs to (private to-dos), nobody else;
     // users — everyone reads; admins write; people may update their own non-sensitive fields.
     function tierOf(col) {
       return col in ['manualJournals', 'bankAccounts', 'bankReconciliationEntries', 'trustAuditLogs', 'generalLedger', 'clientAccountChecks'] ? 'books'
         : col in ['payslips', 'staffPrivate'] ? 'hr'
+        : col == 'privateTodos' ? 'own'
         : col == 'users' ? 'users'
         : col == 'config' ? 'config'
         : col in ['leads', 'clients', 'cases', 'quotations', 'referralPartners', 'paymentVouchers', 'travelClaims', 'receipts',
@@ -149,7 +151,8 @@ service cloud.firestore {
       allow read: if (splitDone() || isOwner()) && (
         (tierOf(col) in ['firm', 'users', 'config'] && isFirmUser()) ||
         (tierOf(col) == 'books' && booksReader()) ||
-        (tierOf(col) == 'hr' && (hrStaff() || (isFirmUser() && ownDoc(resource.data))))
+        (tierOf(col) == 'hr' && (hrStaff() || (isFirmUser() && ownDoc(resource.data)))) ||
+        (tierOf(col) == 'own' && isFirmUser() && ownDoc(resource.data))
       );
 
       // While the move is running only the owner writes; afterwards each tier's writers.
@@ -160,6 +163,11 @@ service cloud.firestore {
         (tierOf(col) == 'config' && (docId in ['rolesMatrix', 'customRoles'] ? isOwner() : isFirmUser())) ||
         (tierOf(col) == 'users' && isAdminOrOwner())
       ));
+
+      // Private to-dos: only the person they belong to — no partner, Accounts or admin access.
+      allow create, update: if splitDone() && tierOf(col) == 'own' && isFirmUser() &&
+        ownDoc(request.resource.data) && (resource == null || ownDoc(resource.data));
+      allow delete: if splitDone() && tierOf(col) == 'own' && isFirmUser() && ownDoc(resource.data);
 
       // Your own private staff profile (personal details, emergency contact …).
       allow create, update: if splitDone() && col == 'staffPrivate' && isFirmUser() &&

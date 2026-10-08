@@ -50,12 +50,12 @@ export const bucketOf = (due: string, todayStr: string, weekStr: string): Bucket
   !due ? 'later' : due < todayStr ? 'overdue' : due === todayStr ? 'today' : due <= weekStr ? 'week' : 'later';
 
 export function useMyWorkRows() {
-  const { cases, deadlines, timeEntries, expenses, paymentVouchers, travelClaims, invoices, currentUser, currentRole } = useApp() as any;
+  const { cases, deadlines, timeEntries, expenses, paymentVouchers, travelClaims, invoices, currentUser, currentRole, privateTodos: myPrivateTodos } = useApp() as any;
   const todayStr = localIso(new Date());
   const weekStr = addDaysIso(todayStr, 7);
   const me = useMemo(() => identityTokens(currentUser), [currentUser]);
   const isPartner = currentRole === 'Partner' || Boolean(currentUser?.isAdmin) || Boolean(currentUser?.isSuperAdmin);
-  const privateTodos: Task[] = currentUser?.staffProfile?.privateTodos || [];
+  const privateTodos: Task[] = myPrivateTodos || [];
 
   const rows: WorkRow[] = useMemo(() => {
     const mine = (v?: unknown) => isMine(v, me);
