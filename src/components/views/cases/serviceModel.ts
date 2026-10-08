@@ -21,10 +21,10 @@ export interface ServiceDraft {
   notes: string;
 }
 
-/** Upload proof for a record on this file (Filing → `Filing`, served/received → `Service`). */
-export const uploadServiceProof = async (c: Pick<Case, 'ref' | 'title' | 'gdriveFolderId'>, file: File, action: string, me: string): Promise<StoredMatterFile> => {
+/** Upload filing / service proof for a record on this file → the matter's `Court Papers` folder. */
+export const uploadServiceProof = async (c: Pick<Case, 'ref' | 'title' | 'gdriveFolderId' | 'practiceArea' | 'type'>, file: File, _action: string, me: string): Promise<StoredMatterFile> => {
   await prepareStorage();
-  return storeMatterFile({ ref: c.ref, title: c.title, folderId: c.gdriveFolderId, sub: action === 'Filed' ? 'Filing' : 'Service', file, uploadedBy: me });
+  return storeMatterFile({ ref: c.ref, title: c.title, practiceArea: c.practiceArea, type: c.type, folderId: c.gdriveFolderId, sub: 'Court Papers', file, uploadedBy: me });
 };
 
 const proofFields = (stored: StoredMatterFile) => ({ proofFileName: stored.name, driveFileId: stored.driveFileId, webViewLink: stored.webViewLink, storagePath: stored.storagePath });

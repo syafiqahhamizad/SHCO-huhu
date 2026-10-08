@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../../../context/AppContext';
 import type { Case, ServiceRecord } from '../../../types';
 import { identityTokens, isMine } from '../../../lib/identity';
-import { openStoredFile, useStorageLabel, type StoredMatterFile } from '../../../services/fileStorageService';
+import { matterDriveLabel, openStoredFile, useStorageLabel, type StoredMatterFile } from '../../../services/fileStorageService';
 import { css, S, Card, Field } from './caseUi';
 import { METHODS, P, actionOf, daysFrom, fmt, hasProof, isoOf, partiesOf, proofTypeFor, staffOf, todayIso } from './caseModel';
 import { addServicePatch, newServiceRecord, uploadServiceProof, withProof } from './serviceModel';
@@ -163,7 +163,7 @@ export const ServiceLogPage: React.FC = () => {
                   <span style={css('flex-shrink:0;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700;background:#EEF1F5;color:#16223A')}>Choose file</span>
                   <span style={css(`font-size:12.5px;color:${picked ? '#16223A' : '#4A5468'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap`)}>{picked ? picked.name : 'Image or PDF. You can also upload it later.'}</span>
                 </label>
-                {selFile && <span style={css('font-size:11px;color:#4A5468')}>{storage.replace('Saved to', 'Goes to')}{storage.includes('Drive') ? ' › Matters › ' + selFile.ref.replace(/\//g, '-') + ' › Service' : ''}</span>}
+                {selFile && <span style={css('font-size:11px;color:#4A5468')}>{storage.replace('Saved to', 'Goes to')}{storage.includes('Drive') ? ' › ' + matterDriveLabel(selFile) + ' › Court Papers' : ''}</span>}
               </div>
               <div style={css('grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px')}>
                 <button type="button" onClick={toggleAdd} style={css(S.btnSecL)}>Cancel</button>

@@ -14,10 +14,10 @@ export const EditMatterModal: React.FC<{ w: WF; onClose: () => void }> = ({ w, o
   const s = getPracticeSettings();
   const areas = (s.practiceAreas && s.practiceAreas.length ? s.practiceAreas : DEFAULT_PRACTICE_SETTINGS.practiceAreas) || [];
   const practices = Array.from(new Set([practiceOf(c), ...areas.map((a) => a.name)].filter(Boolean)));
-  const init = { title: c.title, practice: practiceOf(c), status: c.status, partners: [...(c.partners || [])] as string[], lawyers: lawyersOf(c), opened: openedOf(c), drive: c.gdriveFolderUrl || '', ref: c.ref || '', why: '' };
+  const init = { title: c.title, practice: practiceOf(c), status: c.status, partners: [...(c.partners || [])] as string[], lawyers: lawyersOf(c), opened: openedOf(c), drive: c.gdriveFolderUrl || '', oldDrive: c.oldDriveFolderUrl || '', ref: c.ref || '', why: '' };
   const [ed, setEd] = useState(init);
   const firmAdmin = Boolean(isAdmin || currentUser?.isSuperAdmin);
-  const L: Record<string, string> = { title: 'Title', practice: 'Practice', status: 'Status', partners: 'Partner', lawyers: 'Lawyers', opened: 'Opened', drive: 'Drive folder', ref: 'Reference' };
+  const L: Record<string, string> = { title: 'Title', practice: 'Practice', status: 'Status', partners: 'Partner', lawyers: 'Lawyers', opened: 'Opened', drive: 'Drive folder', oldDrive: 'Old folder', ref: 'Reference' };
   const lawyerCodeOf = (name: string) => staff.find((p) => p.name === name)?.code || '';
   // Prefer the file's own saved matter code; the firm-wide list is only a fallback for older files.
   const matterCodes = c.matterCode ? [c.matterCode.split('/')[0]] : [
@@ -40,15 +40,16 @@ export const EditMatterModal: React.FC<{ w: WF; onClose: () => void }> = ({ w, o
     if (!ed.title.trim()) { w.toast('Add the matter title'); return; }
     if (!ed.partners.length) { w.toast('Pick a partner in charge'); return; }
     if (ed.drive.trim() && !/^https:\/\/drive\.google\.com\//.test(ed.drive.trim())) { w.toast('Paste the folder link from Google Drive (https://drive.google.com/…)'); return; }
+    if (ed.oldDrive.trim() && !/^https:\/\/drive\.google\.com\//.test(ed.oldDrive.trim())) { w.toast('Paste the old folder link from Google Drive (https://drive.google.com/…)'); return; }
     const practiceChanged = ed.practice !== init.practice;
     const patch: Partial<Case> = {
       title: ed.title.trim(), type: ed.practice, practiceArea: ed.practice, status: ed.status as Case['status'], partners: ed.partners as PartnerCode[],
-      lawyerInCharge: ed.lawyers[0] || undefined, lawyers: ed.lawyers, gdriveFolderUrl: ed.drive.trim() || undefined,
+      lawyerInCharge: ed.lawyers[0] || undefined, lawyers: ed.lawyers, gdriveFolderUrl: ed.drive.trim() || undefined, oldDriveFolderUrl: ed.oldDrive.trim() || undefined,
       ...(ed.drive.trim() !== init.drive ? { gdriveFolderId: (ed.drive.match(/folders\/([\w-]+)/) || [])[1] || undefined } : {}),
       ...(firmAdmin || ed.opened === init.opened ? { fileOpenedDate: ed.opened || c.fileOpenedDate } : {}),
       ...(practiceChanged ? { statusStage: 0, statusStageName: stagesFor(ed.practice)[0] } : {}),
     };
-    const what = 'Matter details updated: ' + diff.map((k) => L[k] + (k === 'title' || k === 'drive' ? '' : ' → ' + (k === 'opened' ? fmt(ed.opened) : k === 'partners' ? ed.partners.join(', ') : k === 'lawyers' ? ed.lawyers.join(', ') : String((ed as Record<string, unknown>)[k]) || '—'))).join(', ') + (ed.why.trim() ? ' (' + ed.why.trim() + ')' : '');
+    const what = 'Matter details updated: ' + diff.map((k) => L[k] + (k === 'title' || k === 'drive' || k === 'oldDrive' ? '' : ' → ' + (k === 'opened' ? fmt(ed.opened) : k === 'partners' ? ed.partners.join(', ') : k === 'lawyers' ? ed.lawyers.join(', ') : String((ed as Record<string, unknown>)[k]) || '—'))).join(', ') + (ed.why.trim() ? ' (' + ed.why.trim() + ')' : '');
     w.save({ ...patch, activityLogs: [histEntry(what, w.me), ...(c.activityLogs || [])] });
     // Tell whoever was newly put in charge (bell + e-mail).
     const newPeople = [...ed.partners.filter((p) => !init.partners.includes(p)), ...ed.lawyers.filter((n) => !init.lawyers.includes(n))];
@@ -89,6 +90,7 @@ export const EditMatterModal: React.FC<{ w: WF; onClose: () => void }> = ({ w, o
           {firmAdmin && ed.ref.trim() !== init.ref && <span style={css('font-size:12px;line-height:1.5;color:#4A5468')}>Invoices, receipts, vouchers, claims, quotations and ledger lines linked to {init.ref} move to the new reference. Give a reason below.</span>}
         </div>
         <label style={css('grid-column:1/-1;display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>Google Drive folder</span><input value={ed.drive} onChange={(e) => setEd({ ...ed, drive: e.target.value })} placeholder="Paste the folder link from Google Drive" style={css(inp)} /></label>
+        <label style={css('grid-column:1/-1;display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>Old folder (optional)</span><input value={ed.oldDrive} onChange={(e) => setEd({ ...ed, oldDrive: e.target.value })} placeholder="Link to this file's folder in an old drive · nothing there is moved or renamed" style={css(inp)} /></label>
         <label style={css('grid-column:1/-1;display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>Reason for change</span><input value={ed.why} onChange={(e) => setEd({ ...ed, why: e.target.value })} placeholder="Recorded in History, e.g. File reassigned" style={css(inp)} /></label>
         <p style={css('grid-column:1/-1;margin:0;font-size:12px;line-height:1.5;color:#4A5468')}>Parties are edited in Overview. Court, suit no., coram and opposing solicitors are changed in the Court tab so their history is kept. Closing a file goes through Request to close.</p>
       </div>

@@ -233,7 +233,7 @@ const ReconcileModal = ({ F, m, onClose }: { F: FinanceCtrl; m: Date; onClose: (
   const ready = bal && !!st?.proof;
   const onStmt = async (f?: File | null) => {
     if (!f) return; if (proofUploadBlocked()) { F.toastMsg(DRIVE_REQUIRED_MSG); return; }
-    try { const meta = await storeFinanceProof(f, F.me, 'Client account statement ' + key); save({ proof: { name: f.name, driveFileId: meta.driveFileId, webViewLink: meta.webViewLink } }); F.toastMsg(f.name + ' saved to Google Drive'); } catch (e) { F.toastMsg('Could not save ' + f.name + ': ' + (e instanceof Error ? e.message : 'upload failed')); }
+    try { const meta = await storeFinanceProof(f, F.me, 'Client account statement ' + key, 'clientAccount'); save({ proof: { name: f.name, driveFileId: meta.driveFileId, webViewLink: meta.webViewLink, ...(meta.driveFolderId ? { driveFolderId: meta.driveFolderId } : {}) } }); F.toastMsg(f.name + ' saved to Google Drive'); } catch (e) { F.toastMsg('Could not save ' + f.name + ': ' + (e instanceof Error ? e.message : 'upload failed')); }
   };
   const label = `${MONTHS[m.getMonth()]} ${m.getFullYear()}`;
   const LBL = 'font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478';

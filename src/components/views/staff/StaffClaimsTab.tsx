@@ -8,6 +8,10 @@ import {
 } from './staffPortalShared';
 import { resolveApproval } from '../../../lib/approvers';
 import { usePracticeSettings } from '../settings/settingsShared';
+import { DOC_TYPE_COLORS, FINANCE_DOC_TYPES, matchesYearType, yearOptions } from '../../../lib/claimFilters';
+import { folderUrl } from '../../../lib/driveLayout';
+
+const SEL: React.CSSProperties = { border: '1px solid #C9D3E0', borderRadius: 6, padding: '4px 6px', fontSize: 11, color: '#16223A', background: '#fff', fontFamily: 'inherit' };
 
 const LBL: React.CSSProperties = { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#5B6478' };
 const INP: React.CSSProperties = { border: '1px solid #C9D3E0', borderRadius: 4, padding: '7px 9px', fontSize: 12, color: '#16223A', background: '#fff', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' };
@@ -117,6 +121,8 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
   const [busy, setBusy] = useState(false);
   const [upErr, setUpErr] = useState('');
   const [recOpen, setRecOpen] = useState<string | null>(null);
+  const [yearF, setYearF] = useState('All');
+  const [typeF, setTypeF] = useState('All');
   const storageLabel = useStorageLabel();
   // Firm & Practice Settings → Who approves → Staff claims; until it is set, the file's partner in charge approves.
   const [settings] = usePracticeSettings();
@@ -128,7 +134,8 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
 
   /* ---------------- list ---------------- */
 
-  const list = rows.map((c) => ({
+  const years = useMemo(() => yearOptions<ClaimRow>(rows, (r) => r.iso), [rows]);
+  const list = rows.filter((r) => matchesYearType({ date: r.iso, docType: r.docType }, { year: yearF, type: typeF })).map((c) => ({
     ...c,
     withTxt: c.status === 'Waiting' ? 'with ' + (rule ? rule.label : c.approver) : c.status === 'Approved' ? 'Accounts to pay' : c.status === 'Paid' ? 'paid by Accounts' : 'by ' + (c.approvedBy || c.approver),
   }));
@@ -291,7 +298,7 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
       await Promise.all(
         items.map(async (i) => {
           const id = idOf.get(i) as string;
-          stored.set(i, await Promise.all(i.docs.map((d) => storeClaimReceipt({ userId: currentUser.id, recordId: id, formNo: no, file: d.file, uploadedBy: currentUser.name }))));
+          stored.set(i, await Promise.all(i.docs.map((d) => storeClaimReceipt({ userId: currentUser.id, recordId: id, formNo: no, file: d.file, uploadedBy: currentUser.name, kind: D ? 'pv' : 'claim' }))));
         })
       );
     } catch (err) {
@@ -401,10 +408,15 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
               <button type="button" onClick={openPv} style={{ border: '1px solid #16223A', borderRadius: 6, padding: '6px 12px', fontSize: 11, fontWeight: 700, background: '#fff', color: '#16223A', cursor: 'pointer', fontFamily: 'inherit' }}>+ Payment request (PV)</button>
             </div>
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '7px 14px', borderBottom: '1px solid #EEF1F5', fontSize: 11, color: '#5B6478' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 5 }}>Year<select aria-label="Year" value={yearF} onChange={(e) => setYearF(e.target.value)} style={SEL}><option value="All">All years</option>{years.map((y) => <option key={y} value={y}>{y}</option>)}</select></label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 5 }}>Type<select aria-label="Type" value={typeF} onChange={(e) => setTypeF(e.target.value)} style={SEL}><option value="All">All types</option>{FINANCE_DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}</select></label>
+            <span style={{ marginLeft: 'auto' }}>{list.length} of {rows.length}</span>
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: GRID, gap: 8, padding: '7px 14px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#5B6478', background: '#F6F8FA', borderBottom: '1px solid #EEF1F5' }}>
             <span>Date</span><span>Claim · file</span><span style={{ textAlign: 'right' }}>To you</span><span style={{ textAlign: 'right' }}>Bill client</span><span>Form no.</span><span>Receipt</span><span>Status</span>
           </div>
-          {!list.length && <div style={{ padding: '12px 14px', fontSize: 11.5, color: '#5B6478', borderBottom: '1px solid #F0F2F5' }}>No claims or payment requests yet.</div>}
+          {!list.length && <div style={{ padding: '12px 14px', fontSize: 11.5, color: '#5B6478', borderBottom: '1px solid #F0F2F5' }}>{rows.length ? 'Nothing for this year / type.' : 'No claims or payment requests yet.'}</div>}
           {list.map((c) => {
             const kc = KIND_COLORS[c.kind] || KIND_COLORS.Office;
             const sc = STATUS_COLORS[c.status];
@@ -413,6 +425,7 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
                 <span style={{ fontSize: 11, color: '#5B6478' }}>{ddmm(c.iso)}</span>
                 <span style={{ minWidth: 0 }}>
                   <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <span title="Type" style={{ fontSize: 9.5, fontWeight: 700, padding: '0 6px', borderRadius: 8, background: DOC_TYPE_COLORS[c.docType][0], color: DOC_TYPE_COLORS[c.docType][1], whiteSpace: 'nowrap' }}>{c.docType}</span>
                     <span style={{ fontSize: 9.5, fontWeight: 700, padding: '0 6px', borderRadius: 8, background: kc[0], color: kc[1] }}>{c.kind}</span>
                     <span style={{ fontSize: 11.5, fontWeight: 600, color: '#16223A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.what}</span>
                   </span>
@@ -432,6 +445,7 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
                   ) : (
                     <span style={{ fontSize: 10.5, fontWeight: 700, color: '#B23A2E' }}>Missing</span>
                   )}
+                  {c.driveFolderId && <a href={folderUrl(c.driveFolderId)} target="_blank" rel="noopener noreferrer" title="Open the Google Drive folder" style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#3D6B9C' }}>Drive folder ↗</a>}
                   {recOpen === c.key && (
                     <span style={{ position: 'absolute', top: '100%', left: 0, zIndex: 5, marginTop: 4, width: 240, display: 'flex', flexDirection: 'column', background: '#fff', border: '1px solid #DDE3EB', borderRadius: 8, boxShadow: '0 8px 20px rgba(22,34,58,.18)', overflow: 'hidden' }}>
                       {c.attachments.map((a) => (

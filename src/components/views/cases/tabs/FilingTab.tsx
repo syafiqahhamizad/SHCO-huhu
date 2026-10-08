@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../../../context/AppContext';
 import type { ServiceRecord } from '../../../../types';
-import { openStoredFile, useStorageLabel, type StoredMatterFile } from '../../../../services/fileStorageService';
+import { matterDriveLabel, openStoredFile, useStorageLabel, type StoredMatterFile } from '../../../../services/fileStorageService';
 import { css, S, Card, Field, Seg } from '../caseUi';
 import { METHODS, P, PROOF_TYPES, actionOf, courtOf, daysFrom, fmt, hasProof, isoOf, proofTypeFor, todayIso } from '../caseModel';
 import { addServicePatch, newServiceRecord, uploadServiceProof, withProof } from '../serviceModel';
@@ -89,7 +89,7 @@ export const FilingTab: React.FC<{ w: WF }> = ({ w }) => {
               <span style={css('flex-shrink:0;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700;background:#EEF1F5;color:#16223A')}>Choose file</span>
               <span style={css(`font-size:12.5px;color:${picked ? '#16223A' : '#4A5468'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap`)}>{picked ? picked.name : f.method === 'AR Registered post' ? 'No file yet. You can upload the AR card when it comes back.' : 'AR card, chop, e-mail or CMS receipt (image or PDF)'}</span>
             </label>
-            <span style={css('font-size:11px;color:#4A5468')}>{storage.replace('Saved to', 'Goes to')}{storage.includes('Drive') ? ' › Matters › ' + c.ref.replace(/\//g, '-') + ' › ' + (f.dir === 'Filed' ? 'Filing' : 'Service') : ''}</span>
+            <span style={css('font-size:11px;color:#4A5468')}>{storage.replace('Saved to', 'Goes to')}{storage.includes('Drive') ? ' › ' + matterDriveLabel(c) + ' › Court Papers' : ''}</span>
           </div>
           <Field label="Notes" span="1/-1"><input value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} placeholder="e.g. Affidavit of service filed, stamped copy on file" style={css(S.input)} /></Field>
           <div style={css('grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px')}><button type="button" onClick={() => setOpen(false)} style={css(S.btnSecL)}>Cancel</button><button type="button" disabled={busy === 'save'} onClick={saveS} style={css(S.btnPriL + (busy === 'save' ? ';opacity:.5' : ''))}>{busy === 'save' ? 'Uploading…' : 'Save to log'}</button></div>

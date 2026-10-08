@@ -84,7 +84,7 @@ export const CasesListPage: React.FC = () => {
       await prepareStorage();
       for (const c of todo) {
         setFolderRun('Creating Drive folders… ' + (made + 1) + ' of ' + todo.length);
-        const f = await ensureMatterFolder(c.ref, c.title);
+        const f = await ensureMatterFolder(c);
         if (f) { updateCase(c.id, { gdriveFolderId: f.id, gdriveFolderUrl: f.url }); made++; }
       }
       showToast(made + ' Drive folder' + (made === 1 ? '' : 's') + ' created.');
@@ -126,7 +126,7 @@ export const CasesListPage: React.FC = () => {
       {isFirmAdmin && activeStorage() === 'drive' && noFolder.length > 0 && (
         <button type="button" disabled={!!folderRun} onClick={createMissingFolders} style={css('display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;border:1px solid #C9D6E6;background:#F3F7FB;font-size:12.5px;color:#16223A;cursor:pointer;text-align:left;font-family:inherit')}>
           <strong>{folderRun || noFolder.length + ' file' + (noFolder.length > 1 ? 's have' : ' has') + ' no Google Drive folder yet.'}</strong>
-          {!folderRun && <span style={css('color:#4A5468')}>Click to create them all in Shared Drive › Matters.</span>}
+          {!folderRun && <span style={css('color:#4A5468')}>Click to create {noFolder.length > 1 ? 'them all' : 'it'} in SHCO Portal › Matters › practice area › “NNN - title”, each with Court Papers, Correspondence, Client Documents, Research and Closing. Old drives are not touched.</span>}
         </button>
       )}
 
@@ -176,9 +176,12 @@ export const CasesListPage: React.FC = () => {
                   <span style={css(`font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;background:${st[0]};color:${st[1]}`)}>{c.status}</span>
                   {pendingClose(c) && <span style={css('font-size:9.5px;font-weight:800;color:#8A6D3B')}>Close requested</span>}
                 </span>
-                {c.gdriveFolderUrl
-                  ? <a href={c.gdriveFolderUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} title="Open this file's Google Drive folder" style={css('justify-self:start;font-size:11px;font-weight:700;color:#2F4F7A;white-space:nowrap')}>Open ↗</a>
-                  : <span title="No Drive folder yet. Open the file and use Create Drive folder." style={css('font-size:11px;color:#94A3B8')}>—</span>}
+                <span style={css('display:flex;flex-direction:column;gap:1px;justify-self:start')}>
+                  {c.gdriveFolderUrl
+                    ? <a href={c.gdriveFolderUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} title="Open this file's Google Drive folder" style={css('font-size:11px;font-weight:700;color:#2F4F7A;white-space:nowrap')}>Open ↗</a>
+                    : <span title="No Drive folder yet. Open the file and use Create Drive folder." style={css('font-size:11px;color:#94A3B8')}>—</span>}
+                  {c.oldDriveFolderUrl && <a href={c.oldDriveFolderUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} title="This file's folder in an old drive" style={css('font-size:10px;font-weight:600;color:#5B6478;white-space:nowrap')}>Old folder ↗</a>}
+                </span>
                 {isFirmAdmin && (
                   <button type="button" onClick={(e) => del(e, c)} title="Delete file (wrongly entered)" className="hover:!bg-[#FBEDE9] hover:!border-[#F1C9C1]" style={css('justify-self:end;display:grid;place-items:center;width:28px;height:28px;border-radius:7px;border:1px solid transparent;background:transparent;cursor:pointer')}><Trash2 style={css('width:14px;height:14px;color:#B23A2E')} /></button>
                 )}

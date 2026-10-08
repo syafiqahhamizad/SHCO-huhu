@@ -1,8 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { ApItem, FinanceCtrl, PayItem } from './useFinanceController';
 import { css, rm, rm2 } from './financeModel';
 import { twoSignatoryThreshold } from '../../../services/templateService';
 import { approverCode } from '../../../lib/approvers';
+import { DOC_TYPE_COLORS, FINANCE_DOC_TYPES, financeDocType, matchesYearType, yearOf, yearOptions } from '../../../lib/claimFilters';
+import { folderUrl } from '../../../lib/driveLayout';
+
+const SEL = 'border:1px solid #DDE3EB;border-radius:6px;padding:4px 6px;font-size:11px;color:#16223A;background:#fff;font-family:inherit';
+const driveLink = (id?: string) => (id ? <a href={folderUrl(id)} target="_blank" rel="noopener noreferrer" title="Open the Google Drive folder" style={css('display:inline-block;font-size:10px;font-weight:700;color:#3D6B9C')}>Drive folder ↗</a> : null);
 
 export const ApprovalsTab = ({ F }: { F: FinanceCtrl }) => {
   const { apF, setApF, rk } = F;
@@ -11,17 +16,26 @@ export const ApprovalsTab = ({ F }: { F: FinanceCtrl }) => {
   const T: Record<ApItem['type'], [string, string]> = { 'Staff claim': ['#E7EEF6', '#2F5680'], 'Payment voucher': ['#F1EBF6', '#6B3D8C'], 'Referral fees': ['#F7E9EE', '#8C2F4C'], 'Client account': ['#FBEDE9', '#B23A2E'], 'Write-off': ['#FBF2E9', '#8A6534'] };
   const pendingKeys = new Set(F.apItems.map((a) => a.key));
   const all = [...F.apItems.map((item) => ({ item, d: undefined as undefined | 'ok' | 'no' })), ...Object.values(F.decided).filter((x) => !pendingKeys.has(x.item.key)).map((x) => ({ item: x.item, d: x.d }))];
-  const rows = all.filter((a) => apF === 'All' || a.item.type === apF);
+  const [yearF, setYearF] = useState('All');
+  const [payType, setPayType] = useState('All');
+  const rows = all.filter((a) => (apF === 'All' || a.item.type === apF) && (yearF === 'All' || yearOf(a.item.date) === yearF));
 
   const MC: Record<PayItem['method'], [string, string]> = { 'Bank transfer': ['#E7EEF6', '#2F5680'], 'Online portal': ['#F1EBF6', '#6B3D8C'], Cheque: ['#FBF2E9', '#8A6534'], 'To staff bank': ['#E6EFE9', '#2F6F4E'] };
   const FC: Record<PayItem['from'], [string, string]> = { Disbursement: ['#E4F1F1', '#2F7A7A'], Office: ['#E7EEF6', '#2F5680'], 'Client account': ['#FBEDE9', '#B23A2E'] };
   const openKeys = new Set(F.toPay.map((p) => p.key));
-  const payRows = [...F.toPay.map((p) => ({ p, done: '' })), ...Object.values(F.paidNow).filter((x) => !openKeys.has(x.item.key)).map((x) => ({ p: x.item, done: x.file }))];
+  const payAll = [...F.toPay.map((p) => ({ p, done: '' })), ...Object.values(F.paidNow).filter((x) => !openKeys.has(x.item.key)).map((x) => ({ p: x.item, done: x.file }))];
+  const payTypeOf = (p: PayItem) => financeDocType(p.kind, p.from === 'Client account');
+  const payRows = payAll.filter(({ p }) => matchesYearType({ date: p.date, docType: payTypeOf(p) }, { year: yearF, type: payType }));
+  const years = yearOptions<{ date?: string }>([...all.map((a) => a.item), ...payAll.map((x) => x.p)], (x) => x.date);
   const P: Record<string, [string, string]> = { 'Partner drawings': ['#E7EEF6', '#2F5680'], Payslip: ['#E6EFE9', '#2F6F4E'], Voucher: ['#F1EBF6', '#6B3D8C'] };
 
   return (
     <div style={css('display:flex;flex-direction:column;gap:16px')}>
-      <div style={css('display:flex;align-items:center;gap:4px;flex-wrap:wrap')}>{([['w', 'Waiting for approval', F.pendingAp], ['p', 'Approved · to pay', F.toPay.length], ['r', 'Referral fees', F.referral.rows.length]] as ['w' | 'p' | 'r', string, number][]).map(([k, label, n]) => { const on = F.apSub === k; return <button key={k} type="button" onClick={() => F.setApSub(k)} style={css(`display:flex;align-items:center;gap:6px;border-radius:16px;padding:6px 14px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;border:1px solid ${on ? '#16223A' : '#DDE3EB'};background:${on ? '#16223A' : '#fff'};color:${on ? '#fff' : '#16223A'}`)}>{label}{!!n && <span style={css(`font-size:10px;padding:0 6px;border-radius:9px;background:${on ? '#fff' : '#EEF1F5'};color:${on ? '#16223A' : '#5B6478'}`)}>{n}</span>}</button>; })}</div>
+      <div style={css('display:flex;align-items:center;gap:4px;flex-wrap:wrap')}>{([['w', 'Waiting for approval', F.pendingAp], ['p', 'Approved · to pay', F.toPay.length], ['r', 'Referral fees', F.referral.rows.length]] as ['w' | 'p' | 'r', string, number][]).map(([k, label, n]) => { const on = F.apSub === k; return <button key={k} type="button" onClick={() => F.setApSub(k)} style={css(`display:flex;align-items:center;gap:6px;border-radius:16px;padding:6px 14px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;border:1px solid ${on ? '#16223A' : '#DDE3EB'};background:${on ? '#16223A' : '#fff'};color:${on ? '#fff' : '#16223A'}`)}>{label}{!!n && <span style={css(`font-size:10px;padding:0 6px;border-radius:9px;background:${on ? '#fff' : '#EEF1F5'};color:${on ? '#16223A' : '#5B6478'}`)}>{n}</span>}</button>; })}
+        {F.apSub !== 'r' && <span style={css('margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:#5B6478')}>
+          <label style={css('display:flex;align-items:center;gap:5px')}>Year<select aria-label="Year" value={yearF} onChange={(e) => setYearF(e.target.value)} style={css(SEL)}><option value="All">All years</option>{years.map((y) => <option key={y} value={y}>{y}</option>)}</select></label>
+          {F.apSub === 'p' && <label style={css('display:flex;align-items:center;gap:5px')}>Type<select aria-label="Type" value={payType} onChange={(e) => setPayType(e.target.value)} style={css(SEL)}><option value="All">All types</option>{FINANCE_DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}</select></label>}
+        </span>}</div>
       {F.apSub === 'w' && (
       <div style={css('overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
         <div style={css('display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css('font-family:ui-serif, Georgia, serif;font-size:14.5px;color:#16223A')}>Waiting for approval</strong>
@@ -30,7 +44,7 @@ export const ApprovalsTab = ({ F }: { F: FinanceCtrl }) => {
         {rows.map(({ item: a, d }) => { const mine = F.canSignItem(a); const pending = !d && mine; const done = !!d || !mine; const signedCodes = a.signatories.map((x) => (F.app.users.find((u) => u.id === x.userId || u.name === x.name) ? approverCode(F.app.users.find((u) => u.id === x.userId || u.name === x.name)!) : approverCode({ name: x.name }))); return (
           <div key={a.key} style={css(`display:grid;grid-template-columns:120px minmax(0,1.5fr) 100px 90px minmax(230px,auto);gap:12px;align-items:center;padding:9px 14px;border-bottom:1px solid #F0F2F5;opacity:${d ? 0.55 : 1}`)}>
             <span style={css(`justify-self:start;font-size:10px;font-weight:700;padding:2px 9px;border-radius:10px;background:${T[a.type][0]};color:${T[a.type][1]}`)}>{a.type}</span>
-            <span style={css('min-width:0')}><span style={css('display:block;font-size:11.5px;font-weight:700;color:#16223A')}>{a.title}</span><span style={css('display:block;font-size:10px;color:#5B6478')}>{a.sub}</span><span style={css('display:block;font-size:10px;color:#8A6534')}>{F.apRule(a)}</span></span>
+            <span style={css('min-width:0')}><span style={css('display:block;font-size:11.5px;font-weight:700;color:#16223A')}>{a.title}</span><span style={css('display:block;font-size:10px;color:#5B6478')}>{a.sub}</span><span style={css('display:block;font-size:10px;color:#8A6534')}>{F.apRule(a)}</span>{driveLink(a.folderId)}</span>
             <span style={css('text-align:right;font-size:12.5px;font-weight:700;color:#16223A')}>{rm(a.amount)}</span>
             <span style={css('font-size:10.5px;color:#5B6478')}>by {a.by}</span>
             {pending && <div style={css('display:flex;gap:6px;justify-content:flex-end')}>{signedCodes.map((c) => <span key={c} style={css('border:1px solid #B9D7C5;border-radius:6px;padding:5px 9px;font-size:10.5px;font-weight:700;background:#E6EFE9;color:#2F6F4E;white-space:nowrap')}>{c} ✓</span>)}<button type="button" title={F.me} onClick={() => F.approve(a, true)} style={css('border:1px solid #B9D7C5;border-radius:6px;padding:5px 9px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit;white-space:nowrap')}>Approve · {F.myCode}</button><button type="button" onClick={() => F.approve(a, false)} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:5px 12px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>Reject</button></div>}
@@ -44,11 +58,11 @@ export const ApprovalsTab = ({ F }: { F: FinanceCtrl }) => {
       <div style={css('overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
         <div style={css('display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css('font-family:ui-serif, Georgia, serif;font-size:14.5px;color:#16223A')}>Approved · to pay</strong><span style={css('font-size:10.5px;color:#5B6478')}>staff claims and payment requests (PV) approved by partners · details come straight from the staff form</span><span style={css('margin-left:auto;font-size:12px;font-weight:700;color:#16223A')}>{rm2(F.toPay.reduce((s, x) => s + x.amount, 0))} to pay</span></div>
         <div style={css('display:grid;grid-template-columns:104px minmax(0,1.2fr) 118px minmax(0,1.3fr) 118px 90px 150px;gap:10px;padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>Form no.</span><span>Pay to · for</span><span>How</span><span>Payment details</span><span>Paid from</span><span style={css('text-align:right')}>Amount</span><span></span></div>
-        {payRows.length === 0 && <div style={css('padding:12px 14px;font-size:11.5px;color:#5B6478')}>Nothing approved and waiting to be paid.</div>}
+        {payRows.length === 0 && <div style={css('padding:12px 14px;font-size:11.5px;color:#5B6478')}>{payAll.length ? 'Nothing for this year / type.' : 'Nothing approved and waiting to be paid.'}</div>}
         {payRows.map(({ p, done }) => (
           <div key={p.key} style={css(`display:grid;grid-template-columns:104px minmax(0,1.2fr) 118px minmax(0,1.3fr) 118px 90px 150px;gap:10px;align-items:center;padding:9px 14px;border-bottom:1px solid #F0F2F5;opacity:${done ? 0.6 : 1}`)}>
             <span style={css('font-size:11px;font-weight:700;color:#16223A;overflow:hidden;text-overflow:ellipsis')}>{p.no}</span>
-            <span style={css('min-width:0')}><span style={css('display:block;font-size:11.5px;font-weight:700;color:#16223A')}>{p.payee}</span><span style={css('display:block;font-size:10px;color:#5B6478')}>{p.what}</span></span>
+            <span style={css('min-width:0')}><span style={css('display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;color:#16223A')}><span title="Type" style={css(`flex-shrink:0;font-size:9.5px;font-weight:700;padding:0 6px;border-radius:8px;background:${DOC_TYPE_COLORS[payTypeOf(p)][0]};color:${DOC_TYPE_COLORS[payTypeOf(p)][1]}`)}>{payTypeOf(p)}</span>{p.payee}</span><span style={css('display:block;font-size:10px;color:#5B6478')}>{p.what}</span>{driveLink(p.folderId)}</span>
             <span style={css(`justify-self:start;font-size:10px;font-weight:700;padding:2px 9px;border-radius:10px;background:${MC[p.method][0]};color:${MC[p.method][1]}`)}>{p.method}</span>
             <span style={css('font-size:10.5px;line-height:1.4;color:#16223A')}>{p.details}</span>
             <span style={css(`justify-self:start;font-size:10px;font-weight:700;padding:2px 9px;border-radius:10px;background:${FC[p.from][0]};color:${FC[p.from][1]}`)}>{p.from === 'Client account' ? 'Client A/C' : p.from}</span>

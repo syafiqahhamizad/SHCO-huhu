@@ -1,7 +1,8 @@
 import { getCloudMode, readCloudState } from './firestoreSyncService';
 import { readAccessList } from './accessListService';
 import { getPracticeSettings } from './templateService';
-import { ensureFolderPath, getDriveConfig, isDriveConfigured, uploadToDrive, type DriveFile } from './googleDriveService';
+import { isDriveConfigured, uploadToDrive, type DriveFile } from './googleDriveService';
+import { ensureFinanceFolder } from './fileStorageService';
 
 /**
  * "Export all firm data" (Firm & Practice Settings, Managing Partner / admin only).
@@ -186,7 +187,8 @@ export async function exportAllFirmData(opts: { localState: Record<string, unkno
   const result: BackupResult = { fileName, bytes: blob.size, source, counts, fileRefs: fileRefs.length, secretsRemoved: removed.n, accessList: accessState, notes };
   if (isDriveConfigured()) {
     try {
-      const folder = await ensureFolderPath(getDriveConfig().rootFolderId, ['Backups']);
+      // SHCO Finance › Backups (or Finance/Backups inside SHCO Portal until the Finance drive is set).
+      const folder = await ensureFinanceFolder(['Backups']);
       result.drive = await uploadToDrive(folder, blob, fileName, 'application/json', 'SHCO portal backup exported by ' + opts.by.name);
     } catch (e) {
       result.driveError = e instanceof Error ? e.message : String(e);

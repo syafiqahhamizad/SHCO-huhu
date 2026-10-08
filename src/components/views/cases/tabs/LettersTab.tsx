@@ -4,7 +4,8 @@ import { exportToWordDoc } from '../../../../lib/exportUtils';
 import { EngagementLetterActions, LangToggle, WarrantToActActions, engagementInputFor, warrantInputFor } from '../WarrantToAct';
 import type { DocLang } from '../../../../lib/warrantToAct';
 import { useApp } from '../../../../context/AppContext';
-import { prepareStorage, storeMatterFile, openLegacyDataUrl, openStoredFile, useStorageLabel } from '../../../../services/fileStorageService';
+import { prepareStorage, storeEngagementFile, storeMatterFile, openLegacyDataUrl, openStoredFile, useStorageLabel } from '../../../../services/fileStorageService';
+import { matterSubFor } from '../../../../lib/driveLayout';
 import { css, S, Card } from '../caseUi';
 import { courtOf, daysFrom, fmt, isoOf, lawyerOf } from '../caseModel';
 import { histEntry, newId, type WF } from '../wf';
@@ -12,6 +13,9 @@ import { histEntry, newId, type WF } from '../wf';
 const LOE = 'Quotation & Letter of Engagement';
 const WTA = 'Warrant to Act';
 const TEMPLATES = [LOE, WTA, 'Letter to client: next court date', 'Letter to opposing solicitors', 'Affidavit (blank, with intitulement)', 'Notice of change of solicitors', 'Closing letter to client'];
+/** Upload categories → where the file goes (matter sub-folder in SHCO Portal, or SHCO Finance). */
+const ENGAGEMENT = 'Engagement & Billing';
+const UPLOAD_CATS = ['Correspondence', 'Court Papers', 'Client Documents', 'Research', 'Closing', ENGAGEMENT];
 const esc = (s: string) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 export const LettersTab: React.FC<{ w: WF }> = ({ w }) => {
@@ -20,6 +24,7 @@ export const LettersTab: React.FC<{ w: WF }> = ({ w }) => {
   const storage = useStorageLabel();
   const [tpl, setTpl] = useState(TEMPLATES[0]);
   const [busy, setBusy] = useState(false);
+  const [upCat, setUpCat] = useState('Correspondence');
   // Quotation & Letter of Engagement: a quotation of this file (proformas excluded), newest first.
   const fileQuotes = quotations.filter((q) => q.documentType !== 'Proforma' && ((!!q.caseId && (q.caseId === c.id || q.caseId === c.ref)) || (!!q.fileRef && q.fileRef === c.ref)) && q.status !== 'Declined').sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.id).localeCompare(String(a.id)));
   const [qid, setQid] = useState('');
@@ -57,10 +62,13 @@ export const LettersTab: React.FC<{ w: WF }> = ({ w }) => {
     setBusy(true);
     try {
       await prepareStorage();
-      const st = await storeMatterFile({ ref: c.ref, title: c.title, folderId: c.gdriveFolderId, sub: 'Correspondence', file, uploadedBy: me });
-      const doc: CaseDocument & { driveFileId?: string; storagePath?: string } = { id: newId('DOC'), name: st.name, category: 'Correspondence', uploadedDate: isoOf(st.uploadedAt), driveUrl: st.webViewLink, mimeType: st.contentType, driveFileId: st.driveFileId, storagePath: st.storagePath };
+      const dest = matterSubFor(upCat);
+      const st = dest === 'finance'
+        ? await storeEngagementFile({ ref: c.ref, title: c.title }, file, me)
+        : await storeMatterFile({ ref: c.ref, title: c.title, practiceArea: c.practiceArea, type: c.type, folderId: c.gdriveFolderId, sub: dest, file, uploadedBy: me });
+      const doc: CaseDocument & { driveFileId?: string; storagePath?: string } = { id: newId('DOC'), name: st.name, category: upCat, uploadedDate: isoOf(st.uploadedAt), driveUrl: st.webViewLink, mimeType: st.contentType, driveFileId: st.driveFileId, storagePath: st.storagePath };
       w.save({ documents: [doc, ...(c.documents || [])], activityLogs: [histEntry('Document uploaded: ' + st.name, me, 'Document Upload'), ...(c.activityLogs || [])] });
-      w.toast('Uploaded. ' + storage);
+      w.toast('Uploaded to ' + (dest === 'finance' ? 'SHCO Finance › Files' : dest) + '. ' + storage);
     } catch (e) { w.toast('Not uploaded: ' + (e instanceof Error ? e.message : String(e))); }
     setBusy(false);
   };
@@ -108,7 +116,8 @@ export const LettersTab: React.FC<{ w: WF }> = ({ w }) => {
       </Card>
       <Card style="grid-column:1/-1">
         <div style={css(S.head)}><strong style={css('font-family:Georgia, serif;font-size:15px;color:#16223A')}>Documents</strong><span style={css(S.sub)}>{storage.replace('Saved to', 'Uploads go to')}</span>
-          {!ro && <label style={css('margin-left:auto;' + S.btnPri + (busy ? ';opacity:.5' : ''))}><input type="file" style={css('display:none')} onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void upload(file); }} />{busy ? 'Uploading…' : '+ Upload document'}</label>}
+          {!ro && <select value={upCat} onChange={(e) => setUpCat(e.target.value)} title={upCat === ENGAGEMENT ? 'Saved to the SHCO Finance Shared Drive (partners / Accounts)' : 'Saved to this file’s ' + upCat + ' folder'} style={css('margin-left:auto;border:1px solid #C9D1DC;border-radius:8px;padding:6px 8px;font-size:12px;font-family:inherit;color:#16223A;background:#fff')}>{UPLOAD_CATS.map((k) => <option key={k} value={k}>{k}</option>)}</select>}
+          {!ro && <label style={css(S.btnPri + (busy ? ';opacity:.5' : ''))}><input type="file" style={css('display:none')} onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void upload(file); }} />{busy ? 'Uploading…' : '+ Upload document'}</label>}
         </div>
         {docs.map((d) => (
           <div key={d.id} style={css('display:grid;grid-template-columns:minmax(0,1fr) 160px 110px 150px;gap:12px;align-items:center;' + S.row)}>

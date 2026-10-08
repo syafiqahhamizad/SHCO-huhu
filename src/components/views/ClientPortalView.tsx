@@ -246,7 +246,7 @@ export const ClientPortalView: React.FC = () => {
     setBusy(true);
     try {
       await prepareStorage();
-      const st = await storeMatterFile({ ref: f.ref, title: f.title, folderId: f.gdriveFolderId, sub: 'Documents', file, uploadedBy: client.name + ' (client portal)' });
+      const st = await storeMatterFile({ ref: f.ref, title: f.title, practiceArea: f.practiceArea, type: f.type, folderId: f.gdriveFolderId, sub: 'Client Documents', file, uploadedBy: client.name + ' (client portal)' });
       updateCase(f.id, { documents: [{ id: 'DOC-' + Date.now(), name: st.name, category: 'From client', uploadedDate: isoOf(st.uploadedAt), driveUrl: st.webViewLink, mimeType: st.contentType, driveFileId: st.driveFileId }, ...(f.documents || [])] });
       msg(file.name + ' sent to your lawyer');
     } catch (e) { msg('Not sent: ' + (e instanceof Error ? e.message : String(e))); }
