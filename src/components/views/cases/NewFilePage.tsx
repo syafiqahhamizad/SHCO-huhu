@@ -5,10 +5,9 @@ import { DEFAULT_PRACTICE_SETTINGS, getPracticeSettings } from '../../../service
 import { builtInFeeTemplates } from '../../../lib/financeDocs';
 import { canSeeFinanceView, finRoleKey } from '../../../lib/financeAccess';
 import { css } from './caseUi';
-import { warrantToActHtml } from '../../../lib/warrantToAct';
-import { exportToWordDoc } from '../../../lib/exportUtils';
+import { WarrantToActActions, warrantInputFor } from './WarrantToAct';
 import { activeStorage, ensureMatterFolder, prepareStorage } from '../../../services/fileStorageService';
-import { fmt, iso, isFileHandler, partiesOf, stamp, staffOf, type Person } from './caseModel';
+import { iso, isFileHandler, partiesOf, stamp, staffOf, type Person } from './caseModel';
 
 /* Practice-specific intake (design: New File Form.dc.html). Values are the firm's own choice
  * lists; text fields only carry placeholders — nothing is pre-filled with sample data. */
@@ -170,15 +169,6 @@ export const NewFilePage: React.FC = () => {
     addCase(kase);
     incrementSequenceCounter('case');
     setDone(kase);
-    if (makeWta) {
-      const ps = getPracticeSettings();
-      const html = warrantToActHtml({
-        client: { name: C.name, type: C.type, idNo: C.type === 'Corporate' ? C.registrationNo : C.icNo || C.icNumber, address: C.address },
-        matterTitle: kase.title, side: partyRole, court: courtLevel ? [levelShort, courtLocation].filter(Boolean).join(' ') : '', suitNo: suit,
-        fileRef: kase.ref, firmName: 'Syafiqah Hamizad & Co', firmAddress: ps.address, date: fmt(today),
-      });
-      exportToWordDoc('Warrant_to_Act_' + kase.ref.replace(/\//g, '-'), html);
-    }
     // Every new file gets its Google Drive folder straight away (Shared Drive › Matters).
     if (activeStorage() === 'drive') {
       void (async () => {
@@ -346,8 +336,8 @@ export const NewFilePage: React.FC = () => {
               <label style={css('display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1px solid #DDE3EB;border-radius:10px;background:#F6F8FA;cursor:pointer')}>
                 <input id="newfile-wta" type="checkbox" checked={makeWta} onChange={(e) => setMakeWta(e.target.checked)} style={css('margin-top:3px')} />
                 <span style={css('display:flex;flex-direction:column;gap:2px')}>
-                  <span style={css('font-size:13px;font-weight:700')}>Create the Warrant to Act when the file opens</span>
-                  <span style={css('font-size:12px;color:#5B6478')}>A Word draft filled with the client’s name, IC / company no., address, the matter, court and suit no. Get it signed by the client, then upload the signed copy in the file’s Letters tab.</span>
+                  <span style={css('font-size:13px;font-weight:700')}>Prepare the Warrant to Act when the file opens</span>
+                  <span style={css('font-size:12px;color:#5B6478')}>Filled with the client’s name, IC / company no., address, the matter, court and suit no. View, PDF, print or Word straight after the file opens.</span>
                 </span>
               </label>
             </div>
@@ -367,6 +357,13 @@ export const NewFilePage: React.FC = () => {
           <strong style={css('font-family:Georgia,serif;font-size:22px')}>File opened</strong>
           <span style={css('font-family:ui-monospace,monospace;font-size:17px;font-weight:800')}>{done.ref}</span>
           <span style={css('font-size:13px;color:#5B6478')}>{done.title} · {done.clientName}</span>
+          {makeWta && (
+            <div style={css('width:100%;margin-top:10px;display:flex;flex-direction:column;gap:8px;align-items:flex-start;text-align:left;border:1px solid #DDE3EB;border-radius:10px;padding:12px 14px')}>
+              <strong style={css('font-family:Georgia,serif;font-size:14px')}>Warrant to Act</strong>
+              <span style={css('font-size:12px;color:#5B6478')}>Filled from the client and file details. Print it for the client to sign, then upload the signed copy in the file’s Letters tab. Also available any time in Letters › Warrant to Act.</span>
+              <WarrantToActActions input={warrantInputFor(done, clients.find((x) => x.id === done.clientId), opp)} />
+            </div>
+          )}
           <div style={css('width:100%;margin-top:10px;border:1px solid #DDE3EB;border-radius:10px;text-align:left')}>
             <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5;font-family:Georgia,serif;font-size:14px;font-weight:700')}>What happens next</div>
             {([
