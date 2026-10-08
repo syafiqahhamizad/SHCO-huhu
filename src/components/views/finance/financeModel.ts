@@ -119,7 +119,7 @@ export const quotationToDoc = (q: Quotation, lk: Lookups, status: string): Finan
     id: q.id, type: q.documentType === 'Proforma' ? 'Proforma' : 'Quotation', no: q.id, date: fd(q.date), client: q.clientName || '—', addr: addrOf(client),
     ref: q.fileRef || '', matter: q.matter || kase?.title || q.subtype || '', area, account: q.payInto || 'Office', status,
     lines: itemsToLines(q.lineItems, { desc: 'Professional fees', amount: q.total }), sstRate: rate,
-    subject: q.subject, yourRef: q.yourRef, tin: q.tin, desc: q.scope ?? '', terms: q.terms || (q.documentType === 'Proforma' ? [] : TERMS.slice()), inst: q.feeArrangement || null,
+    subject: q.subject, yourRef: q.yourRef, tin: q.tin, desc: q.scope ?? '', terms: q.terms || (q.documentType === 'Proforma' ? [] : TERMS.slice()), inst: !q.paymentPlan || q.paymentPlan.kind === 'Instalments' ? q.feeArrangement || null : null, plan: q.paymentPlan,
     proofs: [],
   };
 };

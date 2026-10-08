@@ -83,3 +83,13 @@ describe('revised quotation, none accepted yet', () => {
   const s = { ...src, quotations: [q('Q-10', 5000, '2026-08-01'), q('Q-11', 6000, '2026-09-01')] };
   it('uses only the newest quote, not both', () => eq(moneyForFile(C, s).agreed, 6000));
 });
+
+describe('agreed fees with stage / instalment proformas', () => {
+  const C = { id: 'CS-8', ref: 'R8' } as Case;
+  const accepted = { ...quote('Q-20', 'CS-8', 12000, 'Accepted'), date: '2026-09-01', paymentPlan: { kind: 'Stages', stages: [{ label: 'Filing', pct: 50 }, { label: 'Trial', pct: 50 }] } } as Quotation;
+  const pf = (id: string, key: string, total: number) => ({ ...quote(id, 'CS-8', total, 'Sent', 'Proforma'), date: '2026-09-02', sourceQuotationId: 'Q-20', planRowKey: key }) as Quotation;
+  it('one proforma per stage does not add to the agreed amount', () => {
+    const s = { ...src, quotations: [accepted, pf('Q-21', 'stage:0', 6000), pf('Q-22', 'stage:1', 6000)] };
+    eq(moneyForFile(C, s).agreed, 12000);
+  });
+});

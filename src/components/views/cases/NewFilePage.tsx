@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../../../context/AppContext';
-import type { Case, Client, PartnerCode } from '../../../types';
+import type { Case, Client, PartnerCode, Quotation, QuotationLineItem } from '../../../types';
 import { DEFAULT_PRACTICE_SETTINGS, getPracticeSettings } from '../../../services/templateService';
-import { builtInFeeTemplates } from '../../../lib/financeDocs';
+import { TERMS, defaultSstRate } from '../../../lib/financeDocs';
+import { computeTotals } from '../../../lib/billingEngine';
+import { defaultPlanFor, type DocLang } from '../../../lib/engagementLetter';
 import { canSeeFinanceView, finRoleKey } from '../../../lib/financeAccess';
 import { css } from './caseUi';
-import { WarrantToActActions, warrantInputFor } from './WarrantToAct';
+import { EngagementLetterActions, LangToggle, WarrantToActActions, engagementInputFor, warrantInputFor } from './WarrantToAct';
 import { activeStorage, ensureMatterFolder, prepareStorage } from '../../../services/fileStorageService';
 import { iso, isFileHandler, partiesOf, stamp, staffOf, type Person } from './caseModel';
 
@@ -36,7 +38,7 @@ export const NewFilePage: React.FC = () => {
   const {
     clients = [], cases = [], users = [], currentUser, currentRole, isAdmin, newCasePrefill, setNewCasePrefill,
     setIsNewCaseModalOpen, setIsRegisterClientModalOpen, setCurrentCaseId, setCaseSubTab, setCurrentView,
-    addCase, updateCase, getNextSequenceId, incrementSequenceCounter, showToast,
+    addCase, updateCase, getNextSequenceId, incrementSequenceCounter, showToast, addQuotation, updateQuotation, quotations = [],
   } = useApp();
   const settings = getPracticeSettings();
   const areas = (settings.practiceAreas && settings.practiceAreas.length ? settings.practiceAreas : DEFAULT_PRACTICE_SETTINGS.practiceAreas) || [];
@@ -56,6 +58,11 @@ export const NewFilePage: React.FC = () => {
   // Client initials in the file no. are typed by the firm, never worked out automatically.
   const [initials, setInitials] = useState('');
   const [makeWta, setMakeWta] = useState(true);
+  // 4. Quotation & Letter of Engagement: one of the firm's OWN fee templates (never the built-in samples).
+  const [makeLoe, setMakeLoe] = useState(true);
+  const [feeTag, setFeeTag] = useState('');
+  const [docLang, setDocLang] = useState<DocLang>('EN');
+  const [madeQuote, setMadeQuote] = useState<Quotation | null>(null);
   const [side, setSide] = useState<Record<string, string>>({});
   const [vals, setVals] = useState<Record<string, string>>({});
   const [reviewed, setReviewed] = useState(false);
@@ -117,9 +124,12 @@ export const NewFilePage: React.FC = () => {
   const refFor = (no: string) => ['SHC', ...sortedPartners, ...(lawyer ? [lawyer] : []), ...(codePart ? [codePart] : []), initials || '??', no, mmyy].join('/');
   const ref = refFor(done ? '' : '###');
 
-  const blocker = !C ? 'Choose the client' : !initials ? 'Type the client initials for the file no.' : !codePart ? 'Choose a matter code' : conflictOpen ? 'Conflict needs partner review' : !title.trim() ? 'Enter a matter title' : !partners.length ? 'Pick a partner in charge' : '';
+  const ownTemplates = Object.entries(settings.feeTemplates || {}).filter(([, t]) => t && ((t.prof || []).length + (t.disb || []).length + (t.reimb || []).length > 0)).map(([code, t]) => ({ code, t, name: areas.find((a) => a.code === code)?.name || code }));
+  const curTpl = ownTemplates.find((x) => x.code === feeTag) || ownTemplates.find((x) => x.code === tag);
+  const fee = curTpl?.t;
 
-  const fee = (settings.feeTemplates || {})[tag] || builtInFeeTemplates()[tag];
+  const blocker = !C ? 'Choose the client' : !initials ? 'Type the client initials for the file no.' : !codePart ? 'Choose a matter code' : conflictOpen ? 'Conflict needs partner review' : !title.trim() ? 'Enter a matter title' : !partners.length ? 'Pick a partner in charge' : ownTemplates.length && makeLoe && !curTpl ? 'Choose a fee template (or untick the quotation)' : '';
+
 
   const fields = (FIELDS[tag] || []).map(([label, opts, ph, key], i, arr) => ({ label, opts, ph, key, k: tag + i, v: vals[tag + i] ?? '', span: arr.length % 2 && i === arr.length - 1 ? '1 / -1' : 'auto' }));
 
@@ -169,6 +179,26 @@ export const NewFilePage: React.FC = () => {
     addCase(kase);
     incrementSequenceCounter('case');
     setDone(kase);
+    // Draft quotation in Billing from the chosen fee template (its real lines), for the Letter of Engagement.
+    setMadeQuote(null);
+    if (makeLoe && curTpl) {
+      const mk = (l: { d: string; a: number }[] | undefined, category: QuotationLineItem['category']): QuotationLineItem[] => (l || []).filter((x) => String(x?.d || '').trim()).map((x) => ({ description: x.d, category, amount: Number(x.a) || 0, quantity: 1, unitPrice: Number(x.a) || 0, chargeType: 'Fixed' as const }));
+      const items = [...mk(curTpl.t.prof, 'Fee - Fixed'), ...mk(curTpl.t.disb, 'Disbursement'), ...mk(curTpl.t.reimb, 'Reimbursement')];
+      const rate = defaultSstRate();
+      const t = computeTotals(items, rate > 0, rate || 0.08);
+      const qid = getNextSequenceId('quotation');
+      if (quotations.some((x) => x.id === qid)) { showToast('File opened, but the quotation number ' + qid + ' is already in use. Make the quotation in Billing.'); }
+      else {
+        const q: Quotation = {
+          id: qid, documentType: 'Quotation', partyType: 'Client', partyId: C.id, date: today, practiceArea: curTpl.name, fileRef: finalRef, leadId: '', clientName: C.name,
+          status: 'Draft', total: t.grandTotal, billedSoFar: 0, remaining: t.grandTotal, courtLevel: '', stage: '', feeMethod: 'Template', subtype: '', approvalStatus: 'Pending', approvedBy: '', approvedDate: '',
+          lineItems: items, sstApplied: rate > 0, sstRate: rate || undefined, validityDays: Number(settings.quotationValidityDays) || 30, caseId: id, matter: kase.title, subject: kase.title.toUpperCase(), yourRef: 'Kindly Advised', tin: '-',
+          scope: curTpl.t.desc || '', terms: TERMS.slice(), feeArrangement: null, payInto: 'Office', language: docLang, paymentPlan: defaultPlanFor(A.name),
+        };
+        addQuotation(q);
+        setMadeQuote(q);
+      }
+    }
     // Every new file gets its Google Drive folder straight away (Shared Drive › Matters).
     if (activeStorage() === 'drive') {
       void (async () => {
@@ -184,7 +214,7 @@ export const NewFilePage: React.FC = () => {
   };
 
   const goFile = () => { if (!done) return; close(); setCaseSubTab('overview'); setCurrentCaseId(done.id); };
-  const again = () => { setDone(null); setTitle(''); setOpp(''); setInitials(''); setVals({}); setReviewed(false); setClientId(''); };
+  const again = () => { setDone(null); setMadeQuote(null); setTitle(''); setOpp(''); setInitials(''); setVals({}); setReviewed(false); setClientId(''); };
 
   const pqq = pq.toLowerCase().trim();
   const pList = partnerList.filter((p) => !pqq || p.name.toLowerCase().includes(pqq) || p.code.toLowerCase().includes(pqq));
@@ -332,14 +362,42 @@ export const NewFilePage: React.FC = () => {
             </div>
 
             <div style={css('padding:20px 24px;display:flex;flex-direction:column;gap:12px')}>
-              <span style={css('font-family:Georgia,serif;font-size:16px;font-weight:700')}>4. Warrant to Act</span>
-              <label style={css('display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1px solid #DDE3EB;border-radius:10px;background:#F6F8FA;cursor:pointer')}>
-                <input id="newfile-wta" type="checkbox" checked={makeWta} onChange={(e) => setMakeWta(e.target.checked)} style={css('margin-top:3px')} />
-                <span style={css('display:flex;flex-direction:column;gap:2px')}>
-                  <span style={css('font-size:13px;font-weight:700')}>Prepare the Warrant to Act when the file opens</span>
-                  <span style={css('font-size:12px;color:#5B6478')}>Filled with the client’s name, IC / company no., address, the matter, court and suit no. View, PDF, print or Word straight after the file opens.</span>
-                </span>
-              </label>
+              <span style={css('font-family:Georgia,serif;font-size:16px;font-weight:700')}>4. Quotation &amp; Letter of Engagement</span>
+              {ownTemplates.length ? (
+                <>
+                  <label style={css('display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1px solid #DDE3EB;border-radius:10px;background:#F6F8FA;cursor:pointer')}>
+                    <input id="newfile-loe" type="checkbox" checked={makeLoe} onChange={(e) => setMakeLoe(e.target.checked)} style={css('margin-top:3px')} />
+                    <span style={css('display:flex;flex-direction:column;gap:2px')}>
+                      <span style={css('font-size:13px;font-weight:700')}>Make a draft quotation and the Letter of Engagement when the file opens</span>
+                      <span style={css('font-size:12px;color:#5B6478')}>The quotation goes to Billing as a Draft with the template’s lines. The letter (with the Warrant to Act as its last page) is ready to view, print or save as PDF / Word straight after.</span>
+                    </span>
+                  </label>
+                  {makeLoe && (
+                    <div style={css('display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px')}>
+                      <label style={css('display:flex;flex-direction:column;gap:6px')}><span style={css(lbl)}>Fee template</span>
+                        <select id="newfile-feetpl" value={curTpl?.code || ''} onChange={(e) => setFeeTag(e.target.value)} style={css(inp)}>
+                          {!curTpl && <option value="">Choose a fee template</option>}
+                          {ownTemplates.map((x) => <option key={x.code} value={x.code}>{x.name} ({x.code})</option>)}
+                        </select>
+                      </label>
+                      <div style={css('display:flex;flex-direction:column;gap:6px')}><span style={css(lbl)}>Language</span><LangToggle value={docLang} onChange={setDocLang} /></div>
+                      {!curTpl && <span style={css('grid-column:1 / -1;font-size:12px;color:#A3321F')}>No fee template for {A.name} yet. Choose one of the firm’s templates, or untick to skip the quotation.</span>}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div style={css('padding:10px 12px;border-radius:8px;background:#FFF4E5;color:#7A4300;font-size:12.5px')}>Set your fee templates in Firm &amp; Practice Settings → Fee templates. Until then only the Warrant to Act can be prepared here (no fees are made up).</div>
+                  <label style={css('display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1px solid #DDE3EB;border-radius:10px;background:#F6F8FA;cursor:pointer')}>
+                    <input id="newfile-wta" type="checkbox" checked={makeWta} onChange={(e) => setMakeWta(e.target.checked)} style={css('margin-top:3px')} />
+                    <span style={css('display:flex;flex-direction:column;gap:2px')}>
+                      <span style={css('font-size:13px;font-weight:700')}>Prepare the Warrant to Act when the file opens</span>
+                      <span style={css('font-size:12px;color:#5B6478')}>Filled with the client’s name, IC / company no., the matter, court and suit no. View, PDF, print or Word straight after the file opens.</span>
+                    </span>
+                  </label>
+                  {makeWta && <div style={css('display:flex;align-items:center;gap:10px')}><span style={css(lbl)}>Language</span><LangToggle value={docLang} onChange={setDocLang} /></div>}
+                </>
+              )}
             </div>
 
             <div style={css('display:flex;align-items:center;gap:10px;padding:14px 24px;border-top:1px solid #EEF1F5;background:#FBFCFD;border-radius:0 0 12px 12px')}>
@@ -357,17 +415,25 @@ export const NewFilePage: React.FC = () => {
           <strong style={css('font-family:Georgia,serif;font-size:22px')}>File opened</strong>
           <span style={css('font-family:ui-monospace,monospace;font-size:17px;font-weight:800')}>{done.ref}</span>
           <span style={css('font-size:13px;color:#5B6478')}>{done.title} · {done.clientName}</span>
-          {makeWta && (
+          {madeQuote ? (
+            <div style={css('width:100%;margin-top:10px;display:flex;flex-direction:column;gap:8px;align-items:flex-start;text-align:left;border:1px solid #DDE3EB;border-radius:10px;padding:12px 14px')}>
+              <strong style={css('font-family:Georgia,serif;font-size:14px')}>Quotation &amp; Letter of Engagement</strong>
+              <span style={css('font-size:12px;color:#5B6478')}>Draft {madeQuote.id} is in Billing with the {madeQuote.practiceArea} fee template (RM {madeQuote.total.toLocaleString('en-MY', { minimumFractionDigits: 2 })}). Check the fees and payment plan there before sending. The Warrant to Act is the last page. Also in the file’s Letters tab.</span>
+              <LangToggle value={docLang} onChange={(l) => { setDocLang(l); updateQuotation(madeQuote.id, { language: l }); }} />
+              <EngagementLetterActions input={engagementInputFor({ ...madeQuote, language: docLang }, done, clients.find((x) => x.id === done.clientId), users, docLang)} />
+            </div>
+          ) : !ownTemplates.length && makeWta ? (
             <div style={css('width:100%;margin-top:10px;display:flex;flex-direction:column;gap:8px;align-items:flex-start;text-align:left;border:1px solid #DDE3EB;border-radius:10px;padding:12px 14px')}>
               <strong style={css('font-family:Georgia,serif;font-size:14px')}>Warrant to Act</strong>
               <span style={css('font-size:12px;color:#5B6478')}>Filled from the client and file details. Print it for the client to sign, then upload the signed copy in the file’s Letters tab. Also available any time in Letters › Warrant to Act.</span>
-              <WarrantToActActions input={warrantInputFor(done, clients.find((x) => x.id === done.clientId), opp)} />
+              <LangToggle value={docLang} onChange={setDocLang} />
+              <WarrantToActActions input={warrantInputFor(done, clients.find((x) => x.id === done.clientId), opp, docLang, users)} />
             </div>
-          )}
+          ) : null}
           <div style={css('width:100%;margin-top:10px;border:1px solid #DDE3EB;border-radius:10px;text-align:left')}>
             <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5;font-family:Georgia,serif;font-size:14px;font-weight:700')}>What happens next</div>
             {([
-              ['Quotation', fee ? 'Make it from the ' + A.name + ' fee template in Billing & Collections' : 'Make it in Billing & Collections', 'Not made yet', canSeeFinanceView('billing', finRoleKey(currentRole, currentUser, isAdmin)) ? () => { close(); setCurrentView('billing'); } : null, 'Open Billing'],
+              ['Quotation', madeQuote ? madeQuote.id + ' is a Draft in Billing: check it and send' : fee ? 'Make it from the ' + (curTpl?.name || A.name) + ' fee template in Billing & Collections' : 'Make it in Billing & Collections', madeQuote ? 'Draft' : 'Not made yet', canSeeFinanceView('billing', finRoleKey(currentRole, currentUser, isAdmin)) ? () => { close(); setCurrentView('billing'); } : null, 'Open Billing'],
               ['Engagement letter', 'E-signature is not connected yet. Print it and get it signed.', 'Not sent', null, ''],
               ['File cover', 'Print and put on the physical file (in the file: Print file cover)', 'To do', goFile, 'Go to file'],
             ] as [string, string, string, (() => void) | null, string][]).map(([t, d, s, act, a]) => (
