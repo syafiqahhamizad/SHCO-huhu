@@ -30,9 +30,11 @@ import {
   runwayLabel,
 } from '../../../lib/financeMetrics';
 import { inRange, parseLocal } from '../../../lib/localDate';
+import { esc, printHtml } from '../staff/staffPortalShared';
 
 /**
- * "Finance" sub-tab of My Dashboard, Managing Partner only. Replicates the moneyFirm block
+ * "Finance" sub-tab of My Dashboard for the Managing Partner (whole firm; partners and staff get
+ * MyMoneyTab instead). Replicates the moneyFirm block
  * of design/My Dashboard.dc.html (lines ~57-151) exactly: period selector, 4 P&L KPI cards,
  * a Profit & loss table, a Net-profit-by-month chart, "Money position today", "Cash reserve
  * & sinking funds" (editable), "Commitments" (editable), and 3 "Profit by X" cards.
@@ -162,7 +164,7 @@ const emptyAgg = (): PeriodAgg => ({
 /* ----------------------------- component ----------------------------- */
 
 const FinanceTab: React.FC = () => {
-  const { invoices, payments, receipts, expenses, payslips, paymentVouchers, travelClaims, bankAccounts, timeEntries, cases, retainers, programmes } = useApp();
+  const { invoices, payments, receipts, expenses, payslips, paymentVouchers, travelClaims, bankAccounts, timeEntries, cases, retainers, programmes, setCurrentView } = useApp();
 
   const now = useMemo(() => new Date(), []);
 
@@ -457,18 +459,27 @@ const FinanceTab: React.FC = () => {
   const headStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderBottom: '1px solid #EEF1F5' };
   const titleStyle: React.CSSProperties = { fontFamily: serifFont, fontSize: 14.5, color: NAVY, fontWeight: 700 };
 
+  /** Profit & loss as a printable page (the browser's print dialog saves it as PDF). */
+  const exportPdf = () => {
+    const cell = (v: number | null, bold = false) => `<td style="text-align:right;padding:4px 8px;${bold ? 'font-weight:700' : ''}">${v == null ? '' : esc(fmtFull(v))}</td>`;
+    const body = plRows
+      .map((r) =>
+        r.kind === 'head'
+          ? `<tr><td colspan="4" style="padding:10px 8px 2px;font-size:8.5pt;font-weight:700;text-transform:uppercase;color:#5B6478">${esc(r.label)}</td></tr>`
+          : `<tr style="${r.kind === 'row' ? '' : 'border-top:1px solid #DDE3EB'}"><td style="padding:4px 8px;${r.kind === 'row' ? 'padding-left:18px' : 'font-weight:700'}">${esc(r.label)}</td>${cell(r.t, r.kind !== 'row')}${cell(r.p)}${cell(r.l)}</tr>`
+      )
+      .join('');
+    printHtml(
+      'Profit and loss ' + curBounds.fullLabel,
+      `<div style="font-family:Georgia,serif;color:#16223A"><h2 style="margin:0 0 4px">Profit &amp; loss · ${esc(curBounds.fullLabel)}</h2><p style="margin:0 0 12px;font-size:9pt;color:#5B6478">Compared with ${esc(prevBounds.shortLabel)} and ${esc(lyBounds.shortLabel)} · printed ${esc(new Date().toLocaleDateString('en-GB'))}</p>` +
+        `<table style="width:100%;border-collapse:collapse;font-size:10pt"><tr style="font-size:8.5pt;color:#5B6478"><th></th><th style="text-align:right;padding:4px 8px">${esc(curBounds.shortLabel)}</th><th style="text-align:right;padding:4px 8px">${esc(prevBounds.shortLabel)}</th><th style="text-align:right;padding:4px 8px">${esc(lyBounds.shortLabel)}</th></tr>${body}</table></div>`
+    );
+  };
+
   const deltaColor = (curV: number, otherV: number, higherIsGood: boolean) => (curV >= otherV === higherIsGood ? GREEN : RED);
 
   return (
     <div className="flex flex-col gap-4 text-[12px]">
-      {/* Scope banner */}
-      <div className="flex items-center gap-2.5 rounded-[10px] px-3.5 py-2.5" style={{ background: '#EEF3F9', border: '1px solid #D5E0EC' }}>
-        <strong className="text-[12px]" style={{ color: NAVY }}>Whole firm</strong>
-        <span className="text-[11px]" style={{ color: '#3D5A7A' }}>
-          You see every partner, file and account. Partners see their own files; staff see their own pay.
-        </span>
-      </div>
-
       {/* Period selector */}
       <div className="flex flex-wrap items-center gap-2.5">
         <div className="flex rounded-[7px] p-0.5" style={{ background: '#E3E7EC' }}>
@@ -504,6 +515,10 @@ const FinanceTab: React.FC = () => {
         <span className="text-[10.5px]" style={{ color: SLATE }}>
           compared with {prevBounds.shortLabel} and {lyBounds.shortLabel}
         </span>
+        <span className="ml-auto text-[10.5px]" style={{ color: SLATE }}>
+          From Accounts &amp; Compliance ·{' '}
+          <button type="button" onClick={() => setCurrentView('accountingCentre')} className="font-semibold" style={{ color: '#3D6B9C' }}>open full accounts -&gt;</button>
+        </span>
       </div>
 
       {/* KPI cards */}
@@ -538,6 +553,7 @@ const FinanceTab: React.FC = () => {
           <div style={headStyle}>
             <span style={titleStyle}>Profit &amp; loss</span>
             <span className="text-[10.5px]" style={{ color: SLATE }}>{curBounds.shortLabel}</span>
+            <button type="button" onClick={exportPdf} className="ml-auto rounded-md px-[9px] py-1 text-[10.5px] font-bold" style={{ border: `1px solid ${palette.border}`, background: '#fff', color: NAVY }}>Export PDF</button>
           </div>
           <div
             className="grid gap-3 px-3.5 py-1.5 text-[9.5px] font-bold uppercase tracking-[.08em]"

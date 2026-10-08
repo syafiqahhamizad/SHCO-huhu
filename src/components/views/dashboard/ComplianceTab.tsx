@@ -55,7 +55,7 @@ const isCurrentlyDone = (item: ComplianceItem, today: string) => {
 
 type StatusKey = 'done' | 'overdue' | 'dueSoon' | 'scheduled';
 
-const statusOf = (item: ComplianceItem, today: string): StatusKey => {
+export const complianceStatusOf = (item: ComplianceItem, today: string): StatusKey => {
   if (isCurrentlyDone(item, today)) return 'done';
   if (item.due < today) return 'overdue';
   if (daysBetween(today, item.due) <= 30) return 'dueSoon';
@@ -112,7 +112,7 @@ const ComplianceTab: React.FC = () => {
   const complaints = settings.complaints || [];
 
   const withStatus = useMemo(
-    () => register.map((item) => ({ item, status: statusOf(item, today), done: isCurrentlyDone(item, today) })),
+    () => register.map((item) => ({ item, status: complianceStatusOf(item, today), done: isCurrentlyDone(item, today) })),
     [register, today]
   );
 

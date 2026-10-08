@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Activity, Calendar, Flag, FolderOpen, Gavel, Tag, User, X } from 'lucide-react';
 import { TaskChecklistItem, TaskKind } from '../../types';
 import { palette, tint, tintText } from '../../lib/designTokens';
+import { localIso } from '../../lib/localDate';
 
 export interface TaskDraft {
   title: string;
@@ -66,6 +67,8 @@ interface TaskFormModalProps {
   googleTasksNote?: string;
   /** Offer "Completed" in the Status select (editing an existing task). */
   allowCompleted?: boolean;
+  /** My Dashboard: show Matter / Private chips in the header so a new to-do can be made private. */
+  onScopeChange?: (scope: 'matter' | 'private') => void;
 }
 
 const KINDS: [TaskKind, string][] = [['Task', 'Task'], ['Court order', 'Deadline: court order'], ['Rules of Court', 'Deadline: Rules of Court'], ['Limitation', 'Deadline: limitation'], ['Key date', 'Key date']];
@@ -87,6 +90,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   onDelete,
   googleTasksNote,
   allowCompleted,
+  onScopeChange,
 }) => {
   const [newCheck, setNewCheck] = useState('');
 
@@ -115,7 +119,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
 
   const dueChips: { label: string; date: string }[] = (() => {
     const today = new Date();
-    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    const iso = (d: Date) => localIso(d);
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
     const nextWeek = new Date(today);
@@ -145,6 +149,24 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
           <span className="rounded-md px-2 py-1 text-[11px] font-bold" style={{ backgroundColor: tint.blue, color: tintText.blue }}>
             {scope === 'private' ? 'Private to-do' : 'Matter to-do'}
           </span>
+          {onScopeChange && !editing && (
+            <div className="flex gap-1">
+              {(['matter', 'private'] as const).map((sc) => {
+                const on = scope === sc;
+                return (
+                  <button
+                    key={sc}
+                    type="button"
+                    onClick={() => onScopeChange(sc)}
+                    className="rounded-md px-2.5 py-1 text-[11px] font-bold"
+                    style={{ border: `1px solid ${on ? palette.navy : palette.border}`, backgroundColor: on ? palette.navy : '#fff', color: on ? '#fff' : palette.navy }}
+                  >
+                    {sc === 'matter' ? 'Matter' : 'Private'}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <span className="text-[11px] text-[#5B6478]">{editing ? 'Edit' : 'New'} {noun} · {googleTasksNote ? 'Google Tasks: your own tasks only' : 'syncs to Google Tasks'}</span>
           <button type="button" onClick={onClose} className="ml-auto flex p-1 text-[#5B6478] hover:text-[#16223A]">
             <X className="h-[18px] w-[18px]" />
