@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { RecycleBinModal } from './RecycleBinModal';
 import { useAmountText } from '../lib/useAmountText';
-import { FIN_TABS, FINANCE_VIEW_TO_TAB, canSeeFinanceView, finGrants, finRoleKey, isFinanceView } from '../lib/financeAccess';
+import { FIN_TABS, FINANCE_VIEW_TO_TAB, canSeeClientBilling, canSeeFinanceView, finGrants, finRoleKey, isFinanceView } from '../lib/financeAccess';
 
 export const Header: React.FC = () => {
   const {
@@ -40,6 +40,7 @@ export const Header: React.FC = () => {
     setIsNewCaseModalOpen,
   } = useApp();
   const amt = useAmountText();
+  const seesBilling = canSeeClientBilling(finRoleKey(currentRole, currentUser, isAdmin), finGrants(currentUser));
   const selectedClientId = useSelectedClientId();
   const selectedClient = currentView === 'clients' && selectedClientId ? clients.find((c: any) => c.id === selectedClientId) : undefined;
   const selectedCase = currentView === 'cases' && currentCaseId ? cases.find((c: any) => c.id === currentCaseId) : undefined;
@@ -382,7 +383,8 @@ export const Header: React.FC = () => {
                   <Gavel className="w-3 h-3 text-amber-700" />
                   Hearings
                 </button>
-                <button
+                {seesBilling && (
+<button
                   onClick={() => setNotifFilter('invoice')}
                   className={`pb-1.5 border-b-2 transition-all flex items-center gap-1 ${
                     notifFilter === 'invoice'
@@ -393,6 +395,7 @@ export const Header: React.FC = () => {
                   <FileText className="w-3 h-3 text-emerald-700" />
                   Paid Invoices
                 </button>
+                  )}
               </div>
 
               {/* List items */}

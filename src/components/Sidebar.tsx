@@ -159,7 +159,7 @@ export const Sidebar: React.FC = () => {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const rk = finRoleKey(currentRole, currentUser, isAdmin);
   const active = activeNavId(currentView);
-  const roleLabel = rk === 'M' ? 'Managing Partner' : String(currentRole || currentUser?.role || 'Staff');
+  const roleLabel = rk === 'M' ? 'Super Admin' : String(currentRole || currentUser?.role || 'Staff');
   const userName = currentUser?.name || 'User';
 
   const handleNavItemClick = (itemId: string) => {

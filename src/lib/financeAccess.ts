@@ -31,6 +31,13 @@ export const FINANCE_VIEW_TO_TAB: Record<string, FinTab> = {
   accountingCentre: 'overview',
   'accounting-centre': 'overview',
   billing: 'billing',
+  // Older names still saved in some browsers (e.g. Firm Start Centre tiles).
+  invoices: 'billing',
+  payments: 'billing',
+  receipts: 'billing',
+  clientAccount: 'trust',
+  'client-account': 'trust',
+  trust: 'trust',
   quotations: 'billing',
   time: 'billing',
   retainers: 'trust',

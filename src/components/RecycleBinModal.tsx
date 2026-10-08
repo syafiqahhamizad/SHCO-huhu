@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { DeletedRecord } from '../types';
-import { canSeeClientBilling, finRoleKey } from '../lib/financeAccess';
+import { canSeeClientBilling, finRoleKey , finGrants} from '../lib/financeAccess';
 
 /** Filter chip for an entity type (financial documents share one chip; anything else is Other). */
 const MONEY_TYPES = ['INVOICE', 'QUOTATION', 'RECEIPT', 'PAYMENT VOUCHER'];
@@ -43,7 +43,7 @@ export const RecycleBinModal: React.FC<RecycleBinModalProps> = ({ isOpen, onClos
     isAdmin,
   } = useApp();
   // Lawyers and assistants get no billing records, so deleted bills stay out of their bin too.
-  const seeBilling = canSeeClientBilling(finRoleKey(currentRole, currentUser, isAdmin));
+  const seeBilling = canSeeClientBilling(finRoleKey(currentRole, currentUser, isAdmin), finGrants(currentUser));
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEntity, setSelectedEntity] = useState<string>('ALL');
