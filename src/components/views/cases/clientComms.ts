@@ -2,13 +2,13 @@
  * Client updates and court-diary / Google Tasks sync for the Working File, using the real
  * Google Workspace services. Nothing is ever marked sent / synced unless Google confirmed it.
  */
-import type { Case, Hearing, MatterClientUpdate, Task } from '../../../types';
+import type { MatterClientUpdate, Task } from '../../../types';
 import { sendEmail } from '../../../services/gmailService';
-import { createCourtEvent, isCourtDiaryConfigured } from '../../../services/googleCalendarService';
+import { isCourtDiaryConfigured } from '../../../services/googleCalendarService';
 import { deleteGoogleTask, upsertGoogleTask } from '../../../services/googleTasksService';
 import { googleErrorMessage, hasValidGoogleToken } from '../../../services/googleWorkspaceAuth';
 import { WHATSAPP_OPENED_STATUS, whatsappLink } from '../../../lib/whatsapp';
-import { courtOf, isDone, stamp } from './caseModel';
+import { isDone, stamp } from './caseModel';
 import type { WF } from './wf';
 
 export { isCourtDiaryConfigured };
@@ -52,29 +52,6 @@ export async function autoSend(w: WF, u: MatterClientUpdate, to?: string): Promi
 }
 
 /* ------------------------------------------------------------------ court diary */
-
-const eventInput = (c: Case, h: Pick<Hearing, 'purpose' | 'date' | 'time' | 'source'>, attendees: string[]) => {
-  const court = courtOf(c);
-  return {
-    title: h.purpose + ' — ' + c.title + ' (' + c.ref + ')',
-    date: h.date,
-    time: h.time || undefined,
-    location: court.name || undefined,
-    description: ['File ' + c.ref, court.suit ? 'Suit ' + court.suit : '', h.source ? 'From ' + h.source : '', 'Added from the SHCO portal'].filter(Boolean).join('\n'),
-    attendees: attendees.filter(Boolean),
-  };
-};
-
-/** Adds the hearing to the firm court diary and invites the PIC. Returns the event or null (error toasted). */
-export async function addHearingToDiary(w: WF, c: Case, h: Hearing, attendees: string[]): Promise<{ eventId: string; htmlLink: string } | null> {
-  try {
-    const r = await createCourtEvent(eventInput(c, h, attendees));
-    return { eventId: r.eventId, htmlLink: r.htmlLink };
-  } catch (e) {
-    w.toast('Saved, but not added to Google Calendar: ' + googleErrorMessage(e));
-    return null;
-  }
-}
 
 /* ------------------------------------------------------------------ Google Tasks */
 

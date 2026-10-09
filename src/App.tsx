@@ -8,6 +8,7 @@ import { DASHBOARD_TAB_VIEWS, DashboardTabs } from './components/DashboardTabs';
 import { SignInPortal } from './components/SignInPortal';
 import { ShieldAlert } from 'lucide-react';
 import { FINANCE_VIEW_TO_TAB, FIN_TABS, isFinanceView } from './lib/financeAccess';
+import { useCalendarAutoSync } from './hooks/useCalendarAutoSync';
 
 const ComprehensiveDashboardView = React.lazy(() => import('./components/views/ComprehensiveDashboardView').then((module) => ({ default: module.ComprehensiveDashboardView })));
 const LeadsReferralsView = React.lazy(() => import('./components/views/LeadsReferralsView').then((module) => ({ default: module.LeadsReferralsView })));
@@ -57,6 +58,8 @@ const MainContent: React.FC = () => {
     logoutUser,
     setCurrentCaseId,
   } = useApp();
+  // Every date in the portal ⇄ the firm Google Calendar (SHCO HQ).
+  useCalendarAutoSync();
 
   // A finance tab hash (#billing, #trust, #office, #approvals, #payroll, #reports, #overview) opens
   // that Accounts & Finance tab from anywhere (links, reloads). The finance view keeps it in step.

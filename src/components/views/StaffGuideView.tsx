@@ -230,7 +230,7 @@ const SECTIONS: Section[] = [
     ],
     mistakes: ['Putting several receipts into one item — one receipt, one item.', 'Choosing *Office* for a client cost — the firm then cannot bill it.'] },
   { id: 'calendar', title: 'Calendar and Hearings', roles: 'all',
-    what: '*Hearings* is the firm-wide list of court dates. *Calendar* shows them on a month grid, and also the firm’s live Google Calendar (court diary).',
+    what: '*Hearings* is the firm-wide list of court dates. *Calendar* shows them on a month grid, and also the firm’s live Google Calendar (SHCO HQ). Every date keyed into the portal — hearings, next court dates, deadlines, key dates, meetings, approved leave, office closures — goes into SHCO HQ by itself, and dates moved in Google move in the portal.',
     who: 'Everyone who can open Cases. Court dates are added on the file (Court tab) — these pages only show them.',
     steps: [
       { t: 'Click *Hearings* in the left menu (Practice). You see every scheduled court date in the firm: *Date*, *Time*, *Matter Reference*, *Purpose* and *Timing Status* (*Today* / *Upcoming*).' },
@@ -361,7 +361,7 @@ const SECTIONS: Section[] = [
     steps: [
       { t: 'Open the file → *Court* tab. Check *Court details* (court level, location, division, suit no., address). [[Edit court details]] to fix them.' },
       { t: 'Coram or opposing solicitors changed? Click [[Change]] next to them, choose the *Effective from* date and the *Reason*. The old one is kept in history.' },
-      { t: 'Add a hearing: [[+ Add hearing]] → date, time, purpose (e.g. Case management, Mention, Trial) → tick *Add to Google Calendar* to put it in the firm court diary and invite the person in charge → [[Save hearing]]. It shows in My work, Hearings and Calendar.' },
+      { t: 'Add a hearing: [[+ Add hearing]] → date, time, purpose (e.g. Case management, Mention, Trial, e-Review) → [[Save hearing]]. It shows in My work, Hearings and Calendar, and goes into the firm Google Calendar (SHCO HQ) by itself within a few minutes, e.g. *SH/ZA (040 - Fatin | Case management @ 9.00am)*, with the team invited.' },
       { t: 'After the court date write the memo: [[+ New court memo]] and fill in:', sub: [
         '*Court date*, *Coram (judge / registrar)*, *Medium* (in chambers, open court, e-Review, online…).',
         '*Our lawyer attending*: type and pick one or more partners / lawyers.',
@@ -373,8 +373,8 @@ const SECTIONS: Section[] = [
         'Save. The memo can be printed (*COURT MEMO*) for the physical file.',
       ] },
     ],
-    stuck: [['“Set up the court diary in Firm Settings”', 'The Google Calendar box is off because the firm court diary is not set up. The hearing is still saved; tell an admin.']],
-    mistakes: ['Not writing the memo on the day — directions and the next date get lost.', 'Putting the next date only in Google Calendar — use *Next court date* in the memo.'] },
+    stuck: [['A date was moved in Google Calendar', 'That is fine: the portal moves it too (the file History says “Date moved in Google Calendar”).'], ['*From the firm calendar* box on the Court tab', 'Someone typed a date for this file straight into Google. Click [[Add to file]] to make it a hearing on the file (the event is then linked), or [[Ignore]].']],
+    mistakes: ['Not writing the memo on the day — directions and the next date get lost.', 'Adding the same court date both in Google and in the portal — add it in the portal; it reaches Google by itself.'] },
   { id: 'service', title: 'Filing and service, and the Service Log', roles: ['partner', 'lawyer', 'assistant'],
     what: 'Every document filed in court or served on a party is logged with its proof (sealed copy, CMS receipt, acknowledgement, affidavit of service). The *Service Log* is the same list for the whole firm.',
     who: 'Assistants / clerks and lawyers.',

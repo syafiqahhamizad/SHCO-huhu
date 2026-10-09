@@ -670,6 +670,10 @@ export interface Case {
   nextAction?: string;
   caseStatusDetails?: CaseStatusDetails;
   hearings: Hearing[];
+  /** Dates typed straight into the firm Google Calendar that look like this file's (by file no. or suit no.), waiting for someone to add or ignore them. */
+  calendarFromGoogle?: { eventId: string; title: string; date: string; time?: string }[];
+  /** Google Calendar events someone chose to ignore for this file. */
+  calendarIgnored?: string[];
   documents: CaseDocument[];
   courtDiary: CourtDiaryEntry[];
   tasks: Task[];
