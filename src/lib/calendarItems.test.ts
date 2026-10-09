@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Case, User } from '../types';
-import { CAL_COLOR, calSignature, calendarItems, eventIdFor, fileTag, matchEventToCase, parseCalKey, timeLabel } from './calendarItems';
+import { CAL_COLOR, calSignature, calendarItems, eventIdFor, fileTag, keptNotes, matchEventToCase, NOTES_MARK, parseCalKey, timeLabel } from './calendarItems';
 
 const users = [
   { id: 'u1', name: 'Syafiqah Hamizad', code: 'SH', email: 'sh@shcolaw.com', role: 'Partner', status: 'Active' },
@@ -72,5 +72,13 @@ describe('events typed straight into Google', () => {
   it('leave alone what does not clearly belong to one file', () => {
     expect(matchEventToCase('SH| BNI Weekly meeting', [kase, other], suit, code)).toBeNull();
     expect(matchEventToCase('AH (040 - Someone else | CM)', [kase, other], suit, code)).toBeNull();
+  });
+});
+
+describe('notes typed in Google are kept', () => {
+  it('a hand-typed event keeps all its text; a portal event keeps only what is under the notes line', () => {
+    expect(keptNotes('Zoom: https://zoom.us/j/1\nCoram: Puan Suzana')).toBe('Zoom: https://zoom.us/j/1\nCoram: Puan Suzana');
+    expect(keptNotes('File X\nAdded from the SHCO portal')).toBe('');
+    expect(keptNotes('File X\nAdded from the SHCO portal\n\n' + NOTES_MARK + '\nBring originals')).toBe('Bring originals');
   });
 });

@@ -432,6 +432,8 @@ export interface Task {
   syncToGoogle?: boolean;
   /** Google Tasks id per user id (Google Tasks is per user) — set only after Google confirmed. */
   googleTaskIds?: Record<string, string>;
+  /** The firm-calendar event this deadline is linked to (an event typed in Google before the portal had it). */
+  googleEventId?: string;
 }
 
 /** Cases redesign: Task kinds. */

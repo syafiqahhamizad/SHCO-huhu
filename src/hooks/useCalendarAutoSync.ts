@@ -99,6 +99,30 @@ export function useCalendarAutoSync() {
     return false;
   };
 
+  const codeOfUser = (who: string) => {
+    const n = who.toLowerCase();
+    const u = (live.current.users as User[]).find((x) => [x.name, x.code, x.id].some((v) => v && String(v).toLowerCase() === n));
+    return (u?.code || (/^[A-Za-z]{2,4}$/.test(who) ? who : '')).toUpperCase();
+  };
+
+  /** A hand-typed Google event for the same file and day as a portal hearing / deadline. */
+  const findTwin = (item: CalItem, events: GoogleOnlyEvent[], taken: Set<string>): string | null => {
+    const k = parseCalKey(item.key);
+    if (!k || (k.kind !== 'hearing' && k.kind !== 'task')) return null;
+    const cases = live.current.cases as Case[];
+    const g = events.find((e) => !taken.has(e.eventId) && e.date === item.date && matchEventToCase(e.title, cases, (c) => courtOf(c).suit || '', codeOfUser) === k.caseId);
+    return g ? g.eventId : null;
+  };
+
+  /** Remembers the link on the portal record, so it survives reloads. */
+  const linkEvent = (key: string, eventId: string) => {
+    const k = parseCalKey(key);
+    const c = k?.caseId ? (live.current.cases as Case[]).find((x) => x.id === k.caseId) : undefined;
+    if (!k || !c) return;
+    if (k.kind === 'hearing') live.current.updateCase(c.id, { hearings: (c.hearings || []).map((h) => (h.id === k.id ? { ...h, googleEventId: eventId } : h)) });
+    if (k.kind === 'task') live.current.updateCase(c.id, { tasks: (c.tasks || []).map((t) => (t.id === k.id ? { ...t, googleEventId: eventId } : t)) });
+  };
+
   /** Google-only events that belong to a file → that file's "From the firm calendar" list (Court tab). */
   const offerToFiles = (events: GoogleOnlyEvent[]) => {
     const L = live.current;
@@ -145,6 +169,8 @@ export function useCalendarAutoSync() {
     busy.current = true;
     try {
       const list = await listPortalEvents(sinceDay());
+      const googleOnly = live.current.cases.length ? await listGoogleOnlyEvents(sinceDay()) : [];
+      const taken = new Set<string>();
       const byKey = new Map(list.map((e) => [e.key, e]));
       const cur: CalItem[] = live.current.items;
       const keys = new Set(cur.map((i) => i.key));
@@ -152,6 +178,12 @@ export function useCalendarAutoSync() {
       for (const item of cur) {
         const ev = byKey.get(item.key);
         if (ev && ev.sentDate && ev.date && ev.date !== ev.sentDate && pullMove(item.key, ev.date, ev.time)) { status.pulled!++; continue; }
+        // First time this date goes to Google: if someone already typed it there by hand (same file,
+        // same day), link that event instead of adding a second one.
+        if (!ev && !item.existingEventId) {
+          const twin = findTwin(item, googleOnly, taken);
+          if (twin) { taken.add(twin); item.existingEventId = twin; linkEvent(item.key, twin); }
+        }
         if (!ev || ev.sig !== calSignature(item)) { await upsertFirmEvent(item, !!ev); status.pushed!++; }
       }
       for (const ev of list) {
@@ -159,7 +191,7 @@ export function useCalendarAutoSync() {
         await removeFirmEvent(ev.id);
         status.removed!++;
       }
-      if (live.current.cases.length) offerToFiles(await listGoogleOnlyEvents(sinceDay()));
+      if (live.current.cases.length) offerToFiles(googleOnly.filter((g) => !taken.has(g.eventId)));
     } catch (e) {
       status.error = googleErrorMessage(e);
     } finally {

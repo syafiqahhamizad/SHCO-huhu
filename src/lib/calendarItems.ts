@@ -141,6 +141,7 @@ export function calendarItems(src: CalSources): CalItem[] {
         description: [c.title, 'File ' + c.ref, court.suit ? 'Suit ' + court.suit : '', t.kind ? 'Kind: ' + t.kind : '', t.assignedTo ? 'For: ' + t.assignedTo : '', t.description || '', portalLine].filter(Boolean).join('\n'),
         attendees: teamEmails(c, [t.assignedTo]),
         free: true,
+        existingEventId: t.googleEventId || undefined,
       });
     });
   }
@@ -240,3 +241,16 @@ export function matchEventToCase(title: string, cases: Pick<Case, 'id' | 'ref' |
   }
   return hits.length === 1 ? hits[0] : null; // two possible files = leave it alone
 }
+
+/** Text staff typed into the event in Google (Zoom link, judge, notes) is kept under this line. */
+export const NOTES_MARK = '— Notes (kept from Google Calendar) —';
+const PORTAL_LINE = 'Added from the SHCO portal';
+
+/** The part of an event's description that did not come from the portal. */
+export const keptNotes = (old: string): string => {
+  const d = String(old || '');
+  const i = d.indexOf(NOTES_MARK);
+  if (i >= 0) return d.slice(i + NOTES_MARK.length).trim();
+  return d.includes(PORTAL_LINE) ? '' : d.trim(); // a hand-typed event: keep all of it
+};
+

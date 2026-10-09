@@ -2,7 +2,7 @@ import { getPracticeSettings } from './templateService';
 import { GoogleWorkspaceError, googleApiFetch, type GoogleFetchHints } from './googleWorkspaceAuth';
 import { COURT_TIME_ZONE, courtEventTimes, parseCalendarId } from '../lib/calendarEvent';
 import { parseAddressList } from '../lib/emailMime';
-import { CAL_COLOR, calSignature, eventIdFor, type CalItem } from '../lib/calendarItems';
+import { CAL_COLOR, NOTES_MARK, calSignature, eventIdFor, keptNotes, type CalItem } from '../lib/calendarItems';
 
 /**
  * Google Calendar: court dates / hearings in the firm's shared "SHCO Court Diary" calendar.
@@ -152,15 +152,16 @@ const firmEventBody = (item: CalItem) => {
   };
 };
 
-const writeEvent = async (cal: string, id: string, body: object, notify: string, method: 'PUT' | 'POST') => {
-  const url = method === 'PUT' ? eventUrl(cal, id) : eventUrl(cal);
-  await googleApiFetch('calendar', url + '?sendUpdates=' + notify, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, id }) }, hints);
+const writeEvent = async (cal: string, id: string, body: object, notify: string, method: 'PATCH' | 'POST') => {
+  const url = method === 'PATCH' ? eventUrl(cal, id) : eventUrl(cal);
+  await googleApiFetch('calendar', url + '?sendUpdates=' + notify, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(method === 'POST' ? { ...body, id } : body) }, hints);
 };
 
 /**
  * Puts one portal date in the firm calendar under its fixed event ID. `exists` says whether the
- * event is already there (from listPortalEvents); unknown = try to add, and update if Google
- * says it already exists. Attendees get Google's invitation / update e-mail.
+ * event is already there (from listPortalEvents). Updates are PATCHes, so Meet links, attachments
+ * and anything else typed in Google stay; the description keeps the typed notes underneath.
+ * Attendees get Google's invitation / update e-mail.
  */
 export async function upsertFirmEvent(item: CalItem, exists?: boolean, calendarId?: string): Promise<string> {
   const cal = resolveCalendarId(calendarId);
@@ -168,12 +169,20 @@ export async function upsertFirmEvent(item: CalItem, exists?: boolean, calendarI
   const body = firmEventBody(item);
   const notify = body.attendees.length ? 'all' : 'none';
   if (exists || item.existingEventId) {
-    try { await writeEvent(cal, id, body, notify, 'PUT'); return id; } catch (e) {
+    let old: { description?: string; attendees?: { email?: string }[] } | null = null;
+    try { old = await (await googleApiFetch('calendar', eventUrl(cal, id), { method: 'GET' }, hints)).json(); } catch (e) {
       if (!(e instanceof GoogleWorkspaceError && (e.status === 404 || e.status === 410))) throw e;
+    }
+    if (old) {
+      const notes = keptNotes(old.description || '');
+      // Keep people invited by hand in Google as well as the file's team.
+      const extra = (old.attendees || []).map((x) => String(x.email || '').toLowerCase()).filter((e) => e && !body.attendees.some((a) => a.email === e));
+      await writeEvent(cal, id, { ...body, description: (body.description + (notes ? '\n\n' + NOTES_MARK + '\n' + notes : '')).slice(0, 8000), attendees: [...body.attendees, ...extra.map((email) => ({ email }))] }, notify, 'PATCH');
+      return id;
     }
   }
   try { await writeEvent(cal, id, body, notify, 'POST'); } catch (e) {
-    if (e instanceof GoogleWorkspaceError && e.status === 409) await writeEvent(cal, id, body, notify, 'PUT');
+    if (e instanceof GoogleWorkspaceError && e.status === 409) await writeEvent(cal, id, body, notify, 'PATCH');
     else throw e;
   }
   return id;
