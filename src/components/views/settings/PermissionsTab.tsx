@@ -7,8 +7,8 @@ import { PERM_ROWS, FIXED_ROLE_COLS, parentOf, roleOwnBits, personBits, personRo
 const BIT: [string, string, string, string][] = [['V', 'view', '#E6EFE9', '#2F6F4E'], ['A', 'add', '#E7EEF6', '#2F5680'], ['E', 'edit / approve', '#F7E9EE', '#8C2F4C']];
 const pill = (on: boolean, bg: string, fg: string, cap: boolean) => `border:1px solid ${on ? fg + '55' : '#E6EAF0'};background:${on ? bg : '#fff'};color:${on ? fg : cap ? '#B8C1CE' : '#E1E6EC'}`;
 const BOX = 'width:22px;height:20px;border-radius:5px;padding:0;font-size:9.5px;font-weight:800;cursor:pointer;font-family:inherit;';
-const LIMITS: [keyof ApprovalLimits, string][] = [['anyPartnerUpTo', 'Any partner can approve below'], ['mpPlusOneAbove', 'Managing Partner + 1 signatory at and above (per claim / PV form total)'], ['clientAccount', 'Client account payments'], ['writeOffs', 'Write-offs'], ['staffClaimsFlag', 'Staff claims per month (auto-flag above)']];
-const RULES = ['Data is filtered on the server by role + assigned files', 'Every view, change and approval is written to Activity Logs', '2-step login required for Managing Partner, Partners, Accounts', 'Issued documents cannot be edited: cancel and reissue', 'Nothing is hard-deleted; admin delete is recoverable'];
+const LIMITS: [keyof ApprovalLimits, string][] = [['anyPartnerUpTo', 'Any partner can approve below'], ['mpPlusOneAbove', 'Super Admin + 1 signatory at and above (per claim / PV form total)'], ['clientAccount', 'Client account payments'], ['writeOffs', 'Write-offs'], ['staffClaimsFlag', 'Staff claims per month (auto-flag above)']];
+const RULES = ['Data is filtered on the server by role + assigned files', 'Every view, change and approval is written to Activity Logs', '2-step login required for the Super Admin, Partners, Accounts', 'Issued documents cannot be edited: cancel and reissue', 'Nothing is hard-deleted; admin delete is recoverable'];
 
 export const PermissionsTab = ({ C, view, setView }: { C: SettingsCtx; view: 'role' | 'person'; setView: (v: 'role' | 'person') => void }) => {
   const { rolesMatrix = {}, users = [], customRoles = [], setRoleModulePermissions, setUserNavOverride, resetUserNavOverrides, addCustomRole } = useApp();
@@ -61,7 +61,7 @@ export const PermissionsTab = ({ C, view, setView }: { C: SettingsCtx; view: 'ro
                   <span style={css('display:flex;gap:3px;justify-content:center')}>{BIT.map(([l, tip, bg, fg], bi) => {
                     const c = cap[bi] === '1', onB = me[bi] === '1' && c;
                     const flip = () => {
-                      if (uMP) return C.msg('Managing Partner always has full access');
+                      if (uMP) return C.msg('The Super Admin always has full access');
                       if (!c) return C.msg('Switch on ' + l + ' for the main tab first');
                       if (!C.isSuperAdmin) return denied();
                       const nb = flipBit(me, bi);
@@ -90,7 +90,7 @@ export const PermissionsTab = ({ C, view, setView }: { C: SettingsCtx; view: 'ro
                   <span key={name} style={css('display:flex;gap:3px;justify-content:center')}>{BIT.map(([l, tip, bg, fg], bi) => {
                     const ownOn = own[bi] === '1', cap = capB[bi] === '1', onB = ownOn && cap;
                     const flip = () => {
-                      if (ri === 0) return C.msg('Managing Partner always has full access');
+                      if (ri === 0) return C.msg('The Super Admin always has full access');
                       if (!cap) return C.msg('Switch on ' + l + ' for the main tab first');
                       if (!C.isSuperAdmin) return denied();
                       setRoleModulePermissions(role, key, fromBits(flipBit(own, bi)));

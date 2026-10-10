@@ -20,7 +20,7 @@
  */
 import type { StaffProfile, User } from '../types';
 
-export type Tier = 'firm' | 'books' | 'hr' | 'users' | 'own' | 'claims';
+type Tier = 'firm' | 'books' | 'hr' | 'users' | 'own' | 'claims';
 
 interface CollectionDef {
   /** The AppContext / old sharedState key. */

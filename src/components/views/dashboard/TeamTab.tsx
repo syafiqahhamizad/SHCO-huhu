@@ -194,7 +194,7 @@ const TeamTab: React.FC = () => {
         </div>
         <div>
           <h2 className="font-serif text-xl font-bold text-[#16223A]">Team is Managing-Partner only</h2>
-          <p className="mt-1 text-xs text-slate-600">Workload, pay and goals for every staff member are restricted to the Managing Partner.</p>
+          <p className="mt-1 text-xs text-slate-600">Workload, pay and goals for every staff member are restricted to the Super Admin.</p>
         </div>
       </div>
     );

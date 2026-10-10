@@ -494,14 +494,8 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
 
   // Manually-assigned per-task stage tag options (never inferred by the system)
 
-  const LAWYERS_LIST = [
-    'Syafiqah Hamizad',
-    'Amer Haiqal',
-    'Zulaikha Afendi',
-    'Nurul Huda',
-    'Aiman Hakim',
-    'Intan Safiyah',
-  ];
+  // Real people from Users & Roles (partners and lawyers who are switched on).
+  const LAWYERS_LIST = Array.from(new Set((users || []).filter((u) => u.status !== 'Inactive' && (u.role === 'Partner' || u.role === 'Lawyer')).map((u) => u.name).filter(Boolean))).sort();
 
   const filteredCases = (cases || []).filter((cs) => {
     if (matterCaseId && cs.id !== matterCaseId) return false;
@@ -520,7 +514,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
     }
 
     const partnerInCharge = getPartnerInChargeFromRef(cs.ref || '');
-    const lawyerInCharge = cs.lawyerInCharge || 'Syafiqah Hamizad';
+    const lawyerInCharge = cs.lawyerInCharge || '';
     const term = (searchTerm || '').toLowerCase();
     const matchesSearch =
       (cs.ref || '').toLowerCase().includes(term) ||
@@ -546,7 +540,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
       caseTitle: cs.title,
       clientName: cs.clientName,
       court: cs.court,
-      lawyerInCharge: cs.lawyerInCharge || 'Syafiqah Hamizad',
+      lawyerInCharge: cs.lawyerInCharge || '',
     }));
   });
 
@@ -1533,7 +1527,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
                   const partnerInCharge = getPartnerInChargeFromRef(cs.ref);
                   const assignedLawyersList = cs.lawyerInCharge
                     ? cs.lawyerInCharge.split(',').map((s) => s.trim())
-                    : ['Syafiqah Hamizad'];
+                    : [];
 
                   return (
                     <tr key={cs.id} className="hover:bg-slate-50/80 transition-colors">

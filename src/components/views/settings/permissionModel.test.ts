@@ -39,7 +39,7 @@ describe('isSuper / isManagingPartner', () => {
 
 describe('designRole', () => {
   it('maps MP, Reviewer and other roles', () => {
-    expect(designRole(u({ role: 'Partner', email: SUPER_EMAIL }))).toBe('Managing Partner');
+    expect(designRole(u({ role: 'Partner', email: SUPER_EMAIL }))).toBe('Super Admin');
     expect(designRole(u({ role: 'Partner' }))).toBe('Partner');
     expect(designRole(u({ role: 'Reviewer' }))).toBe('Reviewer (auditor)');
     expect(designRole(u({}))).toBe('');

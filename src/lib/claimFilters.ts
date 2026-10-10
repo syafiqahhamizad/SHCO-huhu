@@ -26,7 +26,7 @@ export const yearOf = (date?: string): string => {
 export const yearOptions = <T>(items: T[], dateOf: (t: T) => string | undefined): string[] =>
   Array.from(new Set(items.map((t) => yearOf(dateOf(t))).filter(Boolean))).sort((a, b) => b.localeCompare(a));
 
-export interface YearTypeFilter { year: string; type: string }
+interface YearTypeFilter { year: string; type: string }
 /** 'All' (or '') matches everything for either filter. */
 export const matchesYearType = (item: { date?: string; docType: string }, f: YearTypeFilter): boolean =>
   (!f.year || f.year === 'All' || yearOf(item.date) === f.year) && (!f.type || f.type === 'All' || item.docType === f.type);

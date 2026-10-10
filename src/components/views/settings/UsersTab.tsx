@@ -29,7 +29,7 @@ const lastLoginLabel = (ts?: string) => {
 };
 
 const roleFromDesign = (v: string): { role: Role; mp: boolean } =>
-  v === 'Managing Partner' ? { role: 'Partner', mp: true } : v === 'Reviewer (auditor)' ? { role: 'Reviewer', mp: false } : { role: v as Role, mp: false };
+  v === 'Super Admin' ? { role: 'Partner', mp: true } : v === 'Reviewer (auditor)' ? { role: 'Reviewer', mp: false } : { role: v as Role, mp: false };
 
 /** Plain words for a person's billing access ('' = what their role gives). */
 const BILLING_LABEL = (u: User, v: User['billingAccess']): string =>
@@ -40,7 +40,7 @@ export const UsersTab = ({ C }: { C: SettingsCtx }) => {
   const app = useApp();
   const { users = [], currentUser, customRoles = [], rolesMatrix = {}, updateUserRoleAndAdmin, updateUserIdentity, updateUserAccount, deleteUser } = app;
   const [adding, setAdding] = useState(false);
-  const ROLES = ['Managing Partner', 'Partner', 'Lawyer', 'Assistant', 'Accountant', 'Reviewer (auditor)', 'Client', ...customRoles];
+  const ROLES = ['Super Admin', 'Partner', 'Lawyer', 'Assistant', 'Accountant', 'Reviewer (auditor)', 'Client', ...customRoles];
   const branches = (C.settings.branches && C.settings.branches.length ? C.settings.branches : DEFAULT_BRANCHES).map((b) => b.name);
   const hqName = ((C.settings.branches || DEFAULT_BRANCHES).find((b) => b.hq) || { name: branches[0] }).name;
   const canAdmin = Boolean(currentUser?.isAdmin || isSuper(currentUser));
@@ -49,10 +49,10 @@ export const UsersTab = ({ C }: { C: SettingsCtx }) => {
   const onRole = (u: User, v: string) => {
     const cur = designRole(u);
     if (v === cur) return;
-    if (u.email === SUPER_EMAIL && v !== 'Managing Partner') return C.msg('The Managing Partner is always Super admin');
+    if (u.email === SUPER_EMAIL && v !== 'Super Admin') return C.msg('The Super Admin always has full access');
     const { role, mp } = roleFromDesign(v);
     // Managing Partner is the Super Admin only; nobody else can be made MP.
-    if (mp) return C.msg('Only the Super Admin is the Managing Partner. To give ' + u.name + ' extra rights, use Admin instead.');
+    if (mp) return C.msg('Only one Super Admin. To give ' + u.name + ' extra rights, use Admin instead.');
     const noAdmin = role === 'Client' || role === 'Reviewer';
     // Admin is a separate right and is kept when the role changes (except roles that can't be admins).
     const isAdmin = noAdmin ? false : u.isAdmin;
@@ -64,7 +64,7 @@ export const UsersTab = ({ C }: { C: SettingsCtx }) => {
   };
 
   const toggleAdmin = (u: User) => {
-    if (u.email === SUPER_EMAIL) return C.msg('The Managing Partner is always Super admin');
+    if (u.email === SUPER_EMAIL) return C.msg('The Super Admin always has full access');
     if (u.role === 'Client' || u.role === 'Reviewer') return C.msg(designRole(u) + ' cannot be an admin');
     // Admin on / off only. Super admin is reserved for the Managing Partner.
     const next = u.isAdmin ? { a: false, s: false, label: 'no longer an admin' } : { a: true, s: false, label: 'now an admin' };
@@ -112,7 +112,7 @@ export const UsersTab = ({ C }: { C: SettingsCtx }) => {
             </span>
             <select value={rv} onChange={(e) => onRole(u, e.target.value)} style={css(SEL)}>{(ROLES.includes(rv) ? ROLES : [...ROLES, rv]).map((r) => <option key={r} value={r}>{r}</option>)}</select>
             <select value={u.branch || hqName} onChange={(e) => { if (updateUserAccount(u.id, { branch: e.target.value })) { C.log('User Branch Changed', u.name + ' → ' + e.target.value); C.msg(u.name + ' · ' + e.target.value); } }} style={css(SEL)}>{(branches.includes(u.branch || hqName) ? branches : [...branches, u.branch as string]).map((b) => <option key={b} value={b}>{b}</option>)}</select>
-            <button type="button" onClick={() => toggleAdmin(u)} title={u.email === SUPER_EMAIL ? 'Managing Partner: always Super admin' : 'Click to switch admin on/off (— → Admin → Super admin → —)'} style={css(`justify-self:start;border:0;border-radius:10px;padding:2px 9px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;background:${adm ? '#16223A' : '#F0F2F5'};color:${adm ? '#fff' : '#94A3B8'}`)}>{sup ? 'Super admin' : adm ? 'Admin' : '—'}</button>
+            <button type="button" onClick={() => toggleAdmin(u)} title={u.email === SUPER_EMAIL ? 'Super Admin: always has full access' : 'Click to switch admin on/off (— → Admin → Super admin → —)'} style={css(`justify-self:start;border:0;border-radius:10px;padding:2px 9px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;background:${adm ? '#16223A' : '#F0F2F5'};color:${adm ? '#fff' : '#94A3B8'}`)}>{sup ? 'Super admin' : adm ? 'Admin' : '—'}</button>
             {u.role === 'Client' ? <span style={css('font-size:10.5px;color:#94A3B8')}>own bills only</span>
               : sup ? <span style={css('font-size:10.5px;font-weight:700;color:#16223A')}>Everything</span>
                 : <select value={u.billingAccess || ''} disabled={!isSuper(currentUser)} title={isSuper(currentUser) ? 'Who sees billing & money: you decide per person' : 'Only the Super Admin decides who sees billing'} onChange={(e) => { const v = e.target.value as User['billingAccess']; if (updateUserAccount(u.id, { billingAccess: v })) { const t = BILLING_LABEL(u, v); C.log('Billing Access Changed', u.name + ': ' + t); C.msg(u.name + ' · billing: ' + t); } }} style={css(SEL + (u.billingAccess ? ';border-color:#8A6534;color:#8A6534' : ''))}>
@@ -131,7 +131,7 @@ export const UsersTab = ({ C }: { C: SettingsCtx }) => {
           </div>
         );
       })}
-      <div style={css('display:flex;flex-direction:column;gap:3px;padding:9px 14px;background:#F6F8FA;font-size:10.5px;line-height:1.5;color:#5B6478')}><span>Switching someone off blocks their login immediately; their history stays. New staff added here appear automatically in Staff Portal, Payroll and the referrer list.</span><span><strong style={css('color:#16223A')}>Reviewer (auditor)</strong>: outside auditor login, read-only. Sees Cases and the Client Account (SAR 1990) only; cannot add, edit or approve.</span><span><strong style={css('color:#16223A')}>Client</strong>: invited from the client’s profile (Clients → Client Portal). Sees only their own files, documents and bills in the Client Portal.</span><span><strong style={css('color:#16223A')}>Billing &amp; money</strong>: you decide per person. By role, partners and Accounts see and edit, reviewers see; everyone else (admins too) sees no amounts, bills, claims or vouchers except their own claims.</span><span><strong style={css('color:#16223A')}>Admin</strong>: can manage Users &amp; Roles, Settings and Activity Logs on top of their role. The Managing Partner is Super admin and cannot be switched off.</span><span><strong style={css('color:#16223A')}>Check access</strong>: opens that person’s own access. Access is set by role first, then changed per person where needed.</span></div>
+      <div style={css('display:flex;flex-direction:column;gap:3px;padding:9px 14px;background:#F6F8FA;font-size:10.5px;line-height:1.5;color:#5B6478')}><span>Switching someone off blocks their login immediately; their history stays. New staff added here appear automatically in Staff Portal, Payroll and the referrer list.</span><span><strong style={css('color:#16223A')}>Reviewer (auditor)</strong>: outside auditor login, read-only. Sees Cases and the Client Account (SAR 1990) only; cannot add, edit or approve.</span><span><strong style={css('color:#16223A')}>Client</strong>: invited from the client’s profile (Clients → Client Portal). Sees only their own files, documents and bills in the Client Portal.</span><span><strong style={css('color:#16223A')}>Billing &amp; money</strong>: you decide per person. By role, partners and Accounts see and edit, reviewers see; everyone else (admins too) sees no amounts, bills, claims or vouchers except their own claims.</span><span><strong style={css('color:#16223A')}>Admin</strong>: can manage Users &amp; Roles, Settings and Activity Logs on top of their role. The Super Admin has full access and cannot be switched off.</span><span><strong style={css('color:#16223A')}>Check access</strong>: opens that person’s own access. Access is set by role first, then changed per person where needed.</span></div>
       {adding && <AddPersonModal C={C} roles={ROLES} branches={branches} hq={hqName} onClose={() => setAdding(false)} />}
     </div>
   );
@@ -152,7 +152,7 @@ const AccessListStatusLine = () => {
       : st.state === 'published' ? { bg: '#E6EFE9', fg: '#2F6F4E' }
         : { bg: '#F6F8FA', fg: '#5B6478' };
   const text = st.state === 'preview' ? `preview mode — not published (${st.count ?? 0} people would be listed)`
-    : st.state === 'not-owner' ? 'published and kept in sync by the Managing Partner’s own session'
+    : st.state === 'not-owner' ? 'published and kept in sync by the Super Admin’s own session'
       : st.state === 'updating' ? 'updating…'
         : st.state === 'published' ? `published ✓ · ${st.count ?? 0} people${st.at ? ' · ' + fmtTime(st.at) : ''}`
           : st.state === 'review' ? (pending.length ? `${pending.length} change${pending.length > 1 ? 's' : ''} giving more access need${pending.length > 1 ? '' : 's'} your OK` : 'not published yet')
@@ -213,7 +213,7 @@ const AddPersonModal = ({ C, roles, branches, hq, onClose }: { C: SettingsCtx; r
     }
     if ((role === 'Partner' || role === 'Lawyer') && !em.endsWith('@shcolaw.com')) return fail('Partner and Lawyer accounts must use a verified @shcolaw.com Google Workspace email.');
     if (users.some((u) => u.email.toLowerCase() === em)) return fail(`${em} is already in the roster.`);
-    if (mp && em !== SUPER_EMAIL) return fail('Only the Super Admin is the Managing Partner. Choose Partner and tick Admin instead.');
+    if (mp && em !== SUPER_EMAIL) return fail('Only one Super Admin. Choose Partner and tick Admin instead.');
     const admin = mp || (isAdmin && !isClient && role !== 'Reviewer');
     const sup = em === SUPER_EMAIL && (mp || isSuperAdmin);
     if ((admin || sup) && !C.isSuperAdmin) return fail('Admin privileges can only be assigned by the Super Admin.');

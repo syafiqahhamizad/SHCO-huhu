@@ -185,7 +185,7 @@ const PartnerKpisTab: React.FC<{ scope: 'all' | 'own' }> = ({ scope }) => {
     <div className="flex flex-col gap-4 text-[12px]">
       <div className="flex items-center gap-2.5">
         <strong className="font-serif text-[18px] text-[#16223A]">Partner scorecards · {thisYear} year to date</strong>
-        <span className="text-[10.5px] text-[#5B6478]">{scope === 'own' ? 'You see your own scorecard; the Managing Partner sees all.' : 'Partners see only their own scorecard.'}</span>
+        <span className="text-[10.5px] text-[#5B6478]">{scope === 'own' ? 'You see your own scorecard; the Super Admin sees all.' : 'Partners see only their own scorecard.'}</span>
         {scope === 'all' && (
           <button
             type="button"

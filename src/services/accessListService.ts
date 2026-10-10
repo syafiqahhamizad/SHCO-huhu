@@ -88,7 +88,7 @@ const describe = (e?: AccessEntry) =>
   !e ? 'no access' : `${e.role}${e.admin ? ' + admin' : ''}${e.billing ? ' · billing ' + e.billing : ''}${e.active ? '' : ' (switched off)'}`;
 
 /** How much billing access an entry gives (0 none, 1 see, 2 see & edit), role default when unset. */
-export const billingRank = (e: AccessEntry): number =>
+const billingRank = (e: AccessEntry): number =>
   e.billing === 'none' ? 0 : e.billing === 'view' ? 1 : e.billing === 'edit' ? 2
     : ['partner', 'accountant'].includes(e.role) ? 2 : e.role === 'reviewer' ? 1 : 0;
 

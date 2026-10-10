@@ -31,9 +31,9 @@ import {
 export const DRIVE_REQUIRED_MSG = 'Set up Google Drive in Firm & Practice Settings → Google, e-mail & backup before uploading.';
 
 /** Metadata kept on a record for one uploaded file. */
-export interface StoredFileMeta { name: string; driveFileId: string; webViewLink?: string; driveFolderId?: string; size: number; contentType: string; uploadedAt: string; uploadedBy: string }
+interface StoredFileMeta { name: string; driveFileId: string; webViewLink?: string; driveFolderId?: string; size: number; contentType: string; uploadedAt: string; uploadedBy: string }
 
-export type StorageBackend = 'drive' | 'none';
+type StorageBackend = 'drive' | 'none';
 export const activeStorage = (): StorageBackend => (isDriveConfigured() ? 'drive' : 'none');
 /** True once Drive storage is set up (uploads allowed). */
 export const isUploadReady = () => isDriveConfigured();
@@ -100,7 +100,7 @@ async function storeIn(parts: string[], file: File, uploadedBy: string, opts: { 
  * Where finance files live: the SHCO Finance Shared Drive, or `Finance/` inside SHCO Portal when
  * no Finance drive is set (Firm Settings warns that staff could then see them).
  */
-export const financeBase = (): { baseId: string; prefix: string[]; separate: boolean } => {
+const financeBase = (): { baseId: string; prefix: string[]; separate: boolean } => {
   const c = getDriveConfig();
   return c.financeFolderId
     ? { baseId: c.financeFolderId, prefix: [], separate: true }
@@ -146,7 +146,7 @@ export async function storeClaimReceipt(opts: { userId: string; recordId: string
 
 /* ------------------------------------------------------------------ HR */
 
-export interface HrStaffRef { email: string; staffId?: string; name: string }
+interface HrStaffRef { email: string; staffId?: string; name: string }
 
 /**
  * An HR document or staff photo. Drive: SHCO HR `<Staff ID> - <Name>/` (or `HR/<Staff ID> - <Name>/`
@@ -226,7 +226,6 @@ export async function storeLetterheadImage(branchName: string, file: File, uploa
 
 /* ------------------------------------------------------------------ matter files */
 
-export { MATTER_SUBFOLDERS, type MatterSub, type MatterLike };
 
 /** "Matters › Civil Litigation › 042 - Title" (for "Goes to …" hints). */
 export const matterDriveLabel = (m: MatterLike) => matterFolderPath(m, getDriveConfig().practiceFolderNames).join(' › ');
@@ -276,7 +275,7 @@ export async function storeEngagementFile(m: MatterLike, file: File, uploadedBy:
 
 /* ------------------------------------------------------------------ opening */
 
-export type StoredFileRef = { path?: string; driveFileId?: string; webViewLink?: string };
+type StoredFileRef = { path?: string; driveFileId?: string; webViewLink?: string };
 
 /** Stable key for lists (Drive id, else Storage path, else name). */
 export const storedFileKey = (f: StoredFileRef & { name?: string }) => f.driveFileId || f.path || f.name || '';

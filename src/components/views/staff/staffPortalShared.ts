@@ -358,7 +358,7 @@ export const buildFileDirectory = (cases: Case[], clients: Client[], users: User
   const byId = new Map(cases.map((c) => [c.id, c]));
   const clientName = (c: Case) => c.clientName || clients.find((cl) => cl.id === c.clientId)?.name || '';
   const partnerName = (code: string) => users.find((u) => partnerCode(u) === code)?.name || code;
-  const mp = users.find((u) => u.isSuperAdmin)?.name || users.find((u) => partnerCode(u) === 'SH')?.name || 'Managing Partner';
+  const mp = users.find((u) => u.isSuperAdmin)?.name || users.find((u) => partnerCode(u) === 'SH')?.name || 'Super Admin';
   const caseOf = (ref?: string | null) => (ref && !OFFICE_REFS.has(ref) ? byRef.get(ref) || byId.get(ref) : undefined);
   return {
     caseOf,

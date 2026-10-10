@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Eye, EyeOff, PencilLine } from 'lucide-react';
 import { canViewAs } from './views/settings/permissionModel';
 import { useApp } from '../context/AppContext';
+import { partnerCode } from '../lib/identity';
 import type { PartnerCode, Role } from '../types';
 
 /* Toolbar row directly under the Header (navigation shell design pack). Page actions that used
@@ -34,6 +35,8 @@ export const PageToolbar: React.FC = () => {
     setFirmStartCentreEditMode,
     rolesMatrix,
   } = useApp();
+  // Partner switcher: the real partners in Users & Roles (code — name).
+  const partnerOptions: [string, string][] = (users || []).filter((u) => u.role === 'Partner' && u.status !== 'Inactive' && partnerCode(u)).map((u) => [partnerCode(u) as string, u.name]);
 
   // "View as" tools are off by default so the app looks exactly as it does for everyone else;
   // people allowed to use them (Settings › Permissions › View as) switch them on when needed.
@@ -123,9 +126,7 @@ export const PageToolbar: React.FC = () => {
               className={selectCls}
               aria-label="Select your partner identity"
             >
-              <option value="SH">SH — Syafiqah Hamizad</option>
-              <option value="AH">AH — Amer Haiqal</option>
-              <option value="ZA">ZA — Zulaikha Afendi</option>
+              {partnerOptions.map(([code, name]) => <option key={code} value={code}>{code} — {name}</option>)}
             </select>
           </label>
         </>

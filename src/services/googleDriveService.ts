@@ -44,7 +44,7 @@ export interface DriveFile {
   parents?: string[];
 }
 
-export interface DriveConfig {
+interface DriveConfig {
   clientId: string;
   rootFolderId: string;
   rootFolderName: string;
@@ -162,7 +162,6 @@ async function driveFetch(url: string, init: RequestInit = {}, retried = false):
 const q = (params: Record<string, string>) => '?' + new URLSearchParams({ supportsAllDrives: 'true', ...params }).toString();
 const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 /** Drive allows almost any name; keep folder/file names tidy (see lib/driveLayout). */
-export { driveSafeName };
 
 async function getDriveFile(id: string, fields = FILE_FIELDS): Promise<DriveFile> {
   const res = await driveFetch(API + '/files/' + encodeURIComponent(id) + q({ fields }));
@@ -279,7 +278,7 @@ export const driveViewUrl = (f: { driveFileId?: string; webViewLink?: string }) 
 
 /* ------------------------------------------------------------------ connection test */
 
-export interface DriveTestResult { ok: boolean; message: string; folderName?: string; hrFolderName?: string; financeFolderName?: string }
+interface DriveTestResult { ok: boolean; message: string; folderName?: string; hrFolderName?: string; financeFolderName?: string }
 
 type FolderInfo = DriveFile & { capabilities?: { canAddChildren?: boolean } };
 

@@ -2082,7 +2082,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return false;
       }
       if (target.email === 'syafiqahhamizad@shcolaw.com' || target.id === currentUser.id) {
-        showToast('The Managing Partner is always Super admin and cannot be switched off.');
+        showToast('The Super Admin always has full access and cannot be switched off.');
         return false;
       }
     }
@@ -2606,7 +2606,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setAccessListStatus({
         state: 'failed',
         message: code === 'permission-denied'
-          ? 'Firestore refused the write — the deployed firestore.rules may be out of date, or this sign-in is not the verified Managing Partner account.'
+          ? 'Firestore refused the write — the deployed firestore.rules may be out of date, or this sign-in is not the verified Super Admin account.'
           : error instanceof Error ? error.message : 'Unknown error',
       });
     } finally {

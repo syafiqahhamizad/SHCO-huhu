@@ -364,8 +364,8 @@ export const DOC_NUMBERING: [string, string, string][] = [
 export const DEFAULT_APPROVAL_LIMITS: Required<ApprovalLimits> = {
   anyPartnerUpTo: 'RM 5,000',
   mpPlusOneAbove: 'RM 5,000',
-  clientAccount: 'Managing Partner + 1, any amount',
-  writeOffs: 'Managing Partner only',
+  clientAccount: 'Super Admin + 1, any amount',
+  writeOffs: 'Super Admin only',
   staffClaimsFlag: 'RM 1,000',
 };
 

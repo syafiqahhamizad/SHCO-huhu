@@ -23,7 +23,7 @@ export const PERM_ROWS: [string, string, string?, string?][] = [
 const ADMIN_KEYS = ['clients.delete', 'settings', 'users', 'logs', 'hrRecords', 'settings.firm', 'settings.banks', 'settings.templates', 'settings.lists', 'settings.permissions'];
 
 /** The design's fixed role order; index 1.. maps to the app's own roles. */
-export const FIXED_ROLE_COLS: [string, string][] = [['Managing Partner', ''], ['Partner', 'Partner'], ['Lawyer', 'Lawyer'], ['Assistant', 'Assistant'], ['Accountant', 'Accountant'], ['Reviewer', 'Reviewer'], ['Client', 'Client']];
+export const FIXED_ROLE_COLS: [string, string][] = [['Super Admin', ''], ['Partner', 'Partner'], ['Lawyer', 'Lawyer'], ['Assistant', 'Assistant'], ['Accountant', 'Accountant'], ['Reviewer', 'Reviewer'], ['Client', 'Client']];
 const MASK_IDX: Record<string, number> = { Partner: 0, Lawyer: 1, Assistant: 2, Accountant: 3, Reviewer: 4, Client: 5 };
 
 export const SUPER_EMAIL = 'syafiqahhamizad@shcolaw.com';
@@ -32,7 +32,7 @@ export const isSuper = (u?: Partial<User> | null) => !!u && ((u.email || '').tri
  * users, logs, HR records) and does not make a partner Managing Partner. */
 export const isManagingPartner = (u?: Partial<User> | null) => !!u && u.role === 'Partner' && isSuper(u);
 /** Role name shown in the design's role dropdown. */
-export const designRole = (u: Partial<User>): string => (isManagingPartner(u) ? 'Managing Partner' : u.role === 'Reviewer' ? 'Reviewer (auditor)' : String(u.role || ''));
+export const designRole = (u: Partial<User>): string => (isManagingPartner(u) ? 'Super Admin' : u.role === 'Reviewer' ? 'Reviewer (auditor)' : String(u.role || ''));
 
 const toBits = (p?: ModulePermissions | null) => (p ? `${p.v ? 1 : 0}${p.a ? 1 : 0}${p.e ? 1 : 0}` : '000');
 export const fromBits = (b: string): ModulePermissions => ({ v: b[0] === '1' ? 1 : 0, a: b[1] === '1' ? 1 : 0, e: b[2] === '1' ? 1 : 0 });
