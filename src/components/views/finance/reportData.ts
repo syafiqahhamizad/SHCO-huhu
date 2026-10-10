@@ -1,5 +1,5 @@
 import type { FinanceCtrl } from './useFinanceController';
-import { glCode, monthEnd, parseDate } from './financeModel';
+import { BUKKU_ADDED, BUKKU_RENAMES, glCode, monthEnd, parseDate } from './financeModel';
 import { periodKey } from '../../../lib/financeCalc';
 import type { Acct, AType, DebtorDoc, InvoiceLine, Posting, ReconItem } from '../../../lib/acctReports';
 
@@ -16,10 +16,10 @@ const nameOf = (acct: string) => String(acct || '').replace(/^\s*[0-9][0-9A-Z-]*
 export function acctsOf(F: FinanceCtrl): Acct[] {
   const { chartOfAccounts, generalLedger } = F.app;
   const E = F.settings.coaEdits || {};
-  const ov = E.overrides || {};
+  const ov: Record<string, { code?: string; name?: string; arch?: boolean }> = { ...BUKKU_RENAMES, ...(E.overrides || {}) };
   const base = new Map<string, { name: string; type: AType }>();
   chartOfAccounts.forEach((c) => base.set(c.code, { name: c.name, type: c.type }));
-  (E.added || []).forEach((a) => { if (!base.has(a.code)) base.set(a.code, { name: a.name, type: a.type }); });
+  [...BUKKU_ADDED, ...(E.added || [])].forEach((a) => { if (!base.has(a.code)) base.set(a.code, { name: a.name, type: a.type }); });
   generalLedger.forEach((g) => [g.debit, g.credit].forEach((s) => {
     const k = glCode(s);
     if (k && !base.has(k)) base.set(k, { name: nameOf(s), type: TYPE_BY_DIGIT[k.charAt(0)] || 'Expense' });

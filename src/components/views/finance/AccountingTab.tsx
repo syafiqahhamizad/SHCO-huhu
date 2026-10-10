@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import type { FinanceCtrl } from './useFinanceController';
-import { css, fd, GLA, glCode, parseDate } from './financeModel';
+import { BUKKU_ADDED, BUKKU_RENAMES, css, fd, GLA, glCode, parseDate } from './financeModel';
 import * as SD from '../../../lib/financeDocs';
 
 type AType = 'Asset' | 'Liability' | 'Equity' | 'Income' | 'Expense';
 const GROUPS: [string, AType][] = [['Assets', 'Asset'], ['Liabilities', 'Liability'], ['Equity', 'Equity'], ['Income', 'Income'], ['Expenses', 'Expense']];
 const typeOfCode = (code: string): AType => ({ '1': 'Asset', '2': 'Liability', '3': 'Equity', '4': 'Income', '5': 'Expense' } as Record<string, AType>)[code.slice(0, 1)] || 'Expense';
-const nameOf = (acct: string) => String(acct || '').replace(/^\s*\d{3,5}\s*-\s*/, '');
+const nameOf = (acct: string) => String(acct || '').replace(/^\s*[0-9][0-9A-Z-]*\s*-\s*/, '');
 const m2 = (n: number) => (n < 0 ? '(' : '') + Math.abs(n).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + (n < 0 ? ')' : '');
 
 /** Accounting — design: the accountant's corner. Chart of accounts with balances from every GL
@@ -14,7 +14,8 @@ const m2 = (n: number) => (n < 0 ? '(' : '') + Math.abs(n).toLocaleString('en-MY
 export const AccountingTab = ({ F }: { F: FinanceCtrl }) => {
   const { generalLedger, chartOfAccounts } = F.app;
   const E = F.settings.coaEdits || {};
-  const ov = E.overrides || {};
+  // The accountant's (Bukku) codes and names, under anything edited here.
+  const ov: Record<string, { code?: string; name?: string; arch?: boolean }> = { ...BUKKU_RENAMES, ...(E.overrides || {}) };
   const [q, setQ] = useState('');
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Record<string, { code?: string; name?: string; arch?: boolean }>>({});
@@ -26,7 +27,7 @@ export const AccountingTab = ({ F }: { F: FinanceCtrl }) => {
   const base = new Map<string, { code: string; name: string; type: AType }>();
   chartOfAccounts.forEach((c) => base.set(c.code, { code: c.code, name: c.name, type: c.type }));
   generalLedger.forEach((g) => [g.debit, g.credit].forEach((a) => { const c = glCode(a); if (c && !base.has(c)) base.set(c, { code: c, name: nameOf(a), type: typeOfCode(c) }); }));
-  [...(E.added || []), ...added].forEach((a) => { if (!base.has(a.code)) base.set(a.code, { ...a }); });
+  [...BUKKU_ADDED, ...(E.added || []), ...added].forEach((a) => { if (!base.has(a.code)) base.set(a.code, { ...a }); });
   const O = editing ? { ...ov, ...draft } : ov;
   const disp = (k: string) => ({ code: O[k]?.code || k, name: O[k]?.name || base.get(k)?.name || k, arch: !!O[k]?.arch });
   /** Balance per code, signed debit + / credit −, up to `to` (and from `from`). */

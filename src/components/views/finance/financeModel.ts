@@ -222,9 +222,77 @@ export const GLA = {
   other: '5900 - Other Expenses',
   suspense: '9990 - Journal Adjustments',
 } as const;
-export const glCode = (s: string) => (String(s || '').match(/^\s*(\d{3,5})/) || [])[1] || '';
+/** Account code at the start of a GL account string: portal codes (1010) and the accountant's
+ * Bukku codes (3500-0000-00, 9A01-0000, 9F04-000). */
+export const glCode = (s: string) => (String(s || '').match(/^\s*([0-9][0-9A-Z]{2,4}(?:-[0-9A-Z]{2,4}){0,2})(?![0-9A-Z-])/) || [])[1] || '';
+
+/* ------------------------------ the accountant's (Bukku) chart of accounts ------------------------------
+ * Portal accounts keep their keys (every past posting still points at them); these give each one the
+ * accountant's code and name. Edits in Accounting → Edit accounts still win over these. */
+export const BUKKU_RENAMES: Record<string, { code: string; name: string }> = {
+  '1010': { code: '3500-0000-00', name: 'HLB Office Account - 36301134253' },
+  '1020': { code: '3500-0000-01', name: 'HLB Client Account - 36301136440' },
+  '1011': { code: '3500-0000-02', name: 'Cash reserve' },
+  '1012': { code: '3500-0000-03', name: 'Sinking fund' },
+  '1013': { code: '3500-0000-04', name: 'Petty cash' },
+  '1014': { code: '3500-0000-05', name: 'Disbursement float' },
+  '1100': { code: '3100-0000', name: 'Trade receivable' },
+  '1200': { code: '3200-0000', name: 'Disbursements recoverable from clients' },
+  '2010': { code: '4100-0000', name: 'Client money held (SAR 1990)' },
+  '2020': { code: '4200-0000', name: 'Referral fees payable' },
+  '2100': { code: '4000-0000', name: 'Trade payable' },
+  '2110': { code: '4300-0000', name: 'Fees received in advance' },
+  '2200': { code: '4400-0000', name: 'SST payable' },
+  '2300': { code: '4500-0000', name: 'EPF / SOCSO / EIS / PCB payable' },
+  '3000': { code: '1000-0000', name: "Owner's Account" },
+  '3100': { code: '1000-0001', name: "Owner's drawings" },
+  '4000': { code: '5000-1000', name: 'Income' },
+  '4100': { code: '5000-2000', name: 'Disbursements recovered' },
+  '5000': { code: '9S01-0000', name: 'Staff salaries and wages' },
+  '5200': { code: '9C02-0000', name: 'Computer & software' },
+  '5900': { code: '9Z01-0000', name: 'Sundry expenses' },
+  '9990': { code: '3900-0000', name: 'Suspense' },
+};
+/** Office expense categories → the accountant's expense accounts (label, code, name). */
+export const BUKKU_EXPENSES: [string, string, string][] = [
+  ['Advertising and marketing', '9A01-0000', 'Advertising and marketing'],
+  ['Bank charges', '9B01-0000', 'Bank charges'],
+  ['Course and seminar', '9C01-0000', 'Course and seminar'],
+  ['Entertainment', '9E01-0000', 'Entertainment'],
+  ['Professional legal fees', '9F02-0000', 'Professional legal fees'],
+  ['Runner fees / delivery fees', '9F03-0000', 'Runner fees / delivery fees'],
+  ['Statutory / regulatory fees', '9F04-000', 'Statutory / regulatory fees'],
+  ['Consulting fees – marketing', '9F05-0000', 'Consulting fees – marketing'],
+  ['Accounting fee', '9F06-0000', 'Accounting fee'],
+  ['Gift, donation & sponsorship', '9G01-0000', 'Gift, donation & sponsorship'],
+  ['Insurance', '9I01-0000', 'Insurance'],
+  ['License and registration fee', '9L01-0000', 'License and registration fee'],
+  ['Printing and stationeries', '9P01-0000', 'Printing and stationeries'],
+  ['Rental', '9R01-0000', 'Rental'],
+  ['Reimbursement Expenses', '9R03-0000', 'Reimbursement Expenses'],
+  ['Utilities', '9U01-0000', 'Utilities'],
+  ['Mileage claims', '9T02-0002', 'Mileage claims'],
+  ['Parking, toll & travel', '9T02-0001', 'Parking, toll & travel'],
+];
+/** Accounts the accountant's chart has that the portal did not (parents for grouping + new ones). */
+export const BUKKU_ADDED: { code: string; name: string; type: 'Asset' | 'Liability' | 'Equity' | 'Income' | 'Expense' }[] = [
+  { code: '1500-0000', name: 'Retained earnings', type: 'Equity' },
+  { code: '3500-0000', name: 'Cash and bank balances', type: 'Asset' },
+  { code: '5000-0000', name: 'Sales Income', type: 'Income' },
+  { code: '9T02-0000', name: 'Travel expense', type: 'Expense' },
+  ...BUKKU_EXPENSES.map(([, code, name]) => ({ code, name, type: 'Expense' as const })),
+];
+const LEGACY_CATS: Record<string, string> = { rent: '9R01-0000', marketing: '9A01-0000', stationery: '9P01-0000', courier: '9F03-0000', utilities: '9U01-0000', travelling: '9T02-0001', mileage: '9T02-0002' };
+/** GL account string for an office expense category (accountant's accounts). */
+const bukkuExpenseGL = (cat: string): string | null => {
+  const c = String(cat || '').trim().toLowerCase();
+  const hit = BUKKU_EXPENSES.find(([label]) => label.toLowerCase() === c) || BUKKU_EXPENSES.find(([, code]) => code === LEGACY_CATS[c]);
+  return hit ? hit[1] + ' - ' + hit[2] : null;
+};
+/** Staff travel claim → mileage or parking / toll / travel. */
+export const travelClaimGL = (type?: string) => (/mileage/i.test(String(type || '')) ? '9T02-0002 - Mileage claims' : '9T02-0001 - Parking, toll & travel');
 export const cashAccountGL = (acc: string) => (acc === 'Client account' ? GLA.clientBank : acc === 'Petty cash' ? GLA.petty : acc === 'Disbursement' ? GLA.disb : GLA.office);
-export const expenseGL = (cat: string) => (isStatutoryCategory(cat) ? GLA.statutory : /salar|payroll|wage/i.test(cat) ? GLA.salaries : /\bit\b|software|subscri/i.test(cat) ? GLA.software : GLA.other);
+export const expenseGL = (cat: string) => (isStatutoryCategory(cat) ? GLA.statutory : /salar|payroll|wage/i.test(cat) ? GLA.salaries : /\bit\b|software|subscri|computer/i.test(cat) ? GLA.software : bukkuExpenseGL(cat) || GLA.other);
 
 /** GL debit for an office payment voucher when it is paid. Disbursements are recoverable from the
  * client (asset 1200, cleared when billed); statutory / SST remittances settle what is owed

@@ -370,7 +370,8 @@ export const DEFAULT_APPROVAL_LIMITS: Required<ApprovalLimits> = {
 };
 
 /** Office expense categories used by Accounts & Finance → Record office expense. */
-export const DEFAULT_EXPENSE_CATEGORIES = ['Utilities', 'Rent', 'IT', 'Marketing', 'Stationery', 'Courier', 'Other'];
+/** Office expense categories = the accountant's (Bukku) expense accounts (see finance/financeModel BUKKU_EXPENSES). */
+export const DEFAULT_EXPENSE_CATEGORIES = ['Advertising and marketing', 'Bank charges', 'Course and seminar', 'Entertainment', 'Professional legal fees', 'Runner fees / delivery fees', 'Statutory / regulatory fees', 'Consulting fees – marketing', 'Accounting fee', 'Gift, donation & sponsorship', 'Insurance', 'License and registration fee', 'Computer & software', 'Printing and stationeries', 'Rental', 'Utilities', 'Reimbursement Expenses', 'Mileage claims', 'Parking, toll & travel', 'Other'];
 /** Claim types offered in My Claims (Staff Portal). */
 export const DEFAULT_CLAIM_TYPES = ['Travelling', 'Disbursement', 'Office'];
 

@@ -24,6 +24,7 @@ import { computeFeeSharing, DEFAULT_RULES, isPartnerType, professionalFeesPart, 
 import { configuredSign, finRule, type FinApprovalId } from '../../../lib/financeApproval';
 import {
   GLA,
+  travelClaimGL,
   MONTHS,
   MON,
   SC,
@@ -641,7 +642,7 @@ export function useFinanceController(initialTab: FinTab) {
     if (proofUploadBlocked()) { toastMsg(DRIVE_REQUIRED_MSG); return; }
     const at = new Date().toISOString(), date = todayIso();
     const [proof] = filesToProofs(item.kind + ':' + item.id, [file]);
-    if (item.kind === 'travel') { const t = travelClaims.find((x) => x.id === item.id); app.updateTravelClaim(item.id, { paidAt: at, paidProof: proof }); postGL([{ date, docType: 'PV', docNo: item.id, accountSet: 'OFFICE', debit: GLA.other, credit: GLA.office, amount: item.amount, clientId: '', fileRef: t?.fileRef || '', description: `Staff claim paid: ${t?.claimant || ''} ${item.id}` }]); }
+    if (item.kind === 'travel') { const t = travelClaims.find((x) => x.id === item.id); app.updateTravelClaim(item.id, { paidAt: at, paidProof: proof }); postGL([{ date, docType: 'PV', docNo: item.id, accountSet: 'OFFICE', debit: travelClaimGL(t?.type), credit: GLA.office, amount: item.amount, clientId: '', fileRef: t?.fileRef || '', description: `Staff claim paid: ${t?.claimant || ''} ${item.id}` }]); }
     else if (item.kind === 'expense') { const e = expenses.find((x) => x.id === item.id); app.updateExpense(item.id, { paidAt: at, paidProof: proof }); postGL([{ date, docType: 'PV', docNo: item.id, accountSet: 'OFFICE', debit: expenseDebitGL(e), credit: GLA.office, amount: item.amount, clientId: '', fileRef: e?.fileRef || '', description: `Staff claim paid: ${e?.claimant || ''} ${item.id}` }]); }
     else {
       const v = paymentVouchers.find((x) => x.id === item.id);
