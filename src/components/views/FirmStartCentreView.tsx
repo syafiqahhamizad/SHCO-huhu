@@ -148,7 +148,7 @@ const QUICK_LINK_GROUPS: QuickLinkGroup[] = [
   ] },
 ];
 
-// Literal hex here (not the shared TONE.* tokens) — design/shco-portal-redesign gives this
+// Literal hex here (not the shared TONE.* tokens) — the Sep 2026 redesign pack gives this
 // quick-launch grid its own distinct per-tile palette, unrelated to TONE's semantic colors
 // (TONE.forest/slate/ink etc. mean something different elsewhere in this file).
 const SMALL_TILES: LauncherTile[] = [

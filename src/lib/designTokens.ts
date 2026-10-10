@@ -1,6 +1,6 @@
 /**
  * Shared palette for the SHCO portal redesign (dashboards, accounting, billing,
- * matter workspace). Source of truth: design/shco-portal-redesign README's
+ * matter workspace). Source: the Sep 2026 redesign pack README's
  * "Design tokens" section. Import instead of re-declaring a local TONE object.
  */
 export const palette = {
