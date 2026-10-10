@@ -103,7 +103,7 @@ Tips: record each video in one take, since a small mistake is fine. If a page sh
 
 | Show | Say |
 |---|---|
-| Click **My Account**; switch Light / Dark | "My Account shows your details. You can switch to dark mode here." |
+| Click **My Account** | "My Account shows your name, sign-in e-mail and role." |
 | Click refresh | "Something looks wrong? Press refresh first." |
 | Open the Recycle Bin; click Restore Record | "Deleted by mistake? Restore it from the Recycle Bin." |
 | Take a screenshot with Cmd+Shift+4 | "Still stuck? Take a screenshot and send it to the admin with the file number." |

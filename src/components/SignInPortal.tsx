@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { requestPasswordReset } from '../services/accountEmailService';
 import { useApp } from '../context/AppContext';
 import {
   ShieldCheck,
@@ -29,6 +30,7 @@ export const SignInPortal: React.FC = () => {
   const [clientPassword, setClientPassword] = useState('');
   const [clientError, setClientError] = useState<string | null>(null);
   const [externalEmail, setExternalEmail] = useState('');
+  const [resetNote, setResetNote] = useState('');
   const [externalPassword, setExternalPassword] = useState('');
   const [externalError, setExternalError] = useState<string | null>(null);
 
@@ -338,6 +340,19 @@ export const SignInPortal: React.FC = () => {
                       <Users className="w-4 h-4" />
                       <span>Sign In as External User</span>
                     </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const em = (externalEmail || window.prompt('Your e-mail address') || '').trim();
+                        if (!em || !em.includes('@')) return;
+                        try { await requestPasswordReset(em); } catch { /* same answer either way */ }
+                        setResetNote('If ' + em + ' has a portal sign-in, a link to set a new password is on its way from the SHCO Portal mailbox. Check Spam too.');
+                      }}
+                      className="w-full text-center text-[11px] font-bold text-[#C9A46B] hover:underline cursor-pointer bg-transparent border-0"
+                    >
+                      Forgot password?
+                    </button>
+                    {resetNote && <p className="text-[11px] leading-snug text-slate-300 m-0">{resetNote}</p>}
                   </form>
                 </div>
               )}

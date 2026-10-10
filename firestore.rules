@@ -271,6 +271,28 @@ service cloud.firestore {
       allow list, update, delete: if false;
     }
 
+    // Sign-in e-mails (functions-mail sendAccountEmail), sent from the portal mailbox:
+    // an admin asks for a welcome e-mail with the sign-in details; anyone may ask for a password
+    // reset from the sign-in page (the function only answers people on the access list, at most
+    // every 10 minutes). Nobody reads them back except admins following delivery.
+    match /accountEmails/{id} {
+      allow create: if (
+          request.resource.data.get('kind', '') == 'invite' && isAdminOrOwner() &&
+          request.resource.data.keys().hasOnly(['kind', 'email', 'name', 'role', 'createdBy', 'createdAt']) &&
+          request.resource.data.email is string && request.resource.data.email.size() <= 200 &&
+          request.resource.data.get('name', '') is string && request.resource.data.get('name', '').size() <= 100 &&
+          request.resource.data.get('role', '') is string && request.resource.data.get('role', '').size() <= 30 &&
+          request.resource.data.createdAt == request.time
+        ) || (
+          request.resource.data.get('kind', '') == 'reset' &&
+          request.resource.data.keys().hasOnly(['kind', 'email', 'createdAt']) &&
+          request.resource.data.email is string && request.resource.data.email.size() <= 200 &&
+          request.resource.data.createdAt == request.time
+        );
+      allow get: if isAdminOrOwner();
+      allow list, update, delete: if false;
+    }
+
     // E-mail settings for the mail sender (functions-mail). Only the owner sets them; the App
     // password can be written but never read back by anyone in the app (the function reads it
     // with server access).

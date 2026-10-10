@@ -3,12 +3,13 @@ import { useApp } from '../../../context/AppContext';
 import type { Role, StaffProfile, User } from '../../../types';
 import { partnerCode } from '../../../lib/identity';
 import { describeProvisionedAccount, isGoogleWorkspaceEmail, provisionFirebaseUser } from '../../../services/firebaseAuthService';
+import { queueAccountInvite, watchAccountEmail } from '../../../services/accountEmailService';
 import { DEFAULT_BRANCHES } from '../../../services/templateService';
 import { css, S, Txt, type SettingsCtx } from './settingsShared';
 import { designRole, isManagingPartner, isSuper, personChanges, SUPER_EMAIL } from './permissionModel';
 
 const PC = ['#16223A', '#3D6B9C', '#6B3D8C', '#2E7D7A', '#8A6534', '#5E6F2F', '#8C2F4C'];
-const GRID = 'display:grid;grid-template-columns:minmax(0,1.5fr) 150px 110px 100px 128px 120px 84px 100px 176px;gap:10px;';
+const GRID = 'display:grid;grid-template-columns:minmax(0,1.5fr) 150px 110px 100px 128px 120px 84px 100px 250px;gap:10px;';
 const SEL = 'border:1px solid #DDE3EB;border-radius:6px;padding:5px 6px;font-size:11px;color:#16223A;background:#fff';
 
 const initials = (name: string) => name.split(' ').filter((w) => w && !/^(binti|bin|a\/l)$/i.test(w)).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
@@ -126,6 +127,7 @@ export const UsersTab = ({ C }: { C: SettingsCtx }) => {
             <span style={css('font-size:10.5px;color:#5B6478')}>{lastLoginLabel(u.lastLoginAt)}</span>
             <span style={css('justify-self:end;display:flex;gap:4px')}>
               {!on && u.email !== SUPER_EMAIL && <button type="button" onClick={() => { if (window.confirm(`Remove user ${u.name} from this system?`) && deleteUser(u.id)) C.msg(u.name + ' removed'); }} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:4px 8px;font-size:10px;font-weight:700;background:#fff;color:#B23A2E;cursor:pointer;font-family:inherit')}>Remove</button>}
+              {on && !isGoogleWorkspaceEmail(u.email) && canAdmin && <button type="button" title="E-mail them the portal link, a new temporary password and a button to set their own" onClick={() => { if (!window.confirm('Send ' + u.email + ' a new sign-in e-mail? Their old password stops working.')) return; void queueAccountInvite({ email: u.email, name: u.name, role: u.role, createdBy: currentUser?.email || '' }).then((id) => { C.msg('Sending ' + u.email + ' a sign-in e-mail…'); C.log('Sign-in E-mail Sent', u.name + ' (' + u.email + ')'); const stop = watchAccountEmail(id, (st, err) => { if (st === 'SUCCESS') { stop(); C.msg('Sign-in e-mail sent to ' + u.email); } if (st === 'ERROR') { stop(); C.msg('Not sent: ' + (err || 'unknown error')); } }); setTimeout(stop, 120000); }).catch(() => C.msg('Only an admin can send sign-in e-mails.')); }} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:4px 8px;font-size:10px;font-weight:700;background:#fff;color:#2F5680;cursor:pointer;font-family:inherit;white-space:nowrap')}>Resend sign-in</button>}
               <button type="button" onClick={() => toggleActive(u)} style={css(`border:1px solid #DDE3EB;border-radius:6px;padding:4px 8px;font-size:10px;font-weight:700;background:#fff;color:${on ? '#B23A2E' : '#2F6F4E'};cursor:pointer;font-family:inherit;white-space:nowrap`)}>{on ? 'Switch off' : 'Reactivate'}</button>
             </span>
           </div>
@@ -185,7 +187,7 @@ const HINT = 'font-size:10px;color:#94A3B8';
 
 /** "+ Add person": same rules as the old Users & Permissions → Add New User form. */
 const AddPersonModal = ({ C, roles, branches, hq, onClose }: { C: SettingsCtx; roles: string[]; branches: string[]; hq: string; onClose: () => void }) => {
-  const { users = [], addUser, showToast } = useApp();
+  const { users = [], addUser, showToast, currentUser } = useApp();
   const [name, setName] = useState('');
   const [fullName, setFullName] = useState('');
   const [code, setCode] = useState('');
@@ -220,9 +222,12 @@ const AddPersonModal = ({ C, roles, branches, hq, onClose }: { C: SettingsCtx; r
     setErr('');
     setBusy(true);
     try {
-      const provisioned = await provisionFirebaseUser({ name: name.trim(), email: em, role, isAdmin: admin, isSuperAdmin: sup });
+      // @shcolaw.com staff sign in with Google. Anyone else gets ONE e-mail from the portal
+      // mailbox with the portal link, a temporary password and a "set my own password" button.
+      const google = isGoogleWorkspaceEmail(em);
+      const provisioned = google ? await provisionFirebaseUser({ name: name.trim(), email: em, role, isAdmin: admin, isSuperAdmin: sup }) : null;
       const newUser: User = {
-        id: provisioned.id,
+        id: provisioned?.id || 'U-' + Date.now().toString(36),
         name: name.trim(),
         email: em,
         role,
@@ -235,7 +240,14 @@ const AddPersonModal = ({ C, roles, branches, hq, onClose }: { C: SettingsCtx; r
       if (addUser(newUser)) {
         C.log('User Added', `${newUser.name} (${newUser.email}) · ${roleV}${c ? ' · ' + c : ''}`);
         onClose();
-        window.alert(describeProvisionedAccount(provisioned));
+        if (provisioned) { window.alert(describeProvisionedAccount(provisioned)); return; }
+        const inviteId = await queueAccountInvite({ email: em, name: name.trim(), role, createdBy: currentUser?.email || '' });
+        showToast('Sending ' + em + ' their sign-in e-mail…');
+        const stop = watchAccountEmail(inviteId, (state, error) => {
+          if (state === 'SUCCESS') { stop(); showToast('Sign-in e-mail sent to ' + em + ' (portal link, temporary password and a button to set their own).'); }
+          if (state === 'ERROR') { stop(); window.alert('The sign-in e-mail to ' + em + ' could not be sent: ' + (error || 'unknown error') + '\n\nThey are added; fix the e-mail settings (Settings → Notification e-mails) and use "Resend sign-in e-mail".'); }
+        });
+        setTimeout(stop, 120000);
       }
     } catch (error) {
       fail(error instanceof Error ? error.message : 'Unable to create the Firebase user account.');

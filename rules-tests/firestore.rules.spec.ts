@@ -263,6 +263,24 @@ describe('after the split', () => {
   it('nobody can delete the split marker', () => assertFails(deleteDoc(doc(as(OWNER), 'firm', 'main'))));
 });
 
+describe('sign-in e-mails', () => {
+  const invite = (extra: Record<string, unknown> = {}) => ({ kind: 'invite', email: 'auditor.new@example.com', name: 'New Auditor', role: 'Reviewer', createdBy: 'x', createdAt: serverTimestamp(), ...extra });
+  it('only admins ask for a welcome e-mail; staff cannot', async () => {
+    await assertSucceeds(setDoc(doc(as(OWNER), 'accountEmails', 'i1'), invite()));
+    await assertSucceeds(setDoc(doc(as(people.assistantAdmin.email), 'accountEmails', 'i2'), invite()));
+    await assertFails(setDoc(doc(as(people.lawyer.email), 'accountEmails', 'i3'), invite()));
+    await assertFails(setDoc(doc(as(OWNER), 'accountEmails', 'i4'), invite({ password: 'x' })));
+  });
+  it('anyone may ask for a password reset, with nothing else in it; nobody but admins reads them', async () => {
+    const anon = env.unauthenticatedContext().firestore();
+    await assertSucceeds(setDoc(doc(anon, 'accountEmails', 'r1'), { kind: 'reset', email: 'auditor@shcolaw.com', createdAt: serverTimestamp() }));
+    await assertFails(setDoc(doc(anon, 'accountEmails', 'r2'), { kind: 'reset', email: 'a@b.com', createdAt: serverTimestamp(), name: 'x' }));
+    await assertFails(setDoc(doc(anon, 'accountEmails', 'r3'), { kind: 'invite', email: 'a@b.com', name: '', role: '', createdBy: '', createdAt: serverTimestamp() }));
+    await assertFails(getDoc(doc(as(people.lawyer.email), 'accountEmails', 'r1')));
+    await assertSucceeds(getDoc(doc(as(OWNER), 'accountEmails', 'r1')));
+  });
+});
+
 describe('mail queue', () => {
   it('staff may queue mail to one firm address only', async () => {
     const db = as(people.lawyer.email);

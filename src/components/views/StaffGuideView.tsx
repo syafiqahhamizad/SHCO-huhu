@@ -54,7 +54,7 @@ const SECTIONS: Section[] = [
     ],
     cases: [
       ['Clients', 'They use the *Client Access* tab with their registered e-mail (or Client ID) and the password the firm sent them. They only see their own files and bills. You invite them from the client’s profile (Clients → Client Portal).'],
-      ['Outside people (e.g. the auditor)', 'They use *External Access* with the e-mail and password the admin created. The first time, they must click the link in the verification e-mail before signing in.'],
+      ['Outside people (e.g. the auditor)', 'They get one e-mail from the SHCO Portal with the portal link, a temporary password and a *Set my own password* button. They sign in on *External Access*. Forgot it? *Forgot password?* under the sign-in button.'],
       ['New computer or phone', 'Same steps. Sign out on the old one if you no longer use it.'],
     ],
     stuck: [
@@ -246,7 +246,7 @@ const SECTIONS: Section[] = [
     what: 'Where to see your account, change how the portal looks, and what to do when something goes wrong.',
     who: 'Everyone.',
     steps: [
-      { t: '*My Account* (bottom of the left menu, System) shows your name, e-mail and role. Under *Appearance* choose *Light*, *Dark* or *System* (follows your computer).' },
+      { t: '*My Account* (bottom of the left menu, System) shows your name, sign-in e-mail and role.' },
       { t: 'Something looks wrong or old? First press the round-arrows *refresh* button at the top. Still wrong? Close the tab and open portal.shcolaw.com again.' },
       { t: 'Deleted something by mistake? Click the box button (*Recycle Bin*) at the top, find it, click [[Restore Record]].' },
       { t: 'Still stuck? Take a screenshot (Mac: Cmd+Shift+4, Windows: Win+Shift+S) and send it to an admin with the file number and what you clicked.', sub: ['A missing menu or button is usually access: an admin can change it in Firm & Practice Settings → Permissions & limits.'] },
@@ -543,7 +543,7 @@ const SECTIONS: Section[] = [
     who: 'Admins add and edit people. Only the Super Admin can make someone an admin, switch someone off, or decide *Billing & money*.',
     steps: [
       { t: 'Open *Firm & Practice Settings* → *Users & Roles*. The line *Access list:* shows whether the sign-in list is published (it must say *published ✓* for changes to take effect).' },
-      { t: 'Add someone: [[+ Add person]] → *Display name*, *Full name (as per IC)*, *User code* (2–4 letters, unique, used in file numbers), *Email*, *Role*, *Branch*, and *Admin* (Super Admin only) → save.', sub: ['@shcolaw.com staff sign in with Google — no password is made. An outside e-mail gets a password and a verification e-mail they must click first.', 'A staff record with the next Staff ID is made; they appear in Staff Portal, Payroll and the referrer list.'] },
+      { t: 'Add someone: [[+ Add person]] → *Display name*, *Full name (as per IC)*, *User code* (2–4 letters, unique, used in file numbers), *Email*, *Role*, *Branch*, and *Admin* (Super Admin only) → save.', sub: ['@shcolaw.com staff sign in with Google — no password is made. An outside e-mail (auditor, consultant…) gets ONE e-mail from the SHCO Portal with the portal link, a temporary password and a *Set my own password* button. Nobody in the firm sees the password. [[Resend sign-in]] on their row sends a fresh one.', 'A staff record with the next Staff ID is made; they appear in Staff Portal, Payroll and the referrer list.'] },
       { t: 'On each row you can change: the *Role* (Partner, Lawyer, Assistant, Accountant, Reviewer (auditor)), the *Branch*, *Admin* (click to switch), and the user code (click it).' },
       { t: '*Billing & money* (Super Admin only): *By role* (partners and Accounts see & edit, the reviewer sees, everyone else nothing), or for this one person *No*, *See only* or *See & edit*. This decides who sees quotations, invoices, receipts, the client account, claims and amounts — the database enforces it.' },
       { t: '[[Check access]] opens that person’s own permissions (next topic). *2-step login* is a record; the actual 2-step is set in Google Workspace.' },

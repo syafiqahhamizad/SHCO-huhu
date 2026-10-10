@@ -12,6 +12,8 @@
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { getAuth } = require('firebase-admin/auth');
+const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 
 initializeApp();
@@ -27,6 +29,16 @@ function explain(err) {
   }
   if (/ETIMEDOUT|ECONNECTION|ENOTFOUND/i.test(msg)) return 'Could not reach smtp.gmail.com. It will work on the next message; if it keeps happening, tell your developer.';
   return msg.slice(0, 500);
+}
+
+/** SMTP transport + From address from Settings → Notification e-mails. */
+async function smtp() {
+  const [cfgSnap, secretSnap] = await Promise.all([db.doc('privateConfig/mail').get(), db.doc('privateConfig/mailSecret').get()]);
+  const cfg = cfgSnap.exists ? cfgSnap.data() : {};
+  const pass = secretSnap.exists ? String(secretSnap.get('smtpPass') || '') : '';
+  const user = String(cfg.smtpUser || '').trim();
+  if (!user || !pass) throw new Error('E-mail is not set up yet: add the sending account and App password in Settings → Notification e-mails.');
+  return { transport: nodemailer.createTransport({ host: 'smtp.gmail.com', port: 465, secure: true, auth: { user, pass } }), from: cfg.from || `SHCO Portal <${user}>`, replyTo: cfg.replyTo || undefined };
 }
 
 exports.sendQueuedMail = onDocumentCreated(
@@ -51,16 +63,10 @@ exports.sendQueuedMail = onDocumentCreated(
       if (!FIRM_ADDRESS.test(to)) throw new Error('Only @shcolaw.com addresses receive portal e-mails.');
       const message = m.message || {};
 
-      const [cfgSnap, secretSnap] = await Promise.all([db.doc('privateConfig/mail').get(), db.doc('privateConfig/mailSecret').get()]);
-      const cfg = cfgSnap.exists ? cfgSnap.data() : {};
-      const pass = secretSnap.exists ? String(secretSnap.get('smtpPass') || '') : '';
-      const user = String(cfg.smtpUser || '').trim();
-      if (!user || !pass) throw new Error('E-mail is not set up yet: add the sending account and App password in Settings → Notification e-mails.');
-
-      const transport = nodemailer.createTransport({ host: 'smtp.gmail.com', port: 465, secure: true, auth: { user, pass } });
+      const { transport, from, replyTo } = await smtp();
       const info = await transport.sendMail({
-        from: cfg.from || `SHCO Portal <${user}>`,
-        replyTo: cfg.replyTo || undefined,
+        from,
+        replyTo,
         to,
         subject: String(message.subject || '[SHCO Portal]').slice(0, 200),
         text: String(message.text || ''),
@@ -74,6 +80,106 @@ exports.sendQueuedMail = onDocumentCreated(
     } catch (err) {
       console.error('Mail not sent', ref.id, err);
       await ref.update({ 'delivery.state': 'ERROR', 'delivery.error': explain(err), 'delivery.endTime': FieldValue.serverTimestamp() });
+    }
+  },
+);
+
+/* ------------------------------------------------------------------ sign-in e-mails */
+
+const PORTAL = 'https://portal.shcolaw.com';
+const accessKey = (email) => email.toLowerCase().replace(/\./g, ',');
+const esc = (t) => String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+/** 14-character temporary password with upper, lower, digit and symbol. */
+function tempPassword() {
+  const sets = ['ABCDEFGHJKLMNPQRSTUVWXYZ', 'abcdefghijkmnpqrstuvwxyz', '23456789', '!@#$%*?'];
+  const all = sets.join('');
+  const pick = (chars) => chars[crypto.randomInt(chars.length)];
+  const out = sets.map(pick);
+  while (out.length < 14) out.push(pick(all));
+  for (let i = out.length - 1; i > 0; i--) { const j = crypto.randomInt(i + 1); [out[i], out[j]] = [out[j], out[i]]; }
+  return out.join('');
+}
+const shell = (title, body) => `<div style="font-family:Arial,Helvetica,sans-serif;color:#16223A;max-width:560px;margin:0 auto;padding:24px 8px">
+<div style="font-size:12px;font-weight:700;letter-spacing:.12em;color:#8A6D3B;text-transform:uppercase">Syafiqah Hamizad &amp; Co</div>
+<h1 style="font-family:Georgia,serif;font-size:22px;margin:6px 0 16px">${esc(title)}</h1>${body}
+<p style="font-size:12px;color:#5B6478;margin-top:28px;border-top:1px solid #DDE3EB;padding-top:12px">This is an automatic message from the SHCO Portal. Please do not reply to it.</p></div>`;
+const button = (href, label) => `<p style="margin:20px 0"><a href="${href}" style="background:#16223A;color:#fff;text-decoration:none;font-weight:700;padding:11px 20px;border-radius:8px;display:inline-block">${esc(label)}</a></p>`;
+
+/**
+ * Sign-in e-mails, sent from the portal mailbox (Settings → Notification e-mails) — never from
+ * Firebase's own noreply address. `accountEmails/{id}`:
+ *   { kind: 'invite', email, name, role }  added by an admin in Users & Roles: creates the sign-in
+ *       (e-mail already confirmed, since only this inbox gets the password), sets a temporary
+ *       password and sends ONE e-mail with the portal link, the password and a "set my own
+ *       password" button;
+ *   { kind: 'reset', email }  "Forgot password?" on the sign-in page: sends a reset link, only to
+ *       people on the access list, at most once every 10 minutes.
+ */
+exports.sendAccountEmail = onDocumentCreated(
+  { document: 'accountEmails/{id}', region: process.env.MAIL_REGION || 'asia-southeast1', retry: false, timeoutSeconds: 60, maxInstances: 3 },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const ref = snap.ref;
+    const m = snap.data() || {};
+    const email = String(m.email || '').trim().toLowerCase();
+    const done = (state, extra = {}) => ref.update({ 'delivery.state': state, 'delivery.endTime': FieldValue.serverTimestamp(), ...extra });
+    // Claim it once: a re-delivered event must not send (or reset a password) twice.
+    const claimed = await db.runTransaction(async (tx) => {
+      const cur = await tx.get(ref);
+      if (!cur.exists || cur.get('delivery.state')) return false;
+      tx.update(ref, { delivery: { state: 'PROCESSING', startTime: FieldValue.serverTimestamp() } });
+      return true;
+    });
+    if (!claimed) return;
+    try {
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('Not an e-mail address.');
+      if (FIRM_ADDRESS.test(email)) throw new Error('@shcolaw.com staff sign in with Google; no password is needed.');
+      const access = await db.doc('practiceSystem/access').get();
+      const listed = access.exists ? (access.get('users') || {})[accessKey(email)] : null;
+      const auth = getAuth();
+      const actionSettings = { url: PORTAL };
+      const { transport, from, replyTo } = await smtp();
+
+      if (m.kind === 'invite') {
+        const pwd = tempPassword();
+        let user;
+        try { user = await auth.getUserByEmail(email); } catch (e) { user = null; }
+        if (user) await auth.updateUser(user.uid, { password: pwd, emailVerified: true, disabled: false });
+        else user = await auth.createUser({ email, password: pwd, emailVerified: true, displayName: String(m.name || '').slice(0, 100) || undefined });
+        const link = await auth.generatePasswordResetLink(email, actionSettings);
+        const tab = String(m.role || '').toLowerCase() === 'client' ? 'Client Access' : 'External Access';
+        const html = shell('Your SHCO Portal sign-in', `<p>Dear ${esc(m.name || '')},</p>
+<p>You have been given access to the Syafiqah Hamizad &amp; Co portal.</p>
+<table style="border-collapse:collapse;font-size:14px;margin:12px 0">
+<tr><td style="padding:4px 14px 4px 0;color:#5B6478">Portal</td><td><a href="${PORTAL}">portal.shcolaw.com</a></td></tr>
+<tr><td style="padding:4px 14px 4px 0;color:#5B6478">Sign in on the tab</td><td><b>${tab}</b></td></tr>
+<tr><td style="padding:4px 14px 4px 0;color:#5B6478">E-mail</td><td>${esc(email)}</td></tr>
+<tr><td style="padding:4px 14px 4px 0;color:#5B6478">Temporary password</td><td style="font-family:monospace;font-size:15px"><b>${esc(pwd)}</b></td></tr></table>
+<p>For your security, please set your own password now:</p>${button(link, 'Set my own password')}
+<p style="font-size:13px;color:#5B6478">This button works for one hour. After that, sign in with the temporary password, or use <b>Forgot password?</b> on the sign-in page to get a new link.</p>`);
+        const info = await transport.sendMail({ from, replyTo, to: email, subject: 'Your SHCO Portal sign-in', html, text: `You have been given access to the SHCO Portal.\nPortal: ${PORTAL}\nSign in on the tab: ${tab}\nE-mail: ${email}\nTemporary password: ${pwd}\nSet your own password: ${link}` });
+        await done('SUCCESS', { 'delivery.info': { messageId: info.messageId || '', uid: user.uid } });
+        return;
+      }
+
+      if (m.kind === 'reset') {
+        // Only people with access, and not more often than every 10 minutes (no hint either way).
+        if (!listed || listed.active !== true) { await done('SKIPPED'); return; }
+        const logRef = db.doc('privateConfig/resetLog');
+        const last = (await logRef.get()).get(accessKey(email));
+        if (last && Date.now() - Number(last) < 10 * 60 * 1000) { await done('SKIPPED'); return; }
+        await logRef.set({ [accessKey(email)]: Date.now() }, { merge: true });
+        const link = await auth.generatePasswordResetLink(email, actionSettings);
+        const html = shell('Reset your SHCO Portal password', `<p>Someone (hopefully you) asked to reset the password for <b>${esc(email)}</b>.</p>${button(link, 'Set a new password')}<p style="font-size:13px;color:#5B6478">This button works for one hour. If you did not ask for this, ignore this e-mail; your password stays the same.</p>`);
+        await transport.sendMail({ from, replyTo, to: email, subject: 'Reset your SHCO Portal password', html, text: `Set a new password for ${email}: ${link}` });
+        await done('SUCCESS');
+        return;
+      }
+      throw new Error('Unknown e-mail kind.');
+    } catch (err) {
+      console.error('Account e-mail not sent', ref.id, err);
+      await done('ERROR', { 'delivery.error': explain(err) });
     }
   },
 );
