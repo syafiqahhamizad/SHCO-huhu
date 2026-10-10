@@ -69,3 +69,15 @@ describe('old starter tasks and task copies', () => {
     expect(withoutTaskCopies([{ id: 'DL-TASK-T1' }, { id: 'DL-001' }]).map((d) => d.id)).toEqual(['DL-001']);
   });
 });
+
+describe('starter tasks moved back and forth on the board', () => {
+  it('a leftover "finished on" date does not keep a starter task that is open again', async () => {
+    const { withoutStarterTasks } = await import('./legacyCleanup');
+    const c = { id: 'C2', tasks: [
+      { id: 'TASK-TEMPLATE-1757-0', title: 'Confirm client instructions and opening documents', status: 'Not Started', completedAt: '2025-05-01T00:00:00Z', priority: 'High', dueDate: '2025-04-20', assignedTo: '', taskType: 'Standard' },
+      { id: 'TASK-TEMPLATE-1757-1', title: 'Renamed starter', status: 'In Progress', priority: 'High', dueDate: '2025-04-20', assignedTo: '', taskType: 'Standard' },
+      { id: 'T-9', title: 'Draft defence', status: 'Not Started', priority: 'High', dueDate: '2025-04-20', assignedTo: '', taskType: 'Standard' },
+    ] } as unknown as import('../types').Case;
+    expect(withoutStarterTasks([c])[0].tasks.map((x) => x.id)).toEqual(['T-9']);
+  });
+});

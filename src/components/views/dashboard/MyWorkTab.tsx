@@ -546,11 +546,16 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
         },
       });
     });
+    // A quotation is decided by the partner in charge of its file only (and only with billing
+    // access). One not linked to a file yet (e.g. for a new client) goes to the Super Admin.
+    const superAdmin = String(currentUser?.email || '').toLowerCase() === 'syafiqahhamizad@shcolaw.com' || !!currentUser?.isSuperAdmin;
     (quotations || []).forEach((qq: any) => {
-      if (qq.approvalStatus !== 'Pending') return;
+      if (qq.approvalStatus !== 'Pending' || !seeBilling) return;
+      const file = (cases || []).find((c: Case) => (qq.caseId && (c.id === qq.caseId || c.ref === qq.caseId)) || (qq.fileRef && c.ref === qq.fileRef));
+      if (file ? !mine(file.partners) : !superAdmin) return;
       out.push({
         id: `dec-quote-${qq.id}`,
-        title: `Fee quote · RM ${Number(qq.total || 0).toLocaleString()}`,
+        title: `Fee quote · RM ${Number(qq.total || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
         sub: `${qq.clientName || 'Client'}${qq.practiceArea ? ` · ${qq.practiceArea}` : ''}`,
         icon: Scale,
         tint: '#E7EEF6',
@@ -562,7 +567,7 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
       });
     });
     return out;
-  }, [isPartner, leaveApplications, quotations, users, currentUser, todayStr]);
+  }, [isPartner, leaveApplications, quotations, users, currentUser, todayStr, cases, seeBilling, me]);
 
   const decide = (d: DecisionItem, yes: boolean) => {
     setDecided((m) => ({ ...m, [d.id]: { item: d, yes } }));

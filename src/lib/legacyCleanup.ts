@@ -19,14 +19,17 @@ const OLD_STARTER_TASKS = new Set([
   'Review limitation dates and filing deadlines',
 ]);
 
-/** Drops the auto-made starter tasks. Only one someone wrote notes on, attached to or finished is kept
- * (moving it between columns on the Case Status board does not count as work). */
+/** Drops the auto-made starter tasks (ids TASK-TEMPLATE-…, or their known titles). Only one someone
+ * wrote notes on, attached to, or that is Completed now is kept — moving it on the board is not work. */
 export const withoutStarterTasks = (cases: Case[]): Case[] =>
   cases.map((c) => {
     const tasks = c.tasks || [];
+    // A "finished on" date can be left behind by the board after moving a task back, so only
+    // notes, attachments or being Completed right now count as real work.
     const worked = (t: (typeof tasks)[number]) =>
-      !!String(t.notes || '').trim() || !!t.completedAt || ['Completed', 'Done'].includes(t.status) || (t.attachments || []).length > 0 || (t.checklist || []).some((x) => x.completed);
-    const kept = tasks.filter((t) => !(OLD_STARTER_TASKS.has(t.title) && !worked(t)));
+      !!String(t.notes || '').trim() || ['Completed', 'Done'].includes(t.status) || (t.attachments || []).length > 0;
+    const starter = (t: (typeof tasks)[number]) => String(t.id || '').startsWith('TASK-TEMPLATE-') || OLD_STARTER_TASKS.has(String(t.title || '').trim());
+    const kept = tasks.filter((t) => !(starter(t) && !worked(t)));
     return kept.length === tasks.length ? c : { ...c, tasks: kept };
   });
 
