@@ -19,15 +19,23 @@ const OLD_STARTER_TASKS = new Set([
   'Review limitation dates and filing deadlines',
 ]);
 
-/** Drops untouched auto-made starter tasks; a task someone started, noted or synced is kept. */
+/** Drops the auto-made starter tasks. Only one someone wrote notes on, attached to or finished is kept
+ * (moving it between columns on the Case Status board does not count as work). */
 export const withoutStarterTasks = (cases: Case[]): Case[] =>
   cases.map((c) => {
     const tasks = c.tasks || [];
-    const kept = tasks.filter(
-      (t) => !(OLD_STARTER_TASKS.has(t.title) && t.status === 'Not Started' && !t.notes && !t.googleTasksSynced && !t.completedAt)
-    );
+    const worked = (t: (typeof tasks)[number]) =>
+      !!String(t.notes || '').trim() || !!t.completedAt || ['Completed', 'Done'].includes(t.status) || (t.attachments || []).length > 0 || (t.checklist || []).some((x) => x.completed);
+    const kept = tasks.filter((t) => !(OLD_STARTER_TASKS.has(t.title) && !worked(t)));
     return kept.length === tasks.length ? c : { ...c, tasks: kept };
   });
+
+/**
+ * The Case Status board used to copy each task into the Deadlines list as "Task Due: …"
+ * (id DL-TASK-<task id>), so the same task showed twice in My work. The task itself stays;
+ * the copies go.
+ */
+export const withoutTaskCopies = <T extends { id?: unknown }>(deadlines: T[]): T[] => deadlines.filter((d) => !String(d.id || '').startsWith('DL-TASK-'));
 
 /**
  * Courtesy salutations are not used in client names (firm rule): Mr, Mrs, Ms, Miss, Mdm, Madam,

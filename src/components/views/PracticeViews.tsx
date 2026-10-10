@@ -387,7 +387,7 @@ interface ActionHistoryLog {
 }
 
 export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCaseId }) => {
-  const { cases, users, currentUser, currentPartnerCode, isAdmin, updateCase, setCurrentCaseId, setCurrentView, setCaseSubTab, showToast, addNotification, addDeadline, addCaseActivityLog } = useApp();
+  const { cases, users, currentUser, currentRole, currentPartnerCode, isAdmin, updateCase, setCurrentCaseId, setCurrentView, setCaseSubTab, showToast, addNotification, addCaseActivityLog } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [selectedLawyer, setSelectedLawyer] = useState<string>('ALL');
@@ -588,7 +588,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
           ...t,
           status: newStatus as any,
           completedAt: newStatus === 'Completed' ? new Date().toISOString() : t.completedAt,
-          lastUpdatedBy: 'Syafiqah Hamizad (Partner)',
+          lastUpdatedBy: (currentUser?.name || 'Staff') + ' (' + (currentRole || 'Staff') + ')',
           lastUpdatedAt: new Date().toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' }),
         };
       }
@@ -597,20 +597,6 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
 
     updateCase(targetCaseId, { tasks: updatedTasks });
 
-    // Keep the linked calendar deadline entry in step with the task's status
-    addDeadline({
-      id: `DL-TASK-${taskId}`,
-      caseId: targetCaseId,
-      title: `Task Due: ${currentTask.title}`,
-      type: 'Filing',
-      dueDate: currentTask.dueDate,
-      priority: currentTask.priority === 'High' ? 'High' : currentTask.priority === 'Low' ? 'Low' : 'Normal',
-      status: newStatus === 'Completed' ? 'Completed' : newStatus === 'In Review' ? 'In Review' : 'In Progress',
-      reminderDays: 3,
-      notes: currentTask.description || 'Auto-synced from Matter Task due date',
-      partner: getPartnerInChargeFromRef(cs.ref || '') || cs.lawyerInCharge || '',
-      lawyer: currentTask.assignedTo || '',
-    });
 
     if (newStatus === 'In Review' && currentTask.reviewer) {
       currentTask.reviewer.split(',').map((name) => name.trim()).filter(Boolean).forEach((reviewerName) => {
@@ -640,7 +626,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
       caseTitle: cs.title,
       fromStatus: oldStatus,
       toStatus: newStatus,
-      updatedBy: 'Syafiqah Hamizad (Partner)',
+      updatedBy: (currentUser?.name || 'Staff') + ' (' + (currentRole || 'Staff') + ')',
     };
 
     setActionHistoryLogs((prev) => [newLog, ...prev]);
@@ -759,20 +745,6 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
       : [...(targetCase.tasks || []), createdTask];
     updateCase(targetCaseId, { tasks: updatedTasks });
 
-    // Sync task deadline to the firm calendar/statutory deadlines register
-    addDeadline({
-      id: `DL-TASK-${createdTask.id}`,
-      caseId: targetCaseId,
-      title: `Task Due: ${createdTask.title}`,
-      type: 'Filing',
-      dueDate: createdTask.dueDate,
-      priority: createdTask.priority === 'High' ? 'High' : createdTask.priority === 'Low' ? 'Low' : 'Normal',
-      status: createdTask.status === 'Completed' ? 'Completed' : 'In Progress',
-      reminderDays: 3,
-      notes: createdTask.description || 'Auto-synced from Matter Task due date',
-      partner: getPartnerInChargeFromRef(targetCase.ref || '') || targetCase.lawyerInCharge || '',
-      lawyer: createdTask.assignedTo || '',
-    });
 
     // History Log
     const newLog: ActionHistoryLog = {
@@ -789,7 +761,7 @@ export const CaseStatusView: React.FC<{ matterCaseId?: string }> = ({ matterCase
       caseTitle: targetCase.title,
       fromStatus: 'Created',
       toStatus: 'Pending',
-      updatedBy: 'Syafiqah Hamizad (Partner)',
+      updatedBy: (currentUser?.name || 'Staff') + ' (' + (currentRole || 'Staff') + ')',
     };
 
     setActionHistoryLogs((prev) => [newLog, ...prev]);

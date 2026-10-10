@@ -153,6 +153,30 @@ service cloud.firestore {
       return isAdminOrOwner() || listedActiveWithRole(['partner', 'accountant']);
     }
 
+    // Rules may evaluate at most 1000 expressions per request, so the tier is worked out once
+    // (let) and the special-case rules below test the collection name first (cheap).
+    function isClaims(col) {
+      return col in ['travelClaims', 'expenses', 'paymentVouchers'];
+    }
+
+    function canReadCol(col) {
+      let t = tierOf(col);
+      return (t in ['firm', 'users', 'config'] && isFirmUser()) ||
+        (t == 'books' && booksReader()) ||
+        (t == 'claims' && (booksReader() || (isFirmUser() && ownDoc(resource.data)))) ||
+        (t == 'hr' && (hrStaff() || (isFirmUser() && ownDoc(resource.data)))) ||
+        (t == 'own' && isFirmUser() && ownDoc(resource.data));
+    }
+
+    function canWriteCol(col, docId) {
+      let t = tierOf(col);
+      return (t == 'firm' && isFirmUser()) ||
+        (t in ['books', 'claims'] && booksWriter()) ||
+        (t == 'hr' && hrStaff()) ||
+        (t == 'config' && (docId in ['rolesMatrix', 'customRoles'] ? isOwner() : isFirmUser())) ||
+        (t == 'users' && isAdminOrOwner());
+    }
+
     function ownDoc(data) {
       return data.get('_ownerEmail', '') == myEmail();
     }
@@ -165,52 +189,39 @@ service cloud.firestore {
     }
 
     match /firm/main/{col}/{docId} {
-      allow read: if (splitDone() || isOwner()) && (
-        (tierOf(col) in ['firm', 'users', 'config'] && isFirmUser()) ||
-        (tierOf(col) == 'books' && booksReader()) ||
-        (tierOf(col) == 'claims' && (booksReader() || (isFirmUser() && ownDoc(resource.data)))) ||
-        (tierOf(col) == 'hr' && (hrStaff() || (isFirmUser() && ownDoc(resource.data)))) ||
-        (tierOf(col) == 'own' && isFirmUser() && ownDoc(resource.data))
-      );
+      allow read: if (splitDone() || isOwner()) && canReadCol(col);
 
       // While the move is running only the owner writes; afterwards each tier's writers.
-      allow create, update, delete: if (!splitDone() && isOwner()) || (splitDone() && (
-        (tierOf(col) == 'firm' && isFirmUser()) ||
-        (tierOf(col) == 'books' && booksWriter()) ||
-        (tierOf(col) == 'claims' && booksWriter()) ||
-        (tierOf(col) == 'hr' && hrStaff()) ||
-        (tierOf(col) == 'config' && (docId in ['rolesMatrix', 'customRoles'] ? isOwner() : isFirmUser())) ||
-        (tierOf(col) == 'users' && isAdminOrOwner())
-      ));
+      allow create, update, delete: if (!splitDone() && isOwner()) || (splitDone() && canWriteCol(col, docId));
 
       // Your own claim / payment request: create it, and change or withdraw it while it is
       // still waiting (never its approval status — approvers do that).
-      allow create: if splitDone() && tierOf(col) == 'claims' && isFirmUser() && ownDoc(request.resource.data) &&
+      allow create: if isClaims(col) && splitDone() && isFirmUser() && ownDoc(request.resource.data) &&
         request.resource.data.get('approvalStatus', 'Pending Approval') in ['Pending Approval', 'Pending PIC Approval', 'Draft', 'Pending', ''];
-      allow update: if splitDone() && tierOf(col) == 'claims' && isFirmUser() &&
+      allow update: if isClaims(col) && splitDone() && isFirmUser() &&
         ownDoc(resource.data) && ownDoc(request.resource.data) &&
         request.resource.data.get('approvalStatus', '') == resource.data.get('approvalStatus', '') &&
         resource.data.get('approvalStatus', 'Pending Approval') in ['Pending Approval', 'Pending PIC Approval', 'Draft', 'Pending', ''];
-      allow delete: if splitDone() && tierOf(col) == 'claims' && isFirmUser() && ownDoc(resource.data) &&
+      allow delete: if isClaims(col) && splitDone() && isFirmUser() && ownDoc(resource.data) &&
         resource.data.get('approvalStatus', 'Pending Approval') in ['Pending Approval', 'Pending PIC Approval', 'Draft', 'Pending', ''];
 
       // Private to-dos: only the person they belong to — no partner, Accounts or admin access.
-      allow create, update: if splitDone() && tierOf(col) == 'own' && isFirmUser() &&
+      allow create, update: if col == 'privateTodos' && splitDone() && isFirmUser() &&
         ownDoc(request.resource.data) && (resource == null || ownDoc(resource.data));
-      allow delete: if splitDone() && tierOf(col) == 'own' && isFirmUser() && ownDoc(resource.data);
+      allow delete: if col == 'privateTodos' && splitDone() && isFirmUser() && ownDoc(resource.data);
 
       // Your own private staff profile (personal details, emergency contact …).
-      allow create, update: if splitDone() && col == 'staffPrivate' && isFirmUser() &&
+      allow create, update: if col == 'staffPrivate' && splitDone() && isFirmUser() &&
         ownDoc(request.resource.data) && (resource == null || ownDoc(resource.data));
 
       // Your own user record (or anyone's, for partners / accounts keeping employee records):
       // everything except role, admin, status, e-mail and permissions.
-      allow update: if splitDone() && col == 'users' && isFirmUser() &&
+      allow update: if col == 'users' && splitDone() && isFirmUser() &&
         (resource.data.get('email', '').lower() == myEmail() || hrStaff()) &&
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'email', 'role', 'isAdmin', 'isSuperAdmin', 'status', 'navOverrides', 'code', 'billingAccess']);
 
       // Adding yourself to the roster at first sign-in, with the role the owner gave you.
-      allow create: if splitDone() && col == 'users' && isFirmUser() &&
+      allow create: if col == 'users' && splitDone() && isFirmUser() &&
         request.resource.data.get('email', '').lower() == myEmail() &&
         request.resource.data.get('isAdmin', false) != true &&
         request.resource.data.get('isSuperAdmin', false) != true &&

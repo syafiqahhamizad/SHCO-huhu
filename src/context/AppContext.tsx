@@ -1,4 +1,4 @@
-import { casesWithoutSalutations, clientsWithoutSalutations, recordsWithoutSalutations, withoutStarterTasks } from '../lib/legacyCleanup';
+import { casesWithoutSalutations, clientsWithoutSalutations, recordsWithoutSalutations, withoutStarterTasks, withoutTaskCopies } from '../lib/legacyCleanup';
 import { isForMe, isReadBy, notificationEmail, resolveRecipients } from '../lib/notify';
 import { queueEmail } from '../services/mailQueueService';
 import { canViewAs } from '../components/views/settings/permissionModel';
@@ -1552,7 +1552,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [notifications]);
 
   const [deadlines, setDeadlines] = useState<Deadline[]>(() => {
-    return readStored(STORAGE_KEY + '_deadlines', operationalFallback(INITIAL_DEADLINES));
+    return withoutTaskCopies(readStored(STORAGE_KEY + '_deadlines', operationalFallback(INITIAL_DEADLINES)));
   });
 
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>(() =>
@@ -2319,7 +2319,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (Array.isArray(state.paymentVouchers)) setPaymentVouchers(recordsWithoutSalutations('paymentVouchers', (state.paymentVouchers as PaymentVoucher[]).filter((voucher) => isActive('Payment Voucher', voucher))));
       if (Array.isArray(state.travelClaims)) setTravelClaims(state.travelClaims as TravelClaim[]);
       if (Array.isArray(state.receipts)) setReceipts(recordsWithoutSalutations('receipts', (state.receipts as Receipt[]).filter((receipt) => isActive('Receipt', receipt))));
-      if (Array.isArray(state.deadlines)) setDeadlines(state.deadlines as Deadline[]);
+      if (Array.isArray(state.deadlines)) setDeadlines(withoutTaskCopies(state.deadlines as Deadline[]));
       if (Array.isArray(state.invoices)) setInvoices(recordsWithoutSalutations('invoices', (state.invoices as Invoice[]).filter((invoice) => isActive('Invoice', invoice))));
       if (Array.isArray(state.payments)) setPayments(state.payments as Payment[]);
       if (Array.isArray(state.retainers)) setRetainers(state.retainers as Retainer[]);
@@ -2527,6 +2527,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       if (key === 'cases') out = casesWithoutSalutations(withoutStarterTasks(out as unknown as Case[])) as unknown as Record<string, unknown>[];
       if (key === 'clients') out = clientsWithoutSalutations(out as unknown as Client[]) as unknown as Record<string, unknown>[];
+      if (key === 'deadlines') out = withoutTaskCopies(out);
       out = recordsWithoutSalutations(key, out);
       return out;
     },

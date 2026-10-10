@@ -7,7 +7,8 @@ const file = (tasks: Task[]): Case => ({ id: 'CS-1', ref: 'X', title: 'Test v Te
 
 describe('withoutStarterTasks', () => {
   it('removes an untouched starter task', () => expect(withoutStarterTasks([file([task({})])])[0].tasks).toEqual([]));
-  it('keeps a starter task someone started', () => expect(withoutStarterTasks([file([task({ status: 'In Progress' })])])[0].tasks).toHaveLength(1));
+  it('removes a starter task even if its status was only moved', () => expect(withoutStarterTasks([file([task({ status: 'In Progress' })])])[0].tasks).toHaveLength(0));
+  it('keeps a starter task someone finished', () => expect(withoutStarterTasks([file([task({ status: 'Completed', completedAt: '2025-05-01' })])])[0].tasks).toHaveLength(1));
   it('keeps a starter task with notes', () => expect(withoutStarterTasks([file([task({ notes: 'called client' })])])[0].tasks).toHaveLength(1));
   it('keeps tasks people added', () => expect(withoutStarterTasks([file([task({ title: 'File defence' })])])[0].tasks).toHaveLength(1));
   it('returns the same file object when nothing changes', () => {
@@ -52,5 +53,19 @@ describe('salutations on other records', () => {
   it('opposing parties on files', () => {
     const [k] = casesWithoutSalutations([{ id: 'K', opposingParty: 'Encik Ahmad', opposingParties: ['Encik Ahmad'], opposingPartiesList: [{ id: 'O', name: 'Encik Ahmad' }] } as unknown as Case]);
     expect(k.opposingParty).toBe('Ahmad'); expect(k.opposingParties).toEqual(['Ahmad']); expect(k.opposingPartiesList?.[0].name).toBe('Ahmad');
+  });
+});
+
+describe('old starter tasks and task copies', () => {
+  const base = { id: 'C1', tasks: [] } as unknown as import('../types').Case;
+  const t = (title: string, extra: Record<string, unknown> = {}) => ({ id: title, title, status: 'Not Started', priority: 'High', dueDate: '2025-04-20', assignedTo: '', taskType: 'Standard', ...extra });
+  it('starter tasks go even after their status was moved on the board; worked-on ones stay', async () => {
+    const { withoutStarterTasks } = await import('./legacyCleanup');
+    const c = { ...base, tasks: [t('Confirm client instructions and opening documents', { status: 'In Progress' }), t('Review limitation dates and filing deadlines', { notes: 'Checked: 6 years' }), t('Draft defence')] } as unknown as import('../types').Case;
+    expect(withoutStarterTasks([c])[0].tasks.map((x) => x.title)).toEqual(['Review limitation dates and filing deadlines', 'Draft defence']);
+  });
+  it('"Task Due:" copies leave the deadlines list; real deadlines stay', async () => {
+    const { withoutTaskCopies } = await import('./legacyCleanup');
+    expect(withoutTaskCopies([{ id: 'DL-TASK-T1' }, { id: 'DL-001' }]).map((d) => d.id)).toEqual(['DL-001']);
   });
 });
