@@ -39,11 +39,11 @@ export const PaperModal = ({ F }: { F: FinanceCtrl }) => {
   const p = F.paper!;
   return (
     <div style={css('position:fixed;inset:0;z-index:90;background:rgba(22,34,58,.7);overflow:auto;display:flex;justify-content:center;padding:24px 16px 40px')}>
-      <div style={css('width:840px;max-width:100%;margin:0 auto;align-self:flex-start;display:flex;flex-direction:column;gap:10px')}>
+      <div style={css(`width:${p.wide ? 1180 : 840}px;max-width:100%;margin:0 auto;align-self:flex-start;display:flex;flex-direction:column;gap:10px`)}>
         <div style={css('display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#16223A;border-radius:10px;padding:8px 12px')}><strong style={css('color:#fff;font-size:13px')}>{p.title}</strong><span style={css('font-size:10.5px;color:#C9D3E0')}>{p.sub}</span>
           {!!p.toggles?.length && <div style={css('display:flex;gap:2px;border:1px solid rgba(255,255,255,.35);border-radius:16px;padding:2px')}>{p.toggles.map((y) => <button key={y.label} type="button" onClick={y.go} style={css(`border:0;border-radius:14px;padding:3px 10px;font-size:10.5px;font-weight:700;cursor:pointer;font-family:inherit;background:${y.on ? '#fff' : 'transparent'};color:${y.on ? '#16223A' : '#fff'}`)}>{y.label}</button>)}</div>}
           <div style={css('margin-left:auto;display:flex;gap:6px;flex-wrap:wrap')}>{p.extra}{p.xls && <button type="button" onClick={p.xls} style={css('border:1px solid #1F6B43;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:#1F6B43;color:#fff;cursor:pointer;font-family:inherit')}>Excel</button>}{p.pdf && <button type="button" onClick={p.pdf} style={css('border:1px solid #B23A2E;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:#B23A2E;color:#fff;cursor:pointer;font-family:inherit')}>PDF / Print</button>}<button type="button" onClick={() => F.setPaper(null)} style={css('border:1px solid rgba(255,255,255,.35);border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:transparent;color:#fff;cursor:pointer;font-family:inherit')}>Close</button></div></div>
-        <div style={css('width:794px;max-width:100%;min-height:600px;margin:0 auto;background:#fff;box-shadow:0 12px 32px rgba(0,0,0,.3);padding:48px 58px;box-sizing:border-box;overflow-x:auto')} dangerouslySetInnerHTML={{ __html: p.html }} />
+        <div style={css((p.wide ? 'width:1123px;' : 'width:794px;') + 'max-width:100%;min-height:600px;margin:0 auto;background:#fff;box-shadow:0 12px 32px rgba(0,0,0,.3);padding:48px 58px;box-sizing:border-box;overflow-x:auto')} dangerouslySetInnerHTML={{ __html: p.html }} />
       </div>
     </div>
   );

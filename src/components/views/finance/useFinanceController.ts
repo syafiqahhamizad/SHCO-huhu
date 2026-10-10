@@ -80,7 +80,7 @@ export interface EditorState {
   plan: QuotationPaymentPlan;
 }
 interface FormState { kind: string; vals: Record<string, any> }
-interface PaperState { title: string; sub: string; html: string; pdf?: () => void; xls?: () => void; toggles?: { label: string; on: boolean; go: () => void }[]; extra?: React.ReactNode }
+interface PaperState { title: string; sub: string; html: string; wide?: boolean; pdf?: () => void; xls?: () => void; toggles?: { label: string; on: boolean; go: () => void }[]; extra?: React.ReactNode }
 interface ImportState { src: 'Template' | 'Bank' | 'Software'; acc: 'Office' | 'Client account' | 'Petty cash'; raw: string[][] | null; fileName: string }
 
 export interface ApItem {

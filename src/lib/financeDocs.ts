@@ -238,6 +238,20 @@ export const pdf = (title: string, body: string) => { const f = document.createE
 export const csv = (title: string, rows: unknown[][]) => dl(new Blob(['﻿' + rows.map((r) => r.map((c) => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n')], { type: 'text/csv' }), title + '.csv');
 const parseCsv = (text: string): string[][] => { const rows: string[][] = []; let row: string[] = [], cell = '', q = false; for (let i = 0; i < text.length; i++) { const c = text[i]; if (q) { if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; } else if (c === '"') q = false; else cell += c; } else if (c === '"') q = true; else if (c === ',') { row.push(cell); cell = ''; } else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; } else cell += c; } if (cell || row.length) { row.push(cell); rows.push(row); } return rows.filter((r) => r.some((x) => String(x).trim())); };
 const XLSX_URL = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm';
+/** A real Excel file (.xlsx) from rows, via SheetJS loaded on demand: numbers stay numbers
+ * (shown as 1,234.00), columns sized to their content. */
+export const xlsx = async (title: string, rows: unknown[][]) => {
+  const X: any = await import(/* @vite-ignore */ XLSX_URL);
+  const ws = X.utils.aoa_to_sheet(rows);
+  const range = X.utils.decode_range(ws['!ref'] || 'A1');
+  for (let r = range.s.r; r <= range.e.r; r++) for (let c = range.s.c; c <= range.e.c; c++) { const cell = ws[X.utils.encode_cell({ r, c })]; if (cell && cell.t === 'n') cell.z = '#,##0.00'; }
+  const widths: number[] = [];
+  rows.forEach((row) => row.forEach((v, i) => { const n = String(v ?? '').length; if (rows.indexOf(row) > 3) widths[i] = Math.min(60, Math.max(widths[i] || 8, n + 2)); }));
+  ws['!cols'] = widths.map((w) => ({ wch: w || 10 }));
+  const wb = X.utils.book_new();
+  X.utils.book_append_sheet(wb, ws, title.replace(/[\\/?*[\]:]/g, ' ').slice(0, 31) || 'Report');
+  X.writeFile(wb, title + '.xlsx');
+};
 /** Reads a CSV natively, or an Excel file via SheetJS loaded on demand from jsdelivr. */
 export const readSheet = async (file: File): Promise<string[][]> => { if (/\.csv$/i.test(file.name)) return parseCsv((await file.text()).replace(/^﻿/, '')); const X: any = await import(/* @vite-ignore */ XLSX_URL); const wb = X.read(await file.arrayBuffer()); return X.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' }); };
 const IMPORT_COLS = ['Date (dd.mm.yyyy)', 'Type (Receipt / Payment / Invoice)', 'Account (Office / Client)', 'Client', 'Our Ref', 'Document No.', 'Description', 'Amount (RM)', 'Method', 'Proof reference'];
