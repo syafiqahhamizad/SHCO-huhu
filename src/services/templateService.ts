@@ -205,6 +205,8 @@ export interface PracticeSettings {
   /** Accounts & Finance → Finance Home month-end close checklist ticks, keyed
    * `${'YYYY-MM'}:${itemId}`. Firm-maintained, shared through the settings sync. */
   monthEndClose?: Record<string, { by: string; at: string }>;
+  /** Month-end checklist changes: built-in items removed / renamed, and the firm's own items. */
+  monthEndEdits?: { hidden?: string[]; names?: Record<string, string>; own?: { id: string; label: string; note: string; due: string; owner: string }[] };
   /** Accounts & Finance → Client Account monthly client statement runs, keyed by 'YYYY-MM'. */
   clientStatementRuns?: Record<string, { at: string; by: string; count: number }>;
   /** Accounts & Finance → Approvals monthly referral-fee batch decisions, keyed by 'YYYY-MM'. */
@@ -344,7 +346,6 @@ export interface FeeTemplate {
 
 export const DEFAULT_BRANCHES: FirmBranch[] = [
   { id: 'br-bangi', name: 'Bangi', hq: true, address: '8-23-03 (2nd Floor), Jalan Medan Pusat Bandar 7A, Bangi Sentral, 43650 Bandar Baru Bangi' },
-  { id: 'br-shah-alam', name: 'Shah Alam', address: 'Unit 2-1, Level 2, The Podium, Tower 3, UOA Business Park, 40150 Shah Alam' },
   { id: 'br-terengganu', name: 'Terengganu', address: 'Lot 7076, Taman Safiah Murni, Bukit Payong, 21400 Marang' },
 ];
 

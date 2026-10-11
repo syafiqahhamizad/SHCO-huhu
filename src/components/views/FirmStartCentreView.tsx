@@ -54,7 +54,6 @@ import {
   UserPlus,
   UsersRound,
   Video,
-  LifeBuoy,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { canSeeFinanceView, finGrants, finRoleKey, isFinanceView } from '../../lib/financeAccess';
@@ -462,15 +461,6 @@ export const FirmStartCentreView: React.FC = () => {
           {page === 'home' && (
             <>
 
-          {/* Staff guide: always shown (not one of the editable tiles). */}
-          <button type="button" onClick={() => openTile('guide')} className="flex w-full cursor-pointer flex-wrap items-center gap-3 rounded-xl border border-[#E8D9B8] bg-[#FBF5EA] px-4 py-3 text-left transition hover:border-[#8A6D3B]">
-            <LifeBuoy className="h-5 w-5 shrink-0 text-[#8A6D3B]" />
-            <span className="min-w-0 flex-1">
-              <strong className="block font-serif text-[15px] text-[#16223A]">How to use the portal</strong>
-              <span className="block text-[12px] text-[#5B6478]">Step-by-step guide for your role: files, tasks, hearings, claims, leave and more.</span>
-            </span>
-            <span className="text-[12px] font-bold text-[#8A6D3B]">Open guide →</span>
-          </button>
 
           {/* LAUNCHER — mockup order: tabs, then this module grid, then announcements. */}
           <section>

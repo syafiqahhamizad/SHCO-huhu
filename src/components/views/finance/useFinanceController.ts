@@ -325,19 +325,55 @@ export function useFinanceController(initialTab: FinTab) {
 
   /** A quotation / proforma can be deleted within 10 minutes of making it, or any time while it is a draft
    * nothing was made from (no proforma, invoice or money received). Quotations are never voided. */
-  const DELETE_MINUTES = 10;
-  const canDeleteQuote = (q: Quotation): boolean => {
-    if (rk === 'R') return false;
-    const made = !!invoiceForQuote(q.id) || quotations.some((p) => p.sourceQuotationId === q.id) || receiptsFor(q.id).length > 0;
-    if (made) return false;
-    const fresh = !!q.createdAt && Date.now() - Date.parse(q.createdAt) < DELETE_MINUTES * 60000;
-    return fresh || q.status === 'Draft';
-  };
+  // Delete is for admins only (Super Admin or anyone marked Admin in Users & Roles).
+  const isAdminUser = !!(app.isAdmin || currentUser?.isSuperAdmin);
+  const canDeleteQuote = (q: Quotation): boolean => isAdminUser && !invoiceForQuote(q.id) && !quotations.some((p) => p.sourceQuotationId === q.id) && receiptsFor(q.id).length === 0;
   const deleteQuote = (q: Quotation) => {
-    if (!canDeleteQuote(q)) { toastMsg('Only a draft, or one made in the last ' + DELETE_MINUTES + ' minutes, can be deleted.'); return; }
+    if (!canDeleteQuote(q)) { toastMsg(isAdminUser ? 'Something was made from it (a proforma, invoice or receipt): delete that first.' : 'Only an admin can delete.'); return; }
     if (typeof window !== 'undefined' && !window.confirm('Delete ' + q.id + (q.clientName ? ' for ' + q.clientName : '') + '? It goes to the Recycle Bin.')) return;
     app.deleteQuotation(q.id);
     setView(null);
+  };
+
+  /** Reverses every posting made under a document number (any type), so the books still balance. */
+  const reverseDoc = (docNo: string, why: string) => {
+    const m = new Map<string, Omit<GeneralLedgerEntry, 'glNo' | 'reconciled'>>();
+    generalLedger.filter((g) => g.docNo === docNo).forEach((g) => {
+      const back = m.get(g.credit + '|' + g.debit + '|' + g.accountSet);
+      if (back && back.amount > 0.004) { back.amount = round2(back.amount - Number(g.amount || 0)); return; }
+      const k = g.debit + '|' + g.credit + '|' + g.accountSet;
+      const x = m.get(k) || { date: todayIso(), docType: g.docType, docNo, accountSet: g.accountSet, debit: g.debit, credit: g.credit, amount: 0, clientId: g.clientId, fileRef: g.fileRef, description: '' };
+      x.amount = round2(x.amount + Number(g.amount || 0)); m.set(k, x);
+    });
+    const rows = [...m.values()].filter((x) => x.amount > 0.004).map((x) => ({ ...x, debit: x.credit, credit: x.debit, description: `Reversal (${why}) of ${docNo}` }));
+    if (rows.length) postGL(rows);
+  };
+  const deleteInvoice = (inv: Invoice) => {
+    if (!isAdminUser) { toastMsg('Only an admin can delete.'); return; }
+    if (invPaid(inv) > 0.005) { toastMsg(inv.id + ' has money received: delete those receipts first.'); return; }
+    if (!window.confirm('Delete ' + inv.id + '? Its postings are reversed and its work goes back to "Work not billed yet". It stays in the Recycle Bin.')) return;
+    reverseDoc(inv.id, 'deleted');
+    const si = inv.sourceItems || {};
+    (si.time || []).forEach((id) => app.updateTimeEntry(id, { billed: false, invoiceId: undefined }));
+    (si.expenses || []).forEach((id) => app.updateExpense(id, { billed: false }));
+    (si.travel || []).forEach((id) => app.updateTravelClaim(id, { billed: 'N', invoiceNo: '' }));
+    app.removeFinanceRecords({ invoices: [inv.id] }, 'Invoice deleted by ' + me);
+    setView(null); toastMsg(inv.id + ' deleted · postings reversed');
+  };
+  const deleteReceipt = (r: Receipt) => {
+    if (!isAdminUser) { toastMsg('Only an admin can delete.'); return; }
+    if (!window.confirm('Delete receipt ' + r.id + ' (' + rm2(Number(r.amount || 0)) + ')? The payment it recorded and its postings are reversed. It stays in the Recycle Bin.')) return;
+    reverseDoc(r.id, 'deleted');
+    app.removeFinanceRecords({ receipts: [r.id], payments: payments.filter((p) => p.id === 'PAY-' + r.id).map((p) => p.id), retainers: retainers.filter((x) => x.id === 'RET-' + r.id).map((x) => x.id) }, 'Receipt deleted by ' + me);
+    setView(null); toastMsg(r.id + ' deleted · postings reversed');
+  };
+  const editReceipt = async (r: Receipt) => {
+    const d = await pickDate('Receipt date · ' + r.id, { initial: isoOf(parseDate(r.date) || Date.now()) });
+    if (!d) return;
+    const desc = window.prompt('Details on the receipt', r.description || '');
+    if (desc == null) return;
+    app.updateReceipt(r.id, { date: d, description: desc.trim() || r.description });
+    toastMsg(r.id + ' updated · to change the amount, delete it and record it again');
   };
 
   const actionsFor = (kind: DocKind, rec: Quotation | Invoice | Receipt): string[] => {
@@ -656,6 +692,28 @@ export function useFinanceController(initialTab: FinTab) {
    * re-charged costs (photocopy, courier, mileage…: a reimbursement, i.e. an expense billed as income). */
   const expenseIsDisb = (e?: Expense) => !!e?.billable && !isReimbursementCategory(e.category, e.description);
   const expenseDebitGL = (e?: Expense) => (expenseIsDisb(e) ? GLA.unbilledDisb : expenseGL(e?.category || ''));
+  /** Approvals: change the amount or details of a claim / voucher that is not paid yet. A new
+   * amount goes back for approval. */
+  const editApItem = (kind: 'travel' | 'expense' | 'pv', id: string) => {
+    const rec = kind === 'travel' ? travelClaims.find((x) => x.id === id) : kind === 'expense' ? expenses.find((x) => x.id === id) : paymentVouchers.find((x) => x.id === id);
+    if (!rec) return;
+    const amt0 = kind === 'travel' ? Number((rec as TravelClaim).total || 0) : Number((rec as Expense).amount || 0);
+    const what0 = kind === 'travel' ? (rec as TravelClaim).purpose : (rec as Expense).description;
+    const what = window.prompt('Details', what0 || ''); if (what == null) return;
+    const a = window.prompt('Amount (RM)', String(amt0)); if (a == null) return;
+    const amt = num0(a); if (!(amt > 0)) { toastMsg('Enter an amount above 0'); return; }
+    const again = Math.abs(amt - amt0) > 0.004 ? { approvalStatus: 'Pending Approval' as const } : {};
+    if (kind === 'travel') app.updateTravelClaim(id, { purpose: what.trim(), total: amt, ...again });
+    else if (kind === 'expense') app.updateExpense(id, { description: what.trim(), amount: amt, ...again });
+    else app.updatePaymentVoucher(id, { description: what.trim(), amount: amt, ...(again.approvalStatus ? { ...again, approved: false } : {}) });
+    toastMsg(again.approvalStatus ? 'Saved · the new amount goes back for approval' : 'Saved');
+  };
+  const deleteApItem = (kind: 'travel' | 'expense' | 'pv', id: string, no: string) => {
+    if (!isAdminUser) { toastMsg('Only an admin can delete.'); return; }
+    if (!window.confirm('Delete ' + no + '? It is not paid yet, so nothing is posted. Vouchers stay in the Recycle Bin.')) return;
+    app.withdrawClaimRecord(kind, id, true);
+  };
+
   const markPaid = (item: PayItem, file?: File | null, on?: string) => {
     if (!file) return;
     if (!canPrepare) { toastMsg('Payments are made and recorded by Accounts.'); return; }
@@ -1358,7 +1416,7 @@ export function useFinanceController(initialTab: FinTab) {
     lk, ownCase, clientName, staffUser,
     invBal, invPaid, invDeposit, invCredit, invStatus, invIssued, invCase, scopedInvoices, openInvoices, owedTotal, aging, ageDays,
     pnl, moneyReceived, openingAsAt, firmBanksOf, statementFor, setStatement, reconFor,
-    qStatus, qCase, proformaPaid, scopedQuotations, scopedReceipts, actionsFor, canDeleteQuote, deleteQuote, act, buildDoc, recordOf, receiptProofList,
+    qStatus, qCase, proformaPaid, scopedQuotations, scopedReceipts, actionsFor, canDeleteQuote, deleteQuote, deleteInvoice, deleteReceipt, editReceipt, editApItem, deleteApItem, isAdminUser, act, buildDoc, recordOf, receiptProofList,
     ledgers, trustTotal, ledgerTotalAt, clientLedgerBalance, threeWayRec,
     unbilled, wipTotal, billMatter, billed: billed as Record<string, { inv: string; u: any }>,
     activeBanks, bankKind, banksOf, bankBal, lastRecon, officeCash,

@@ -116,6 +116,8 @@ export interface LetterheadInfo {
   fullLogo?: string;
   /** Lines under the logo, as on the firm's printed letterhead (address, e-mails, phone, note). */
   lines?: string[];
+  /** Footer of the printed letterhead (operating hours and the reference note). */
+  footer?: { hours: [string, string, string][]; note: string };
   firmName: string;
   tag1?: string;
   tag2?: string;
@@ -132,6 +134,14 @@ const partnersColumn = (ps: LetterheadPartner[]) => {
   return blk('PARTNERS', ps.filter((p) => !p.syarie)) + (ps.some((p) => p.syarie) ? '<div style="height:3pt"></div>' : '') + blk(ps.filter((p) => p.syarie).length > 1 ? 'SYARIE PARTNERS' : 'SYARIE PARTNER', ps.filter((p) => p.syarie));
 };
 /** Letterhead: firm block (uploaded header image or built-in name, taglines and address) with the partners column. */
+/** Footer of the firm letterhead: operating hours by branch and "Kindly quote our reference". */
+export const letterFooterHtml = (lh: LetterheadInfo): string => {
+  const f = lh.footer;
+  if (!f) return '';
+  const cell = 'padding:1px 10px 1px 0;vertical-align:top';
+  return `<div style="margin-top:24pt;border-top:1px solid #16223A;padding-top:5pt;font-family:'Times New Roman',Times,serif;font-size:7.5pt;line-height:1.35;color:#16223A"><table style="border-collapse:collapse;font-size:7.5pt"><tr><td style="${cell};font-weight:bold">Operating hours</td>${f.hours.map(([b]) => `<td style="${cell};font-weight:bold">${esc(b)}</td>`).join('')}</tr><tr><td style="${cell}"></td>${f.hours.map(([, d]) => `<td style="${cell}">${esc(d)}</td>`).join('')}</tr><tr><td style="${cell}"></td>${f.hours.map(([, , h]) => `<td style="${cell}">${esc(h)}</td>`).join('')}</tr></table><div style="margin-top:3pt;font-style:italic">${esc(f.note)}</div></div>`;
+};
+
 export const letterheadHtml = (lh: LetterheadInfo): string => {
   const contactLines = lh.lines && lh.lines.length ? lh.lines : [lh.reg || '', lh.address, [lh.email, lh.tel].filter(Boolean).join(' · ')].filter(Boolean);
   const contact = `<div style="font-family:'Times New Roman',Times,serif;font-size:7.5pt;line-height:1.45;color:#16223A;margin-top:4px">${contactLines.map((l, i) => (i === contactLines.length - 1 && /^\(/.test(l) ? `<i>${esc(l)}</i>` : esc(l))).join('<br>')}</div>`;
@@ -362,5 +372,5 @@ export function engagementLetterHtml(i: EngagementInput): string {
     : `<p style="margin:36pt 0 0">______________________________<br>${t.name}: ${i.client.name ? esc(i.client.name) : DOTS}<br>${t.ic}: ${i.client.idNo ? esc(i.client.idNo) : DOTS}<br>${t.date2}: ${DOTS}</p>`;
   body += `<div style="border-top:1px solid #000;margin:22pt 0 0;padding-top:10pt"><p style="${P}">${t.accept(pr.S, pr.s)}</p>${accept}</div></div>`;
 
-  return `<div style="${BODY}">${body}</div>`;
+  return `<div style="${BODY}">${body}${letterFooterHtml(i.letterhead)}</div>`;
 }

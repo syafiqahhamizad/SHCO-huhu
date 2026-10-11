@@ -318,22 +318,22 @@ if (typeof window !== 'undefined') {
   window.addEventListener('shco-practice-settings-updated', applyPracticeSettingsToDocs);
 }
 
-/** Letterhead for client letters: the file's branch (uploaded header image and address; HQ when
- * the branch is not known or has no header) with the partners column from Firm & Practice Settings. */
-export const letterheadFor = (branchName?: string): LetterheadInfo => {
+/** The firm's one letterhead (every letter, whatever the branch): the logo, the address / e-mail /
+ * phone lines and the footer of "Letterhead as at 2.7.2026". An image uploaded in Firm & Practice
+ * Settings → Firm & Letterhead replaces the logo and lines. */
+export const LETTER_FOOTER = { hours: [['Selangor Branch', 'Monday to Friday', '9.00am – 5.00pm'], ['Terengganu Branch', 'Sunday to Thursday', '9.00am to 5.00pm']] as [string, string, string][], note: 'Note: Kindly quote our reference in reply to our correspondences' };
+export const letterheadFor = (_branchName?: string): LetterheadInfo => {
   const s = getPracticeSettings();
   const brs = s.branches || [];
   const hq = brs.find((b) => b.hq) || brs[0];
-  const br = brs.find((b) => b.name === branchName) || hq;
-  const useHq = !br || br === hq;
   return {
-    image: br?.letterheadImage || (useHq ? FIRM.header : '') || hq?.letterheadImage || undefined,
+    image: hq?.letterheadImage || FIRM.header || undefined,
     logo: LOGO.name,
     fullLogo: LOGO.full,
-    // HQ: the lines of the firm's printed letterhead (Letterhead as at 2.7.2026). Other branches: their address.
-    lines: useHq ? LETTER_LINES : [br?.address || FIRM.addr, 'E-mail: shco@shcolaw.com'],
+    lines: LETTER_LINES,
+    footer: LETTER_FOOTER,
     firmName: FIRM.name, tag1: FIRM.tag1, tag2: FIRM.tag2, reg: FIRM.reg,
-    address: useHq ? FIRM.addr : br?.address || FIRM.addr, email: FIRM.email, tel: FIRM.tel,
+    address: FIRM.addr, email: FIRM.email, tel: FIRM.tel,
     partners: s.letterheadPartners && s.letterheadPartners.length ? s.letterheadPartners : DEFAULT_LETTERHEAD_PARTNERS,
   };
 };

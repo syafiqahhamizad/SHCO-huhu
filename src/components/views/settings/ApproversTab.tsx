@@ -1,4 +1,5 @@
 import React from 'react';
+import { PeoplePicker } from '../cases/PeoplePicker';
 import { useApp } from '../../../context/AppContext';
 import { APPROVAL_ITEMS, PARTNER_ONLY_ITEMS, approverCode, approverPool, poolFor, ruleLabel, type ApproverRule } from '../../../lib/approvers';
 import { css, S, type SettingsCtx } from './settingsShared';
@@ -42,17 +43,13 @@ export const ApproversTab = ({ C }: { C: SettingsCtx }) => {
         return (
           <div key={id} style={css(GRID + 'align-items:center;padding:9px 14px;border-bottom:1px solid #F0F2F5')}>
             <span style={css('min-width:0')}><span style={css('display:block;font-size:11.5px;font-weight:700;color:#16223A')}>{label}</span><span style={css('display:block;font-size:10px;color:#5B6478')}>{where}</span>{partnerOnly && <span style={css('display:block;font-size:10px;font-weight:700;color:#8A6534')}>Partners only (Solicitors’ Account Rules 1990)</span>}</span>
-            <div style={css('display:flex;gap:4px;flex-wrap:wrap')}>
-              {itemPool.map((u) => {
-                const on = ids.includes(u.id);
-                const go = () => {
-                  const a = on ? ids.filter((y) => y !== u.id) : [...ids, u.id];
-                  if (!a.length) return C.msg('Keep at least one approver');
-                  upd(id, label, { approvers: a, need: r?.need && r.need < a.length ? r.need : 0 });
-                };
-                return <button key={u.id} type="button" onClick={go} title={u.name + ' · ' + designRole(u)} style={css(`min-width:36px;border:1px solid ${on ? '#16223A' : '#DDE3EB'};border-radius:6px;padding:4px 8px;font-size:10.5px;font-weight:700;background:${on ? '#16223A' : '#fff'};color:${on ? '#fff' : '#5B6478'};cursor:pointer;font-family:inherit`)}>{approverCode(u)}</button>;
-              })}
-            </div>
+            <PeoplePicker
+              id={'appr-' + id}
+              options={itemPool.map((u) => ({ value: u.id, label: approverCode(u) + ' · ' + u.name, hint: designRole(u) }))}
+              value={ids}
+              onChange={(a) => { if (!a.length) { C.msg('Keep at least one approver'); return; } upd(id, label, { approvers: a, need: r?.need && r.need < a.length ? r.need : 0 }); }}
+              placeholder="Search a name…"
+            />
             <select value={String(r?.need && r.need < n ? r.need : 0)} disabled={!n} onChange={(e) => upd(id, label, { approvers: ids, need: Number(e.target.value) })} style={css(`border:1px solid #DDE3EB;border-radius:6px;padding:5px 7px;font-size:11px;font-family:inherit;color:#16223A;background:#fff;cursor:${n ? 'pointer' : 'default'}`)}>
               {needOpts.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
             </select>

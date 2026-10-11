@@ -6,7 +6,7 @@ import { matterDriveLabel, openStoredFile, useStorageLabel, type StoredMatterFil
 import { css, S, Card, Field, Seg } from '../caseUi';
 import { METHODS, P, PROOF_TYPES, actionOf, courtOf, daysFrom, fmt, hasProof, isoOf, proofTypeFor, todayIso } from '../caseModel';
 import { addServicePatch, newServiceRecord, uploadServiceProof, withProof } from '../serviceModel';
-import type { WF } from '../wf';
+import { histEntry, type WF } from '../wf';
 
 /** View id of the firm-wide Service Log page (built separately). */
 const SERVICE_LOG_VIEW = 'serviceLog';
@@ -26,6 +26,7 @@ export const FilingTab: React.FC<{ w: WF }> = ({ w }) => {
   const [f, setF] = useState(blank('Filed'));
   const [picked, setPicked] = useState<File | null>(null);
   const [busy, setBusy] = useState('');
+  const [editId, setEditId] = useState<string | null>(null);
   const pt = f.proofType || proofTypeFor(f.dir || 'Served', f.method);
 
   const switchSub = (k: string) => { setSub(k as 'filing' | 'service'); setF(blank(k === 'filing' ? 'Filed' : 'Served')); setPicked(null); };
@@ -37,6 +38,14 @@ export const FilingTab: React.FC<{ w: WF }> = ({ w }) => {
       setBusy('save');
       try { stored = await uploadServiceProof(c, picked, f.dir || 'Served', w.me); } catch (e) { setBusy(''); w.toast('Proof not uploaded: ' + (e instanceof Error ? e.message : String(e))); return; }
       setBusy('');
+    }
+    if (editId) {
+      // Edit: change the details; a new proof file replaces the old one.
+      const fresh = newServiceRecord({ ...f, dir: f.dir || 'Served', proofType: pt }, stored, w.me);
+      w.save({ serviceRecord: (c.serviceRecord || []).map((x) => (x.id !== editId ? x : { ...x, ...fresh, id: x.id, ...(stored ? {} : { driveFileId: x.driveFileId, webViewLink: x.webViewLink, storagePath: x.storagePath, proofObtained: x.proofObtained, proofFileName: x.proofFileName }) })) }, (fresh.action || 'Entry') + ' edited: ' + fresh.documentServed, 'Service Record');
+      setEditId(null); setPicked(null); setF(blank(f.dir)); setOpen(false);
+      w.toast('Saved');
+      return;
     }
     const row = newServiceRecord({ ...f, dir: f.dir || 'Served', proofType: pt }, stored, w.me);
     const { patch, hit } = addServicePatch(c, row, w.me);
@@ -59,6 +68,17 @@ export const FilingTab: React.FC<{ w: WF }> = ({ w }) => {
     setBusy('');
   };
 
+  const startEdit = (r: ServiceRecord) => {
+    setEditId(r.id);
+    setF({ dir: actionOf(r), date: isoOf(r.date), doc: r.documentServed || '', party: r.servedOn || '', method: r.method || '', by: r.servedBy || '', proofType: r.proofType || '', notes: r.notes || '' });
+    setPicked(null); setOpen(true);
+  };
+  const remove = (r: ServiceRecord) => {
+    if (!window.confirm('Delete “' + r.documentServed + '” (' + fmt(r.date) + ')? The proof file stays in Google Drive.')) return;
+    w.save({ serviceRecord: (c.serviceRecord || []).filter((x) => x.id !== r.id), activityLogs: [histEntry(actionOf(r) + ' entry deleted: ' + r.documentServed, w.me, 'Service Record'), ...(c.activityLogs || [])] });
+    if (editId === r.id) { setEditId(null); setOpen(false); }
+    w.toast('Deleted');
+  };
   const rows = (sub === 'filing' ? filings : service).slice().sort((a, b) => (isoOf(a.date) < isoOf(b.date) ? 1 : -1));
   const cols = 'display:grid;grid-template-columns:100px 90px minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) 180px;min-width:920px;';
   return (
@@ -68,7 +88,7 @@ export const FilingTab: React.FC<{ w: WF }> = ({ w }) => {
         <span style={css(S.sub)}>{sub === 'filing' ? 'Cause papers filed in court, with sealed copy or CMS receipt' : 'Served and received. Same entries as the firm Service Log'}</span>
         <div style={css('margin-left:auto;display:flex;gap:8px')}>
           {sub === 'service' && <button type="button" onClick={() => setCurrentView(SERVICE_LOG_VIEW)} style={css(S.btnSec)}>Firm service log →</button>}
-          {!ro && <button type="button" onClick={() => setOpen(!open)} style={css(S.btnPri)}>{sub === 'filing' ? '+ Log filing' : '+ Log service'}</button>}
+          {!ro && <button type="button" onClick={() => { setEditId(null); setF(blank(sub === 'filing' ? 'Filed' : 'Served')); setOpen(editId ? true : !open); }} style={css(S.btnPri)}>{sub === 'filing' ? '+ Log filing' : '+ Log service'}</button>}
         </div>
       </div>
       {open && (
@@ -127,6 +147,7 @@ export const FilingTab: React.FC<{ w: WF }> = ({ w }) => {
                   <span style={css('font-size:11.5px;color:#8E2A20')}>{wait}</span>
                 </>
               )}
+              {!ro && <span style={css('display:flex;gap:10px;margin-top:2px')}><button type="button" onClick={() => startEdit(r)} style={css('border:0;background:none;padding:0;font-size:11.5px;font-weight:700;color:#2F4F7A;cursor:pointer;font-family:inherit')}>Edit</button><button type="button" onClick={() => remove(r)} style={css('border:0;background:none;padding:0;font-size:11.5px;font-weight:700;color:#B23A2E;cursor:pointer;font-family:inherit')}>Delete</button></span>}
             </div>
           </div>
         );

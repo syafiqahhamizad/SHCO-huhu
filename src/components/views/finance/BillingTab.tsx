@@ -21,6 +21,8 @@ const Split = ({ label, onAct, onMenu, open }: { label: string; onAct: () => voi
 export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
   const { docT, setDocT, invF, setInvF, SC } = F;
   const [menu, setMenu] = useState<MenuState>(null);
+  // Sub-tabs: the documents, fees by file, and work not billed yet.
+  const [part, setPart] = useState<'docs' | 'files' | 'wip'>('docs');
   const openMenu = (kind: DocKind, id: string) => (e: React.MouseEvent<HTMLButtonElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
     const left = Math.max(8, Math.min(r.right - 190, window.innerWidth - 198)); const top = r.bottom + 4 + 260 > window.innerHeight ? Math.max(8, r.top - 264) : r.bottom + 4;
@@ -36,8 +38,15 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
     const canEdit = kind !== 'receipt' && F.rk !== 'R' && ['Draft', 'Sent', 'Accepted', 'Unpaid', 'Ready', 'Pending Approval', 'Overdue', 'Part-paid'].includes(st);
     const doc = () => F.buildDoc({ kind, id: menuRec.id });
     const more: [string, () => void][] = [['View', () => F.setView({ kind, id: menuRec.id })], ...(canEdit ? [['Edit', () => F.editDoc(kind, menuRec as Quotation)] as [string, () => void]] : []), ['Download PDF', () => { const d = doc(); if (d) SD.pdf(d.no, SD.docHtml(d)); }], ...(kind !== 'receipt' && F.rk !== 'R' ? [['Duplicate', () => F.duplicateDoc(kind, menuRec as Quotation)] as [string, () => void]] : [])];
-    const danger = F.actionsFor(kind, menuRec as Quotation).includes('Void') ? [{ label: 'Void (credit note)', go: run(() => F.act(kind, menuRec as Quotation, 'Void')), fw: 600, fg: '#B23A2E', sep: true }]
-      : kind === 'quotation' && F.canDeleteQuote(menuRec as Quotation) ? [{ label: 'Delete', go: run(() => F.deleteQuote(menuRec as Quotation)), fw: 600, fg: '#B23A2E', sep: true }] : [];
+    const del = (fn: () => void) => ({ label: 'Delete', go: run(fn), fw: 600, fg: '#B23A2E', sep: true });
+    const danger = [
+      ...(F.actionsFor(kind, menuRec as Quotation).includes('Void') ? [{ label: 'Void (credit note)', go: run(() => F.act(kind, menuRec as Quotation, 'Void')), fw: 600, fg: '#B23A2E', sep: true }] : []),
+      // Delete: admins only. Postings are reversed; the record goes to the Recycle Bin.
+      ...(F.isAdminUser && kind === 'quotation' ? [del(() => F.deleteQuote(menuRec as Quotation))] : []),
+      ...(F.isAdminUser && kind === 'invoice' ? [del(() => F.deleteInvoice(menuRec as import('../../../types').Invoice))] : []),
+      ...(F.isAdminUser && kind === 'receipt' ? [del(() => F.deleteReceipt(menuRec as Receipt))] : []),
+    ];
+    if (kind === 'receipt' && F.rk !== 'R') more.push(['Edit', () => void F.editReceipt(menuRec as Receipt)]);
     return [...acts.map((a, i) => ({ label: a, go: run(() => F.act(kind, menuRec as Quotation, a)), fw: i ? 500 : 700, fg: '#16223A', sep: false })), ...more.map(([label, fn], i) => ({ label, go: run(fn), fw: 500, fg: '#16223A', sep: i === 0 })), ...danger];
   };
   const quotes = F.scopedQuotations.filter((q) => q.documentType !== 'Proforma');
@@ -91,6 +100,8 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
 
   return (
     <div style={css('display:flex;flex-direction:column;gap:16px')}>
+      <div style={css('display:flex;gap:6px;flex-wrap:wrap')}>{([['docs', 'Quotations, invoices & receipts'], ['files', 'Fees by file'], ['wip', 'Work not billed yet' + (F.unbilled.length ? ' · ' + F.unbilled.length : '')]] as const).map(([k, l]) => <button key={k} type="button" onClick={() => setPart(k)} style={css(`border-radius:16px;padding:6px 14px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;border:1px solid ${part === k ? '#16223A' : '#DDE3EB'};background:${part === k ? '#16223A' : '#fff'};color:${part === k ? '#fff' : '#16223A'}`)}>{l}</button>)}</div>
+      {part === 'docs' && <>
       <section style={css('display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px')}>
         {DT.map(([label, prefix, what, stat, color], i) => { const on = docT === label; return (
           <button key={label} type="button" onClick={() => setDocT(label)} style={css(`position:relative;display:flex;flex-direction:column;gap:4px;text-align:left;border-radius:12px;padding:12px 14px;cursor:pointer;font-family:inherit;border:1.5px solid ${on ? color : '#DDE3EB'};background:${on ? '#fff' : '#FBFCFD'}`)}>
@@ -149,6 +160,9 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
           <div style={css('padding:9px 14px;background:#F6F8FA;font-size:10.5px;color:#5B6478')}>{D.foot}</div></div>
       )}
 
+      </>}
+
+      {part === 'files' && (
       <div style={css('overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
         <div style={css('display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css('font-family:ui-serif, Georgia, serif;font-size:14.5px;color:#16223A')}>Fees by file</strong><span style={css('font-size:10.5px;color:#5B6478')}>same figures as each file's Money tab · click to open the file</span>
           <div style={css('display:flex;gap:4px;margin-left:auto')}>{FEES_FILTERS.map((k) => { const on = bfF === k; return <button key={k} type="button" onClick={() => setBfF(k)} style={css(`white-space:nowrap;border-radius:14px;padding:3px 10px;font-size:10.5px;font-weight:700;cursor:pointer;font-family:inherit;border:1px solid ${on ? '#16223A' : '#DDE3EB'};background:${on ? '#16223A' : '#fff'};color:${on ? '#fff' : '#16223A'}`)}>{k} · {byFileAll.filter(({ m }) => feesFilter(k, m)).length}</button>; })}</div></div>
@@ -169,6 +183,9 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
         <div style={css(BF + 'padding:9px 14px;background:#F6F8FA;font-size:11.5px;font-weight:700;color:#16223A')}><span>{byFile.length} {byFile.length === 1 ? 'file' : 'files'}</span><span></span><span style={css('text-align:right')}>{rm(bfTot.agreed)}</span><span style={css('text-align:right')}>{rm(bfTot.billed)}</span><span style={css('text-align:right;color:#2F6F4E')}>{rm(bfTot.received)}</span><span style={css('text-align:right;color:#8E2A20')}>{rm(bfTot.outstanding)}</span><span></span><span style={css('text-align:right;color:#2F5680')}>{rm(bfTot.clientAccount)}</span></div>
       </div>
 
+      )}
+
+      {part === 'wip' && (
       <div style={css('overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
         <div style={css('display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css('font-family:ui-serif, Georgia, serif;font-size:14.5px;color:#16223A')}>Work not billed yet</strong><span style={css('font-size:10.5px;color:#5B6478')}>time + disbursements recorded in Matters, oldest first</span><span style={css('margin-left:auto;font-size:12px;font-weight:700;color:#16223A')}>{rm(F.unbilled.reduce((s, u) => s + u.time + u.disb, 0))} still to bill</span></div>
         <div style={css('display:grid;grid-template-columns:minmax(0,1.5fr) 44px 90px 90px 90px 80px 110px;gap:10px;padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>Matter</span><span>PIC</span><span style={css('text-align:right')}>Time</span><span style={css('text-align:right')}>Disb.</span><span style={css('text-align:right')}>Total</span><span style={css('text-align:right')}>Oldest</span><span></span></div>
@@ -186,6 +203,7 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
           </div>
         ); })}
       </div>
+      )}
       {menu && menuRec && (
         <>
           <div onClick={() => setMenu(null)} style={css('position:fixed;inset:0;z-index:70')}></div>

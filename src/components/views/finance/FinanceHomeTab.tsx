@@ -7,6 +7,7 @@ import type { FinTab } from '../../../lib/financeAccess';
 const rmShort = (n: number) => { const a = Math.abs(n), s = n < 0 ? '-' : ''; if (a >= 1e6) return s + 'RM ' + (a / 1e6).toFixed(2).replace(/\.?0+$/, '') + 'm'; if (a >= 1e4) return s + 'RM ' + Math.round(a / 1000) + 'k'; return rm(n); };
 
 export const FinanceHomeTab = ({ F }: { F: FinanceCtrl }) => {
+  const [meEdit, setMeEdit] = React.useState(false);
   const { app, period, monthName, monShort, lastDayLabel, nextMonShort } = F;
   const { payments, receipts, threeWayRec, users, currentUser } = app;
 
@@ -60,8 +61,13 @@ export const FinanceHomeTab = ({ F }: { F: FinanceCtrl }) => {
     ['c10', 'Send monthly client statements', `${stmtClients} client${stmtClients === 1 ? '' : 's'} with money in client account`, '1 ' + nextMonShort, AC, 'trust'],
     ['c9', 'SST return & e-Invoice check', 'SST-02 period · LHDN MyInvois not connected', 'end ' + nextMonShort, AC, 'reports'],
   ];
+  // The list is the usual law-firm month end (with live counts); the firm can rename or remove
+  // those and add its own (Edit list).
+  const ME = F.settings.monthEndEdits || {};
+  const CLx: typeof CL = [...CL.filter(([id]) => !(ME.hidden || []).includes(id)).map(([id, label, ...rest]) => [id, (ME.names || {})[id] || label, ...rest] as (typeof CL)[number]), ...(ME.own || []).map((o) => [o.id, o.label, o.note, o.due || lastDayLabel, o.owner || AC, ''] as (typeof CL)[number])];
+  const saveME = (patch: Partial<NonNullable<typeof ME>>) => F.saveSettings({ monthEndEdits: { ...ME, ...patch } });
   const mec = F.settings.monthEndClose || {};
-  const close = CL.map(([id, label, note, due, owner, tab]) => { const d = !!mec[F.closeKey(id)]; return { id, label, note, owner, tab, d, due: d ? 'Done' : 'by ' + due, dc: d ? '#2F6F4E' : due === lastDayLabel ? '#B23A2E' : '#8A6534', pc: owner === MP ? '#16223A' : owner === 'PT' ? '#3D6B9C' : '#5E6F2F', title: d ? `ticked by ${mec[F.closeKey(id)].by}` : '' }; });
+  const close = CLx.map(([id, label, note, due, owner, tab]) => { const d = !!mec[F.closeKey(id)]; return { id, label, note, owner, tab, d, due: d ? 'Done' : 'by ' + due, dc: d ? '#2F6F4E' : due === lastDayLabel ? '#B23A2E' : '#8A6534', pc: owner === MP ? '#16223A' : owner === 'PT' ? '#3D6B9C' : '#5E6F2F', title: d ? `ticked by ${mec[F.closeKey(id)].by}` : '' }; });
   const closeDone = close.filter((c) => c.d).length;
 
   /* ---------------- Office money in & out ---------------- */
@@ -104,7 +110,23 @@ export const FinanceHomeTab = ({ F }: { F: FinanceCtrl }) => {
       </section>
       <section style={css('display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:16px;align-items:start')}>
         <div style={css('overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
-          <div style={css('display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css('font-family:ui-serif, Georgia, serif;font-size:14.5px;color:#16223A')}>{monthName} month-end close</strong><span style={css('font-size:10.5px;color:#5B6478')}>{closeDone} of {close.length} done</span><div style={css('margin-left:auto;width:140px;height:6px;border-radius:3px;background:#EEF1F5')}><div style={css(`height:6px;border-radius:3px;background:#2F6F4E;width:${Math.round(closeDone / close.length * 100)}%`)}></div></div></div>
+          <div style={css('display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css('font-family:ui-serif, Georgia, serif;font-size:14.5px;color:#16223A')}>{monthName} month-end close</strong><span style={css('font-size:10.5px;color:#5B6478')}>{closeDone} of {close.length} done</span><button type="button" onClick={() => setMeEdit(!meEdit)} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:3px 9px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>{meEdit ? 'Done' : 'Edit list'}</button><div style={css('margin-left:auto;width:140px;height:6px;border-radius:3px;background:#EEF1F5')}><div style={css(`height:6px;border-radius:3px;background:#2F6F4E;width:${Math.round(closeDone / close.length * 100)}%`)}></div></div></div>
+          {meEdit && (
+            <div style={css('padding:9px 14px;border-bottom:1px solid #EEF1F5;background:#FBFCFD;display:flex;flex-direction:column;gap:6px')}>
+              <span style={css('font-size:10.5px;color:#5B6478')}>The usual month-end steps for a law firm, with live counts from the portal. Rename or remove any, or add your own.</span>
+              {close.map((c) => (
+                <div key={c.id} style={css('display:flex;align-items:center;gap:8px;font-size:11.5px;color:#16223A')}>
+                  <span style={css('flex:1;min-width:0')}>{c.label}</span>
+                  <button type="button" onClick={() => { const n = window.prompt('Name', c.label); if (!n?.trim()) return; if ((ME.own || []).some((o) => o.id === c.id)) saveME({ own: (ME.own || []).map((o) => (o.id === c.id ? { ...o, label: n.trim() } : o)) }); else saveME({ names: { ...(ME.names || {}), [c.id]: n.trim() } }); }} style={css('border:0;background:none;padding:0;font-size:10.5px;font-weight:700;color:#2F4F7A;cursor:pointer')}>Rename</button>
+                  <button type="button" onClick={() => { if (!window.confirm('Remove “' + c.label + '” from the month-end list?')) return; if ((ME.own || []).some((o) => o.id === c.id)) saveME({ own: (ME.own || []).filter((o) => o.id !== c.id) }); else saveME({ hidden: [...(ME.hidden || []), c.id] }); }} style={css('border:0;background:none;padding:0;font-size:10.5px;font-weight:700;color:#B23A2E;cursor:pointer')}>Remove</button>
+                </div>
+              ))}
+              <div style={css('display:flex;gap:8px;flex-wrap:wrap;align-items:center')}>
+                <button type="button" onClick={() => { const label = window.prompt('New month-end item (e.g. Renew Bar practising certificate reminder)'); if (!label?.trim()) return; const due = window.prompt('Due (e.g. 31 Oct, or 15 of next month)', lastDayLabel) || lastDayLabel; const owner = (window.prompt('Who does it (initials, e.g. AC or SH)', AC) || AC).toUpperCase().slice(0, 3); saveME({ own: [...(ME.own || []), { id: 'own-' + Date.now(), label: label.trim(), note: '', due, owner }] }); }} style={css('border:1px solid #16223A;border-radius:6px;padding:4px 10px;font-size:10.5px;font-weight:700;background:#16223A;color:#fff;cursor:pointer')}>+ Add item</button>
+                {!!((ME.hidden || []).length || Object.keys(ME.names || {}).length) && <button type="button" onClick={() => { if (window.confirm('Bring back the usual list (your own items stay)?')) saveME({ hidden: [], names: {} }); }} style={css('border:0;background:none;padding:0;font-size:10.5px;font-weight:700;color:#8A6D3B;cursor:pointer')}>Restore the usual list</button>}
+              </div>
+            </div>
+          )}
           {close.map((c) => (
             <div key={c.id} title={c.title} style={css('display:grid;grid-template-columns:22px minmax(0,1fr) 96px 30px 80px;gap:10px;align-items:center;padding:8px 14px;border-bottom:1px solid #F0F2F5')}>
               <button type="button" onClick={() => F.toggleClose(c.id)} style={css(`width:18px;height:18px;border-radius:5px;display:grid;place-items:center;cursor:pointer;font-size:11px;font-weight:800;padding:0;border:1.5px solid ${c.d ? '#2F6F4E' : '#C9D3E0'};background:${c.d ? '#2F6F4E' : '#fff'};color:#fff`)}>{c.d ? '✓' : ''}</button>

@@ -342,6 +342,7 @@ interface AppContextType {
   addReceipt: (r: Receipt) => void;
   /** Additive (Accounts & Finance): attach proof of payment etc. to an existing receipt. */
   updateReceipt: (id: string, updates: Partial<Receipt>) => void;
+  removeFinanceRecords: (r: { invoices?: string[]; receipts?: string[]; payments?: string[]; retainers?: string[] }, why: string) => void;
   addPaymentVoucher: (pv: PaymentVoucher) => void;
   updatePaymentVoucher: (id: string, updates: Partial<PaymentVoucher>) => void;
   addRetainer: (r: Retainer) => void;
@@ -352,7 +353,7 @@ interface AppContextType {
   updateTimeEntry: (id: string, updates: Partial<TimeEntry>) => void;
   addExpense: (ex: Expense) => void;
   updateExpense: (id: string, updates: Partial<Expense>) => void;
-  withdrawClaimRecord: (source: 'travel' | 'expense' | 'pv', id: string) => boolean;
+  withdrawClaimRecord: (source: 'travel' | 'expense' | 'pv', id: string, force?: boolean) => boolean;
   addGeneralLedgerEntry: (gl: Omit<GeneralLedgerEntry, 'glNo'> | GeneralLedgerEntry) => void;
   addDeadline: (d: Deadline) => void;
   addActivityLog: (action: string, details: string) => void;
@@ -3058,6 +3059,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Official Receipt generated');
   };
 
+  /** Admin delete of billing records (kept in the Recycle Bin). The caller reverses the postings. */
+  const removeFinanceRecords = (r: { invoices?: string[]; receipts?: string[]; payments?: string[]; retainers?: string[] }, why: string) => {
+    const has = (l: string[] | undefined, id: string) => !!l && l.includes(id);
+    invoices.filter((x) => has(r.invoices, x.id)).forEach((x) => trackDeletedRecord('Invoice', x.id + ' · ' + (x.partyName || ''), why, x));
+    receipts.filter((x) => has(r.receipts, x.id)).forEach((x) => trackDeletedRecord('Receipt', x.id + ' · ' + (x.receivedFrom || ''), why, x));
+    if (r.invoices?.length) setInvoices((prev) => prev.filter((x) => !has(r.invoices, x.id)));
+    if (r.receipts?.length) setReceipts((prev) => prev.filter((x) => !has(r.receipts, x.id)));
+    if (r.payments?.length) setPayments((prev) => prev.filter((x) => !has(r.payments, x.id)));
+    if (r.retainers?.length) setRetainers((prev) => prev.filter((x) => !has(r.retainers, x.id)));
+    logAuditEvent('DELETE', 'BILLING', [...(r.invoices || []), ...(r.receipts || [])].join(', '), why, why);
+  };
+
   const updateReceipt = (id: string, updates: Partial<Receipt>) => {
     setReceipts((prev) => prev.map((r) => (r.id === id ? { ...r, ...updates } : r)));
   };
@@ -3134,19 +3147,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   /** Takes back your own claim / payment request while it is waiting or rejected (nothing paid yet). */
-  const withdrawClaimRecord = (source: 'travel' | 'expense' | 'pv', id: string): boolean => {
-    const open = (s?: string) => !s || s === 'Pending Approval' || s === 'Pending PIC Approval' || s === 'Draft' || s === 'Rejected';
+  // force: an admin deleting an item that is already approved (not yet paid) from Approvals.
+  const withdrawClaimRecord = (source: 'travel' | 'expense' | 'pv', id: string, force = false): boolean => {
+    if (force && !(isAdmin || currentUser.isSuperAdmin)) { showToast('Only an admin can delete.'); return false; }
+    const open = (s?: string) => force ? s !== 'Posted to GL' : !s || s === 'Pending Approval' || s === 'Pending PIC Approval' || s === 'Draft' || s === 'Rejected';
     if (source === 'travel') {
       const t = travelClaims.find((x) => x.id === id);
-      if (!t || !open(t.approvalStatus) || t.postedToGl) { showToast('Already approved: ask Accounts to reverse it.'); return false; }
+      if (!t || !open(t.approvalStatus) || t.postedToGl || t.paidAt) { showToast('Already approved: ask Accounts to reverse it.'); return false; }
       setTravelClaims((prev) => prev.filter((x) => x.id !== id));
     } else if (source === 'expense') {
       const e = expenses.find((x) => x.id === id);
-      if (!e || !open(e.approvalStatus) || e.postedToGl) { showToast('Already approved: ask Accounts to reverse it.'); return false; }
+      if (!e || !open(e.approvalStatus) || e.postedToGl || (e.claimant && e.paidAt)) { showToast('Already approved: ask Accounts to reverse it.'); return false; }
       setExpenses((prev) => prev.filter((x) => x.id !== id));
     } else {
       const v = paymentVouchers.find((x) => x.id === id);
-      if (!v || v.approved || !open(v.approvalStatus) || v.postedToGl) { showToast('Already approved: ask Accounts to reverse it.'); return false; }
+      if (!v || (v.approved && !force) || !open(v.approvalStatus) || v.postedToGl || v.paidAt) { showToast('Already approved: ask Accounts to reverse it.'); return false; }
+      trackDeletedRecord('Payment Voucher', v.id + ' · ' + (v.payee || ''), 'Deleted from Approvals', v);
       setPaymentVouchers((prev) => prev.filter((x) => x.id !== id));
       // The billing line made with it (same form, amount and description) goes too.
       setExpenses((prev) => prev.filter((x) => !(x.formNo && x.formNo === v.formNo && x.isClaimantAdvance === false && Number(x.amount) === Number(v.amount) && x.description === v.description && open(x.approvalStatus))));
@@ -3384,6 +3400,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateTravelClaim,
         addReceipt,
         updateReceipt,
+        removeFinanceRecords,
         addPaymentVoucher,
         updatePaymentVoucher,
         addRetainer,

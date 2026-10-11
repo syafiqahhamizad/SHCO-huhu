@@ -4,7 +4,7 @@ import type { CaseDocument } from '../../../../types';
 import { exportToWordDoc } from '../../../../lib/exportUtils';
 import { EngagementLetterActions, LangToggle, branchOfCase, engagementInputFor } from '../EngagementLetter';
 import { letterheadFor, loadLogos } from '../../../../lib/financeDocs';
-import { letterheadHtml, quotationForFile, type DocLang } from '../../../../lib/engagementLetter';
+import { letterFooterHtml, letterheadHtml, quotationForFile, type DocLang } from '../../../../lib/engagementLetter';
 import { useApp } from '../../../../context/AppContext';
 import { prepareStorage, storeEngagementFile, storeMatterFile, openLegacyDataUrl, openStoredFile, useStorageLabel } from '../../../../services/fileStorageService';
 import { matterSubFor } from '../../../../lib/driveLayout';
@@ -53,7 +53,7 @@ export const LettersTab: React.FC<{ w: WF }> = ({ w }) => {
       'Notice of change of solicitors': `${intit}<p style="text-align:center"><strong>NOTICE OF CHANGE OF SOLICITORS</strong></p><p>TAKE NOTICE that Messrs. Syafiqah Hamizad &amp; Co have been appointed to act for ${esc(client?.name || '[party]')} in place of [previous solicitors].</p><p>Dated: ${esc(today)}</p>`,
       'Closing letter to client': `${head}<p>${esc(client?.name || '[Client]')}</p>${re}<p>We are pleased to inform you that the above matter has been concluded and we are closing our file. Original documents held by us have been / will be returned to you. Our file will be kept for 7 years from the date of closing.</p><p>Thank you for your instructions.</p>${sign}`,
     };
-    exportToWordDoc(tpl.replace(/[^\w]+/g, '_') + '_' + c.ref.replace(/\//g, '-'), body[tpl]);
+    exportToWordDoc(tpl.replace(/[^\w]+/g, '_') + '_' + c.ref.replace(/\//g, '-'), body[tpl] + (body[tpl].startsWith(head) ? letterFooterHtml(letterheadFor()) : ''));
     w.save({}, 'Draft generated: ' + tpl, 'Document Upload');
     w.toast('Draft "' + tpl + '" downloaded as a Word file. Check and finalise before sending');
   };

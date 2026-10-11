@@ -78,14 +78,23 @@ export const FirmTab = ({ C }: { C: SettingsCtx }) => {
         </div>
       </div>
       <div style={css(S.card)}>
-        <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Letterhead by branch</strong></div>
+        <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Letterhead</strong><span style={css('display:block;font-size:10.5px;color:#5B6478')}>one letterhead for every letter and Letter of Engagement · same as “Letterhead as at 2.7.2026”</span></div>
+        {(() => { const h = branches.find((x) => x.hq) || branches[0]; return (
+          <div style={css('display:grid;grid-template-columns:minmax(0,1fr) 170px;gap:12px;align-items:center;padding:10px 14px;border-bottom:1px solid #F0F2F5')}>
+            <span style={css('min-width:0;font-size:10.5px;line-height:1.5;color:#5B6478')}><strong style={css('color:#16223A')}>{h?.letterheadImage ? 'Using your uploaded header: ' + (h.letterheadFileName || 'image') : 'Using the firm letterhead'}</strong><br />Logo · Bangi address · general, litigation, conveyancing and corporate e-mails · phone · operating hours footer.</span>
+            <span style={css('justify-self:end;display:flex;flex-direction:column;gap:6px;align-items:flex-end')}>
+              {h && <label style={css('border:1px solid #DDE3EB;border-radius:6px;padding:6px 10px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer')}>Upload header image<input type="file" accept="image/*" onChange={(e) => onFile(h, e)} style={css('display:none')} /></label>}
+              {h?.letterheadImage && <button type="button" onClick={() => C.save({ branches: branches.map((x) => (x.id === h.id ? { ...x, letterheadImage: undefined, letterheadFileName: undefined } : x)) }, 'Letterhead Changed', 'Back to the firm letterhead')} style={css('border:0;background:none;padding:0;font-size:10.5px;font-weight:700;color:#B23A2E;cursor:pointer')}>Use the firm letterhead</button>}
+            </span>
+          </div>
+        ); })()}
+        <div style={css('padding:10px 14px 4px')}><strong style={css('font-size:12px;color:#16223A')}>Branches</strong><span style={css('margin-left:6px;font-size:10.5px;color:#5B6478')}>for staff and files only · not printed on letters</span></div>
         {branches.map((b) => (
-          <div key={b.id} style={css('display:grid;grid-template-columns:minmax(0,1fr) 170px;gap:12px;align-items:center;padding:10px 14px;border-bottom:1px solid #F0F2F5')}>
-            <span style={css('min-width:0')}><span style={css('display:block;font-size:12px;font-weight:700;color:#16223A')}>{b.name + (b.hq ? ' (HQ)' : '')}</span><span style={css('display:block;font-size:10.5px;color:#5B6478')}>{b.address}</span><span style={css(`display:block;font-size:10.5px;color:${b.letterheadImage ? '#2F6F4E' : '#5B6478'}`)}>{b.letterheadImage ? '✓ ' + (b.letterheadFileName || 'header image') : 'Using built-in letterhead'}{b.letterheadWebViewLink ? <> · <a href={b.letterheadWebViewLink} target="_blank" rel="noopener noreferrer" style={css('color:#2F4F7A;font-weight:700')}>original in Drive</a></> : null}</span></span>
-            <label style={css('justify-self:end;border:1px solid #DDE3EB;border-radius:6px;padding:6px 10px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer')}>Upload header image<input type="file" accept="image/*" onChange={(e) => onFile(b, e)} style={css('display:none')} /></label>
+          <div key={b.id} style={css('display:grid;grid-template-columns:minmax(0,1fr) 70px;gap:12px;align-items:center;padding:6px 14px;border-bottom:1px solid #F0F2F5')}>
+            <span style={css('min-width:0')}><span style={css('display:block;font-size:12px;font-weight:700;color:#16223A')}>{b.name + (b.hq ? ' (HQ)' : '')}</span><span style={css('display:block;font-size:10.5px;color:#5B6478')}>{b.address}</span></span>
+            {!b.hq ? <button type="button" onClick={() => { if (window.confirm('Remove the ' + b.name + ' branch? People already set to it keep the name until you change them in Users & Roles.')) C.save({ branches: branches.filter((x) => x.id !== b.id) }, 'Branch Removed', b.name); }} style={css(S.remove)}>Remove</button> : <span />}
           </div>
         ))}
-        <div style={css(S.foot)}>Documents use the letterhead of the file’s branch. Upload a screenshot of the header from Word (logo to email line) to use it exactly.</div>
       </div>
       <div style={css('grid-column:1 / -1;overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
         <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Partners on letterhead</strong><span style={css('margin-left:8px;font-size:10.5px;color:#5B6478')}>the partners column on the Letter of Engagement · in this order</span></div>
