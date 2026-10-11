@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../../../context/AppContext';
 import { getGoogleClientId, signedInGoogleEmail } from '../../../services/googleWorkspaceAuth';
 import { testCourtDiary } from '../../../services/googleCalendarService';
 import { testGoogleTasks, GOOGLE_TASK_LIST_TITLE } from '../../../services/googleTasksService';
 import { testGmail } from '../../../services/gmailService';
 import { parseCalendarId } from '../../../lib/calendarEvent';
+import { readCalendarSyncStatus, syncCalendarNow, type CalendarSyncStatus } from '../../../hooks/useCalendarAutoSync';
 import { css, S, Txt, type SettingsCtx } from './settingsShared';
 
 const INPUT = 'border:1px solid #DDE3EB;border-radius:6px;padding:6px 8px;font-size:11.5px;color:#16223A;width:100%;box-sizing:border-box';
@@ -29,6 +30,17 @@ export const GoogleWorkspaceCard = ({ C }: { C: SettingsCtx }) => {
   const [busy, setBusy] = useState<Svc | null>(null);
   const tests = s.googleWorkspaceLastTests || {};
   const myEmail = signedInGoogleEmail() || String(app.currentUser?.email || '').toLowerCase();
+
+  // Every portal date ⇄ the firm calendar (hooks/useCalendarAutoSync): last run and "Sync now".
+  const [sync, setSync] = useState<CalendarSyncStatus | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  useEffect(() => { void readCalendarSyncStatus().then(setSync); }, []);
+  const syncNow = async () => {
+    setSyncing(true);
+    try { const r = await syncCalendarNow(); setSync(r); C.msg(r.error ? 'Calendar sync: ' + r.error : 'Calendar synced: ' + (r.pushed || 0) + ' sent, ' + (r.pulled || 0) + ' moved from Google, ' + (r.removed || 0) + ' removed'); }
+    catch (e) { C.msg(e instanceof Error ? e.message : String(e)); }
+    finally { setSyncing(false); }
+  };
 
   const saveCalendarId = (raw: string) => {
     const v = raw.trim();
@@ -81,7 +93,7 @@ export const GoogleWorkspaceCard = ({ C }: { C: SettingsCtx }) => {
       <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Google Calendar, Tasks &amp; Gmail</strong><span style={css('margin-left:8px;font-size:10.5px;color:#5B6478')}>court diary, personal task sync and e-mail from each person’s own account · same Google sign-in as Drive</span></div>
       <div style={css('display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;padding:12px 14px')}>
         <div style={css('display:flex;flex-direction:column;gap:9px;min-width:0')}>
-          <label style={css(ROW)}><span style={css(S.fieldLabel)}>Court diary Calendar ID</span><Txt value={s.courtDiaryCalendarId || ''} placeholder="c_…@group.calendar.google.com" onCommit={saveCalendarId} style={INPUT} /></label>
+          <label style={css(ROW)}><span style={css(S.fieldLabel)}>Court diary Calendar ID</span><Txt value={s.courtDiaryCalendarId || ''} placeholder="SHCO HQ (firm calendar) · or paste another Calendar ID" onCommit={saveCalendarId} style={INPUT} /></label>
           <label style={css(ROW)}><span style={css(S.fieldLabel)}>Calendar name</span><Txt value={s.courtDiaryCalendarName || ''} placeholder="SHCO Court Diary" onCommit={saveCalendarName} style={INPUT} /></label>
           {rows.map((r) => {
             const st = status(r.svc, r.notReady);
@@ -99,6 +111,18 @@ export const GoogleWorkspaceCard = ({ C }: { C: SettingsCtx }) => {
               </div>
             );
           })}
+          <div style={css('border:1px solid #EEF1F5;border-radius:8px;overflow:hidden')}>
+            <div style={css('display:flex;align-items:center;gap:10px;padding:7px 10px')}>
+              <span style={css('min-width:0;flex:1')}>
+                <span style={css('display:block;font-size:11.5px;font-weight:700;color:#16223A')}>Every date ⇄ firm calendar</span>
+                <span style={css('display:block;font-size:10.5px;color:#5B6478')}>Hearings, next court dates, deadlines, key dates, meetings, approved leave and office closures go into this calendar by themselves (PIC codes first, the firm’s colours); dates moved in Google move in the portal. Runs every 5 minutes.</span>
+              </span>
+              <button type="button" disabled={syncing} onClick={() => void syncNow()} style={css(S.darkBtn + ';white-space:nowrap' + (syncing ? ';opacity:.5;cursor:default' : ''))}>{syncing ? 'Syncing…' : 'Sync now'}</button>
+            </div>
+            <div style={css(`padding:6px 10px;font-size:10.5px;line-height:1.45;font-weight:700;color:${sync?.error ? '#B23A2E' : sync?.at ? '#2F6F4E' : '#8A6534'};background:${sync?.error ? '#FBEDE9' : sync?.at ? '#E6EFE9' : '#FBF2E9'};border-top:1px solid #EEF1F5`)}>
+              {!sync?.at ? 'Not synced yet' : (sync.error ? 'Last try ' + when(sync.at) + ': ' + sync.error : '✓ Last sync ' + when(sync.at) + ' · ' + (sync.total || 0) + ' dates · ' + (sync.pushed || 0) + ' sent · ' + (sync.pulled || 0) + ' moved from Google · ' + (sync.removed || 0) + ' removed') + (sync.by ? ' · by ' + sync.by : '')}
+            </div>
+          </div>
           <span style={css('font-size:10.5px;color:#5B6478;line-height:1.5')}>
             Calendar test: creates a test event for today in the court diary, then deletes it. Tasks test: finds or creates “{GOOGLE_TASK_LIST_TITLE}” in <em>your</em> Google Tasks. Gmail test: sends a short e-mail to you{myEmail ? ' (' + myEmail + ')' : ''}. Google asks each person once to allow each service.
           </span>

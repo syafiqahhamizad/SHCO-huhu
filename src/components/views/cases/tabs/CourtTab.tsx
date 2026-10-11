@@ -4,7 +4,7 @@ import type { CourtDiaryEntry, Hearing, MatterCourtChange, MatterParty, Task } f
 import { css, S, Card, Field, boxStyle } from '../caseUi';
 import { COURT_LEVELS, P, courtOf, lawyerOf as lawyerOfName, daysFrom, fmt, isoOf, legacyFromParties, short, stagesFor, stageIndexOf, practiceOf, todayIso } from '../caseModel';
 import { histEntry, newId, prepUpdate, type WF } from '../wf';
-import { addHearingToDiary, autoSend, isCourtDiaryConfigured } from '../clientComms';
+import { autoSend, isCourtDiaryConfigured } from '../clientComms';
 
 const R = {
   coram: ['Transferred to another judge / registrar', 'Judge / registrar retired or promoted', 'Case moved to another court'],
@@ -78,17 +78,9 @@ export const CourtTab: React.FC<{ w: WF }> = ({ w }) => {
 
   /* ---------- court diary (Google Calendar) ---------- */
   const diaryOn = isCourtDiaryConfigured();
-  const picEmails = Array.from(new Set([lawyerOfName(c), ...(c.partners || []).map((code) => staff.find((p) => p.code === code)?.name || '')].map((n) => staff.find((p) => p.name === n)?.email || '').filter(Boolean)));
-  const toDiary = async (h: Hearing) => {
-    const r = await addHearingToDiary(w, c, h, picEmails);
-    if (!r) return;
-    w.saveWith((x) => ({ hearings: (x.hearings || []).map((y) => (y.id === h.id ? { ...y, googleEventId: r.eventId, googleEventLink: r.htmlLink } : y)) }), 'Added to Google Calendar (court diary): ' + h.purpose + ' on ' + fmt(h.date), 'Court Event');
-    w.toast('Added to the court diary in Google Calendar' + (picEmails.length ? '. Invite sent to ' + picEmails.join(', ') : ''));
-  };
-  const CalBox: React.FC<{ on: boolean; set: (v: boolean) => void; label: string }> = ({ on, set, label }) => (
-    diaryOn
-      ? <button type="button" onClick={() => set(!on)} style={css('display:flex;align-items:center;gap:8px;border:1px solid #C9D1DC;border-radius:8px;padding:7px 11px;font-size:12.5px;font-weight:600;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}><span style={boxStyle(on, 16)}>{on ? '✓' : ''}</span>{label}</button>
-      : <span title="Set up the court diary in Firm Settings" style={css('display:flex;align-items:center;gap:8px;border:1px solid #DDE3EB;border-radius:8px;padding:7px 11px;font-size:12.5px;font-weight:600;background:#fff;color:#94A3B8;cursor:not-allowed')}><span style={boxStyle(false, 16)} />{label} · set up the court diary in Firm Settings</span>
+  // Hearings and next court dates go to the firm calendar (SHCO HQ) by themselves (useCalendarAutoSync).
+  const CalNote: React.FC<{ label: string }> = ({ label }) => (
+    <span title={diaryOn ? 'Synced automatically, both ways' : 'Set up the court diary in Firm Settings'} style={css('display:flex;align-items:center;gap:8px;border:1px solid #DDE3EB;border-radius:8px;padding:7px 11px;font-size:12.5px;font-weight:600;background:#F6F8FA;color:' + (diaryOn ? '#2F6F4E' : '#94A3B8'))}>{diaryOn ? '✓ ' + label : label + ' (set up the firm calendar in Firm Settings)'}</span>
   );
 
   /* ---------- hearings ---------- */
@@ -103,7 +95,7 @@ export const CourtTab: React.FC<{ w: WF }> = ({ w }) => {
     setHOpen(true);
   };
   const deleteH = (h: Hearing) => {
-    if (!window.confirm('Delete the hearing on ' + fmt(h.date) + '?' + (h.googleEventId ? '\n\nIt is also in Google Calendar: delete it there as well.' : ''))) return;
+    if (!window.confirm('Delete the hearing on ' + fmt(h.date) + '?' )) return;
     const hearings = (c.hearings || []).filter((x) => x.id !== h.id);
     const up = nextOf(hearings);
     w.save({ hearings, nextHearing: up ? up.date : undefined }, 'Hearing deleted: ' + h.purpose + ' on ' + fmt(h.date), 'Court Event');
@@ -117,7 +109,7 @@ export const CourtTab: React.FC<{ w: WF }> = ({ w }) => {
       const up = nextOf(hearings);
       w.save({ hearings, nextHearing: up ? up.date : undefined }, 'Hearing edited: ' + hf.purpose.trim() + ' on ' + fmt(hf.date), 'Court Event');
       setEditH(null); setHf(blankH); setHOpen(false);
-      w.toast('Hearing updated' + ((c.hearings || []).find((x) => x.id === editH)?.googleEventId ? '. Change it in Google Calendar too' : ''));
+      w.toast('Hearing updated. The firm calendar follows by itself');
       return;
     }
     const h: Hearing = { id: newId('H'), purpose: hf.purpose.trim(), date: hf.date, time: hf.time, status: 'Scheduled', outcome: '', clientAttendanceRequired: hf.attend, remindDaysBefore: Number(hf.remind), addedBy: w.me, addedAt: today };
@@ -127,7 +119,6 @@ export const CourtTab: React.FC<{ w: WF }> = ({ w }) => {
     setHf({ ...blankH, cal: hf.cal });
     setHOpen(false);
     w.toast('Hearing saved. It shows in My Work for the team');
-    if (diaryOn && hf.cal) void toDiary(h);
   };
   const hs = [...(c.hearings || [])].sort((a, b) => (isoOf(a.date) < isoOf(b.date) ? 1 : -1));
 
@@ -196,7 +187,6 @@ export const CourtTab: React.FC<{ w: WF }> = ({ w }) => {
     setMf(blankM());
     setView(memo.id);
     w.toast('Court memo saved' + (task ? '. Task added to ' + mf.taskWho + "'s My Work" : '') + (mf.next ? '. Next date added to Hearings' : '') + (up ? '. Client update prepared: send it from Client updates' : ''));
-    if (nextH && diaryOn && mf.cal) void toDiary(nextH);
     if (up) void autoSend(w, up, first?.email);
   };
   const memos = [...(c.courtDiary || [])].sort((a, b) => (isoOf(a.date) < isoOf(b.date) ? 1 : -1));
@@ -255,6 +245,25 @@ export const CourtTab: React.FC<{ w: WF }> = ({ w }) => {
         )}
       </Card>
 
+      {!ro && (c.calendarFromGoogle || []).length > 0 && (
+        <Card>
+          <div style={css(S.head)}><strong style={css('font-family:Georgia, serif;font-size:15px;color:#16223A')}>From the firm calendar</strong><span style={css(S.sub)}>dates typed straight into Google Calendar that look like this file’s · add them, or ignore</span></div>
+          {(c.calendarFromGoogle || []).map((g) => (
+            <div key={g.eventId} style={css('display:flex;align-items:center;gap:12px;padding:10px 16px;border-top:1px solid #EEF1F5;font-size:12.5px')}>
+              <span style={css('min-width:92px;font-weight:700;color:#16223A')}>{fmt(g.date)}{g.time ? ' · ' + g.time : ''}</span>
+              <span style={css('flex:1;min-width:0;color:#16223A')}>{g.title}</span>
+              <button type="button" onClick={() => {
+                const purpose = (g.title.split('|').slice(1).join('|').replace(/[()]/g, '').trim()) || g.title;
+                const h: Hearing = { id: newId('H'), purpose, date: g.date, time: g.time || '', status: 'Scheduled', outcome: '', clientAttendanceRequired: 'Not Required', remindDaysBefore: 3, source: 'Google Calendar', googleEventId: g.eventId, addedBy: w.me, addedAt: new Date().toISOString() };
+                w.save({ hearings: [...(c.hearings || []), h], calendarFromGoogle: (c.calendarFromGoogle || []).filter((x) => x.eventId !== g.eventId) }, 'Court date added from the firm calendar: ' + purpose + ' on ' + fmt(g.date), 'Court Event');
+                w.toast('Added to Hearings. The calendar event is now linked to this file.');
+              }} style={css(S.btnPri)}>Add to file</button>
+              <button type="button" onClick={() => { w.save({ calendarFromGoogle: (c.calendarFromGoogle || []).filter((x) => x.eventId !== g.eventId), calendarIgnored: [...(c.calendarIgnored || []), g.eventId] }, 'Firm calendar event ignored for this file: ' + g.title); }} style={css('border:1px solid #DDE3EB;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;background:#fff;color:#4A5468;cursor:pointer;font-family:inherit')}>Ignore</button>
+            </div>
+          ))}
+        </Card>
+      )}
+
       <Card>
         <div style={css(S.head)}><strong style={css('font-family:Georgia, serif;font-size:15px;color:#16223A')}>Hearings</strong>{!ro && <button type="button" onClick={() => { if (editH) { setEditH(null); setHf(blankH); setHOpen(true); } else setHOpen(!hOpen); }} style={css('margin-left:auto;' + S.btnPri)}>+ Add hearing</button>}</div>
         {hOpen && (
@@ -267,7 +276,7 @@ export const CourtTab: React.FC<{ w: WF }> = ({ w }) => {
             {editH && <Field label="Status"><select value={hf.status} onChange={(e) => setHf({ ...hf, status: e.target.value as Hearing['status'] })} style={css(S.input)}>{(['Scheduled', 'Completed', 'Adjourned', 'Postponed', 'Cancelled'] as Hearing['status'][]).map((x) => <option key={x} value={x}>{x}</option>)}</select></Field>}
             {editH && <Field label="Outcome" span="span 2"><input value={hf.outcome} onChange={(e) => setHf({ ...hf, outcome: e.target.value })} placeholder="What happened" style={css(S.input)} /></Field>}
             <div style={css('grid-column:1/-1;display:flex;align-items:center;gap:10px;flex-wrap:wrap')}>
-              {!editH && <CalBox on={hf.cal} set={(v) => setHf({ ...hf, cal: v })} label="Add to Google Calendar (firm court diary + invite PIC)" />}
+              {!editH && <CalNote label="Goes into the firm Google Calendar automatically (team invited)" />}
               {editH && <button type="button" onClick={() => { setEditH(null); setHf(blankH); setHOpen(false); }} style={css('margin-left:auto;' + S.btnSecL)}>Cancel</button>}
               <button type="button" onClick={saveH} style={css((editH ? '' : 'margin-left:auto;') + S.btnPriL)}>{editH ? 'Save changes' : 'Save hearing'}</button>
             </div>
@@ -285,7 +294,7 @@ export const CourtTab: React.FC<{ w: WF }> = ({ w }) => {
               <div style={css('display:flex;flex-direction:column;gap:3px;min-width:0')}><span style={css('color:#16223A;font-weight:600')}>{h.purpose}</span>{sub && <span style={css('color:#4A5468')}>{sub}</span>}</div>
               <div style={css('display:flex;flex-direction:column;gap:4px;align-items:flex-start')}><span style={css(`padding:2px 9px;border-radius:10px;font-size:11.5px;font-weight:700;background:${pill.bg};color:${pill.fg}`)}>{status}</span>
                 {h.googleEventId ? (h.googleEventLink ? <a href={h.googleEventLink} target="_blank" rel="noopener noreferrer" style={css('font-size:11px;font-weight:600;color:#2F4F7A')}>✓ Google Calendar</a> : <span style={css('font-size:11px;font-weight:600;color:#2F4F7A')}>✓ Google Calendar</span>)
-                  : up && diaryOn && !ro ? <button type="button" onClick={() => void toDiary(h)} style={css('border:0;background:none;padding:0;font-size:11px;font-weight:700;color:#2F4F7A;cursor:pointer;font-family:inherit;text-decoration:underline')}>Add to calendar</button> : null}
+                  : up && diaryOn && !ro ? <span title="Synced automatically with the firm Google Calendar" style={css('font-size:11px;font-weight:600;color:#2F4F7A')}>📅 Firm calendar (auto)</span> : null}
               </div>
               {!ro ? <span style={css('justify-self:end;display:flex;gap:6px')}><button type="button" onClick={() => startEditH(h)} style={css(S.btnSm)}>Edit</button><button type="button" onClick={() => deleteH(h)} style={css(S.btnSm + ';color:#B23A2E')}>Delete</button></span> : <span />}
             </div>
@@ -310,7 +319,7 @@ export const CourtTab: React.FC<{ w: WF }> = ({ w }) => {
             <Field label="Task from this memo (optional)" span="span 2"><input value={mf.task} onChange={(e) => setMf({ ...mf, task: e.target.value })} placeholder="e.g. File written submissions" style={css(S.input)} /></Field>
             <Field label="Task for"><select value={mf.taskWho} onChange={(e) => setMf({ ...mf, taskWho: e.target.value })} style={css(S.input)}>{staff.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}{!staff.some((p) => p.name === mf.taskWho) && <option value={mf.taskWho}>{mf.taskWho}</option>}</select></Field>
             <Field label="Task due"><input type="date" value={mf.taskDue} onChange={(e) => setMf({ ...mf, taskDue: e.target.value })} style={css(S.input)} /></Field>
-            <div style={css('grid-column:1/-1')}><CalBox on={mf.cal} set={(v) => setMf({ ...mf, cal: v })} label="Add the next court date to Google Calendar (court diary + invite PIC)" /></div>
+            <div style={css('grid-column:1/-1')}><CalNote label="The next court date goes into the firm Google Calendar automatically" /></div>
             <Field label="Remind PIC"><select value={mf.remind} onChange={(e) => setMf({ ...mf, remind: e.target.value })} style={css(S.input)}><option value="0">No reminder</option><option value="1">1 day before next date</option><option value="3">3 days before next date</option><option value="7">7 days before next date</option></select></Field>
             <div style={css('grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px')}><button type="button" onClick={() => { setMOpen(false); setEditM(null); setMf(blankM()); }} style={css(S.btnSecL)}>Cancel</button><button type="button" onClick={saveM} style={css(S.btnPriL)}>{editM ? 'Save changes' : <>Save &amp; generate court memo</>}</button></div>
           </div>

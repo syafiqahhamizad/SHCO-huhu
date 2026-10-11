@@ -436,6 +436,8 @@ export interface Task {
   syncToGoogle?: boolean;
   /** Google Tasks id per user id (Google Tasks is per user) — set only after Google confirmed. */
   googleTaskIds?: Record<string, string>;
+  /** The firm-calendar event this deadline is linked to (an event typed in Google before the portal had it). */
+  googleEventId?: string;
 }
 
 /** Cases redesign: Task kinds. */
@@ -676,6 +678,10 @@ export interface Case {
   nextAction?: string;
   caseStatusDetails?: CaseStatusDetails;
   hearings: Hearing[];
+  /** Dates typed straight into the firm Google Calendar that look like this file's (by file no. or suit no.), waiting for someone to add or ignore them. */
+  calendarFromGoogle?: { eventId: string; title: string; date: string; time?: string }[];
+  /** Google Calendar events someone chose to ignore for this file. */
+  calendarIgnored?: string[];
   documents: CaseDocument[];
   courtDiary: CourtDiaryEntry[];
   tasks: Task[];
