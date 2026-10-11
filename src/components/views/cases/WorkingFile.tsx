@@ -85,7 +85,7 @@ export const WorkingFile: React.FC<{ c: Case }> = ({ c }) => {
     if (t) {
       const st = isDone(t) ? 'Completed' : t.status === 'In Progress' || t.status === 'In Review' ? t.status : t.status === 'Under Review' ? 'In Review' : 'Not Started';
       setTaskForm({ editing: t, draft: { title: t.title, caseId: c.id, assignedTo: staff.find((p) => p.code === t.assignedTo)?.name || t.assignedTo, dueDate: t.dueDate || '', priority: t.priority, status: st as TaskDraft['status'], taskType: t.taskType || 'Standard', description: t.description || '', checklist: t.checklist || [], syncGoogle: !!t.syncToGoogle, kind: t.kind || 'Task' } });
-    } else setTaskForm({ draft: { ...blankTaskDraft(me), caseId: c.id, kind: 'Task', syncGoogle: false, ...preset } });
+    } else setTaskForm({ draft: { ...blankTaskDraft(me), caseId: c.id, kind: 'Task', syncGoogle: true, ...preset } });
   };
   const saveTask = (again: boolean) => {
     if (!taskForm) return;
@@ -112,7 +112,7 @@ export const WorkingFile: React.FC<{ c: Case }> = ({ c }) => {
     }
     const task: Task = { id: newId('T'), ...base, createdBy: me, createdAt: now };
     save({ tasks: [...(c.tasks || []), task] }, (kind === 'Task' ? 'Task added: ' : 'Deadline added: ') + task.title, 'Milestone Completion');
-    setTaskForm(again ? { draft: { ...blankTaskDraft(base.assignedTo), caseId: c.id, kind: 'Task', syncGoogle: false } } : null);
+    setTaskForm(again ? { draft: { ...blankTaskDraft(base.assignedTo), caseId: c.id, kind: 'Task', syncGoogle: true } } : null);
     if (d.syncGoogle) void syncTask(w, task);
     if (task.assignedTo && task.assignedTo !== me) app.addNotification({ title: (kind === 'Task' ? 'New task: ' : 'New deadline: ') + task.title, message: me + ' gave you ' + (kind === 'Task' ? 'a task' : 'a deadline') + ' on ' + c.ref + ' (' + c.title + ')' + (task.dueDate ? ', due ' + task.dueDate : '') + '.', type: 'system', linkTab: 'tasks', linkId: c.id, to: [task.assignedTo] });
     toast((kind === 'Task' ? 'Task' : 'Deadline') + ' added · shows in ' + base.assignedTo.split(' ')[0] + "'s My Work and this file");

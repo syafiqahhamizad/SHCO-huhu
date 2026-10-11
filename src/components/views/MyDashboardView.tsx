@@ -15,7 +15,6 @@ import PartnerKpisTab from './dashboard/PartnerKpisTab';
 import DirectionTab from './dashboard/DirectionTab';
 import { MyWorkTab } from './dashboard/MyWorkTab';
 import { PartnerMoney, StaffMoney } from './dashboard/MyMoneyTab';
-import { ConnectedDataBar } from './dashboard/ConnectedDataBar';
 import { useMyWorkRows } from './dashboard/myWork';
 
 type QKey = 'mine' | 'money' | 'cacc' | 'people' | 'kpi' | 'safety' | 'dir';
@@ -163,7 +162,6 @@ export const MyDashboardView: React.FC = () => {
       {q === 'safety' && <ComplianceTab />}
       {q === 'dir' && <DirectionTab />}
 
-      <ConnectedDataBar />
     </div>
   );
 };

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../../context/AppContext';
 import type { Case, MatterCloseCheck } from '../../../types';
 import { css, S, Modal, ModalHead, Card, boxStyle } from './caseUi';
-import { addDays, daysFrom, fmt, isDone, rm, todayIso } from './caseModel';
+import { addDays, daysFrom, fmt, isDone, isoOf, rm, todayIso } from './caseModel';
 import { type WF } from './wf';
 import { peopleWho } from '../settings/permissionModel';
 
@@ -37,6 +37,7 @@ export const RequestCloseModal: React.FC<{ w: WF; onClose: () => void }> = ({ w,
   const [letter, setLetter] = useState(prevManual('Closing letter'));
   const [outcome, setOutcome] = useState(prev?.outcome || '');
   const [note, setNote] = useState(prev?.note || '');
+  const [closeDate, setCloseDate] = useState(prev?.closeDate || todayIso());
   const sys = systemChecks(w);
   const manual: MatterCloseCheck[] = [
     { label: 'Original documents', ok: docs, detail: docs ? 'Returned to client' : 'Return originals to the client and tick' },
@@ -55,7 +56,7 @@ export const RequestCloseModal: React.FC<{ w: WF; onClose: () => void }> = ({ w,
   };
   const send = () => {
     if (!outcome) { w.toast('Choose the outcome'); return; }
-    w.save({ closeRequest: { status: 'Pending', requestedBy: w.me, requestedAt: todayIso(), outcome, note: note.trim() || undefined, checklist: all } }, 'Close requested · ' + outcome + (left ? ' (' + left + ' item(s) still open)' : ''), 'Status Update');
+    w.save({ closeRequest: { status: 'Pending', requestedBy: w.me, requestedAt: todayIso(), outcome, note: note.trim() || undefined, closeDate, checklist: all } }, 'Close requested · ' + outcome + (left ? ' (' + left + ' item(s) still open)' : ''), 'Status Update');
     addNotification({ title: 'Close request: ' + c.ref, message: w.me + ' asked to close ' + c.ref + ' (' + c.title + ') · ' + outcome + (left ? ' · ' + left + ' item(s) still open' : '') + '. Open the file to approve or send back.', type: 'system', linkTab: 'cases', linkId: c.id, to: ['partners:' + c.id, ...peopleWho(rolesMatrix, users, 'cases.approveClose').filter((u) => u.role !== 'Partner').map((u) => u.id)] });
     onClose();
     w.toast(left ? 'Sent to ' + to + ' with ' + left + ' item(s) still open' : 'Close request sent to ' + to);
@@ -77,6 +78,7 @@ export const RequestCloseModal: React.FC<{ w: WF; onClose: () => void }> = ({ w,
           );
         })}
         <div style={css('display:grid;grid-template-columns:1fr;gap:10px;padding:12px 0')}>
+          <label style={css('display:flex;flex-direction:column;gap:6px')}><span style={css(S.label)}>Date closed</span><input type="date" value={closeDate} max={todayIso()} onChange={(e) => setCloseDate(e.target.value)} style={css(S.input + ';width:200px')} /><span style={css('font-size:11.5px;color:#4A5468')}>Today, or the day it actually closed (for files closed earlier).</span></label>
           <label style={css('display:flex;flex-direction:column;gap:6px')}><span style={css(S.label)}>Outcome</span><select value={outcome} onChange={(e) => setOutcome(e.target.value)} style={css(S.input)}><option value="">Choose outcome</option>{OUTCOMES.map((o) => <option key={o} value={o}>{o}</option>)}</select></label>
           <label style={css('display:flex;flex-direction:column;gap:6px')}><span style={css(S.label)}>Note to the approver</span><textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="Anything the approver should know" style={css(S.input + ';resize:vertical')} /></label>
         </div>
@@ -96,6 +98,7 @@ export const CloseRequestPanel: React.FC<{ w: WF; canApprove: boolean; onEdit: (
   const { c } = w;
   const r = c.closeRequest;
   const [back, setBack] = useState('');
+  const [closeOn, setCloseOn] = useState(r?.closeDate || todayIso());
   if (!r || r.status === 'Approved') return null;
   if (r.status === 'Sent back') {
     return (
@@ -111,8 +114,9 @@ export const CloseRequestPanel: React.FC<{ w: WF; canApprove: boolean; onEdit: (
   const approve = () => {
     if (blocked) { w.toast('Checklist not clear yet: send back instead'); return; }
     const today = todayIso();
-    const destroy = new Date(); destroy.setFullYear(destroy.getFullYear() + 7);
-    w.save({ status: 'Closed', closedDate: today, closedBy: w.me, closeOutcome: r.outcome, destroyAfter: c.destroyAfter || destroy.toISOString().slice(0, 10), closeRequest: { ...r, status: 'Approved', decidedBy: w.me, decidedAt: today, checklist: live } }, 'Close approved by ' + w.me + ' · ' + r.outcome + '. File closed', 'Status Update');
+    const on = closeOn || today;
+    // Keep 7 years from the date it closed.
+    w.save({ status: 'Closed', closedDate: on, closedBy: w.me, closeOutcome: r.outcome, destroyAfter: c.destroyAfter || addDays(365 * 7, new Date(on)), closeRequest: { ...r, status: 'Approved', closeDate: on, decidedBy: w.me, decidedAt: today, checklist: live } }, 'Close approved by ' + w.me + ' · ' + r.outcome + '. File closed on ' + fmt(on), 'Status Update');
     addNotification({ title: 'File closed: ' + c.ref, message: w.me + ' approved closing ' + c.ref + ' (' + r.outcome + ').', type: 'system', linkTab: 'cases', linkId: c.id, to: ['case:' + c.id] });
     w.toast('File closed. Add the archive box details below');
   };
@@ -140,6 +144,7 @@ export const CloseRequestPanel: React.FC<{ w: WF; canApprove: boolean; onEdit: (
           {canApprove ? (
             <>
               <strong style={css('font-family:Georgia, serif;font-size:14px;color:#16223A')}>Your decision</strong>
+              <label style={css('display:flex;flex-direction:column;gap:6px')}><span style={css(S.label)}>Date closed</span><input type="date" value={closeOn} max={todayIso()} onChange={(e) => setCloseOn(e.target.value)} style={css(S.input)} /></label>
               <button type="button" onClick={approve} style={css(S.btnPriL + (blocked ? ';opacity:.5' : ''))}>Approve &amp; close file</button>
               {blocked && <span style={css('font-size:11.5px;color:#8A4B00')}>Checklist not clear yet. Send it back, or clear the items first.</span>}
               <label style={css('display:flex;flex-direction:column;gap:6px;padding-top:10px;border-top:1px solid #EEF1F5')}><span style={css(S.label)}>Or send back with a reason</span><textarea value={back} onChange={(e) => setBack(e.target.value)} rows={3} placeholder="e.g. Return the original title first" style={css(S.input + ';resize:vertical')} /></label>
@@ -157,7 +162,7 @@ export const CloseRequestPanel: React.FC<{ w: WF; canApprove: boolean; onEdit: (
 
 export const ClosedBanner: React.FC<{ w: WF; canReopen: boolean; onPrint: () => void }> = ({ w, canReopen, onPrint }) => {
   const { c } = w;
-  const [a, setA] = useState({ box: c.archiveBoxNo || '', loc: c.archiveLocation || '', destroy: c.destroyAfter || (c.closedDate ? addDays(365 * 7, new Date(c.closedDate)) : '') });
+  const [a, setA] = useState({ closed: c.closedDate ? isoOf(c.closedDate) : '', box: c.archiveBoxNo || '', loc: c.archiveLocation || '', destroy: c.destroyAfter || (c.closedDate ? addDays(365 * 7, new Date(c.closedDate)) : '') });
   if (c.status !== 'Closed' && c.status !== 'Archive') return null;
   const reopen = () => {
     if (!window.confirm('Reopen ' + c.ref + '? It becomes Active again.')) return;
@@ -165,7 +170,8 @@ export const ClosedBanner: React.FC<{ w: WF; canReopen: boolean; onPrint: () => 
     w.toast('File reopened');
   };
   const saveA = () => {
-    w.save({ archiveBoxNo: a.box.trim() || undefined, archiveLocation: a.loc.trim() || undefined, destroyAfter: a.destroy || undefined, ...(a.box.trim() && c.status === 'Closed' ? { status: 'Archive' as Case['status'] } : {}) }, 'Archive details saved' + (a.box.trim() ? ': box ' + a.box.trim() : ''), 'Status Update');
+    const dateChanged = a.closed && a.closed !== (c.closedDate ? isoOf(c.closedDate) : '');
+    w.save({ ...(dateChanged ? { closedDate: a.closed } : {}), archiveBoxNo: a.box.trim() || undefined, archiveLocation: a.loc.trim() || undefined, destroyAfter: a.destroy || undefined, ...(a.box.trim() && c.status === 'Closed' ? { status: 'Archive' as Case['status'] } : {}) }, 'Archive details saved' + (a.box.trim() ? ': box ' + a.box.trim() : '') + (dateChanged ? ' · date closed changed to ' + fmt(a.closed) : ''), 'Status Update');
     w.toast('Archive details saved');
   };
   return (
@@ -178,6 +184,7 @@ export const ClosedBanner: React.FC<{ w: WF; canReopen: boolean; onPrint: () => 
       <Card>
         <div style={css(S.head)}><strong style={css('font-family:Georgia, serif;font-size:15px;color:#16223A')}>Archive</strong><span style={css(S.sub)}>Keep closed files 7 years from closing (firm policy).</span></div>
         <div style={css('padding:14px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;align-items:end')}>
+          <label style={css('display:flex;flex-direction:column;gap:5px')}><span style={css(S.label)}>Date closed</span><input type="date" value={a.closed} max={todayIso()} disabled={!canReopen} onChange={(e) => setA({ ...a, closed: e.target.value, destroy: e.target.value ? addDays(365 * 7, new Date(e.target.value)) : a.destroy })} style={css(S.input)} /></label>
           <label style={css('display:flex;flex-direction:column;gap:5px')}><span style={css(S.label)}>Archive box no.</span><input value={a.box} disabled={!canReopen} onChange={(e) => setA({ ...a, box: e.target.value })} placeholder="e.g. BOX-2027-SH014" style={css(S.input)} /></label>
           <label style={css('display:flex;flex-direction:column;gap:5px')}><span style={css(S.label)}>Where it is kept</span><input value={a.loc} disabled={!canReopen} onChange={(e) => setA({ ...a, loc: e.target.value })} placeholder="e.g. Store room B, shelf 3" style={css(S.input)} /></label>
           <label style={css('display:flex;flex-direction:column;gap:5px')}><span style={css(S.label)}>Destroy after</span><input type="date" value={a.destroy} disabled={!canReopen} onChange={(e) => setA({ ...a, destroy: e.target.value })} style={css(S.input)} /></label>

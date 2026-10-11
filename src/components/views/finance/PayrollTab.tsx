@@ -74,7 +74,7 @@ const StaffPayslips = ({ F }: { F: FinanceCtrl }) => {
       <div style={css('display:flex;align-items:center;gap:12px;border-radius:12px;border:1px solid #DDE3EB;background:#fff;padding:12px 16px;flex-wrap:wrap')}>
         <strong style={css('font-family:ui-serif, Georgia, serif;font-size:16px;color:#16223A')}>{F.monthName} {year} payroll</strong><span style={css('font-size:10.5px;color:#5B6478')}>pay date {F.lastDayLabel} · {F.staff.length} staff{partnersNote ? ' · ' + partnersNote : ''}</span>
         <div style={css('display:flex;align-items:center;gap:6px;margin-left:16px')}>{STEPS.map((label, i) => { const bg = i < step ? '#E6EFE9' : i === step ? '#16223A' : '#F0F2F5'; const fg = i < step ? '#2F6F4E' : i === step ? '#fff' : '#5B6478'; return <span key={label} style={css(`display:flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;padding:3px 10px;border-radius:12px;background:${bg};color:${fg}`)}>{i < step ? '✓' : String(i + 1)} {label}</span>; })}</div>
-        <button type="button" onClick={F.payNext} style={css('margin-left:auto;border:0;border-radius:6px;padding:7px 14px;font-size:11px;font-weight:700;background:#16223A;color:#fff;cursor:pointer;font-family:inherit')}>{payBtn}</button>
+        <button type="button" onClick={() => F.payNext()} style={css('margin-left:auto;border:0;border-radius:6px;padding:7px 14px;font-size:11px;font-weight:700;background:#16223A;color:#fff;cursor:pointer;font-family:inherit')}>{payBtn}</button>
       </div>
       {!lock && (
         <div style={css('display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-radius:12px;border:1px solid #DDE3EB;background:#fff;padding:10px 16px')}>

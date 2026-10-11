@@ -235,7 +235,7 @@ export const printHtml = (title: string, bodyHtml: string) => {
 /* ------------------------------------------------------------------ leave */
 
 /** [type, entitlement days/yr (0 = no fixed limit), counting, note] — firm leave policy. */
-export const LEAVE_TYPES: [string, number, 'working' | 'calendar', string][] = [
+const LEAVE_TYPES: [string, number, 'working' | 'calendar', string][] = [
   ['Annual', 16, 'working', '16 days a year (grows with service). Apply at least 7 days ahead.'],
   ['Medical', 14, 'working', '14 days a year. Upload the MC (klinik panel or any registered doctor).'],
   ['Hospitalisation', 60, 'working', 'Up to 60 days a year when admitted, including medical leave. Upload the discharge note.'],
@@ -258,6 +258,12 @@ export const LEAVE_COLORS: Record<string, [string, string]> = {
 };
 
 /** The firm's editable list (Firm & Practice Settings → Public holidays), else the built-in one. */
+/** The firm's leave types: the list saved in Settings → Lists & sources, else the built-in one. */
+export const getLeaveTypes = (): [string, number, 'working' | 'calendar', string][] => {
+  const own = getPracticeSettings().leaveTypes;
+  return own && own.length ? own.filter((t) => t.name.trim()).map((t) => [t.name.trim(), Number(t.days) || 0, t.basis === 'calendar' ? 'calendar' : 'working', t.note || '']) : LEAVE_TYPES;
+};
+
 export const getPublicHolidays = (): Record<string, string> =>
   getPracticeSettings().publicHolidays ?? DEFAULT_PUBLIC_HOLIDAYS;
 
@@ -299,7 +305,8 @@ export const DEFAULT_PUBLIC_HOLIDAYS: Record<string, string> = {
 
 /* ------------------------------------------------------------------ claims */
 
-export type ClaimKind = 'Travelling' | 'Disbursement' | 'Office' | 'Despatch' | 'Office bill';
+// eslint-disable-next-line @typescript-eslint/ban-types
+export type ClaimKind = 'Travelling' | 'Disbursement' | 'Office' | 'Despatch' | 'Office bill' | (string & {});
 export type ClaimStatus = 'Waiting' | 'Approved' | 'Paid' | 'Rejected';
 
 export const KIND_COLORS: Record<string, [string, string]> = {
@@ -309,7 +316,7 @@ export const STATUS_COLORS: Record<ClaimStatus, [string, string]> = {
   Waiting: ['#FBF2E9', '#8A6534'], Approved: ['#E7EEF6', '#2F5680'], Paid: ['#E6EFE9', '#2F6F4E'], Rejected: ['#FBEDE9', '#B23A2E'],
 };
 
-export const OFFICE_LABEL = 'Office (not billed)';
+export const OFFICE_LABEL = 'Office';
 const OFFICE_REFS = new Set(['', 'FIRM_OVERHEAD', 'FIRM_OPERATIONS', 'Firm Operations']);
 
 export interface ClaimRow {
@@ -415,7 +422,7 @@ export const buildMyClaimRows = (
     const c = dir.caseOf(e.fileRef) || dir.caseOf(e.caseId);
     const ref = c ? c.ref : null;
     rows.push({
-      key: 'ex-' + e.id, source: 'expense', docType: financeDocType('expense'), iso: e.date || '', kind: ref && e.billable ? 'Disbursement' : 'Office',
+      key: 'ex-' + e.id, source: 'expense', docType: financeDocType('expense'), iso: e.date || '', kind: e.claimKind || (ref && e.billable ? 'Disbursement' : 'Office'),
       what: e.description || e.category, file: dir.label(ref), caseRef: ref, amt: Number(e.amount || 0),
       bill: ref && e.billable ? Number(e.amount || 0) : 0, form: e.formNo || e.id, rec: docCount(e),
       status: statusOf(e.approvalStatus, e.postedToGl), approver: dir.picOf(ref), approvedBy: e.approvedBy, approvedAt: e.approvedAt, ...docsOf(e),

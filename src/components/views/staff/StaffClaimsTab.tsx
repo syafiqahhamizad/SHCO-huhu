@@ -1,15 +1,18 @@
 import React, { useMemo, useRef, useState } from 'react';
+import { useQuickCreate } from '../../../lib/quickCreate';
+import { useListFilter } from '../../ui/ListFilters';
 import { useApp } from '../../../context/AppContext';
 import type { ClaimAttachment, ClaimDocument, Expense, PaymentVoucher, TravelClaim } from '../../../types';
 import { claimsStorageService } from '../../../services/claimsStorageService';
 import { DRIVE_REQUIRED_MSG, isUploadReady, openStoredFile, prepareStorage, storeClaimReceipt, storedFileKey, useStorageLabel, validateClaimFile } from '../../../services/fileStorageService';
 import {
-  card, cardTitle, ClaimKind, ClaimRow, ddmm, ddmmyyyy, FileDirectory, KIND_COLORS, labelWrap, OFFICE_LABEL, rm, STATUS_COLORS, todayIso,
+  card, cardTitle, type ClaimKind, type ClaimRow, ddmm, ddmmyyyy, FileDirectory, KIND_COLORS, labelWrap, OFFICE_LABEL, rm, STATUS_COLORS, todayIso,
 } from './staffPortalShared';
 import { resolveApproval } from '../../../lib/approvers';
 import { usePracticeSettings } from '../settings/settingsShared';
 import { DOC_TYPE_COLORS, FINANCE_DOC_TYPES, matchesYearType, yearOptions } from '../../../lib/claimFilters';
 import { folderUrl } from '../../../lib/driveLayout';
+import { DEFAULT_CLAIM_TYPES } from '../../../services/templateService';
 
 const SEL: React.CSSProperties = { border: '1px solid #C9D3E0', borderRadius: 6, padding: '4px 6px', fontSize: 11, color: '#16223A', background: '#fff', fontFamily: 'inherit' };
 
@@ -72,11 +75,21 @@ interface Form {
   portal: string;
   pref: string;
   files: FormDoc[];
+  /** Travelling: going leg, optional return leg, purpose. */
+  goFrom: string;
+  goTo: string;
+  goKm: string;
+  back: boolean;
+  backFrom: string;
+  backTo: string;
+  backKm: string;
+  purpose: string;
 }
 
 const blankForm = (): Form => ({
   open: false, mode: 'Claim', items: [], kind: 'Travelling', dateIso: todayIso(), what: '', km: '', parking: '', toll: '', amt: '',
   file: '', caseRef: null, fq: '', fOpen: false, vendor: '', vbank: '', pmethod: 'Bank transfer', from: 'Disb', portal: 'e-Filing (Mahkamah)', pref: '', files: [],
+  goFrom: 'Office', goTo: '', goKm: '', back: true, backFrom: '', backTo: 'Office', backKm: '', purpose: '',
 });
 
 const PORTALS = ['e-Filing (Mahkamah)', 'Syariah e-Filing (JKSM)', 'e-Tanah / PTG', 'STAMPS (LHDN stamp duty)', 'MyCoID / SSM', 'MyInsolvensi search', 'Other website'];
@@ -85,8 +98,17 @@ const NOTE: Record<string, string> = {
   Disbursement: 'Paid for a client file: filing fees, search fees, stamp duty, commissioner for oaths. Billed to the client at cost.',
   Despatch: 'Runner / despatch to court, land office, bank. The firm pays the despatch company directly.',
   'Office bill': 'Office supplier bill (toner, repairs, subscriptions). The firm pays the supplier; not billed to any client.',
-  Office: 'Small office purchases you paid: stationery, pantry, urgent repairs. Not billed to any client.',
+  Office: 'Small office purchases you paid: stationery, pantry, urgent repairs.',
+  'Grab / taxi / train': 'Grab, taxi, LRT / MRT / KTM, ERL or bus fares. Billed to the client at cost when for a file.',
+  Accommodation: 'Hotel for out-station court or client work. Billed to the client at cost when for a file.',
+  'Meals (client meeting)': 'Meals with a client or for out-station work, within the firm’s limit. Not billed to the client.',
+  'Courier & postage': 'Pos Laju, courier, registered post. Billed to the client at cost when for a file.',
+  'Printing & photocopy': 'Outside printing or photocopy (bundles, binding). Billed to the client at cost when for a file.',
+  'Phone & internet': 'Work phone or internet top-up allowed by the firm.',
+  'Training / CPD': 'Courses, CPD talks, books approved by a partner.',
 };
+/** Claim types never billed to a client, even when picked for a file. */
+const NOT_BILLED = new Set(['Office', 'Office bill', 'Meals (client meeting)', 'Phone & internet', 'Training / CPD']);
 
 const readKey = (uid: string) => 'shco_staffportal_read_' + uid;
 const loadRead = (uid: string): string[] => {
@@ -111,8 +133,9 @@ interface Props {
 export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
   const {
     currentUser, users, cases, clients, travelClaims, expenses, paymentVouchers, addTravelClaim, addExpense, addPaymentVoucher,
-    addNotification, addActivityLog, getNextSequenceId, showToast,
+    addNotification, addActivityLog, getNextSequenceId, showToast, withdrawClaimRecord, updateTravelClaim, updateExpense, updatePaymentVoucher,
   } = useApp();
+  const [edit, setEdit] = useState<{ key: string; date: string; what: string; amt: string } | null>(null);
   const [f, setForm] = useState<Form>(blankForm);
   const setF = (p: Partial<Form>) => setForm((s) => ({ ...s, ...p }));
   const [drag, setDrag] = useState(false);
@@ -135,7 +158,8 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
   /* ---------------- list ---------------- */
 
   const years = useMemo(() => yearOptions<ClaimRow>(rows, (r) => r.iso), [rows]);
-  const list = rows.filter((r) => matchesYearType({ date: r.iso, docType: r.docType }, { year: yearF, type: typeF })).map((c) => ({
+  const LF = useListFilter({ placeholder: 'Search what, file, form no.…' });
+  const list = rows.filter((r) => matchesYearType({ date: r.iso, docType: r.docType }, { year: yearF, type: typeF })).filter((r) => LF.match({ date: r.iso, text: [r.what, r.file, r.form, r.kind, r.payee] })).map((c) => ({
     ...c,
     withTxt: c.status === 'Waiting' ? 'with ' + (rule ? rule.label : c.approver) : c.status === 'Approved' ? 'Accounts to pay' : c.status === 'Paid' ? 'paid by Accounts' : 'by ' + (c.approvedBy || c.approver),
   }));
@@ -179,20 +203,36 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
     }
   };
 
+  /** Saves a quick edit of a waiting / rejected item; a rejected one goes back for approval. */
+  const saveEdit = (c: ClaimRow) => {
+    if (!edit) return;
+    const id = c.key.slice(3);
+    const again = c.status === 'Rejected' ? { approvalStatus: 'Pending Approval' as const } : {};
+    const amount = num(edit.amt);
+    if (c.source !== 'travel' && !amount) return showToast('Enter the amount');
+    if (c.source === 'travel') updateTravelClaim(id, { date: edit.date, purpose: edit.what.trim(), ...again });
+    else if (c.source === 'expense') updateExpense(id, { date: edit.date, description: edit.what.trim(), amount, ...again });
+    else updatePaymentVoucher(id, { date: edit.date, description: edit.what.trim(), amount, ...again });
+    addActivityLog('Claim Edited', c.form + ' · ' + edit.what.trim());
+    setEdit(null);
+  };
+
   /* ---------------- claim / PV form ---------------- */
 
   const D = f.mode === 'PV';
   const T = f.kind === 'Travelling';
   const PM = f.pmethod;
-  const km = num(f.km), pk = num(f.parking), tl = num(f.toll);
+  const km = T ? num(f.goKm) + (f.back ? num(f.backKm) : 0) : num(f.km), pk = num(f.parking), tl = num(f.toll);
+  // Travelling: the trip line is built from the legs and the purpose.
+  const tripWhat = [f.goFrom.trim(), f.goTo.trim(), ...(f.back && f.backTo.trim() ? [f.backTo.trim()] : [])].filter(Boolean).join(' → ') + (f.purpose.trim() ? ' · ' + f.purpose.trim() : '');
   const billable = f.caseRef !== null && !!f.file;
   const toYou = Math.round((T ? km + pk + tl : num(f.amt)) * 100) / 100;
-  const bill = Math.round((billable && !(D && f.from === 'Client') ? (T ? km * 1.5 + pk + tl : /^Office/.test(f.kind) ? 0 : num(f.amt)) : 0) * 100) / 100;
+  const bill = Math.round((billable && !(D && f.from === 'Client') ? (T ? km * 1.5 + pk + tl : NOT_BILLED.has(f.kind) ? 0 : num(f.amt)) : 0) * 100) / 100;
 
   const FILES = useMemo(() => {
     const clientName = (id: string, n?: string) => n || clients.find((c) => c.id === id)?.name || '';
     return [
-      { no: 'Office', client: OFFICE_LABEL, matter: 'Firm overhead · not billed to any client', pic: dir.managingPartner, ref: null as string | null },
+      { no: 'Office', client: OFFICE_LABEL, matter: 'Firm overhead', pic: dir.managingPartner, ref: null as string | null },
       ...cases
         .filter((c) => c.status === 'Active' || c.status === 'Pending')
         .map((c) => ({ no: c.ref, client: clientName(c.clientId, c.clientName), matter: [c.title || c.type, c.court].filter(Boolean).join(' · '), pic: dir.picOf(c.ref), ref: c.ref as string | null })),
@@ -248,12 +288,14 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
 
   const addItem = () => {
     if (!f.file) return showToast('Choose the file (search by client or file no.)');
-    if (!f.what) return showToast('Fill in the description');
+    if (T && (!f.goFrom.trim() || !f.goTo.trim())) return showToast('Fill in where you went from and to');
+    if (T && !f.purpose.trim()) return showToast('Fill in the purpose of the trip');
+    if (!T && !f.what) return showToast('Fill in the description');
     if (!toYou) return showToast(T ? 'Enter the km, parking or toll' : 'Enter the amount');
     if (!f.files.length && !(T && !pk && !tl)) return showToast('Attach the receipt for this item');
     setF({
-      items: [...f.items, { dateIso: f.dateIso, kind: f.kind, what: f.what, caseRef: f.caseRef, file: f.file, km, parking: pk, toll: tl, amt: toYou, bill, docs: f.files }],
-      what: '', km: '', parking: '', toll: '', amt: '', files: [],
+      items: [...f.items, { dateIso: f.dateIso, kind: f.kind, what: T ? tripWhat : f.what, caseRef: f.caseRef, file: f.file, km, parking: pk, toll: tl, amt: toYou, bill, docs: f.files }],
+      what: '', km: '', parking: '', toll: '', amt: '', files: [], goTo: '', goKm: '', backFrom: '', backKm: '', purpose: '',
     });
     showToast('Item ' + (f.items.length + 1) + ' added');
   };
@@ -330,8 +372,8 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
         const id = idOf.get(i) as string;
         const c = caseOf(i.caseRef);
         const ex: Expense = {
-          id, caseId: c?.id || 'FIRM_OPERATIONS', fileRef: c?.ref || 'FIRM_OVERHEAD', accountSet: c && i.kind !== 'Office' ? 'CLIENT' : 'OFFICE', date: i.dateIso,
-          category: i.kind === 'Office' ? '[Firm] Office purchase' : 'Disbursement', amount: i.amt, billable: !!c && i.kind !== 'Office', billed: false,
+          id, caseId: c?.id || 'FIRM_OPERATIONS', fileRef: c?.ref || 'FIRM_OVERHEAD', accountSet: c && !NOT_BILLED.has(i.kind) ? 'CLIENT' : 'OFFICE', date: i.dateIso,
+          category: c && !NOT_BILLED.has(i.kind) ? 'Disbursement' : i.kind === 'Office' ? '[Firm] Office purchase' : '[Firm] ' + i.kind, claimKind: i.kind, amount: i.amt, billable: !!c && !NOT_BILLED.has(i.kind), billed: false,
           description: i.what, claimant: currentUser.name, isClaimantAdvance: true, payee: currentUser.name, attachmentName: i.docs[0]?.name,
           documents: docMeta(i.docs), attachments: attsOf(i), approvalStatus: 'Pending Approval', formNo: no,
         };
@@ -384,9 +426,12 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
   };
 
   const openClaim = () => { setUpErr(''); setForm((s) => ({ ...s, open: true, mode: 'Claim', kind: 'Travelling', items: [], dateIso: todayIso() })); };
+  useQuickCreate(['claim'], () => openClaim());
   const openPv = () => { setUpErr(''); setForm((s) => ({ ...s, open: true, mode: 'PV', kind: 'Despatch', items: [], dateIso: todayIso() })); };
 
-  const kinds: ClaimKind[] = D ? ['Despatch', 'Disbursement', 'Office bill'] : ['Travelling', 'Disbursement', 'Office'];
+  // Claim types: Settings → Lists & sources → Claim types (Travelling always first).
+  const claimTypes = settings.claimTypes && settings.claimTypes.filter(Boolean).length ? settings.claimTypes.filter(Boolean) : DEFAULT_CLAIM_TYPES;
+  const kinds: ClaimKind[] = D ? ['Despatch', 'Disbursement', 'Office bill'] : ['Travelling', ...claimTypes.filter((k) => k !== 'Travelling')];
   const fromNote = f.from === 'Disb'
     ? 'Disbursement account: for court filing, searches, stamp duty and other file costs. Billed to the client as a disbursement (PV-D).'
     : f.from === 'Client'
@@ -413,6 +458,7 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
             <label style={{ display: 'flex', alignItems: 'center', gap: 5 }}>Type<select aria-label="Type" value={typeF} onChange={(e) => setTypeF(e.target.value)} style={SEL}><option value="All">All types</option>{FINANCE_DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}</select></label>
             <span style={{ marginLeft: 'auto' }}>{list.length} of {rows.length}</span>
           </div>
+          {LF.bar}
           <div style={{ display: 'grid', gridTemplateColumns: GRID, gap: 8, padding: '7px 14px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#5B6478', background: '#F6F8FA', borderBottom: '1px solid #EEF1F5' }}>
             <span>Date</span><span>Claim · file</span><span style={{ textAlign: 'right' }}>To you</span><span style={{ textAlign: 'right' }}>Bill client</span><span>Form no.</span><span>Receipt</span><span>Status</span>
           </div>
@@ -464,11 +510,27 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
                 <span style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start' }}>
                   <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 8px', borderRadius: 10, background: sc[0], color: sc[1] }}>{c.status}</span>
                   <span style={{ fontSize: 9.5, color: '#5B6478' }}>{c.withTxt}</span>
+                  {(c.status === 'Waiting' || c.status === 'Rejected') && (
+                    <span style={{ display: 'flex', gap: 8 }}>
+                      <button type="button" onClick={() => setEdit({ key: c.key, date: c.iso.slice(0, 10), what: c.what, amt: String(c.amt) })} style={{ border: 0, background: 'none', padding: 0, fontSize: 10, fontWeight: 700, color: '#3D6B9C', cursor: 'pointer', fontFamily: 'inherit' }}>Edit</button>
+                      <button type="button" onClick={() => { if (window.confirm('Withdraw “' + c.what + '” (' + rm(c.amt) + ')? It is removed from ' + c.form + '.')) withdrawClaimRecord(c.source, c.key.slice(3)); }} style={{ border: 0, background: 'none', padding: 0, fontSize: 10, fontWeight: 700, color: '#B23A2E', cursor: 'pointer', fontFamily: 'inherit' }}>Withdraw</button>
+                    </span>
+                  )}
                 </span>
+                {edit?.key === c.key && (
+                  <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'flex-end', gap: 8, flexWrap: 'wrap', padding: '8px 10px', borderRadius: 8, background: '#F6F8FA' }}>
+                    <label style={labelWrap}><span style={LBL}>Date</span><input type="date" value={edit.date} onChange={(e) => setEdit({ ...edit, date: e.target.value })} style={{ ...INP, width: 140 }} /></label>
+                    <label style={{ ...labelWrap, flex: 1, minWidth: 200 }}><span style={LBL}>Description</span><input value={edit.what} onChange={(e) => setEdit({ ...edit, what: e.target.value })} style={INP} /></label>
+                    {c.source !== 'travel' && <label style={labelWrap}><span style={LBL}>Amount (RM)</span><input value={edit.amt} onChange={(e) => setEdit({ ...edit, amt: e.target.value })} style={{ ...INP, width: 110, textAlign: 'right' }} /></label>}
+                    <button type="button" onClick={() => setEdit(null)} style={{ border: '1px solid #C9D3E0', borderRadius: 4, padding: '7px 12px', fontSize: 11, fontWeight: 700, background: '#fff', color: '#16223A', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                    <button type="button" onClick={() => saveEdit(c)} style={{ border: 0, borderRadius: 4, padding: '7px 12px', fontSize: 11, fontWeight: 700, background: '#16223A', color: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>Save{c.status === 'Rejected' ? ' & send again' : ''}</button>
+                    {c.source === 'travel' && <span style={{ flexBasis: '100%', fontSize: 10, color: '#5B6478' }}>To change the km, parking or toll, withdraw it and add it again.</span>}
+                  </div>
+                )}
               </div>
             );
           })}
-          <div style={{ padding: '9px 14px', background: '#F6F8FA', fontSize: 10.5, lineHeight: 1.5, color: '#5B6478' }}>Mileage: staff paid RM 1.00/km · client billed RM 1.50/km. Parking and tolls are billed at cost. Office claims are not billed to clients.</div>
+          <div style={{ padding: '9px 14px', background: '#F6F8FA', fontSize: 10.5, lineHeight: 1.5, color: '#5B6478' }}>Mileage: staff paid RM 1.00/km · client billed RM 1.50/km. Parking and tolls are billed at cost. While a claim is waiting (or was rejected) you can edit or withdraw it.</div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={card}>
@@ -663,15 +725,34 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
                     </div>
                   </div>
                   <span style={{ fontSize: 10.5, lineHeight: 1.45, color: '#5B6478' }}>{NOTE[f.kind]}</span>
-                  <label style={labelWrap}><span style={LBL}>{T ? 'Trip (from → to · purpose)' : 'Description'} *</span><input value={f.what} onChange={(e) => setF({ what: e.target.value })} placeholder={whatPh} style={INP} /></label>
+                  {!T && <label style={labelWrap}><span style={LBL}>Description *</span><input value={f.what} onChange={(e) => setF({ what: e.target.value })} placeholder={whatPh} style={INP} /></label>}
                   {T && (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr)) minmax(0,1.6fr)', gap: 12, alignItems: 'end' }}>
-                      <label style={labelWrap}><span style={LBL}>Distance (km)</span><input value={f.km} onChange={(e) => setF({ km: e.target.value })} placeholder="return trip" style={{ ...INP, textAlign: 'right' }} /></label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '70px minmax(0,1fr) minmax(0,1fr) 110px', gap: 10, alignItems: 'end' }}>
+                        <span style={{ ...LBL, paddingBottom: 9 }}>Going</span>
+                        <label style={labelWrap}><span style={LBL}>From *</span><input value={f.goFrom} onChange={(e) => setF({ goFrom: e.target.value, backTo: f.backTo === f.goFrom ? e.target.value : f.backTo })} placeholder="e.g. Office" style={INP} /></label>
+                        <label style={labelWrap}><span style={LBL}>To *</span><input value={f.goTo} onChange={(e) => setF({ goTo: e.target.value, backFrom: !f.backFrom || f.backFrom === f.goTo ? e.target.value : f.backFrom })} placeholder="e.g. Shah Alam High Court" style={INP} /></label>
+                        <label style={labelWrap}><span style={LBL}>Distance (km)</span><input value={f.goKm} onChange={(e) => setF({ goKm: e.target.value, backKm: !f.backKm || f.backKm === f.goKm ? e.target.value : f.backKm })} style={{ ...INP, textAlign: 'right' }} /></label>
+                      </div>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5, color: '#16223A', cursor: 'pointer' }}><input type="checkbox" checked={f.back} onChange={(e) => setF({ back: e.target.checked })} />Return trip</label>
+                      {f.back && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '70px minmax(0,1fr) minmax(0,1fr) 110px', gap: 10, alignItems: 'end' }}>
+                          <span style={{ ...LBL, paddingBottom: 9 }}>Return</span>
+                          <label style={labelWrap}><span style={LBL}>From</span><input value={f.backFrom} onChange={(e) => setF({ backFrom: e.target.value })} style={INP} /></label>
+                          <label style={labelWrap}><span style={LBL}>To</span><input value={f.backTo} onChange={(e) => setF({ backTo: e.target.value })} style={INP} /></label>
+                          <label style={labelWrap}><span style={LBL}>Distance (km)</span><input value={f.backKm} onChange={(e) => setF({ backKm: e.target.value })} style={{ ...INP, textAlign: 'right' }} /></label>
+                        </div>
+                      )}
+                      <label style={labelWrap}><span style={LBL}>Purpose *</span><input value={f.purpose} onChange={(e) => setF({ purpose: e.target.value })} placeholder="e.g. Case management, client meeting, file documents at land office" style={INP} /></label>
+                    </div>
+                  )}
+                  {T && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr)) minmax(0,2fr)', gap: 12, alignItems: 'end' }}>
                       <label style={labelWrap}><span style={LBL}>Parking (RM)</span><input value={f.parking} onChange={(e) => setF({ parking: e.target.value })} style={{ ...INP, textAlign: 'right' }} /></label>
                       <label style={labelWrap}><span style={LBL}>Toll (RM)</span><input value={f.toll} onChange={(e) => setF({ toll: e.target.value })} style={{ ...INP, textAlign: 'right' }} /></label>
                       <div style={{ fontSize: 11, lineHeight: 1.5, color: '#16223A', background: '#F0F2F5', borderRadius: 4, padding: '5px 9px' }}>
                         {km + ' km × RM 1.00 + parking + toll = ' + rm(toYou) + ' to you'}<br />
-                        <strong>{billable ? 'Billed to client: ' + rm(bill) : 'Not billed (office)'}</strong>
+                        {billable && <strong>{'Billed to client: ' + rm(bill)}</strong>}
                       </div>
                     </div>
                   )}

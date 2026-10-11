@@ -78,6 +78,8 @@ const GOLD = '#8A6534';
 /* ----------------------------- period math ----------------------------- */
 
 type PeriodKind = 'month' | 'quarter' | 'year';
+/** How far back the period picker goes. */
+const PERIOD_CHOICES: Record<PeriodKind, number> = { month: 60, quarter: 20, year: 10 };
 
 interface Bounds {
   start: Date;
@@ -161,6 +163,9 @@ const emptyAgg = (): PeriodAgg => ({
   netProfit: 0,
 });
 
+type LowTab = 'funds' | 'commits' | 'area' | 'file' | 'prog';
+const LOW_TABS: [LowTab, string][] = [['funds', 'Reserve funds'], ['commits', 'Commitments'], ['area', 'Profit by practice area'], ['file', 'Profit by file'], ['prog', 'Profit by programme']];
+
 /* ----------------------------- component ----------------------------- */
 
 const FinanceTab: React.FC = () => {
@@ -171,6 +176,7 @@ const FinanceTab: React.FC = () => {
   const [perKind, setPerKind] = useState<PeriodKind>('month');
   const [offset, setOffset] = useState(0);
   const [cm, setCm] = useState<'Monthly' | 'Annual'>('Monthly');
+  const [low, setLow] = useState<LowTab>('funds');
 
   // Firm-maintained settings (sinking funds & commitments) — same get/save pattern as every
   // other PracticeSettings-backed screen (PracticeSettingsView.tsx, QuotationsView.tsx, ...).
@@ -442,9 +448,10 @@ const FinanceTab: React.FC = () => {
   }, [caseProfits]);
 
   const profitCards = [
-    { title: 'Profit by practice area', sub: 'year to date', col: 'Area', rows: areaProfits, foot: 'Profit = fee income collected (excl. SST & disbursements) − billable time at charge-out rate. Margin = profit ÷ fee income.' },
-    { title: 'Profit by file', sub: 'best & worst this year', col: 'File', rows: fileProfits.map((r) => ({ name: r.name, profit: r.profit, margin: r.margin })), foot: 'Year to date · same calculation, per matter.' },
+    { key: 'area', title: 'Profit by practice area', sub: 'year to date', col: 'Area', rows: areaProfits, foot: 'Profit = fee income collected (excl. SST & disbursements) − billable time at charge-out rate. Margin = profit ÷ fee income.' },
+    { key: 'file', title: 'Profit by file', sub: 'best & worst this year', col: 'File', rows: fileProfits.map((r) => ({ name: r.name, profit: r.profit, margin: r.margin })), foot: 'Year to date · same calculation, per matter.' },
     {
+      key: 'prog',
       title: 'Profit by programme',
       sub: 'seminars & talks',
       col: 'Programme',
@@ -498,19 +505,29 @@ const FinanceTab: React.FC = () => {
             </button>
           ))}
         </div>
-        <button type="button" onClick={() => setOffset((o) => o + 1)} className="h-7 w-7 rounded-md" style={{ border: `1px solid ${palette.border}`, background: '#fff', color: NAVY }}>
-          ‹
+        <button type="button" onClick={() => setOffset((o) => o + 1)} className="h-7 rounded-md px-2 text-[11px] font-bold" style={{ border: `1px solid ${palette.border}`, background: '#fff', color: NAVY }} title="Go back one period">
+          ‹ Previous
         </button>
-        <strong className="min-w-[150px] text-center" style={{ fontFamily: serifFont, fontSize: 17, color: NAVY }}>
-          {curBounds.fullLabel}
-        </strong>
+        <select
+          value={offset}
+          onChange={(e) => setOffset(Number(e.target.value))}
+          aria-label="Pick a period"
+          className="cursor-pointer rounded-md px-2 py-1 leading-normal"
+          style={{ border: `1px solid ${palette.border}`, background: '#fff', color: NAVY, fontFamily: serifFont, fontSize: 14, fontWeight: 700, minWidth: 170 }}
+        >
+          {Array.from({ length: PERIOD_CHOICES[perKind] }, (_, i) => (
+            <option key={i} value={i}>{periodBounds(perKind, i, now).fullLabel}</option>
+          ))}
+        </select>
         <button
           type="button"
+          disabled={offset === 0}
           onClick={() => setOffset((o) => Math.max(0, o - 1))}
-          className="h-7 w-7 rounded-md"
+          className="h-7 rounded-md px-2 text-[11px] font-bold"
           style={{ border: `1px solid ${palette.border}`, background: '#fff', color: NAVY, opacity: offset === 0 ? 0.35 : 1 }}
+          title="Go forward one period"
         >
-          ›
+          Next ›
         </button>
         <span className="text-[10.5px]" style={{ color: SLATE }}>
           compared with {prevBounds.shortLabel} and {lyBounds.shortLabel}
@@ -645,9 +662,16 @@ const FinanceTab: React.FC = () => {
         </div>
       </section>
 
-      {/* Cash reserve & sinking funds / Commitments */}
-      <section className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
-        <div style={cardStyle}>
+      {/* Funds, commitments and profit views: one at a time, so the page stays short */}
+      <section className="flex flex-col gap-2">
+        <div className="flex flex-wrap gap-1.5">
+          {LOW_TABS.map(([k, label]) => (
+            <button key={k} type="button" onClick={() => setLow(k)} className="rounded-full px-3 py-1 text-[11px] font-bold" style={{ border: `1px solid ${low === k ? NAVY : palette.border}`, background: low === k ? NAVY : '#fff', color: low === k ? '#fff' : NAVY }}>
+              {label}
+            </button>
+          ))}
+        </div>
+        {low === 'funds' && (<div style={cardStyle}>
           <div style={headStyle}>
             <span style={titleStyle}>Cash reserve &amp; sinking funds</span>
             <span className="text-[10.5px]" style={{ color: SLATE }}>office account</span>
@@ -688,9 +712,9 @@ const FinanceTab: React.FC = () => {
               Operating cash {operatingFund ? fmtFull(operatingFund.balance) : '—'} · covers <strong style={{ color: NAVY }}>{runway}</strong> of fixed costs
             </span>
           </div>
-        </div>
+        </div>)}
 
-        <div style={cardStyle}>
+        {low === 'commits' && (<div style={cardStyle}>
           <div style={headStyle}>
             <span style={titleStyle}>Commitments</span>
             <span className="text-[10.5px]" style={{ color: SLATE }}>fixed costs you must pay</span>
@@ -734,12 +758,8 @@ const FinanceTab: React.FC = () => {
               Total <strong style={{ color: NAVY }}>{fmtFull(cmTotal)}{cm === 'Monthly' ? ' / month' : ' / year'}</strong> · {cmPaidCount} of {filteredCommits.length} paid
             </span>
           </div>
-        </div>
-      </section>
-
-      {/* Profit by X cards */}
-      <section className="grid gap-4 md:grid-cols-3">
-        {profitCards.map((card) => (
+        </div>)}
+        {profitCards.filter((card) => card.key === low).map((card) => (
           <div key={card.title} style={cardStyle}>
             <div style={headStyle}>
               <span style={titleStyle}>{card.title}</span>

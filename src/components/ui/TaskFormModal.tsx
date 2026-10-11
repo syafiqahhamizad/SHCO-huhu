@@ -3,6 +3,7 @@ import { Activity, Calendar, Flag, FolderOpen, Gavel, Tag, User, X } from 'lucid
 import { TaskChecklistItem, TaskKind } from '../../types';
 import { palette, tint, tintText } from '../../lib/designTokens';
 import { localIso } from '../../lib/localDate';
+import { SearchSelect } from './SearchSelect';
 
 export interface TaskDraft {
   title: string;
@@ -33,7 +34,6 @@ export const blankTaskDraft = (defaultAssignee = ''): TaskDraft => ({
 });
 
 const TASK_TYPES = ['Standard', 'Review', 'Drafting', 'Filing', 'Research', 'Appearance'];
-const ASSIGNEE_COLORS = [palette.blue, palette.green, palette.purple, palette.gold];
 
 interface Assignee {
   code: string;
@@ -189,39 +189,29 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
             {scope === 'matter' && fixedMatterLabel ? (
               <span className="block rounded-lg border border-[#DDE3EB] bg-[#F6F8FA] px-2.5 py-2 text-[12.5px] text-[#16223A]">{fixedMatterLabel}</span>
             ) : scope === 'matter' ? (
-              <select
+              <SearchSelect
+                aria-label="Matter"
                 value={draft.caseId}
-                onChange={(e) => set('caseId', e.target.value)}
-                className="w-full rounded-lg border border-[#DDE3EB] px-2.5 py-2 text-[12.5px] text-[#16223A]"
-              >
-                <option value="">Select matter…</option>
-                {matterOptions.map((m) => (
-                  <option key={m.caseId} value={m.caseId}>{m.full}</option>
-                ))}
-              </select>
+                onChange={(v) => set('caseId', v)}
+                placeholder="Search by file ref, client or title…"
+                empty="No file matches. Check the spelling or the file ref."
+                options={matterOptions.map((m) => ({ value: m.caseId, label: m.full }))}
+              />
             ) : (
               <span className="text-[12px] text-[#5B6478]">Private: no file attached, only you can see it</span>
             )}
           </div>
 
           <span className="flex items-center gap-1.5 text-[11px] font-semibold text-[#5B6478]"><User className="h-[13px] w-[13px]" />Assignee</span>
-          <div className="col-span-3 flex flex-wrap gap-2">
-            {assignees.map((a, i) => {
-              const selected = draft.assignedTo === a.name;
-              const color = ASSIGNEE_COLORS[i % ASSIGNEE_COLORS.length];
-              return (
-                <button
-                  key={a.code}
-                  type="button"
-                  onClick={() => set('assignedTo', a.name)}
-                  className="flex items-center gap-2 rounded-full py-1 pl-1 pr-3 text-[12px] font-semibold text-[#16223A]"
-                  style={{ border: `1.5px solid ${selected ? palette.blue : palette.border}`, backgroundColor: selected ? tint.blue : '#fff' }}
-                >
-                  <span className="grid h-6 w-6 place-items-center rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: color }}>{a.code}</span>
-                  {a.name}
-                </button>
-              );
-            })}
+          <div className="col-span-3">
+            <SearchSelect
+              aria-label="Assignee"
+              value={draft.assignedTo}
+              onChange={(v) => set('assignedTo', v)}
+              placeholder="Search a name or code…"
+              empty="No one matches. People are added in Settings › Users & Roles."
+              options={assignees.map((a) => ({ value: a.name, label: a.name, hint: a.code }))}
+            />
           </div>
 
           {showKind && (
@@ -249,6 +239,10 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                     );
                   })}
                 </div>
+                <span className="text-[11px] leading-relaxed text-[#5B6478]">
+                  <strong>Task</strong>: ordinary work. <strong>Court order</strong>: a date the judge or registrar gave. <strong>Rules of Court</strong>: a time limit set by the rules (e.g. 14 days to file a defence).{' '}
+                  <strong>Limitation</strong>: the last day a claim can be filed. <strong>Key date</strong>: anything else to remember (completion, expiry, renewal).
+                </span>
                 {isDl && (
                   <span className="text-[11px] text-[#B23A2E]">
                     Deadlines show in My Work with a red tag, {kind === 'Limitation' ? '30' : '3'} days ahead. A matching filing in Filing &amp; service ticks it off.

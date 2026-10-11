@@ -93,14 +93,38 @@ export const CourtTab: React.FC<{ w: WF }> = ({ w }) => {
 
   /* ---------- hearings ---------- */
   const [hOpen, setHOpen] = useState(false);
-  const [hf, setHf] = useState({ purpose: '', date: '', time: '09:00', attend: 'Not Required' as NonNullable<Hearing['clientAttendanceRequired']>, remind: '3', cal: true });
+  const blankH = { purpose: '', date: '', time: '09:00', attend: 'Not Required' as NonNullable<Hearing['clientAttendanceRequired']>, remind: '3', cal: true, status: 'Scheduled' as Hearing['status'], outcome: '' };
+  const [hf, setHf] = useState(blankH);
+  const [editH, setEditH] = useState<string | null>(null);
+  const nextOf = (list: Hearing[]) => list.filter((x) => daysFrom(x.date) >= 0 && x.status === 'Scheduled').sort((a, b) => (a.date > b.date ? 1 : -1))[0];
+  const startEditH = (h: Hearing) => {
+    setEditH(h.id);
+    setHf({ purpose: h.purpose, date: isoOf(h.date), time: h.time || '09:00', attend: h.clientAttendanceRequired || 'Not Required', remind: String(h.remindDaysBefore ?? 3), cal: false, status: h.status, outcome: h.outcome || '' });
+    setHOpen(true);
+  };
+  const deleteH = (h: Hearing) => {
+    if (!window.confirm('Delete the hearing on ' + fmt(h.date) + '?' + (h.googleEventId ? '\n\nIt is also in Google Calendar: delete it there as well.' : ''))) return;
+    const hearings = (c.hearings || []).filter((x) => x.id !== h.id);
+    const up = nextOf(hearings);
+    w.save({ hearings, nextHearing: up ? up.date : undefined }, 'Hearing deleted: ' + h.purpose + ' on ' + fmt(h.date), 'Court Event');
+    if (editH === h.id) { setEditH(null); setHOpen(false); }
+    w.toast('Hearing deleted');
+  };
   const saveH = () => {
     if (!hf.purpose.trim() || !hf.date) { w.toast('Add a purpose and date'); return; }
+    if (editH) {
+      const hearings = (c.hearings || []).map((x) => (x.id === editH ? { ...x, purpose: hf.purpose.trim(), date: hf.date, time: hf.time, status: hf.status, outcome: hf.outcome.trim(), clientAttendanceRequired: hf.attend, remindDaysBefore: Number(hf.remind) } : x));
+      const up = nextOf(hearings);
+      w.save({ hearings, nextHearing: up ? up.date : undefined }, 'Hearing edited: ' + hf.purpose.trim() + ' on ' + fmt(hf.date), 'Court Event');
+      setEditH(null); setHf(blankH); setHOpen(false);
+      w.toast('Hearing updated' + ((c.hearings || []).find((x) => x.id === editH)?.googleEventId ? '. Change it in Google Calendar too' : ''));
+      return;
+    }
     const h: Hearing = { id: newId('H'), purpose: hf.purpose.trim(), date: hf.date, time: hf.time, status: 'Scheduled', outcome: '', clientAttendanceRequired: hf.attend, remindDaysBefore: Number(hf.remind), addedBy: w.me, addedAt: today };
     const hearings = [...(c.hearings || []), h];
     const upcoming = hearings.filter((x) => daysFrom(x.date) >= 0 && x.status === 'Scheduled').sort((a, b) => (a.date > b.date ? 1 : -1))[0];
     w.save({ hearings, ...(upcoming ? { nextHearing: upcoming.date } : {}) }, 'Hearing added: ' + h.purpose + ' on ' + fmt(h.date), 'Court Event');
-    setHf({ purpose: '', date: '', time: '09:00', attend: 'Not Required', remind: '3', cal: hf.cal });
+    setHf({ ...blankH, cal: hf.cal });
     setHOpen(false);
     w.toast('Hearing saved. It shows in My Work for the team');
     if (diaryOn && hf.cal) void toDiary(h);
@@ -114,8 +138,34 @@ export const CourtTab: React.FC<{ w: WF }> = ({ w }) => {
   const [mOpen, setMOpen] = useState(false);
   const [mf, setMf] = useState(blankM);
   const [view, setView] = useState<string | null>(null);
+  const [editM, setEditM] = useState<string | null>(null);
+  const startEditM = (m: CourtDiaryEntry) => {
+    setEditM(m.id);
+    setMf({ ...blankM(), cal: false, date: isoOf(m.date), coram: m.corum || '', medium: m.medium || 'IN CHAMBERS', ours: m.ourLawyerAttendance || '', opp: m.opponentCounselAttendance || '', client: m.clientAttendance, dir: m.courtDirections || '', instr: m.instructions || '', next: m.nextDate ? isoOf(m.nextDate) : '', task: '', remind: String(m.remindDaysBefore ?? 3) });
+    setMOpen(true);
+  };
+  const deleteM = (m: CourtDiaryEntry) => {
+    if (!window.confirm('Delete the court memo for ' + fmt(m.date) + '? The hearing it added (if any) stays in Hearings; delete it there if needed.')) return;
+    w.save({ courtDiary: (c.courtDiary || []).filter((x) => x.id !== m.id), activityLogs: [histEntry('Court memo deleted for ' + fmt(m.date), w.me, 'Court Event'), ...(c.activityLogs || [])] });
+    if (view === m.id) setView(null);
+    if (editM === m.id) { setEditM(null); setMOpen(false); }
+    w.toast('Court memo deleted');
+  };
   const saveM = () => {
     if (!mf.dir.trim()) { w.toast('Add the court directions'); return; }
+    if (editM) {
+      const was = (c.courtDiary || []).find((x) => x.id === editM);
+      const courtDiary = (c.courtDiary || []).map((x) => (x.id === editM ? { ...x, date: mf.date, corum: mf.coram, medium: mf.medium, ourLawyerAttendance: mf.ours, opponentCounselAttendance: mf.opp, clientAttendance: mf.client, courtDirections: mf.dir.trim(), instructions: mf.instr.trim(), nextDate: mf.next, remindDaysBefore: mf.next ? Number(mf.remind) : undefined } : x));
+      // A new or changed next date is added to Hearings (the old one stays; delete it there if wrong).
+      const newNext = mf.next && mf.next !== (was?.nextDate ? isoOf(was.nextDate) : '');
+      const nextH: Hearing | null = newNext ? { id: newId('H'), purpose: 'Next court date', date: mf.next, time: '09:00', status: 'Scheduled', outcome: '', clientAttendanceRequired: 'Not Required', source: 'Court memo ' + short(mf.date), remindDaysBefore: Number(mf.remind), addedBy: w.me, addedAt: today } : null;
+      const hearings = nextH ? [...(c.hearings || []), nextH] : c.hearings || [];
+      const up = nextOf(hearings);
+      w.save({ courtDiary, ...(nextH ? { hearings, nextHearing: up ? up.date : undefined } : {}), activityLogs: [histEntry('Court memo edited for ' + fmt(mf.date), w.me, 'Court Event'), ...(c.activityLogs || [])] });
+      setEditM(null); setMOpen(false); setMf(blankM()); setView(editM);
+      w.toast('Court memo updated' + (nextH ? '. New next date added to Hearings' : ''));
+      return;
+    }
     const first = parties.find((p) => p.side === 'client' && !p.dischargedOn);
     const stages = stagesFor(practiceOf(c));
     let task: Task | null = null;
@@ -206,7 +256,7 @@ export const CourtTab: React.FC<{ w: WF }> = ({ w }) => {
       </Card>
 
       <Card>
-        <div style={css(S.head)}><strong style={css('font-family:Georgia, serif;font-size:15px;color:#16223A')}>Hearings</strong>{!ro && <button type="button" onClick={() => setHOpen(!hOpen)} style={css('margin-left:auto;' + S.btnPri)}>+ Add hearing</button>}</div>
+        <div style={css(S.head)}><strong style={css('font-family:Georgia, serif;font-size:15px;color:#16223A')}>Hearings</strong>{!ro && <button type="button" onClick={() => { if (editH) { setEditH(null); setHf(blankH); setHOpen(true); } else setHOpen(!hOpen); }} style={css('margin-left:auto;' + S.btnPri)}>+ Add hearing</button>}</div>
         {hOpen && (
           <div style={css(S.formGrid(150))}>
             <Field label="Purpose" span="1/-1"><input value={hf.purpose} onChange={(e) => setHf({ ...hf, purpose: e.target.value })} placeholder="e.g. Case management, Hearing of application, Trial" style={css(S.input)} /></Field>
@@ -214,26 +264,30 @@ export const CourtTab: React.FC<{ w: WF }> = ({ w }) => {
             <Field label="Time"><input type="time" value={hf.time} onChange={(e) => setHf({ ...hf, time: e.target.value })} style={css(S.input)} /></Field>
             <Field label="Client attendance"><select value={hf.attend} onChange={(e) => setHf({ ...hf, attend: e.target.value as typeof hf.attend })} style={css(S.input)}><option value="Not Required">Not required</option><option value="Optional">Optional</option><option value="Compulsory">Compulsory</option></select></Field>
             <Field label="Remind PIC"><select value={hf.remind} onChange={(e) => setHf({ ...hf, remind: e.target.value })} style={css(S.input)}>{['1', '3', '7', '14'].map((d) => <option key={d} value={d}>{d} day{d === '1' ? '' : 's'} before</option>)}</select></Field>
+            {editH && <Field label="Status"><select value={hf.status} onChange={(e) => setHf({ ...hf, status: e.target.value as Hearing['status'] })} style={css(S.input)}>{(['Scheduled', 'Completed', 'Adjourned', 'Postponed', 'Cancelled'] as Hearing['status'][]).map((x) => <option key={x} value={x}>{x}</option>)}</select></Field>}
+            {editH && <Field label="Outcome" span="span 2"><input value={hf.outcome} onChange={(e) => setHf({ ...hf, outcome: e.target.value })} placeholder="What happened" style={css(S.input)} /></Field>}
             <div style={css('grid-column:1/-1;display:flex;align-items:center;gap:10px;flex-wrap:wrap')}>
-              <CalBox on={hf.cal} set={(v) => setHf({ ...hf, cal: v })} label="Add to Google Calendar (firm court diary + invite PIC)" />
-              <button type="button" onClick={saveH} style={css('margin-left:auto;' + S.btnPriL)}>Save hearing</button>
+              {!editH && <CalBox on={hf.cal} set={(v) => setHf({ ...hf, cal: v })} label="Add to Google Calendar (firm court diary + invite PIC)" />}
+              {editH && <button type="button" onClick={() => { setEditH(null); setHf(blankH); setHOpen(false); }} style={css('margin-left:auto;' + S.btnSecL)}>Cancel</button>}
+              <button type="button" onClick={saveH} style={css((editH ? '' : 'margin-left:auto;') + S.btnPriL)}>{editH ? 'Save changes' : 'Save hearing'}</button>
             </div>
           </div>
         )}
-        <div style={css('display:grid;grid-template-columns:110px minmax(0,1fr) 110px;' + S.th)}><span>Date</span><span>Purpose &amp; outcome</span><span>Status</span></div>
+        <div style={css('display:grid;grid-template-columns:110px minmax(0,1fr) 110px 120px;' + S.th)}><span>Date</span><span>Purpose &amp; outcome</span><span>Status</span><span /></div>
         {hs.map((h) => {
           const up = daysFrom(h.date) >= 0 && h.status === 'Scheduled';
           const status = up ? 'Upcoming' : h.status === 'Scheduled' ? 'Done' : h.status;
           const pill = up ? P.b : h.status === 'Adjourned' || h.status === 'Postponed' ? P.a : h.status === 'Cancelled' ? P.r : P.n;
           const sub = [h.outcome || h.hearingReasonNote, h.source, up ? 'Client: ' + (h.clientAttendanceRequired || 'Not required') : ''].filter(Boolean).join(' · ');
           return (
-            <div key={h.id} style={css('display:grid;grid-template-columns:110px minmax(0,1fr) 110px;align-items:start;' + S.row)}>
+            <div key={h.id} style={css('display:grid;grid-template-columns:110px minmax(0,1fr) 110px 120px;align-items:start;' + S.row)}>
               <div style={css('display:flex;flex-direction:column;gap:2px')}><strong style={css('color:#16223A')}>{fmt(h.date)}</strong><span style={css('color:#4A5468')}>{h.time}</span></div>
               <div style={css('display:flex;flex-direction:column;gap:3px;min-width:0')}><span style={css('color:#16223A;font-weight:600')}>{h.purpose}</span>{sub && <span style={css('color:#4A5468')}>{sub}</span>}</div>
               <div style={css('display:flex;flex-direction:column;gap:4px;align-items:flex-start')}><span style={css(`padding:2px 9px;border-radius:10px;font-size:11.5px;font-weight:700;background:${pill.bg};color:${pill.fg}`)}>{status}</span>
                 {h.googleEventId ? (h.googleEventLink ? <a href={h.googleEventLink} target="_blank" rel="noopener noreferrer" style={css('font-size:11px;font-weight:600;color:#2F4F7A')}>✓ Google Calendar</a> : <span style={css('font-size:11px;font-weight:600;color:#2F4F7A')}>✓ Google Calendar</span>)
                   : up && diaryOn && !ro ? <button type="button" onClick={() => void toDiary(h)} style={css('border:0;background:none;padding:0;font-size:11px;font-weight:700;color:#2F4F7A;cursor:pointer;font-family:inherit;text-decoration:underline')}>Add to calendar</button> : null}
               </div>
+              {!ro ? <span style={css('justify-self:end;display:flex;gap:6px')}><button type="button" onClick={() => startEditH(h)} style={css(S.btnSm)}>Edit</button><button type="button" onClick={() => deleteH(h)} style={css(S.btnSm + ';color:#B23A2E')}>Delete</button></span> : <span />}
             </div>
           );
         })}
@@ -241,7 +295,7 @@ export const CourtTab: React.FC<{ w: WF }> = ({ w }) => {
       </Card>
 
       <Card>
-        <div style={css(S.head)}><strong style={css('font-family:Georgia, serif;font-size:15px;color:#16223A')}>Court memos</strong><span style={css(S.sub)}>Record what happened at each court date. The next date goes to Hearings automatically.</span>{!ro && <button type="button" onClick={() => setMOpen(!mOpen)} style={css('margin-left:auto;' + S.btnPri)}>+ New court memo</button>}</div>
+        <div style={css(S.head)}><strong style={css('font-family:Georgia, serif;font-size:15px;color:#16223A')}>Court memos</strong><span style={css(S.sub)}>Record what happened at each court date. The next date goes to Hearings automatically.</span>{!ro && <button type="button" onClick={() => { if (editM) { setEditM(null); setMf(blankM()); setMOpen(true); } else setMOpen(!mOpen); }} style={css('margin-left:auto;' + S.btnPri)}>+ New court memo</button>}</div>
         {mOpen && (
           <div style={css(S.formGrid(180))}>
             <Field label="Court date"><input type="date" value={mf.date} onChange={(e) => setMf({ ...mf, date: e.target.value })} style={css(S.input)} /></Field>
@@ -258,17 +312,21 @@ export const CourtTab: React.FC<{ w: WF }> = ({ w }) => {
             <Field label="Task due"><input type="date" value={mf.taskDue} onChange={(e) => setMf({ ...mf, taskDue: e.target.value })} style={css(S.input)} /></Field>
             <div style={css('grid-column:1/-1')}><CalBox on={mf.cal} set={(v) => setMf({ ...mf, cal: v })} label="Add the next court date to Google Calendar (court diary + invite PIC)" /></div>
             <Field label="Remind PIC"><select value={mf.remind} onChange={(e) => setMf({ ...mf, remind: e.target.value })} style={css(S.input)}><option value="0">No reminder</option><option value="1">1 day before next date</option><option value="3">3 days before next date</option><option value="7">7 days before next date</option></select></Field>
-            <div style={css('grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px')}><button type="button" onClick={() => setMOpen(false)} style={css(S.btnSecL)}>Cancel</button><button type="button" onClick={saveM} style={css(S.btnPriL)}>Save &amp; generate court memo</button></div>
+            <div style={css('grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px')}><button type="button" onClick={() => { setMOpen(false); setEditM(null); setMf(blankM()); }} style={css(S.btnSecL)}>Cancel</button><button type="button" onClick={saveM} style={css(S.btnPriL)}>{editM ? 'Save changes' : <>Save &amp; generate court memo</>}</button></div>
           </div>
         )}
-        <div style={css('display:grid;grid-template-columns:110px 150px minmax(0,1fr) 110px 90px;' + S.th)}><span>Date</span><span>Coram</span><span>Directions</span><span>Next date</span><span /></div>
+        <div style={css('display:grid;grid-template-columns:110px 150px minmax(0,1fr) 110px 190px;' + S.th)}><span>Date</span><span>Coram</span><span>Directions</span><span>Next date</span><span /></div>
         {memos.map((m) => (
-          <div key={m.id} style={css('display:grid;grid-template-columns:110px 150px minmax(0,1fr) 110px 90px;align-items:start;' + S.row)}>
+          <div key={m.id} style={css('display:grid;grid-template-columns:110px 150px minmax(0,1fr) 110px 190px;align-items:start;' + S.row)}>
             <div style={css('display:flex;flex-direction:column;gap:2px')}><strong style={css('color:#16223A')}>{fmt(m.date)}</strong><span style={css('color:#4A5468')}>{m.medium || ''}</span></div>
             <span style={css('color:#16223A')}>{m.corum || '—'}</span>
             <span style={css('color:#16223A;line-height:1.45')}>{m.courtDirections || '—'}</span>
             <strong style={css('font-family:ui-monospace, monospace;color:#8E2A20')}>{m.nextDate ? fmt(m.nextDate) : '—'}</strong>
-            <button type="button" onClick={() => setView(view === m.id ? null : m.id)} style={css('justify-self:end;border:1px solid #C9D1DC;border-radius:7px;padding:5px 10px;font-size:12px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>{view === m.id ? 'Hide' : 'View'}</button>
+            <span style={css('justify-self:end;display:flex;gap:6px')}>
+              <button type="button" onClick={() => setView(view === m.id ? null : m.id)} style={css(S.btnSm)}>{view === m.id ? 'Hide' : 'View'}</button>
+              {!ro && <button type="button" onClick={() => startEditM(m)} style={css(S.btnSm)}>Edit</button>}
+              {!ro && <button type="button" onClick={() => deleteM(m)} style={css(S.btnSm + ';color:#B23A2E')}>Delete</button>}
+            </span>
           </div>
         ))}
         {!memos.length && <div style={css(S.empty)}>No court memos yet.</div>}

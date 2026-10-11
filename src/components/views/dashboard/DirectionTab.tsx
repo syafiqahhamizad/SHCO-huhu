@@ -25,15 +25,8 @@ import { endOfToday, inRange } from '../../../lib/localDate';
  * funnel are all computed from real useApp() data (cases, invoices, payments, timeEntries,
  * expenses, clients, leads) — nothing there is fabricated.
  *
- * Two sections could not be built as the mockup literally shows them because the data they'd
- * need doesn't exist in this system yet, and inventing it would violate the "never fabricate"
- * rule:
- *  - "Growing practice areas" needs each lead's enquiry date to bucket by month; `Lead` has no
- *    creation/enquiry date field. This renders today's lead mix by practice area instead of a
- *    6-month trend, with a note explaining why.
- *  - Google reviews and Social media & website need a Google Business Profile / Meta / TikTok
- *    / Analytics connection, none of which exists in this codebase. Both render an honest
- *    "Not connected yet" state instead of a fabricated rating or follower counts.
+ * Practice areas follow the list registered in Settings; Google reviews / social media cards
+ * were removed until those accounts are actually connected.
  */
 const DirectionTab: React.FC = () => {
   const {
@@ -104,7 +97,17 @@ const DirectionTab: React.FC = () => {
   /* ----------------------------- shared lookups ----------------------------- */
 
   const findCase = useMemo(() => caseFinder(cases), [cases]);
-  const practiceAreaOf = (c?: Case) => c?.practiceArea || c?.type || 'Unclassified';
+  // Practice areas = the ones registered in Settings → Practice areas & codes. A file's own
+  // area is matched to a registered one by name or code ("Litigation" → "Civil Litigation").
+  const registeredAreas = (settings.practiceAreas || []).map((a) => a.name);
+  const practiceAreaOf = (c?: Case) => {
+    const raw = String(c?.practiceArea || c?.type || '').trim();
+    if (!raw) return 'Other';
+    const low = raw.toLowerCase();
+    const hit = (settings.practiceAreas || []).find((a) => a.name.toLowerCase() === low || a.code.toLowerCase() === low)
+      || (settings.practiceAreas || []).find((a) => a.name.toLowerCase().includes(low) || low.includes(a.name.toLowerCase()));
+    return hit ? hit.name : 'Other';
+  };
   const clientNameById = useMemo(() => new Map(clients.map((c) => [c.id, c.name])), [clients]);
 
   const validInvoices = useMemo(() => invoices.filter((i) => i.status !== 'Voided'), [invoices]);
@@ -143,7 +146,7 @@ const DirectionTab: React.FC = () => {
     // Disbursements paid for clients are recovered from them and are excluded from fees, so
     // they are excluded from cost too (same basis as Dashboard → Finance "Profit by …").
 
-    const areaNames = new Set<string>([...cases.map((c) => practiceAreaOf(c)), ...feesYtd.keys()]);
+    const areaNames = new Set<string>([...registeredAreas, ...feesYtd.keys(), ...timeCost.keys()]);
     const totalFees = [...feesYtd.values()].reduce((s, v) => s + v, 0);
     const maxFees = Math.max(1, ...feesYtd.values());
 
@@ -164,7 +167,8 @@ const DirectionTab: React.FC = () => {
 
     rows.sort((a, b) => b.fees - a.fees);
     return { rows, totalFees };
-  }, [cases, payments, invoices, invoiceMeta, timeEntries, findCase, yearStart, ytdEnd, lastYearStart, lastYtdEnd]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cases, payments, invoices, invoiceMeta, timeEntries, findCase, yearStart, ytdEnd, lastYearStart, lastYtdEnd, settings.practiceAreas]);
 
   const SIGNAL_TONE: Record<'Grow' | 'Hold' | 'Rethink', 'green' | 'blue' | 'red'> = { Grow: 'green', Hold: 'blue', Rethink: 'red' };
 
@@ -660,8 +664,12 @@ const DirectionTab: React.FC = () => {
           Growth
         </strong>
         <span className="text-[10.5px]" style={{ color: palette.slate }}>
-          panels, where to invest, reputation
+          panels and where to invest
         </span>
+      </div>
+      <div className="rounded-xl border px-3.5 py-2.5 text-[10.5px] leading-relaxed" style={{ borderColor: palette.border, background: palette.page, color: palette.slate }}>
+        <strong style={{ color: palette.navy }}>Where this comes from:</strong> <strong>Panelships</strong> and <strong>Where to put money</strong> are your own lists — press <strong>+ Add panel</strong> / <strong>+ Add</strong>, then click any cell to type (the × removes a row).{' '}
+        <strong>From enquiry to client</strong> and <strong>Growing practice areas</strong> come by themselves from Leads &amp; Referrals. <strong>Practice areas</strong> above follow Settings → Practice areas &amp; codes, with fees from paid invoices.
       </div>
 
       <section className="grid items-start gap-4" style={{ gridTemplateColumns: 'minmax(0,1.3fr) minmax(0,1fr)' }}>
@@ -915,52 +923,11 @@ const DirectionTab: React.FC = () => {
             ))
           )}
           <p className="m-0 px-3.5 pb-2.5 pt-1.5 text-[10.5px] leading-snug" style={{ color: palette.slate, background: palette.page }}>
-            Monthly trend needs each lead's enquiry date, which isn't tracked yet — showing today's pipeline mix instead.
+            Open leads in Leads &amp; Referrals, by what they are interested in.
           </p>
         </div>
       </section>
 
-      <section className="grid items-start gap-4 md:grid-cols-2">
-        {/* Google reviews — not connected */}
-        <div className="overflow-hidden rounded-xl border bg-white" style={{ borderColor: palette.border }}>
-          <div className="flex items-center gap-2 border-b px-3.5 py-2.5" style={{ borderColor: '#EEF1F5' }}>
-            <strong className="text-[14.5px]" style={{ fontFamily: serifFont, color: palette.navy }}>
-              Google reviews
-            </strong>
-            <span className="text-[10.5px]" style={{ color: palette.slate }}>
-              Google Business Profile
-            </span>
-          </div>
-          <div className="flex flex-col items-center gap-1.5 px-3.5 py-6 text-center">
-            <span className="text-[11.5px] font-bold" style={{ color: palette.slate }}>
-              Not connected yet
-            </span>
-            <span className="text-[10.5px]" style={{ color: palette.slate }}>
-              Connect Google Business Profile to see your rating and reviews here.
-            </span>
-          </div>
-        </div>
-
-        {/* Social media & website — not connected */}
-        <div className="overflow-hidden rounded-xl border bg-white" style={{ borderColor: palette.border }}>
-          <div className="flex items-center gap-2 border-b px-3.5 py-2.5" style={{ borderColor: '#EEF1F5' }}>
-            <strong className="text-[14.5px]" style={{ fontFamily: serifFont, color: palette.navy }}>
-              Social media &amp; website
-            </strong>
-            <span className="text-[10.5px]" style={{ color: palette.slate }}>
-              Meta, TikTok, Google Analytics
-            </span>
-          </div>
-          <div className="flex flex-col items-center gap-1.5 px-3.5 py-6 text-center">
-            <span className="text-[11.5px] font-bold" style={{ color: palette.slate }}>
-              Not connected yet
-            </span>
-            <span className="text-[10.5px]" style={{ color: palette.slate }}>
-              Connect Meta, TikTok and Google Analytics to see followers, reach and enquiries here.
-            </span>
-          </div>
-        </div>
-      </section>
     </div>
   );
 };

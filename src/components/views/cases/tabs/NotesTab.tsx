@@ -10,21 +10,23 @@ const WHO_PH: Record<string, string> = { Meeting: 'e.g. Client, DH, SH', 'Phone 
 const TXT_PH: Record<string, string> = { Meeting: 'What was discussed, what was agreed, next steps', 'Phone call': 'Summary of the call', 'Client instructions': 'Exactly what the client instructed. Keep for the record.', 'Legal research': 'Issue, authorities, conclusion', Internal: 'Internal note for the team', 'Opposing side': 'Without-prejudice talks, offers, positions' };
 const PILL: Record<string, { bg: string; fg: string }> = { Meeting: P.b, 'Phone call': P.b, 'Client instructions': P.g, 'Legal research': P.a, Internal: P.r, 'Opposing side': P.n };
 
-type Row = { key: string; kind: MatterNote['kind']; date: string; by: string; title: string; who?: string; text: string };
+type Src = 'fileNotes' | 'meetingNotes' | 'researchNotes' | 'internalNotes' | 'memos';
+type Row = { key: string; src: Src; kind: MatterNote['kind']; date: string; by: string; title: string; who?: string; text: string };
 
 export const NotesTab: React.FC<{ w: WF }> = ({ w }) => {
   const { c, me, ro } = w;
   const [kind, setKind] = useState<'All' | MatterNote['kind']>('All');
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Row | null>(null);
   const [f, setF] = useState({ kind: 'Meeting' as MatterNote['kind'], title: '', date: todayIso(), who: '', text: '', task: '', taskDue: '' });
 
   // New notes + the notes kept by the earlier matter workspace (meeting / research / internal / memo).
   const rows: Row[] = [
-    ...(c.fileNotes || []).map((n) => ({ key: n.id, kind: n.kind, date: n.date, by: n.by, title: n.title || n.kind, who: n.with, text: n.text })),
-    ...(c.meetingNotes || []).map((m) => ({ key: m.id, kind: 'Meeting' as const, date: m.date, by: m.recordedBy, title: 'Meeting', who: [m.ourLawyers, m.clientAttendees].filter(Boolean).join(', '), text: [m.meetingNotes, m.decisions ? 'Decisions: ' + m.decisions : ''].filter(Boolean).join('\n') })),
-    ...(c.researchNotes || []).map((r) => ({ key: r.id, kind: 'Legal research' as const, date: r.date, by: r.preparedBy, title: r.title, who: r.partiesAndCourts, text: [r.issues && 'Issues: ' + r.issues, r.findingsAndRatio && 'Findings: ' + r.findingsAndRatio, r.applicationToCase && 'Application: ' + r.applicationToCase].filter(Boolean).join('\n') })),
-    ...(c.internalNotes || []).map((n) => ({ key: n.id, kind: 'Internal' as const, date: n.date, by: n.recordedBy, title: n.noteType || 'Internal', text: n.content })),
-    ...(c.memos || []).map((m) => ({ key: m.id, kind: 'Internal' as const, date: m.date, by: '', title: m.type, text: m.description })),
+    ...(c.fileNotes || []).map((n) => ({ key: n.id, src: 'fileNotes' as Src, kind: n.kind, date: n.date, by: n.by, title: n.title || n.kind, who: n.with, text: n.text })),
+    ...(c.meetingNotes || []).map((m) => ({ key: m.id, src: 'meetingNotes' as Src, kind: 'Meeting' as const, date: m.date, by: m.recordedBy, title: 'Meeting', who: [m.ourLawyers, m.clientAttendees].filter(Boolean).join(', '), text: [m.meetingNotes, m.decisions ? 'Decisions: ' + m.decisions : ''].filter(Boolean).join('\n') })),
+    ...(c.researchNotes || []).map((r) => ({ key: r.id, src: 'researchNotes' as Src, kind: 'Legal research' as const, date: r.date, by: r.preparedBy, title: r.title, who: r.partiesAndCourts, text: [r.issues && 'Issues: ' + r.issues, r.findingsAndRatio && 'Findings: ' + r.findingsAndRatio, r.applicationToCase && 'Application: ' + r.applicationToCase].filter(Boolean).join('\n') })),
+    ...(c.internalNotes || []).map((n) => ({ key: n.id, src: 'internalNotes' as Src, kind: 'Internal' as const, date: n.date, by: n.recordedBy, title: n.noteType || 'Internal', text: n.content })),
+    ...(c.memos || []).map((m) => ({ key: m.id, src: 'memos' as Src, kind: 'Internal' as const, date: m.date, by: '', title: m.type, text: m.description })),
   ].sort((a, b) => (isoOf(a.date) < isoOf(b.date) ? 1 : -1));
   const list = rows.filter((r) => kind === 'All' || r.kind === kind);
 
@@ -32,21 +34,42 @@ export const NotesTab: React.FC<{ w: WF }> = ({ w }) => {
     if (!f.text.trim()) { w.toast('Write the note'); return; }
     let task: Task | null = null;
     if (f.task.trim()) task = { id: newId('T'), title: f.task.trim(), priority: 'Medium', status: 'Not Started', dueDate: f.taskDue || addDays(7), assignedTo: me, taskType: 'Standard', kind: 'Task', source: f.kind + ' note ' + short(f.date), createdBy: me, createdAt: todayIso() };
-    const note: MatterNote = { id: newId('N'), kind: f.kind, date: f.date, title: f.title.trim() || undefined, with: f.who.trim() || undefined, text: f.text.trim(), by: me, createdAt: new Date().toISOString(), taskId: task?.id };
+    const old = editing ? (c.fileNotes || []).find((x) => x.id === editing.key) : undefined;
+    const note: MatterNote = { id: editing && editing.src === 'fileNotes' ? editing.key : newId('N'), kind: f.kind, date: f.date, title: f.title.trim() || undefined, with: f.who.trim() || undefined, text: f.text.trim(), by: me, createdAt: new Date().toISOString(), taskId: task?.id };
+    if (old) { note.by = old.by; note.createdAt = old.createdAt; note.taskId = task?.id || old.taskId; }
+    // Editing an older-style note saves it as a normal note and takes the old copy out.
+    const withoutOld = editing ? dropFrom(editing) : {};
+    const keptNotes = (withoutOld.fileNotes ?? c.fileNotes ?? []) as MatterNote[];
     w.save({
-      fileNotes: [note, ...(c.fileNotes || [])],
+      ...withoutOld,
+      fileNotes: editing && editing.src === 'fileNotes' ? (c.fileNotes || []).map((x) => (x.id === note.id ? note : x)) : [note, ...keptNotes],
       ...(task ? { tasks: [...(c.tasks || []), task] } : {}),
-      activityLogs: [histEntry(f.kind + ' note added' + (note.title ? ': ' + note.title : ''), me, 'Note Added'), ...(c.activityLogs || [])],
+      activityLogs: [histEntry(f.kind + ' note ' + (editing ? 'edited' : 'added') + (note.title ? ': ' + note.title : ''), me, 'Note Added'), ...(c.activityLogs || [])],
     });
+    setEditing(null);
     setF({ kind: f.kind, title: '', date: todayIso(), who: '', text: '', task: '', taskDue: '' });
     setOpen(false);
     w.toast('Note saved' + (task ? '. Follow-up task added to your My Work' : ''));
   };
 
+  /** The case fields without this note. */
+  const dropFrom = (r: Row): Record<string, unknown> => ({ [r.src]: ((c[r.src] || []) as { id: string }[]).filter((x) => x.id !== r.key) });
+  const editN = (r: Row) => {
+    setEditing(r);
+    setF({ kind: r.kind, title: r.title === r.kind ? '' : r.title, date: isoOf(r.date) || todayIso(), who: r.who || '', text: r.text, task: '', taskDue: '' });
+    setOpen(true);
+  };
+  const deleteN = (r: Row) => {
+    if (!window.confirm('Delete this note? It cannot be brought back.')) return;
+    w.save({ ...dropFrom(r), activityLogs: [histEntry(r.kind + ' note deleted' + (r.title ? ': ' + r.title : ''), me, 'Note Added'), ...(c.activityLogs || [])] });
+    if (editing?.key === r.key) { setEditing(null); setOpen(false); }
+    w.toast('Note deleted');
+  };
+
   const inp = 'width:100%;border:1px solid #C9D1DC;border-radius:8px;padding:10px 12px;font-size:13.5px;color:#16223A;background:#fff;font-family:inherit';
   return (
     <Card>
-      <div style={css(S.head)}><strong style={css('font-family:Georgia, serif;font-size:15px;color:#16223A')}>Notes</strong><span style={css(S.sub)}>Meeting notes, legal research and internal notes. Never sent to the client.</span>{!ro && <button type="button" onClick={() => setOpen(!open)} style={css('margin-left:auto;' + S.btnPri)}>+ Add note</button>}</div>
+      <div style={css(S.head)}><strong style={css('font-family:Georgia, serif;font-size:15px;color:#16223A')}>Notes</strong><span style={css(S.sub)}>Meeting notes, legal research and internal notes. Never sent to the client.</span>{!ro && <button type="button" onClick={() => { setEditing(null); setF({ kind: f.kind, title: '', date: todayIso(), who: '', text: '', task: '', taskDue: '' }); setOpen(!open || !!editing); }} style={css('margin-left:auto;' + S.btnPri)}>+ Add note</button>}</div>
       <div style={css('display:flex;gap:4px;padding:10px 16px;border-bottom:1px solid #EEF1F5;flex-wrap:wrap')}>
         {(['All', ...NK] as const).map((k) => { const on = kind === k; return <button key={k} type="button" onClick={() => setKind(k)} style={css(`border:0;border-radius:14px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;background:${on ? '#16223A' : '#EEF1F5'};color:${on ? '#fff' : '#16223A'}`)}>{k}{k !== 'All' ? ' (' + rows.filter((r) => r.kind === k).length + ')' : ''}</button>; })}
       </div>
@@ -63,12 +86,12 @@ export const NotesTab: React.FC<{ w: WF }> = ({ w }) => {
             <label style={css('display:flex;flex-direction:column;gap:5px')}><span style={css(S.label)}>Follow-up task (optional)</span><input value={f.task} onChange={(e) => setF({ ...f, task: e.target.value })} placeholder="e.g. Client to send bank statements" style={css(inp)} /></label>
             <label style={css('display:flex;flex-direction:column;gap:5px')}><span style={css(S.label)}>Task due</span><input type="date" value={f.taskDue} onChange={(e) => setF({ ...f, taskDue: e.target.value })} style={css(inp)} /></label>
           </div>
-          <div style={css('display:flex;align-items:center;gap:10px;flex-wrap:wrap')}><span style={css('font-size:12px;color:#4A5468')}>Internal only. Never shown on the Client Portal or sent to the client.</span><button type="button" onClick={() => setOpen(false)} style={css('margin-left:auto;' + S.btnSecL)}>Cancel</button><button type="button" onClick={saveN} style={css(S.btnPriL)}>Save note</button></div>
+          <div style={css('display:flex;align-items:center;gap:10px;flex-wrap:wrap')}><span style={css('font-size:12px;color:#4A5468')}>Internal only. Never shown on the Client Portal or sent to the client.</span><button type="button" onClick={() => { setOpen(false); setEditing(null); }} style={css('margin-left:auto;' + S.btnSecL)}>Cancel</button><button type="button" onClick={saveN} style={css(S.btnPriL)}>{editing ? 'Save changes' : 'Save note'}</button></div>
         </div>
       )}
       {list.map((n) => (
         <div key={n.key} style={css('display:flex;flex-direction:column;gap:6px;padding:12px 16px;border-top:1px solid #F0F2F5')}>
-          <div style={css('display:flex;align-items:center;gap:10px;font-size:12px')}><span style={css(`padding:2px 9px;border-radius:10px;font-size:11.5px;font-weight:700;background:${PILL[n.kind].bg};color:${PILL[n.kind].fg}`)}>{n.kind}</span><strong style={css('color:#16223A')}>{fmt(n.date)}</strong><span style={css('color:#4A5468')}>{n.by}</span></div>
+          <div style={css('display:flex;align-items:center;gap:10px;font-size:12px')}><span style={css(`padding:2px 9px;border-radius:10px;font-size:11.5px;font-weight:700;background:${PILL[n.kind].bg};color:${PILL[n.kind].fg}`)}>{n.kind}</span><strong style={css('color:#16223A')}>{fmt(n.date)}</strong><span style={css('color:#4A5468')}>{n.by}</span>{!ro && <span style={css('margin-left:auto;display:flex;gap:6px')}><button type="button" onClick={() => editN(n)} style={css(S.btnSec)}>Edit</button><button type="button" onClick={() => deleteN(n)} style={css(S.btnSec + ';color:#B23A2E')}>Delete</button></span>}</div>
           <strong style={css('font-size:13.5px;color:#16223A')}>{n.title}</strong>
           {n.who && <span style={css('font-size:12px;color:#4A5468')}>{WHO_L[n.kind]}: {n.who}</span>}
           <span style={css('font-size:13px;color:#16223A;line-height:1.6;white-space:pre-line')}>{n.text}</span>

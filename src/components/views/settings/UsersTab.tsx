@@ -9,7 +9,7 @@ import { css, S, Txt, type SettingsCtx } from './settingsShared';
 import { designRole, isManagingPartner, isSuper, personChanges, SUPER_EMAIL } from './permissionModel';
 
 const PC = ['#16223A', '#3D6B9C', '#6B3D8C', '#2E7D7A', '#8A6534', '#5E6F2F', '#8C2F4C'];
-const GRID = 'display:grid;grid-template-columns:minmax(0,1.5fr) 150px 110px 100px 128px 120px 84px 100px 250px;gap:10px;';
+const GRID = 'display:grid;grid-template-columns:minmax(240px,1.6fr) 150px 110px 100px 128px 120px 84px 100px 250px;gap:10px;';
 const SEL = 'border:1px solid #DDE3EB;border-radius:6px;padding:5px 6px;font-size:11px;color:#16223A;background:#fff';
 
 const initials = (name: string) => name.split(' ').filter((w) => w && !/^(binti|bin|a\/l)$/i.test(w)).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
@@ -87,6 +87,7 @@ export const UsersTab = ({ C }: { C: SettingsCtx }) => {
     <div style={css(S.card)}>
       <div style={css('display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>People &amp; roles</strong><span style={css(S.sub)}>{active + ' active people'} · role decides what each person can open; their files decide what data they see</span><button type="button" onClick={() => (canAdmin ? setAdding(true) : C.msg('Only an admin can add people'))} style={css('margin-left:auto;border:0;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:#16223A;color:#fff;cursor:pointer;font-family:inherit')}>+ Add person</button></div>
       <AccessListStatusLine />
+      <div style={css('overflow-x:auto')}><div style={css('min-width:1400px')}>
       <div style={css(GRID + 'padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>Name · email</span><span>Role</span><span>Branch</span><span>Admin</span><span title="Quotations, invoices, payments, receipts, client account, claims and vouchers. Only the Super Admin decides.">Billing &amp; money</span><span>Access</span><span>2-step login</span><span>Last login</span><span></span></div>
       {users.length === 0 && <div style={css('padding:14px;font-size:11px;color:#5B6478')}>No users in the roster yet. Add the first person with “+ Add person”.</div>}
       {users.map((u, i) => {
@@ -104,7 +105,7 @@ export const UsersTab = ({ C }: { C: SettingsCtx }) => {
               <span style={css(`width:26px;height:26px;flex-shrink:0;border-radius:9999px;display:grid;place-items:center;font-size:9.5px;font-weight:700;color:#fff;background:${PC[i % PC.length]}`)}>{initials(u.name)}</span>
               <span style={css('min-width:0;flex:1')}>
                 <Txt value={u.name} readOnly={!canAdmin} onCommit={(v) => { if (!v.trim()) return; if (updateUserIdentity(u.id, { name: v })) { C.log('User Renamed', u.name + ' → ' + v.trim()); C.msg('Saved ' + v.trim()); } }} style="width:100%;border:0;padding:0;font-size:11.5px;font-weight:700;color:#16223A;background:transparent" />
-                <input value={u.email} readOnly title="Sign-in email — create a new account to change it" style={css('width:100%;border:0;padding:0;font-size:10px;color:#5B6478;background:transparent')} />
+                <span title="Sign-in email — create a new account to change it" style={css('display:block;font-size:10px;color:#5B6478;word-break:break-all')}>{u.email}</span>
                 <span style={css('display:flex;align-items:center;gap:6px;font-size:9.5px;color:#94A3B8')}>
                   {u.role !== 'Client' && <Txt value={code} readOnly={!canAdmin} maxLength={4} title="User code (2–4 letters, unique)" placeholder="CODE" map={(v) => v.replace(/[^a-z]/gi, '').toUpperCase()} onCommit={(v) => { if (updateUserIdentity(u.id, { code: v })) { C.log('User Code Changed', u.name + ': ' + (code || '—') + ' → ' + v); C.msg(u.name + ' code is now ' + v); } }} style="width:40px;border:1px solid #DDE3EB;border-radius:4px;padding:0 3px;font-family:ui-monospace, Menlo, monospace;font-size:9.5px;font-weight:700;color:#16223A;background:#fff" />}
                   <span style={css('font-family:ui-monospace, Menlo, monospace')}>{staffId}</span>
@@ -133,6 +134,7 @@ export const UsersTab = ({ C }: { C: SettingsCtx }) => {
           </div>
         );
       })}
+      </div></div>
       <div style={css('display:flex;flex-direction:column;gap:3px;padding:9px 14px;background:#F6F8FA;font-size:10.5px;line-height:1.5;color:#5B6478')}><span>Switching someone off blocks their login immediately; their history stays. New staff added here appear automatically in Staff Portal, Payroll and the referrer list.</span><span><strong style={css('color:#16223A')}>Reviewer (auditor)</strong>: outside auditor login, read-only. Sees Cases and the Client Account (SAR 1990) only; cannot add, edit or approve.</span><span><strong style={css('color:#16223A')}>Client</strong>: invited from the client’s profile (Clients → Client Portal). Sees only their own files, documents and bills in the Client Portal.</span><span><strong style={css('color:#16223A')}>Billing &amp; money</strong>: you decide per person. By role, partners and Accounts see and edit, reviewers see; everyone else (admins too) sees no amounts, bills, claims or vouchers except their own claims.</span><span><strong style={css('color:#16223A')}>Admin</strong>: can manage Users &amp; Roles, Settings and Activity Logs on top of their role. The Super Admin has full access and cannot be switched off.</span><span><strong style={css('color:#16223A')}>Check access</strong>: opens that person’s own access. Access is set by role first, then changed per person where needed.</span></div>
       {adding && <AddPersonModal C={C} roles={ROLES} branches={branches} hq={hqName} onClose={() => setAdding(false)} />}
     </div>
@@ -187,7 +189,7 @@ const HINT = 'font-size:10px;color:#94A3B8';
 
 /** "+ Add person": same rules as the old Users & Permissions → Add New User form. */
 const AddPersonModal = ({ C, roles, branches, hq, onClose }: { C: SettingsCtx; roles: string[]; branches: string[]; hq: string; onClose: () => void }) => {
-  const { users = [], addUser, showToast, currentUser } = useApp();
+  const { users = [], addUser, showToast, currentUser, updateUserAccount, updateUserRoleAndAdmin, updateUserIdentity } = useApp();
   const [name, setName] = useState('');
   const [fullName, setFullName] = useState('');
   const [code, setCode] = useState('');
@@ -208,13 +210,35 @@ const AddPersonModal = ({ C, roles, branches, hq, onClose }: { C: SettingsCtx; r
     const em = email.trim().toLowerCase();
     const c = code.trim().toUpperCase();
     if (!name.trim() || !em) return fail('Name and Email are required');
+    // Someone switched off earlier is still on the list (their history stays): bring them back
+    // instead of refusing, and send outside people a fresh sign-in e-mail.
+    const was = users.find((u) => u.email.toLowerCase() === em);
+    if (was && was.status !== 'Inactive') return fail(`${em} is already on the list and active. To send their sign-in again, use "Resend sign-in" on their row.`);
+    if (was) {
+      if ((role === 'Partner' || role === 'Lawyer') && !em.endsWith('@shcolaw.com')) return fail('Partner and Lawyer accounts must use a verified @shcolaw.com Google Workspace email.');
+      if (!window.confirm(`${was.name} (${em}) was switched off earlier. Bring them back as ${roleV}${isClient ? '' : ' with code ' + (c || partnerCode(was) || '')}? Their past records stay linked to them.`)) return;
+      if (!updateUserAccount(was.id, { status: 'Active', branch })) return fail('Could not switch them back on.');
+      if (was.role !== role) updateUserRoleAndAdmin(was.id, role, !!was.isAdmin, !!was.isSuperAdmin);
+      if (name.trim() && name.trim() !== was.name) updateUserIdentity(was.id, { name: name.trim(), ...(c && c !== partnerCode(was) && /^[A-Z]{2,4}$/.test(c) && !users.some((u) => u.id !== was.id && (partnerCode(u) || '') === c) ? { code: c } : {}) });
+      C.log('User Reactivated', `${was.name} (${em}) · ${roleV}`);
+      onClose();
+      if (!isGoogleWorkspaceEmail(em)) {
+        const inviteId = await queueAccountInvite({ email: em, name: name.trim() || was.name, role, createdBy: currentUser?.email || '' });
+        showToast(was.name + ' is back. Sending a new sign-in e-mail…');
+        const stop = watchAccountEmail(inviteId, (state, error) => {
+          if (state === 'SUCCESS') { stop(); showToast('Sign-in e-mail sent to ' + em); }
+          if (state === 'ERROR') { stop(); window.alert('The sign-in e-mail to ' + em + ' could not be sent: ' + (error || 'unknown error')); }
+        });
+        setTimeout(stop, 120000);
+      } else showToast(was.name + ' is back. They sign in with Google as before.');
+      return;
+    }
     if (!isClient) {
       if (!fullName.trim()) return fail('Full name (as per IC) is required for staff.');
       if (!/^[A-Z]{2,4}$/.test(c)) return fail('User code must be 2–4 letters, e.g. SH or NFA.');
       if (users.some((u) => (partnerCode(u) || '') === c)) return fail(`Code ${c} is already used by someone else.`);
     }
     if ((role === 'Partner' || role === 'Lawyer') && !em.endsWith('@shcolaw.com')) return fail('Partner and Lawyer accounts must use a verified @shcolaw.com Google Workspace email.');
-    if (users.some((u) => u.email.toLowerCase() === em)) return fail(`${em} is already in the roster.`);
     if (mp && em !== SUPER_EMAIL) return fail('Only one Super Admin. Choose Partner and tick Admin instead.');
     const admin = mp || (isAdmin && !isClient && role !== 'Reviewer');
     const sup = em === SUPER_EMAIL && (mp || isSuperAdmin);
@@ -261,7 +285,7 @@ const AddPersonModal = ({ C, roles, branches, hq, onClose }: { C: SettingsCtx; r
       <form onSubmit={submit} style={css('width:480px;max-width:100%;align-self:flex-start;border-radius:12px;background:#fff;overflow:hidden')}>
         <div style={css('display:flex;align-items:center;gap:8px;padding:12px 18px;background:#16223A')}><strong style={css('font-size:14px;color:#fff')}>Add person</strong><button type="button" onClick={onClose} style={css('margin-left:auto;border:1px solid rgba(255,255,255,.35);border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:transparent;color:#fff;cursor:pointer;font-family:inherit')}>Close</button></div>
         <div style={css('padding:16px 18px;display:flex;flex-direction:column;gap:12px;font-size:12px;color:#16223A')}>
-          <div style={css('padding:8px 12px;border-radius:8px;background:#E7EEF6;font-size:11px;line-height:1.5;color:#2F5680')}>{isGoogleWorkspaceEmail(email) || !email.includes('@') ? '@shcolaw.com staff sign in with Google — no password is created; ' : 'An outside email gets a password sign-in and a verification email they must click before first sign-in; '}adding someone also puts them on the access list and creates a staff record with the next unique Staff ID (SHCO-ST-000N). Employment and payslip details are completed later in Staff Portal → My profile.</div>
+          <div style={css('padding:8px 12px;border-radius:8px;background:#E7EEF6;font-size:11px;line-height:1.5;color:#2F5680')}>{isGoogleWorkspaceEmail(email) || !email.includes('@') ? '@shcolaw.com staff sign in with Google — no password is created; ' : 'An outside e-mail gets ONE e-mail from the portal mailbox: the portal link, a temporary password and a button to set their own (already signed up before? the same e-mail gives them a fresh password); '}adding someone also puts them on the access list and creates a staff record with the next unique Staff ID (SHCO-ST-000N). Employment and payslip details are completed later in Staff Portal → My profile.</div>
           <label style={css('display:flex;flex-direction:column;gap:4px')}><span style={css(LBL)}>Display name *</span><input value={name} onChange={(e) => { setName(e.target.value); if (!codeTouched) setCode(suggestCode(e.target.value)); }} placeholder="e.g. Hafizuddin" style={css(INP)} /><span style={css(HINT)}>How their name appears around the system.</span></label>
           {!isClient && (
             <div style={css('display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:10px')}>

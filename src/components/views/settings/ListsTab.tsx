@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { DEFAULT_CLAIM_TYPES, DEFAULT_EXPENSE_CATEGORIES, DEFAULT_LEAD_SOURCES, type LeadSourceDef } from '../../../services/templateService';
-import { DEFAULT_PUBLIC_HOLIDAYS } from '../staff/staffPortalShared';
+import { DEFAULT_PUBLIC_HOLIDAYS, getLeaveTypes } from '../staff/staffPortalShared';
 import { css, S, Txt, type SettingsCtx } from './settingsShared';
 
 interface ListDef {
@@ -47,6 +47,10 @@ export const ListsTab = ({ C }: { C: SettingsCtx }) => {
     setHDate(''); setHName('');
     C.msg('Public holiday added.');
   };
+  // Leave types: the built-in list is copied in on the first change, then edited here.
+  const leaveTypes = s.leaveTypes && s.leaveTypes.length ? s.leaveTypes : getLeaveTypes().map(([name, days, basis, note]) => ({ name, days, basis, note }));
+  const saveLeave = (next: typeof leaveTypes, what: string) => C.save({ leaveTypes: next }, 'Leave Types Changed', what);
+  const setLeave = (i: number, p: Partial<(typeof leaveTypes)[number]>) => saveLeave(leaveTypes.map((t, k) => (k === i ? { ...t, ...p } : t)), (leaveTypes[i]?.name || 'Leave type') + ' changed');
   const fmtD = (iso: string) => { const d = new Date(iso + 'T00:00:00'); return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }); };
 
   return (
@@ -60,6 +64,22 @@ export const ListsTab = ({ C }: { C: SettingsCtx }) => {
           <div style={css('padding:7px 14px')}><button type="button" onClick={g.add} style={css(S.addLink)}>+ Add</button></div>
         </div>
       ))}
+      <div style={css(S.card + ';grid-column:span 2')}>
+        <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Leave types</strong><span style={css('display:block;font-size:10.5px;color:#5B6478')}>what staff can apply for in Staff Portal → Leave · days a year (0 = no fixed limit) · how days are counted{s.leaveTypes ? '' : ' · built-in list'}</span></div>
+        {leaveTypes.map((t, i) => (
+          <div key={i} style={css('display:grid;grid-template-columns:140px 60px 110px minmax(0,1fr) 60px;gap:8px;align-items:center;padding:5px 14px;border-bottom:1px solid #F0F2F5')}>
+            <Txt value={t.name} onCommit={(x) => setLeave(i, { name: x.trim() })} style="border:1px solid #DDE3EB;border-radius:6px;padding:5px 7px;font-size:11px;font-weight:700;color:#16223A" />
+            <Txt value={String(t.days)} onCommit={(x) => setLeave(i, { days: Math.max(0, Number(x) || 0) })} style="border:1px solid #DDE3EB;border-radius:6px;padding:5px 7px;font-size:11px;color:#16223A;text-align:right" />
+            <select value={t.basis} onChange={(e) => setLeave(i, { basis: e.target.value as 'working' | 'calendar' })} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:4px 6px;font-size:11px;color:#16223A;background:#fff;font-family:inherit')}><option value="working">Working days</option><option value="calendar">Calendar days</option></select>
+            <Txt value={t.note} onCommit={(x) => setLeave(i, { note: x })} placeholder="Rule shown to staff" style="border:1px solid #DDE3EB;border-radius:6px;padding:5px 7px;font-size:11px;color:#16223A" />
+            <button type="button" onClick={() => { if (window.confirm('Remove ' + (t.name || 'this leave type') + '? Leave already applied keeps its type.')) saveLeave(leaveTypes.filter((_, k) => k !== i), 'Removed ' + t.name); }} style={css(S.remove)}>Remove</button>
+          </div>
+        ))}
+        <div style={css('display:flex;gap:14px;padding:7px 14px')}>
+          <button type="button" onClick={() => saveLeave([...leaveTypes, { name: 'New leave', days: 0, basis: 'working', note: '' }], 'Added a leave type')} style={css(S.addLink)}>+ Add leave type</button>
+          {s.leaveTypes && <button type="button" onClick={() => { if (window.confirm('Go back to the built-in leave types?')) C.save({ leaveTypes: undefined }, 'Leave Types Changed', 'Restored the built-in list'); }} style={css(S.addLink)}>Restore built-in list</button>}
+        </div>
+      </div>
       <div style={css(S.card)}>
         <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Public holidays</strong><span style={css('display:block;font-size:10.5px;color:#5B6478')}>skipped when Staff Portal counts leave days{s.publicHolidays ? '' : ' · built-in 2026–2027 list'}</span></div>
         {Object.keys(holidays).sort().map((d) => (

@@ -54,6 +54,8 @@ export const NewFilePage: React.FC = () => {
   const [code, setCode] = useState('');
   const [custom, setCustom] = useState('');
   const [title, setTitle] = useState('');
+  // Date opened: today, or the real date for files opened earlier.
+  const [openedOn, setOpenedOn] = useState(() => iso(new Date()));
   const [opp, setOpp] = useState('');
   // Client initials in the file no. are typed by the firm, never worked out automatically.
   const [initials, setInitials] = useState('');
@@ -151,7 +153,7 @@ export const NewFilePage: React.FC = () => {
     const lawyerName = lawyerP?.name;
     const partyRole = sideVal;
     const kase: Case = {
-      id, ref: finalRef, title: title.trim(), createdDate: today, fileOpenedDate: today,
+      id, ref: finalRef, title: title.trim(), createdDate: today, fileOpenedDate: openedOn || today,
       clientId: C.id, clientName: C.name, clientRole: partyRole,
       clientsList: [{ id: C.id, clientId: C.id, name: C.name, role: partyRole, icOrRegNo: C.icNo || C.icNumber || C.registrationNo || '', phone: C.phone || '', email: C.email || '' }],
       type: A.name, practiceArea: A.name, matterCode: codePart || undefined,
@@ -277,6 +279,7 @@ export const NewFilePage: React.FC = () => {
                   </label>
                 )}
                 <label style={css('grid-column:1 / -1;display:flex;flex-direction:column;gap:6px')}><span style={css(lbl)}>Matter title</span><input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Client name v. Other side (nature of claim)" style={css(inp)} /></label>
+                <label style={css('display:flex;flex-direction:column;gap:6px')}><span style={css(lbl)}>Date opened</span><input type="date" value={openedOn} max={iso(new Date())} onChange={(e) => setOpenedOn(e.target.value)} style={css('border:1px solid #C9D1DC;border-radius:8px;padding:9px 11px;font-size:13px;color:#16223A;font-family:inherit;width:200px')} /></label>
                 <label style={css('grid-column:1 / -1;display:flex;flex-direction:column;gap:6px')}><span style={css(lbl)}>{S3[2]}</span><input value={opp} onChange={(e) => { setOpp(e.target.value); setReviewed(false); }} style={css(inp)} /></label>
                 <div style={css('grid-column:1 / -1;display:flex;flex-direction:column;gap:6px')}><span style={css(lbl)}>{S3[0]}</span>
                   <div style={css('display:flex;flex-wrap:wrap;gap:6px')}>

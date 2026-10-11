@@ -1,9 +1,11 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { requestQuick, type QuickKind } from '../lib/quickCreate';
 import { useApp } from '../context/AppContext';
 import { clientsNav, useSelectedClientId } from './views/clients/clientModel';
 import {
   Search,
   RefreshCw,
+  Plus,
   Bell,
   CheckCheck,
   Gavel,
@@ -38,6 +40,7 @@ export const Header: React.FC = () => {
     deletedRecords = [],
     isNewCaseModalOpen,
     setIsNewCaseModalOpen,
+    setIsRegisterClientModalOpen,
   } = useApp();
   const amt = useAmountText();
   const seesBilling = canSeeClientBilling(finRoleKey(currentRole, currentUser, isAdmin), finGrants(currentUser));
@@ -46,6 +49,30 @@ export const Header: React.FC = () => {
   const selectedCase = currentView === 'cases' && currentCaseId ? cases.find((c: any) => c.id === currentCaseId) : undefined;
 
   const [isRecycleBinOpen, setIsRecycleBinOpen] = useState(false);
+  // "+" quick create: only what this person may open.
+  const [plusOpen, setPlusOpen] = useState(false);
+  const plusRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!plusOpen) return;
+    const off = (e: MouseEvent) => { if (plusRef.current && !plusRef.current.contains(e.target as Node)) setPlusOpen(false); };
+    document.addEventListener('mousedown', off);
+    return () => document.removeEventListener('mousedown', off);
+  }, [plusOpen]);
+  const goQuick = (view: string, k: QuickKind) => { setCurrentCaseId(null); setCurrentView(view); requestQuick(k); };
+  const canBill = seesBilling && canViewModule('billing');
+  const plusItems: [string, string, boolean, () => void][] = [
+    ['Practice', 'New client', canViewModule('clients'), () => setIsRegisterClientModalOpen(true)],
+    ['Practice', 'New file', canViewModule('cases'), () => setIsNewCaseModalOpen(true)],
+    ['Practice', 'New lead', canViewModule('leads'), () => goQuick('leads', 'lead')],
+    ['Practice', 'New task', canViewModule('dashboard'), () => goQuick('dashboard', 'task')],
+    ['Billing', 'Quotation', canBill, () => goQuick('billing', 'quotation')],
+    ['Billing', 'Proforma', canBill, () => goQuick('billing', 'proforma')],
+    ['Billing', 'Invoice', canBill, () => goQuick('billing', 'invoice')],
+    ['Money', 'Money in', canBill, () => goQuick('billing', 'moneyIn')],
+    ['Money', 'Money out', canBill, () => goQuick('billing', 'moneyOut')],
+    ['Money', 'My claim', canViewModule('reimbursements'), () => goQuick('reimbursements', 'claim')],
+  ];
+  const plusShown = plusItems.filter((x) => x[2]);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [notifFilter, setNotifFilter] = useState<'all' | 'hearing' | 'invoice'>('all');
 
@@ -283,6 +310,40 @@ export const Header: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* "+" quick create */}
+        {plusShown.length > 0 && (
+          <div ref={plusRef} className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setPlusOpen((o) => !o)}
+              title="Create something new"
+              aria-label="Create something new"
+              aria-expanded={plusOpen}
+              className="shco-nav-ink flex items-center gap-1 rounded-lg bg-[#8A6D3B] px-2.5 py-1.5 text-[12px] font-bold text-white hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[#FBF2E9] cursor-pointer"
+            >
+              <Plus className="h-4 w-4" /> New
+            </button>
+            {plusOpen && (
+              <div role="menu" className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-xl border border-[#DDE3EB] bg-white py-1 text-[#16223A] shadow-xl">
+                {['Practice', 'Billing', 'Money'].map((g) => {
+                  const items = plusShown.filter((x) => x[0] === g);
+                  if (!items.length) return null;
+                  return (
+                    <div key={g} className="border-b border-[#F0F2F5] last:border-b-0">
+                      <div className="px-3 pt-2 pb-1 text-[9.5px] font-bold uppercase tracking-[.1em] text-[#5B6478]">{g}</div>
+                      {items.map(([, label, , go]) => (
+                        <button key={label} type="button" role="menuitem" onClick={() => { setPlusOpen(false); go(); }} className="block w-full cursor-pointer px-3 py-1.5 text-left text-[12.5px] font-semibold text-[#16223A] hover:bg-[#F6F8FA]">
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Reload latest saved data */}
         <button

@@ -9,6 +9,7 @@ import { PlanRowsPanel } from './PlanRowsPanel';
 import { PV_DRAWINGS, PV_SST, PV_STATUTORY } from '../../../lib/financeCalc';
 import type { FinanceProof, Invoice, Quotation } from '../../../types';
 import { getPracticeSettings, DEFAULT_EXPENSE_CATEGORIES } from '../../../services/templateService';
+import { SearchSelect } from '../../ui/SearchSelect';
 
 /** Office expense categories from Firm & Practice Settings → Lists & sources. */
 const expenseCategories = (): string[] => {
@@ -113,6 +114,21 @@ export const DocEditModal = ({ F }: { F: FinanceCtrl }) => {
   const pct = Math.round((e.sstRate || 0) * 100);
   const sum = (L: SD.DocLine[]) => L.reduce((s, x) => s + (Number(x[1]) || 0), 0);
   const onRef = (v: string) => { const k = F.app.cases.find((c) => c.ref === v.trim()); if (!k) { setE({ ref: v }); return; } const cn = F.clientName(k.clientId.split(',')[0].trim()) || k.clientName || ''; const area = SD.areaFromName(k.practiceArea || k.type, k.ref); setE({ ref: v, matter: e.matter || k.title || '', client: e.client || cn, ...(e.id ? {} : { area, lines: SD.fromTemplate(area), desc: e.type === 'Proforma' ? e.desc : SD.AREAS[area].desc, plan: defaultPlanFor(area) }) }); };
+  // Client or lead (searchable); the file ref follows: filled in when they have one file, a choice when more.
+  const whoOpts = [
+    ...F.app.clients.map((c) => ({ value: c.name, label: c.name, hint: 'Client' })),
+    ...(F.app.leads || []).filter((l) => !F.app.clients.some((c) => c.name === l.name)).map((l) => ({ value: l.name, label: l.name, hint: 'Lead' })),
+  ];
+  const whoClient = F.app.clients.find((c) => c.name === e.client);
+  const filesOfWho = whoClient ? F.app.cases.filter((k) => String(k.clientId || '').split(',').map((x) => x.trim()).includes(whoClient.id) || k.clientName === whoClient.name) : [];
+  const refOpts = filesOfWho.map((k) => ({ value: k.ref, label: k.ref, hint: k.title }));
+  const pickWho = (name: string) => {
+    const c = F.app.clients.find((x) => x.name === name);
+    const files = c ? F.app.cases.filter((k) => (String(k.clientId || '').split(',').map((x) => x.trim()).includes(c.id) || k.clientName === c.name) && k.status !== 'Closed' && k.status !== 'Archive') : [];
+    if (files.length === 1) { const k = files[0]; const area = SD.areaFromName(k.practiceArea || k.type, k.ref); setE({ client: name, ref: k.ref, matter: k.title || '', ...(e.id ? {} : { area, lines: SD.fromTemplate(area), desc: e.type === 'Proforma' && e.area === 'Consultation' ? e.desc : SD.AREAS[area].desc, plan: defaultPlanFor(area) }) }); }
+    else setE({ client: name, ref: '', matter: '' });
+  };
+  const consultation = () => setE({ type: 'Proforma', area: 'Consultation', lines: SD.fromTemplate('Consultation'), desc: SD.AREAS.Consultation.desc, plan: defaultPlanFor('Consultation') });
   const sched = e.inst && e.inst.on ? SD.schedule(t.total, e.inst.months, e.inst.upfront) : [];
   const isQuote = e.type === 'Quotation';
   const planKindLabel = e.plan.kind === 'Stages' ? 'Stages' : e.plan.kind === 'Instalments' ? 'Monthly instalments' : 'Pay in full';
@@ -127,13 +143,13 @@ export const DocEditModal = ({ F }: { F: FinanceCtrl }) => {
       <div style={css('width:980px;max-width:calc(100vw - 32px);align-self:flex-start;border-radius:12px;background:#fff;overflow:hidden')}>
         <div style={css('display:flex;align-items:center;gap:8px;padding:12px 18px;background:#16223A')}><strong style={css('font-size:14px;color:#fff;text-transform:capitalize')}>{(e.id ? 'Edit ' : 'New ') + e.type.toLowerCase()}</strong><button type="button" onClick={() => F.setEd(null)} style={css('margin-left:auto;border:1px solid rgba(255,255,255,.35);border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:transparent;color:#fff;cursor:pointer;font-family:inherit;white-space:nowrap')}>Close</button></div>
         <div style={css('padding:16px 18px;display:flex;flex-direction:column;gap:12px')}>
-          {!e.id && <div style={css('display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px;align-items:center')}><span style={css(LBL)}>Document</span><div style={css('display:flex;flex-wrap:wrap;gap:4px')}>{seg(['Quotation', 'Proforma', 'Invoice'], e.type, (v) => setE({ type: v as EditorState['type'] }))}</div></div>}
+          {!e.id && <div style={css('display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px;align-items:center')}><span style={css(LBL)}>Document</span><div style={css('display:flex;flex-wrap:wrap;gap:4px;align-items:center')}>{seg(['Quotation', 'Proforma', 'Invoice'], e.type, (v) => setE({ type: v as EditorState['type'] }))}<button type="button" onClick={consultation} title="A proforma for a consultation fee, before a file is opened" style={css('margin-left:8px;border:1px dashed #8A6D3B;border-radius:14px;padding:4px 11px;font-size:10.5px;font-weight:700;background:#FBF8F1;color:#8A6D3B;cursor:pointer;font-family:inherit')}>+ Consultation proforma</button></div></div>}
           <div style={css('display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px;align-items:center')}><span style={css(LBL)}>Practice area</span><div style={css('display:flex;flex-wrap:wrap;gap:4px')}>{seg(Object.keys(SD.AREAS), e.area, (v) => setE({ area: v, lines: SD.fromTemplate(v), desc: e.type === 'Proforma' ? e.desc : SD.AREAS[v].desc, ...(e.id ? {} : { plan: defaultPlanFor(v) }) }))}</div></div>
           <div style={css('display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px;align-items:center')}><span style={css(LBL)}>Pay into</span><div style={css('display:flex;flex-wrap:wrap;gap:4px')}>{seg(['Office', 'Client account'], e.account, (v) => setE({ account: v as EditorState['account'] }))}</div></div>
-          <div style={css('display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px')}>
-            <label style={css('display:flex;flex-direction:column;gap:4px')}><span style={css(LBL)}>Client</span><input list="fin-clients" value={e.client} onChange={(ev) => setE({ client: ev.target.value })} placeholder="Client name" style={css(INPUT)} /></label>
-            <label style={css('display:flex;flex-direction:column;gap:4px')}><span style={css(LBL)}>Matter</span><input value={e.matter} onChange={(ev) => setE({ matter: ev.target.value })} placeholder="e.g. SPA Taman Bangi" style={css(INPUT)} /></label>
-            <label style={css('display:flex;flex-direction:column;gap:4px')}><span style={css(LBL)}>File ref.</span><input list="fin-cases" value={e.ref} onChange={(ev) => onRef(ev.target.value)} placeholder="SH/LIT/0450" style={css(INPUT)} /></label>
+          <div style={css('display:grid;grid-template-columns:150px repeat(2,minmax(0,1fr));gap:10px')}>
+            <label style={css('display:flex;flex-direction:column;gap:4px')}><span style={css(LBL)}>Date</span><input type="date" value={e.date || new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10)} onChange={(ev) => setE({ date: ev.target.value })} style={css(INPUT)} /></label>
+            <div style={css('display:flex;flex-direction:column;gap:4px')}><span style={css(LBL)}>Client or lead</span><SearchSelect aria-label="Client or lead" value={e.client} onChange={pickWho} placeholder="Search a client or lead…" empty="Not found. Add them in Clients or Leads first." options={whoOpts} /></div>
+            <div style={css('display:flex;flex-direction:column;gap:4px')}><span style={css(LBL)}>File ref.</span><SearchSelect aria-label="File ref" value={e.ref} onChange={(v) => onRef(v)} clearable placeholder={e.client ? (refOpts.length ? 'Choose the file…' : 'No file yet (fine for a lead or consultation)') : 'Pick the client first'} empty="No file for this client yet." options={refOpts} /></div>
           </div>
           <div style={css('display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:10px')}>
             <label style={css('display:flex;flex-direction:column;gap:4px')}><span style={css(LBL)}>Your Ref</span><input value={e.yourRef} onChange={(ev) => setE({ yourRef: ev.target.value })} style={css(INPUT)} /></label>
@@ -201,15 +217,34 @@ export const FormModal = ({ F }: { F: FinanceCtrl }) => {
     moneyIn: ['Record money in', [['client', 'Received from'], ['amount', 'Amount (RM)', 'e.g. 5000'], ['date', 'Date received', 'dd.mm.yyyy'], ['kind', 'This money is', ['Payment of an invoice', 'Deposit / money held for client']], ['forNo', 'Invoice no. or purpose', 'e.g. INV-26-0314, or 10% deposit'], ['method', 'Method', ['Online transfer', 'Cheque', 'Cash']], ['proofs', 'Proof of payment (bank-in slip, screenshot, cheque copy, WhatsApp)', 'file']]],
     pay: ['Record payment for ' + (f.vals.title || ''), [['amount', 'Amount received (RM)'], ['date', 'Date received', 'dd.mm.yyyy'], ['method', 'Method', ['Online transfer', 'Cheque', 'Cash']], ['proofs', 'Proof of payment (bank-in slip, screenshot, cheque copy, WhatsApp)', 'file']]],
     journal: ['Manual journal (goes to Approvals)', [['date', 'Date', 'dd.mm.yyyy'], ['account', 'Account', ['Office', 'Client account', 'Disbursement', 'Petty cash']], ['dir', 'Direction', ['Money out', 'Money in']], ...(f.vals.account === 'Client account' ? [['client', 'Client ledger (required for the client account)'], ['matter', 'Matter (file ref.)', 'SHC/…']] as FieldDef[] : []), ['details', 'Details', 'e.g. bank charges Sep'], ['amount', 'Amount (RM)'], ['reason', 'Reason for adjustment']], f.vals.account === 'Client account' ? 'Client-account journals adjust one client ledger (client + matter), so the ledgers, cash book and bank stay equal. A ledger can never go below zero.' : undefined],
-    payOut: ['Pay out of client money', [['client', 'From client ledger'], ['matter', 'Matter (file ref.) · paid from this matter’s ledger', 'SHC/…'], ['payee', 'Pay to', 'e.g. vendor\'s solicitors'], ['amount', 'Amount (RM)'], ['purpose', 'Purpose', 'e.g. balance purchase price'], ['proofs', 'Supporting document (letter, redemption statement, invoice)', 'file']]],
+    payOut: ['Pay out of client money', [['client', 'From client ledger'], ['matter', 'Matter (file ref.) · paid from this matter’s ledger', 'SHC/…'], ['payee', 'Pay to', 'e.g. vendor\'s solicitors'], ['amount', 'Amount (RM)'], ['date', 'Date', 'dd.mm.yyyy'], ['purpose', 'Purpose', 'e.g. balance purchase price'], ['proofs', 'Supporting document (letter, redemption statement, invoice)', 'file']]],
     disb: ['Paid on behalf of a client', [['client', 'For client'], ['matter', 'Matter (file ref.)', 'SHC/…'], ['payee', 'Paid to', 'e.g. Pejabat Tanah, LHDN, Mahkamah'], ['what', 'For', 'e.g. land search, stamp duty, filing fee'], ['amount', 'Amount (RM)'], ['date', 'Date paid', 'dd.mm.yyyy'], ['proofs', 'Receipt', 'file']]],
-    transfer: ['Transfer fees to office', [['client', 'From client ledger'], ['matter', 'Matter (file ref.)', 'SHC/…'], ['forNo', 'For invoice', 'INV-2026-…'], ['amount', 'Amount (RM)']]],
-    expense: ['Record office expense', [['kind', 'Type', ['Office expense', PV_STATUTORY, PV_SST, PV_DRAWINGS]], ['payee', 'Paid to'], ['what', 'For'], ...(!f.vals.kind || f.vals.kind === 'Office expense' ? [['cat', 'Category', expenseCategories()]] as FieldDef[] : []), ['amount', 'Amount (RM)'], ['from', 'Paid from', ['Hong Leong', 'CIMB', 'Petty cash']], ['proofs', 'Bill or receipt', 'file']]],
+    transfer: ['Transfer fees to office', [['client', 'From client ledger'], ['matter', 'Matter (file ref.)', 'SHC/…'], ['forNo', 'For invoice', 'INV-2026-…'], ['amount', 'Amount (RM)'], ['date', 'Date', 'dd.mm.yyyy']]],
+    expense: ['Record office expense', [['kind', 'Type', ['Office expense', PV_STATUTORY, PV_SST, PV_DRAWINGS]], ['payee', 'Paid to'], ['what', 'For'], ...(!f.vals.kind || f.vals.kind === 'Office expense' ? [['cat', 'Category', expenseCategories()]] as FieldDef[] : []), ['amount', 'Amount (RM)'], ['date', 'Date paid', 'dd.mm.yyyy'], ['from', 'Paid from', ['Hong Leong', 'CIMB', 'Petty cash']], ['proofs', 'Bill or receipt', 'file']]],
     fund: ['Add sinking fund', [['name', 'Fund name'], ['target', 'Target (RM)'], ['saved', 'Saved so far (RM)'], ['due', 'Due', 'e.g. Dec 2026'], ['monthly', 'Set aside / month (RM)'], ['pct', 'Split % of each fee received']]],
     writeoff: ['Request write-off for ' + (f.vals.title || '') + '', [['amount', 'Amount to write off (RM)'], ['reason', 'Reason', 'e.g. client wound up, 14 months unpaid']]],
     // payslip: its own editor with auto EPF / SOCSO / EIS (PayslipFormModal.tsx).
   };
   const def = DEF[f.kind]; if (!def) return null;
+  // dd.mm.yyyy (what the save step reads) <-> yyyy-mm-dd (the calendar picker).
+  const toIso = (v: string) => { const m = String(v || '').match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/); return m ? m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0') : /^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : ''; };
+  const fromIso = (v: string) => { const m = v.match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? m[3] + '.' + m[2] + '.' + m[1] : ''; };
+  const todayDmy = fromIso(new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10));
+  // Client: any registered client. Matter: that client's files (filled in when there is only one).
+  const clientOpts = F.app.clients.map((c) => ({ value: c.name, label: c.name, hint: c.clientCode || '' }));
+  const pickedClient = F.app.clients.find((c) => c.name === f.vals.client);
+  const filesOf = (cid?: string) => F.app.cases.filter((c) => F.ownCase(c) && (!cid || String(c.clientId || '').split(',').map((x) => x.trim()).includes(cid)));
+  const matterOpts = filesOf(pickedClient?.id).map((c) => ({ value: c.ref, label: c.ref, hint: c.title }));
+  const pickClient = (name: string) => {
+    const c = F.app.clients.find((x) => x.name === name);
+    const files = c ? filesOf(c.id).filter((k) => k.status !== 'Closed' && k.status !== 'Archive') : [];
+    F.setForm({ ...f, vals: { ...f.vals, client: name, matter: files.length === 1 ? files[0].ref : '' } });
+  };
+  const addProofs = (k: string, picked: FileList | null) => {
+    if (!picked || !picked.length) return;
+    if (proofUploadBlocked()) { F.toastMsg(DRIVE_REQUIRED_MSG); return; }
+    set(k, [...((f.vals[k] as FinanceProof[]) || []), ...filesToProofs('form', picked)]);
+  };
   const listFor = (k: string) => (k === 'client' ? 'fin-clients' : k === 'matter' ? 'fin-cases' : k === 'forNo' && f.kind === 'transfer' ? 'fin-invoices' : k === 'forNo' ? 'fin-invoices' : undefined);
   return (
     <div style={css('position:fixed;inset:0;z-index:60;background:rgba(22,34,58,.6);display:flex;align-items:flex-start;justify-content:center;padding-top:80px;padding-bottom:40px;overflow:auto')}>
@@ -220,8 +255,11 @@ export const FormModal = ({ F }: { F: FinanceCtrl }) => {
           {def[2] && <p style={css('margin:0;font-size:10.5px;line-height:1.5;color:#8A6534;font-weight:600')}>{def[2]}</p>}
           {def[1].map(([k, label, x]) => { const isOpts = Array.isArray(x), isFile = x === 'file'; const fl: FinanceProof[] = f.vals[k] || []; return (
             <div key={k} style={css('display:flex;flex-direction:column;gap:4px')}><span style={css(LBL)}>{label}</span>
-              {!isOpts && !isFile && <input list={listFor(k)} value={f.vals[k] || ''} onChange={(ev) => set(k, ev.target.value)} placeholder={typeof x === 'string' ? x : ''} style={css(INPUT)} />}
-              {isFile && <div style={css('display:flex;align-items:center;gap:8px')}><label style={css('border:1px solid #DDE3EB;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit;white-space:nowrap')}>Choose files<input type="file" multiple accept="image/*,.pdf" onChange={(ev) => { const picked = ev.target.files; if (picked && picked.length && proofUploadBlocked()) { F.toastMsg(DRIVE_REQUIRED_MSG); ev.target.value = ''; return; } set(k, [...fl, ...filesToProofs('form', picked)]); }} style={css('display:none')} /></label><span style={css(`font-size:10.5px;color:${fl.length ? '#2F6F4E' : '#B23A2E'}`)}>{fl.length ? fl.map((q) => q.name).join(', ') : 'Nothing attached yet'}</span><span style={css(`margin-left:auto;font-size:10px;color:${proofUploadBlocked() ? '#B23A2E' : '#5B6478'};white-space:nowrap`)}>{storageLabel()}</span></div>}
+              {k === 'date' && <input type="date" value={toIso(f.vals.date || todayDmy)} onChange={(ev) => set('date', fromIso(ev.target.value))} style={css(INPUT + ';width:170px')} />}
+              {k === 'client' && <SearchSelect aria-label={label} value={f.vals.client || ''} onChange={pickClient} placeholder="Search a client…" empty="No client by that name. Add them in Clients first." options={clientOpts} />}
+              {k === 'matter' && <SearchSelect aria-label={label} value={f.vals.matter || ''} onChange={(v) => set('matter', v)} clearable placeholder={pickedClient ? (matterOpts.length ? 'Choose the file…' : 'This client has no file yet') : 'Search a file ref…'} empty="No file matches." options={matterOpts} />}
+              {!isOpts && !isFile && !['date', 'client', 'matter'].includes(k) && <input list={listFor(k)} value={f.vals[k] || ''} onChange={(ev) => set(k, ev.target.value)} placeholder={typeof x === 'string' ? x : ''} style={css(INPUT)} />}
+              {isFile && <div onDragOver={(ev) => ev.preventDefault()} onDrop={(ev) => { ev.preventDefault(); addProofs(k, ev.dataTransfer.files); }} style={css('display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1.5px dashed #C9D3E0;border-radius:8px;padding:8px 10px;background:#FAFBFC')}><span style={css('font-size:10.5px;font-weight:700;color:#16223A')}>Drop files here or</span><label style={css('border:1px solid #DDE3EB;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit;white-space:nowrap')}>Choose files<input type="file" multiple accept="image/*,.pdf" onChange={(ev) => { addProofs(k, ev.target.files); ev.target.value = ''; }} style={css('display:none')} /></label><span style={css(`font-size:10.5px;color:${fl.length ? '#2F6F4E' : '#B23A2E'}`)}>{fl.length ? fl.map((q) => q.name).join(', ') : 'Nothing attached yet'}</span><span style={css(`margin-left:auto;font-size:10px;color:${proofUploadBlocked() ? '#B23A2E' : '#5B6478'};white-space:nowrap`)}>{storageLabel()}</span></div>}
               {isOpts && <div style={css('display:flex;flex-wrap:wrap;gap:4px')}>{seg(x as string[], f.vals[k] || (x as string[])[0], (v) => set(k, v))}</div>}
             </div>
           ); })}

@@ -18,7 +18,9 @@ describe("the accountant's (Bukku) chart of accounts", () => {
   });
   it('office expenses and staff claims post to the accountant’s expense accounts', () => {
     expect(glCode(expenseGL('Insurance'))).toBe('9I01-0000');
-    expect(glCode(expenseGL('Rent'))).toBe('9R01-0000'); // older category names still land right
+    expect(glCode(expenseGL('Rent'))).toBe('9R02-0000'); // older category names still land right (9R01 is Rounding loss)
+    expect(glCode(expenseGL('Utilities'))).toBe('9W01-0000');
+    expect(glCode('9R01-0000 - Rental')).toBe('9R02-0000'); // posted under the first mapping
     expect(glCode(expenseGL('Courier'))).toBe('9F03-0000');
     expect(expenseGL('EPF')).toBe(GLA.statutory);
     expect(expenseGL('Software')).toBe(GLA.software);

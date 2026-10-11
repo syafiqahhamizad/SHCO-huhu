@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useQuickCreate } from '../../../lib/quickCreate';
 import {
   CalendarDays,
   ChartPie,
@@ -175,6 +176,8 @@ interface Person {
   color: string;
   grp: 'Partner' | 'Staff' | 'Outside';
   mine: LV[];
+  /** Registered referral partner: fee rate and what is owed. */
+  fee?: string;
 }
 
 interface LeadDraft {
@@ -231,6 +234,7 @@ export const LeadsReferralsPage: React.FC = () => {
     setCurrentView,
     showToast,
     logAuditEvent,
+    referralPartners,
   } = useApp();
   const { confirm, ConfirmationModal } = useConfirmation();
 
@@ -409,6 +413,7 @@ export const LeadsReferralsPage: React.FC = () => {
   });
   const [leadModal, setLeadModal] = useState(false);
   const [N, setNState] = useState<LeadDraft>(blankLead);
+  useQuickCreate(['lead'], () => { setNState(blankLead()); setLeadModal(true); });
   const setN = (p: Partial<LeadDraft>) => setNState((s) => ({ ...s, ...p }));
   const [modal, setModal] = useState(false);
   const [F, setFState] = useState<ProgDraft>(blankProg);
@@ -494,18 +499,28 @@ export const LeadsReferralsPage: React.FC = () => {
       if (!m.has(k)) m.set(k, { name: l.raw.referralDetail!.trim(), arr: [] });
       m.get(k)!.arr.push(l);
     });
+    // Outside referral partners registered in Referral partners & fee rates show even with no lead yet.
+    const ext = (referralPartners || []).filter((p) => p.type === 'External' && p.active !== false);
+    ext.forEach((p) => { const k = norm(p.name); if (!m.has(k)) m.set(k, { name: p.name, arr: [] }); });
+    const feeOf = (name: string) => {
+      const p = ext.find((x) => norm(x.name) === norm(name));
+      if (!p) return undefined;
+      const rate = p.commissionType === 'Percentage' ? p.commissionValue + '% of fees' : p.commissionType === 'Flat' ? 'RM ' + Number(p.commissionValue || 0).toLocaleString('en-MY') + ' per file' : 'no fee';
+      return rate + (Number(p.amountOwed || 0) > 0 ? ' · owed RM ' + Number(p.amountOwed).toLocaleString('en-MY', { minimumFractionDigits: 2 }) : p.paymentStatus === 'Paid' ? ' · paid' + (p.lastPaymentDate ? ' ' + p.lastPaymentDate : '') : '');
+    };
     return Array.from(m.values())
       .sort((a, b) => b.arr.length - a.arr.length)
       .map(({ name, arr }) => ({
         code: codeOf(name),
         name,
-        role: arr[0].cat === 'Existing Client' ? 'Existing client' : 'Outside referrer',
+        role: arr[0]?.cat === 'Existing Client' ? 'Existing client' : 'Outside referrer',
         color: '#8A6D3B',
         grp: 'Outside' as const,
         mine: [...arr].sort(byDateDesc),
+        fee: feeOf(name),
       }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [L]);
+  }, [L, referralPartners]);
   const allPeople = [...refPeople, ...outsiders];
   const teamReferred =
     refPeople.reduce((s, p) => s + p.mine.length, 0) + bniOrphans.length;
@@ -2194,7 +2209,7 @@ export const LeadsReferralsPage: React.FC = () => {
                           </span>
                           <span className="min-w-0">
                             <span className="block text-[12px] font-bold text-[#16223A]">{p.name}</span>
-                            <span className="block text-[10.5px] whitespace-nowrap text-[#5B6478]">{p.role} </span>
+                            <span className="block text-[10.5px] whitespace-nowrap text-[#5B6478]">{p.role}{p.fee ? ' · ' + p.fee : ''}</span>
                           </span>
                         </span>
                         <span className="text-right text-[13px] font-bold text-[#16223A]">{mine.length}</span>
@@ -2272,8 +2287,14 @@ export const LeadsReferralsPage: React.FC = () => {
                 Everyone registered in <strong className="text-[#16223A]">Staff Portal</strong> appears here automatically.
               </span>
               <span>
-                Referral fees and payslips are handled in <strong className="text-[#16223A]">Accounting Centre</strong>.
+                Outside referrers are added in <strong className="text-[#16223A]">Referral partners &amp; fee rates</strong> (top right), or appear when a lead names them.
               </span>
+              <span>
+                <strong className="text-[#16223A]">Referral fees:</strong> worked out each month from money received on the files they referred, then approved in Accounts &amp; Finance → Approvals. Outside referrers are paid by voucher, staff in their payslip, partners as drawings.
+              </span>
+              <button type="button" onClick={() => setCurrentView('approvals')} className="cursor-pointer border-0 bg-transparent p-0 text-[10.5px] font-bold text-[#3D6B9C]" style={{ fontFamily: 'inherit' }}>
+                See this month's referral fees →
+              </button>
             </div>
           </div>
         </div>
@@ -2587,8 +2608,8 @@ export const LeadsReferralsPage: React.FC = () => {
                   );
                 })}
               </div>
-              <span className={fieldLabel}>{dopt ? dopt[0] : N.cat === 'BNI' ? 'Credit' : 'Details'}</span>
-              <div style={{ gridColumn: 'span 3' }}>
+              {N.cat !== 'BNI' && <span className={fieldLabel}>{dopt ? dopt[0] : 'Details'}</span>}
+              {N.cat !== 'BNI' && <div style={{ gridColumn: 'span 3' }}>
                 {dopt && (
                   <div className="flex flex-wrap gap-[6px]">
                     {dopt[1].map((o) => {
@@ -2616,8 +2637,7 @@ export const LeadsReferralsPage: React.FC = () => {
                     style={{ ...inputSt, width: '100%' }}
                   />
                 )}
-                {N.cat === 'BNI' && <p className="m-0 text-[11.5px] font-semibold text-[#8C2F4C]">Counted under {SH_NAME}'s referrals.</p>}
-              </div>
+              </div>}
               {showCh && <ChOptions />}
               <span className={fieldLabel}>Person in charge</span>
               {PicPicker(picL)}

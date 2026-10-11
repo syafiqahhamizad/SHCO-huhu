@@ -118,7 +118,7 @@ export const ClientPortalView: React.FC = () => {
   const [cid, setCid] = useState<string>(() => {
     try { return sessionStorage.getItem(PREVIEW_CLIENT_KEY) || ''; } catch { return ''; }
   });
-  const [tab, setTab] = useState<'home' | 'files' | 'docs' | 'bills' | 'msgs'>('home');
+  const [tab, setTab] = useState<'home' | 'files' | 'docs' | 'bills' | 'stmt' | 'msgs'>('home');
   const [cat, setCat] = useState('All');
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
@@ -224,6 +224,18 @@ export const ClientPortalView: React.FC = () => {
   /* money: the one source for client money figures (lib/moneyByFile), issued bills only */
   const mc = moneyForClient(client, cases, { invoices, payments, retainers, quotations, receipts });
   const m = { bills: mc.bills.filter((b) => b.issued), billed: mc.billed, owing: mc.outstanding, paidTotal: mc.received, held: mc.clientAccount, ledger: mc.ledger };
+  // Statement of account: every bill (debit) and every payment / deposit applied (credit), oldest first.
+  const soa = (() => {
+    const rows: { date: string; doc: string; desc: string; dr: number; cr: number }[] = [];
+    m.bills.forEach((b) => {
+      rows.push({ date: b.date, doc: b.id, desc: 'Bill' + (b.what ? ': ' + b.what : ''), dr: b.total, cr: 0 });
+      if (Number(b.inv.depositApplied || 0) > 0) rows.push({ date: b.date, doc: b.id, desc: 'Deposit applied', dr: 0, cr: Number(b.inv.depositApplied) });
+      if (b.writtenOff > 0) rows.push({ date: b.date, doc: b.id, desc: 'Written off', dr: 0, cr: b.writtenOff });
+      (payments || []).filter((p) => p.invoiceId === b.id).forEach((p) => rows.push({ date: p.date, doc: p.id, desc: 'Payment received for ' + b.id, dr: 0, cr: Number(p.amount || 0) }));
+    });
+    let run = 0;
+    return rows.sort((a, b) => (isoOf(a.date) < isoOf(b.date) ? -1 : 1)).map((r) => { run = Math.round((run + r.dr - r.cr) * 100) / 100; return { ...r, bal: run }; });
+  })();
   const dueBill = m.bills.filter((b) => b.bal > 0.005 && b.inv.dueDate).map((b) => b.inv).sort((a, b) => (isoOf(a.dueDate) < isoOf(b.dueDate) ? -1 : 1))[0];
   const settings = getPracticeSettings();
   const bank = (settings.bankAccounts || []).find((b) => b.isActive !== false && b.isDefaultOffice) || (settings.bankAccounts || []).find((b) => b.isActive !== false && b.accountType === 'Office Operating');
@@ -275,6 +287,7 @@ export const ClientPortalView: React.FC = () => {
     ...(see.progress ? [['files', many ? 'My files (' + files.length + ')' : 'My file'] as [typeof tab, string]] : []),
     ...(see.documents ? [['docs', 'Documents'] as [typeof tab, string]] : []),
     ...(see.bills ? [['bills', 'Bills & payments'] as [typeof tab, string]] : []),
+    ...(see.bills || see.statement ? [['stmt', 'Account statement'] as [typeof tab, string]] : []),
     ...(see.messages ? [['msgs', 'Messages'] as [typeof tab, string]] : []),
   ];
   const cur = tabsDef.some(([k]) => k === tab) ? tab : 'home';
@@ -538,6 +551,44 @@ export const ClientPortalView: React.FC = () => {
         </div>
       )}
 
+      {/* ---------------------------------------------------------------- Account statement */}
+      {cur === 'stmt' && (
+        <div style={css('display:flex;flex-direction:column;gap:16px')}>
+          {see.bills && (
+            <section style={css('border-radius:16px;background:#fff;border:1px solid #E4DED2;overflow:hidden')}>
+              <div style={css('display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid #EFEAE0')}>
+                <strong style={css('font-family:Georgia,serif;font-size:16px;color:#16223A')}>Statement of account</strong>
+                <span style={css('font-size:11.5px;color:#6B6458')}>bills and payments · balance = what is still to pay</span>
+                <button type="button" onClick={() => pdf('Statement of account ' + client.name, tableHtml('Statement of account · ' + client.name, 'To ' + fmt(today), ['Date', 'Ref', 'Details', 'Debit (RM)', 'Credit (RM)', 'Balance (RM)'], soa.map((r) => [fmt(r.date), r.doc, r.desc, r.dr ? r.dr.toFixed(2) : '', r.cr ? r.cr.toFixed(2) : '', r.bal.toFixed(2)])))} style={css('margin-left:auto;border:1px solid #E4DED2;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;background:#fff;color:#16223A;cursor:pointer')}>Download PDF</button>
+              </div>
+              <div style={css('display:grid;grid-template-columns:90px 120px minmax(0,1fr) 100px 100px 110px;gap:12px;padding:8px 18px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6B6458;background:#FAF7F1')}><span>Date</span><span>Ref</span><span>Details</span><span style={css('text-align:right')}>Debit</span><span style={css('text-align:right')}>Credit</span><span style={css('text-align:right')}>Balance</span></div>
+              {soa.map((r, i) => (
+                <div key={i} style={css('display:grid;grid-template-columns:90px 120px minmax(0,1fr) 100px 100px 110px;gap:12px;align-items:center;padding:9px 18px;border-top:1px solid #F3EFE7;font-size:12.5px;color:#16223A')}>
+                  <span style={css('color:#6B6458')}>{fmt(r.date, { day: 'numeric', month: 'short', year: 'numeric' })}</span><span style={css('font-family:ui-monospace,monospace;font-size:11.5px')}>{r.doc}</span><span>{r.desc}</span>
+                  <span style={css('text-align:right;color:#8E2A20')}>{r.dr ? r.dr.toFixed(2) : ''}</span><span style={css('text-align:right;color:#1F5A3B')}>{r.cr ? r.cr.toFixed(2) : ''}</span><strong style={css('text-align:right')}>{rm(r.bal)}</strong>
+                </div>
+              ))}
+              {!soa.length && <div style={css('padding:16px 18px;font-size:12.5px;color:#6B6458')}>No bills yet.</div>}
+            </section>
+          )}
+          {see.statement && (
+            <section style={css('border-radius:16px;background:#fff;border:1px solid #E4DED2;overflow:hidden')}>
+              <div style={css('display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid #EFEAE0')}>
+                <strong style={css('font-family:Georgia,serif;font-size:16px;color:#16223A')}>Client account</strong>
+                <span style={css('font-size:11.5px;color:#6B6458')}>money we hold for you (Solicitors' Account Rules 1990) · now {rm(m.held)}</span>
+                {m.ledger.length > 0 && <button type="button" onClick={() => pdf('Client account statement ' + client.name, tableHtml('Client account statement · ' + client.name, 'To ' + fmt(today), ['Date', 'Details', 'Amount (RM)', 'Balance (RM)'], m.ledger.map((x) => [fmt(x.date), x.desc, (x.amount < 0 ? '-' : '') + Math.abs(x.amount).toFixed(2), x.bal.toFixed(2)])))} style={css('margin-left:auto;border:1px solid #E4DED2;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;background:#fff;color:#16223A;cursor:pointer')}>Download PDF</button>}
+              </div>
+              {m.ledger.map((r) => (
+                <div key={r.id} style={css('display:grid;grid-template-columns:90px minmax(0,1fr) 110px 110px;gap:12px;align-items:center;padding:10px 18px;border-top:1px solid #F3EFE7;font-size:12.5px;color:#16223A')}>
+                  <span style={css('color:#6B6458')}>{fmt(r.date, { day: 'numeric', month: 'short', year: 'numeric' })}</span><span>{r.desc}</span><span style={css(`text-align:right;font-weight:600;color:${r.amount < 0 ? '#8E2A20' : '#1F5A3B'}`)}>{(r.amount < 0 ? '−' : '+') + Math.abs(r.amount).toFixed(2)}</span><strong style={css('text-align:right')}>{rm(r.bal)}</strong>
+                </div>
+              ))}
+              {!m.ledger.length && <div style={css('padding:16px 18px;font-size:12.5px;color:#6B6458')}>We do not hold any money for you.</div>}
+            </section>
+          )}
+        </div>
+      )}
+
       {/* ---------------------------------------------------------------- Messages */}
       {cur === 'msgs' && (
         <section style={css('border-radius:16px;background:#fff;border:1px solid #E4DED2;overflow:hidden;display:flex;flex-direction:column')}>
@@ -577,7 +628,7 @@ const Shell: React.FC<{
     {preview && (
       <div style={css('display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:9px 24px;background:#8A6D3B;color:#fff;font-size:12px')}>
         <Eye size={15} color="#FFFFFF" />
-        <strong>Staff preview</strong><span style={css('color:#F6EEDC')}>You are seeing exactly what the client sees. Nothing here is sent.</span>
+        <strong>Staff preview</strong><span style={css('color:#F6EEDC')}>Only staff see this bar. Pick any client to see their portal exactly as they do; a client signing in sees only their own. Nothing here is sent.</span>
         <label style={css('display:flex;align-items:center;gap:6px;margin-left:auto')}><span style={css('color:#F6EEDC')}>Client</span><select value={cid} onChange={(e) => pickClient(e.target.value)} style={css('border:0;border-radius:6px;padding:4px 8px;font-size:12px;font-weight:700;color:#16223A;max-width:260px')}>{clientOpts.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select></label>
         <button type="button" onClick={back} style={css('border:0;background:none;padding:0;color:#fff;font-size:12px;text-decoration:underline;cursor:pointer;font-family:inherit')}>Back to client profile</button>
       </div>

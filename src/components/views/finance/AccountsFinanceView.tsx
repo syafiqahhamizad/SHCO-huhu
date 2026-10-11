@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useQuickCreate } from '../../../lib/quickCreate';
 import { FilePlus, Banknote, Wallet } from 'lucide-react';
 import type { FinTab } from '../../../lib/financeAccess';
 import { useFinanceController } from './useFinanceController';
@@ -27,6 +28,12 @@ export const AccountsFinanceView = ({ initialTab = 'overview' }: { initialTab?: 
   const F = useFinanceController(initialTab);
   const { TABS, tab } = F;
   const [chooser, setChooser] = useState(false);
+  // Header "+" → open the form here.
+  useQuickCreate(['quotation', 'proforma', 'invoice', 'moneyIn', 'moneyOut'], (k) => {
+    if (k === 'moneyIn') F.openForm('moneyIn', {});
+    else if (k === 'moneyOut') setChooser(true);
+    else F.openNew(k === 'quotation' ? 'Quotation' : k === 'proforma' ? 'Proforma' : 'Invoice');
+  });
 
   if (!TABS.length) {
     return (

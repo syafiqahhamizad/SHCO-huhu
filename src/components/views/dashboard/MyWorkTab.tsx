@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
+import { useQuickCreate } from '../../../lib/quickCreate';
 import {
   Calendar,
   CalendarX,
@@ -39,7 +40,7 @@ import { histEntry } from '../cases/wf';
 import { syncTask, unsyncTask, type TaskSyncCtx } from '../cases/clientComms';
 import { addDaysIso, isTaskDone, type Bucket, type Stream, type WorkRow } from './myWork';
 
-type FilterValue = 'all' | Bucket | 'hearing' | 'waiting' | 'unbilled';
+type FilterValue = 'all' | Bucket | 'hearing' | 'unbilled';
 
 const STREAM_META: Record<Stream, { label: string; icon?: React.ElementType; color: string }> = {
   hearing: { label: 'Court date', icon: Gavel, color: palette.red },
@@ -130,6 +131,8 @@ type DecisionItem = {
   no: string;
   onYes: () => void;
   onNo: () => void;
+  /** Approvals / sign-offs decided on their own page: one "Open" button, nothing to mark here. */
+  link?: boolean;
 };
 
 type TaskFormState = { draft: TaskDraft; scope: 'matter' | 'private'; editing?: { kind: 'case'; caseId: string; task: Task } | { kind: 'private'; task: Task } };
@@ -266,8 +269,9 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
 
   const openTaskForm = (scope: 'matter' | 'private', preset?: Partial<TaskDraft>) => {
     const defaultCase = [...myOwnCases].sort((a, b) => String(b.lastAccessed || '').localeCompare(String(a.lastAccessed || '')))[0];
-    setTaskForm({ scope, draft: { ...blankTaskDraft(myName), caseId: scope === 'matter' ? defaultCase?.id || '' : '', kind: 'Task', syncGoogle: scope === 'private', ...preset } });
+    setTaskForm({ scope, draft: { ...blankTaskDraft(myName), caseId: scope === 'matter' ? defaultCase?.id || '' : '', kind: 'Task', syncGoogle: true, ...preset } });
   };
+  useQuickCreate(['task'], () => openTaskForm('matter'));
 
   const draftOf = (t: Task, caseId: string): TaskDraft => ({
     title: t.title,
@@ -417,16 +421,17 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
   /* ---------------------------------------------------------------- lists & counts */
 
   const open = (l: WorkRow[]) => l.filter((r) => !r.done);
-  const matterRows = rows.filter((r) => r.stream !== 'private');
+  // Approvals and sign-offs are decisions, not tasks: they show under "Needs your decision".
+  const isDecisionRow = (r: WorkRow) => r.stream === 'approval' || r.stream === 'signature';
+  const matterRows = rows.filter((r) => r.stream !== 'private' && !isDecisionRow(r));
+  const approvalRows = open(rows).filter(isDecisionRow);
   const privRows = rows.filter((r) => r.stream === 'private');
   const cnt = (l: WorkRow[], b: Bucket) => open(l).filter((r) => r.bucket === b).length;
-  const waiting = open(matterRows).filter((r) => r.stream === 'approval' || r.stream === 'signature').length;
   const hearingsWeek = open(matterRows).filter((r) => r.stream === 'hearing' && r.bucket !== 'later').length;
   const doneTodayCount = rows.filter((r) => r.done).length;
 
   const streamF: Partial<Record<FilterValue, (r: WorkRow) => boolean>> = {
     hearing: (r) => r.stream === 'hearing',
-    waiting: (r) => r.stream === 'approval' || r.stream === 'signature',
     unbilled: (r) => r.stream === 'unbilled',
   };
   const isStream = !!streamF[filter];
@@ -513,9 +518,21 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
   /* ---------------------------------------------------------------- decisions */
 
   const decisions: DecisionItem[] = useMemo(() => {
-    if (!isPartner) return [];
     const nowIso = new Date().toISOString();
-    const out: DecisionItem[] = [];
+    const out: DecisionItem[] = approvalRows.map((r) => ({
+      id: 'dec-' + r.id,
+      title: r.title,
+      sub: [r.matterRef, r.matterTitle, r.status].filter(Boolean).join(' · '),
+      icon: r.stream === 'signature' ? FileSignature : ShieldCheck,
+      tint: '#E7EEF6',
+      color: '#3D6B9C',
+      yes: r.stream === 'signature' ? 'Open to sign off' : 'Open to approve',
+      no: '',
+      link: true,
+      onYes: () => openMatter(r),
+      onNo: () => undefined,
+    }));
+    if (!isPartner) return out;
     (leaveApplications || []).forEach((l: any) => {
       if (l.status !== 'Pending') return;
       const applicant = (users || []).find((u: any) => u.id === l.userId)?.name || l.userId || 'Staff';
@@ -567,9 +584,11 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
       });
     });
     return out;
-  }, [isPartner, leaveApplications, quotations, users, currentUser, todayStr, cases, seeBilling, me]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPartner, leaveApplications, quotations, users, currentUser, todayStr, cases, seeBilling, me, rows]);
 
   const decide = (d: DecisionItem, yes: boolean) => {
+    if (d.link) { d.onYes(); return; }
     setDecided((m) => ({ ...m, [d.id]: { item: d, yes } }));
     (yes ? d.onYes : d.onNo)();
   };
@@ -620,12 +639,12 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
 
   /* ---------------------------------------------------------------- KPI tiles */
 
-  const kpis: { label: string; value: React.ReactNode; note: string; desc: string; icon: React.ElementType; color: string; filter?: FilterValue; view?: string }[] = [
+  const kpis: { label: string; value: React.ReactNode; note: string; desc: string; icon: React.ElementType; color: string; filter?: FilterValue; view?: string; scrollTo?: string }[] = [
     { label: 'My active matters', value: myOwnCases.filter((c) => c.status === 'Active').length, note: 'assigned', desc: 'Assigned to your queue', icon: FolderOpen, color: '#16223A', view: 'cases' },
     { label: 'Deadlines this week', value: cnt(matterRows, 'overdue') + cnt(matterRows, 'today') + cnt(matterRows, 'week'), note: `${cnt(matterRows, 'overdue')} overdue`, desc: 'Requires your attention this week', icon: Flag, color: '#B23A2E', filter: 'overdue' },
     { label: 'My hearings', value: hearingsWeek, note: 'this week', desc: 'Requires your attention this week', icon: Gavel, color: '#6B3D8C', filter: 'hearing' },
     { label: 'To-do open', value: open(matterRows).filter((r) => r.stream === 'task').length, note: 'tasks', desc: 'Requires your attention this week', icon: CheckCircle2, color: '#2E7D7A', filter: 'all' },
-    { label: 'Waiting on you', value: waiting, note: 'approvals', desc: 'Requires your attention this week', icon: Inbox, color: '#8A6D3B', filter: 'waiting' },
+    { label: 'Waiting on you', value: pendingDecisions, note: 'decisions', desc: 'Approvals, sign-offs and leave', icon: Inbox, color: '#8A6D3B', scrollTo: 'my-decisions' },
     { label: 'Unbilled time', value: open(matterRows).filter((r) => r.stream === 'unbilled').length, note: 'matters', desc: 'Billable write-ups awaiting billing', icon: Timer, color: '#2F6F4E', filter: 'unbilled' },
     ...(seeBilling ? [
       { label: 'My billed (RM)', value: billing.billedThisMonth.toLocaleString(), note: '', desc: '', icon: DollarSign, color: '#8A6D3B' },
@@ -647,7 +666,8 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
               key={k.label}
               type="button"
               onClick={() => {
-                if (k.filter) { setFilter((f) => (f === k.filter ? 'all' : k.filter!)); setList('matter'); }
+                if (k.scrollTo) document.getElementById(k.scrollTo)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                else if (k.filter) { setFilter((f) => (f === k.filter ? 'all' : k.filter!)); setList('matter'); }
                 else if (k.view && canViewModule(k.view)) { setCurrentCaseId(null); setCurrentView(k.view); }
               }}
               className="flex min-h-[142px] flex-col gap-2 rounded-xl p-4 text-left text-white hover:brightness-110"
@@ -667,12 +687,12 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
       </section>
 
       {decisionList.length > 0 && (
-        <div className={card}>
+        <div id="my-decisions" className={card}>
           <div className="flex flex-wrap items-center gap-2 bg-[#16223A] px-3.5 py-2" style={{ backgroundColor: '#16223A' }}>
             <Gavel className="h-3.5 w-3.5 text-white" />
             <strong className="text-[12.5px] text-white">Needs your decision</strong>
             <span className="rounded-[10px] bg-[#B23A2E] px-2 text-[10.5px] font-bold text-white">{pendingDecisions}</span>
-            <span className="ml-auto text-[10.5px] text-white/75">Payments &amp; referral fees are approved in Accounts &amp; Compliance</span>
+            <span className="ml-auto text-[10.5px] text-white/75">Leave and quotes: decide here · claims, vouchers and bills: “Open” takes you to them</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
             {decisionList.map((d, i) => {
@@ -689,7 +709,7 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
                   ) : (
                     <div className="flex gap-[5px]">
                       <button type="button" onClick={() => decide(d, true)} className="flex-1 rounded-md bg-[#2F6F4E] px-1.5 py-[5px] text-[10.5px] font-bold text-white">{d.yes}</button>
-                      <button type="button" onClick={() => decide(d, false)} className="flex-1 rounded-md border border-[#DDE3EB] bg-white px-1.5 py-[5px] text-[10.5px] font-bold text-[#16223A]">{d.no}</button>
+                      {d.no && <button type="button" onClick={() => decide(d, false)} className="flex-1 rounded-md border border-[#DDE3EB] bg-white px-1.5 py-[5px] text-[10.5px] font-bold text-[#16223A]">{d.no}</button>}
                     </div>
                   )}
                 </div>
@@ -707,7 +727,7 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
               <Scale className="h-4 w-4 text-[#FBF2E9]" />
               <div>
                 <strong className="block text-[14.5px]" style={serif}>My to-do</strong>
-                <span className="text-[10.5px] text-white/75">Tasks, court dates, approvals &amp; sign-offs · two-way sync with Google Tasks</span>
+                <span className="text-[10.5px] text-white/75">Tasks and court dates · approvals are under “Needs your decision” · syncs with Google Tasks</span>
               </div>
               <div className="ml-auto flex rounded-[7px] bg-white/10 p-0.5">
                 {(['matter', 'private'] as const).map((l) => (
@@ -734,7 +754,7 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
               })}
               {isStream && (
                 <button type="button" onClick={() => setFilter('all')} className="flex items-center gap-1 rounded-[20px] border border-[#DDE3EB] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#16223A]">
-                  {{ hearing: 'Court dates only', waiting: 'Approvals & sign-offs only', unbilled: 'Unbilled only' }[filter as 'hearing']} ✕
+                  {{ hearing: 'Court dates only', unbilled: 'Unbilled only' }[filter as 'hearing']} ✕
                 </button>
               )}
               <label className="relative ml-auto w-[190px]">

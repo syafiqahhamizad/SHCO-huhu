@@ -196,6 +196,7 @@ interface AppContextType {
   renameCaseRef: (caseId: string, newRef: string, reason: string) => boolean;
   addStaffGoal: (userId: string, goal: StaffGoal) => void;
   updateStaffGoal: (userId: string, goalId: string, updates: Partial<StaffGoal>) => void;
+  deleteStaffGoal: (userId: string, goalId: string) => void;
   addAttendanceRecord: (record: AttendanceRecord) => void;
   addLeaveApplication: (application: LeaveApplication) => void;
   updateLeaveApplication: (id: string, updates: Partial<LeaveApplication>) => void;
@@ -279,7 +280,7 @@ interface AppContextType {
   unreadNotificationsCount: number;
   markNotificationAsRead: (id: string) => void;
   markAllNotificationsAsRead: () => void;
-  addNotification: (notif: Omit<NotificationItem, 'id' | 'timestamp' | 'read' | 'to' | 'readBy'> & { to?: string[] }) => void;
+  addNotification: (notif: Omit<NotificationItem, 'id' | 'timestamp' | 'read' | 'to' | 'readBy'> & { to?: string[]; anonymous?: boolean }) => void;
   announcements: FirmAnnouncement[];
   addAnnouncement: (announcement: Omit<FirmAnnouncement, 'id' | 'createdAt' | 'createdBy'>) => boolean;
   deleteAnnouncement: (announcementId: string) => boolean;
@@ -334,6 +335,7 @@ interface AppContextType {
   addCaseActivityLog: (caseId: string, log: Omit<CaseActivityLog, 'id' | 'timestamp'>) => void;
   addQuotation: (q: Quotation) => void;
   updateQuotation: (id: string, updates: Partial<Quotation>) => void;
+  deleteQuotation: (id: string) => void;
   addReferralPartner: (rp: ReferralPartner) => void;
   addTravelClaim: (tc: TravelClaim) => void;
   updateTravelClaim: (id: string, updates: Partial<TravelClaim>) => void;
@@ -350,6 +352,7 @@ interface AppContextType {
   updateTimeEntry: (id: string, updates: Partial<TimeEntry>) => void;
   addExpense: (ex: Expense) => void;
   updateExpense: (id: string, updates: Partial<Expense>) => void;
+  withdrawClaimRecord: (source: 'travel' | 'expense' | 'pv', id: string) => boolean;
   addGeneralLedgerEntry: (gl: Omit<GeneralLedgerEntry, 'glNo'> | GeneralLedgerEntry) => void;
   addDeadline: (d: Deadline) => void;
   addActivityLog: (action: string, details: string) => void;
@@ -1125,6 +1128,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logAuditEvent('UPDATE', 'USERS', userId, goalId, 'Goal updated.');
   };
 
+  const deleteStaffGoal = (userId: string, goalId: string) => {
+    const apply = (profile: User['staffProfile']): User['staffProfile'] => ({
+      ...(profile || ({} as NonNullable<User['staffProfile']>)),
+      goals: (profile?.goals || []).filter((g) => g.id !== goalId),
+    });
+    setUsers((prev) => prev.map((user) => (user.id === userId ? { ...user, staffProfile: apply(user.staffProfile) } : user)));
+    if (userId === currentUser.id) setCurrentUser((prev) => ({ ...prev, staffProfile: apply(prev.staffProfile) }));
+    logAuditEvent('DELETE', 'USERS', userId, goalId, 'Goal removed.');
+    showToast('Goal removed.');
+  };
+
   const addAttendanceRecord = (record: AttendanceRecord) => {
     setAttendanceRecords((prev) => [record, ...prev.filter((item) => item.id !== record.id)]);
     addActivityLog('Attendance Recorded', `${record.date} - ${record.status}`);
@@ -1524,7 +1538,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
    * Raises a notification for the people in `to` (see resolveRecipients for the tokens): it shows
    * in their bell, and each gets the same message by e-mail from the firm's address.
    */
-  const addNotification = (notif: Omit<NotificationItem, 'id' | 'timestamp' | 'read' | 'to' | 'readBy'> & { to?: string[] }) => {
+  // anonymous: no sender name and no e-mail (the e-mail record would carry the sender).
+  const addNotification = (input: Omit<NotificationItem, 'id' | 'timestamp' | 'read' | 'to' | 'readBy'> & { to?: string[]; anonymous?: boolean }) => {
+    const { anonymous, ...notif } = input;
     const recipients = resolveRecipients(notif.to || ['role:Partner'], users, cases, currentUser.id);
     if (!recipients.length) return;
     const newNotif: NotificationItem = {
@@ -1534,11 +1550,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       read: false,
       to: recipients.map((u) => u.id),
       readBy: [],
-      from: currentUser.name,
+      from: anonymous ? 'Anonymous' : currentUser.name,
     };
     // Keep the shared list bounded (the firm's data lives in one document).
     setNotifications((prev) => [newNotif, ...prev].slice(0, 400));
-    if (SAFE_PREVIEW_MODE) return;
+    if (SAFE_PREVIEW_MODE || anonymous) return;
     const mail = notificationEmail(newNotif, window.location.origin);
     recipients.forEach((u) => {
       if (/@shcolaw\.com$/i.test(u.email || '')) {
@@ -2997,6 +3013,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Quotation created');
   };
 
+  /** Deletes a quotation / proforma (kept in the Recycle Bin). Billing decides when it is allowed. */
+  const deleteQuotation = (id: string) => {
+    const q = quotations.find((x) => x.id === id);
+    if (!q) return;
+    trackDeletedRecord('Quotation', q.id + ' · ' + (q.clientName || ''), (q.documentType || 'Quotation') + ' deleted', q);
+    setQuotations((prev) => prev.filter((x) => x.id !== id));
+    logAuditEvent('DELETE', 'BILLING', id, q.clientName || id, (q.documentType || 'Quotation') + ' deleted (Recycle Bin).');
+    showToast(id + ' deleted. It is in the Recycle Bin if you need it back.');
+  };
+
   const updateQuotation = (id: string, updates: Partial<Quotation>) => {
     const editedUpdates: Partial<Quotation> = {
       ...updates,
@@ -3105,6 +3131,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addExpense = (ex: Expense) => {
     setExpenses((prev) => [ex, ...prev]);
     showToast('Expense logged');
+  };
+
+  /** Takes back your own claim / payment request while it is waiting or rejected (nothing paid yet). */
+  const withdrawClaimRecord = (source: 'travel' | 'expense' | 'pv', id: string): boolean => {
+    const open = (s?: string) => !s || s === 'Pending Approval' || s === 'Pending PIC Approval' || s === 'Draft' || s === 'Rejected';
+    if (source === 'travel') {
+      const t = travelClaims.find((x) => x.id === id);
+      if (!t || !open(t.approvalStatus) || t.postedToGl) { showToast('Already approved: ask Accounts to reverse it.'); return false; }
+      setTravelClaims((prev) => prev.filter((x) => x.id !== id));
+    } else if (source === 'expense') {
+      const e = expenses.find((x) => x.id === id);
+      if (!e || !open(e.approvalStatus) || e.postedToGl) { showToast('Already approved: ask Accounts to reverse it.'); return false; }
+      setExpenses((prev) => prev.filter((x) => x.id !== id));
+    } else {
+      const v = paymentVouchers.find((x) => x.id === id);
+      if (!v || v.approved || !open(v.approvalStatus) || v.postedToGl) { showToast('Already approved: ask Accounts to reverse it.'); return false; }
+      setPaymentVouchers((prev) => prev.filter((x) => x.id !== id));
+      // The billing line made with it (same form, amount and description) goes too.
+      setExpenses((prev) => prev.filter((x) => !(x.formNo && x.formNo === v.formNo && x.isClaimantAdvance === false && Number(x.amount) === Number(v.amount) && x.description === v.description && open(x.approvalStatus))));
+    }
+    addActivityLog('Claim Withdrawn', id);
+    showToast('Withdrawn');
+    return true;
   };
 
   const updateExpense = (id: string, updates: Partial<Expense>) => {
@@ -3219,6 +3268,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateUserIdentity,
         addStaffGoal,
         updateStaffGoal,
+        deleteStaffGoal,
         addAttendanceRecord,
         addLeaveApplication,
         updateLeaveApplication,
@@ -3328,6 +3378,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addCaseActivityLog,
         addQuotation,
         updateQuotation,
+        deleteQuotation,
         addReferralPartner,
         addTravelClaim,
         updateTravelClaim,
@@ -3343,6 +3394,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateTimeEntry,
         addExpense,
         updateExpense,
+        withdrawClaimRecord,
         addGeneralLedgerEntry,
         addDeadline,
         addActivityLog,

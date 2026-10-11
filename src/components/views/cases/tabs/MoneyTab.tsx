@@ -10,7 +10,7 @@ import type { WF } from '../wf';
 export const MoneyTab: React.FC<{ w: WF }> = ({ w }) => {
   const { setCurrentView, currentRole, currentUser, isAdmin } = useApp();
   const { c, money } = w;
-  const [led, setLed] = useState<'client' | 'office'>('client');
+  const [led, setLed] = useState<'client' | 'office' | 'disb'>('client');
   const rk = finRoleKey(currentRole, currentUser, isAdmin);
   const go = (view: string, what: string) => {
     if (!canSeeFinanceView(view, rk)) { w.toast(what + ' is done by Accounts / a partner in Accounts & Finance'); return; }
@@ -26,7 +26,7 @@ export const MoneyTab: React.FC<{ w: WF }> = ({ w }) => {
     ['Outstanding', rm(money.outstanding), 'Debtor balance', '#8E2A20'],
     ['Client account', rm(money.clientBalance), 'Held for this client (SAR 1990)', '#2F4F7A'],
   ];
-  const rows = led === 'client' ? money.clientLedger : money.officeLedger;
+  const rows = led === 'client' ? money.clientLedger : led === 'disb' ? money.disbLedger : money.officeLedger;
   const bc = 'display:grid;grid-template-columns:110px 90px 100px 100px 80px 110px 100px 100px 90px;min-width:960px;';
   const lc = 'display:grid;grid-template-columns:90px 120px minmax(0,1fr) 100px 100px 110px;min-width:720px;';
   return (
@@ -53,14 +53,14 @@ export const MoneyTab: React.FC<{ w: WF }> = ({ w }) => {
         {!money.bills.length && <div style={css(S.empty)}>No bills on this file yet.</div>}
       </Card>
       <Card style="overflow-x:auto">
-        <div style={css(S.head + ';min-width:720px')}><strong style={css('font-family:Georgia, serif;font-size:15px;color:#16223A')}>Matter ledger</strong><Seg items={[['client', 'Client account'], ['office', 'Office account']]} value={led} onChange={(k) => setLed(k as 'client' | 'office')} /><span style={css('margin-left:auto;font-size:12px;color:#4A5468')}>{led === 'client' ? 'Client money in and out. Can never go below zero.' : 'Bills issued and payments received.'}</span></div>
+        <div style={css(S.head + ';min-width:720px')}><strong style={css('font-family:Georgia, serif;font-size:15px;color:#16223A')}>Matter ledger</strong><Seg items={[['client', 'Client account'], ['office', 'Office account'], ['disb', 'Disbursement account']]} value={led} onChange={(k) => setLed(k as 'client' | 'office' | 'disb')} /><span style={css('margin-left:auto;font-size:12px;color:#4A5468')}>{led === 'client' ? 'Client money in and out. Can never go below zero.' : led === 'disb' ? 'Paid out for the client, and paid back by them. Balance = still to recover.' : 'Fees and SST billed, and payments received.'}</span></div>
         <div style={css(lc + S.th)}><span>Date</span><span>Doc no.</span><span>Description</span><span>Debit</span><span>Credit</span><span>Balance</span></div>
         {rows.map((l, i) => (
           <div key={i} style={css(lc + 'gap:12px;align-items:center;padding:9px 16px;border-top:1px solid #F0F2F5;font-size:12.5px;color:#16223A')}>
             <span>{short(l.date)}</span><span style={css('font-family:ui-monospace, monospace;font-size:11.5px;color:#8A6D3B')}>{l.doc}</span><span>{l.desc}</span><span style={css('color:#8E2A20')}>{num2(l.dr)}</span><span style={css('color:#1F5A3B')}>{num2(l.cr)}</span><strong>{rm(l.bal)}</strong>
           </div>
         ))}
-        {!rows.length && <div style={css(S.empty)}>{led === 'client' ? 'No client money held or paid out on this file.' : 'No bills issued on this file yet.'}</div>}
+        {!rows.length && <div style={css(S.empty)}>{led === 'client' ? 'No client money held or paid out on this file.' : led === 'disb' ? 'No disbursements paid for this file yet.' : 'No bills issued on this file yet.'}</div>}
       </Card>
     </>
   );

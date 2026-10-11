@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { localToday, pickDate } from '../../ui/pickDate';
 import type { FinanceCtrl } from './useFinanceController';
 import { css, fd, findCase, inPeriod, MON, parseDate, rm, rm2 } from './financeModel';
 import * as SD from '../../../lib/financeDocs';
@@ -12,8 +13,21 @@ export const ReportsTab = ({ F }: { F: FinanceCtrl }) => {
   const { app, lk } = F;
   const { invoices, payments, payslips, retainers } = app;
   const year = F.now.getFullYear();
-  const [plScope, setPlScope] = useState<'month' | 'ytd' | 'last'>('month');
-  const [bsScope, setBsScope] = useState<'now' | 'last'>('now');
+  // Any period can be reported: quick choices plus "Pick dates…".
+  type PlScope = 'month' | 'lastMonth' | 'qtr' | 'lastQtr' | 'ytd' | 'last' | 'last2' | 'custom';
+  type BsScope = 'now' | 'eom' | 'last' | 'last2' | 'custom';
+  const [plScope, setPlScope] = useState<PlScope>('month');
+  const [bsScope, setBsScope] = useState<BsScope>('now');
+  const [custom, setCustom] = useState<{ from: number; to: number } | null>(null);
+  const [customAt, setCustomAt] = useState<number | null>(null);
+  const toT = (v: string) => new Date(v + 'T00:00:00').getTime();
+  const pickRange = async () => {
+    const f = await pickDate('Report from', { initial: year + '-01-01' }); if (!f) return;
+    const t = await pickDate('Report to', { initial: f > localToday() ? f : localToday() }); if (!t) return;
+    if (t < f) { F.toastMsg('"To" is before "From"'); return; }
+    setCustom({ from: toT(f), to: new Date(toT(t)).setHours(23, 59, 59, 999) }); setPlScope('custom');
+  };
+  const pickAt = async () => { const t = await pickDate('As at'); if (!t) return; setCustomAt(new Date(toT(t)).setHours(23, 59, 59, 999)); setBsScope('custom'); };
   const [psMode, setPsMode] = useState<'person' | 'file'>('person');
   const [viewing, setViewing] = useState<string | null>(null);
   /* ------------------------------ reports (real data) ------------------------------ */
@@ -61,13 +75,25 @@ export const ReportsTab = ({ F }: { F: FinanceCtrl }) => {
   /* ------------------------------ accountant's layout (Bukku style) ------------------------------ */
   const FIRM = 'Syafiqah Hamizad & Co.';
   const day = (d: Date) => d.getTime();
+  const monthRange = (y: number, m: number, n = 1): [number, number] => [day(new Date(y, m, 1)), day(new Date(y, m + n, 0, 23, 59, 59))];
   const range = (): [number, number] => {
-    if (plScope === 'month') { const m = new Date(F.now.getFullYear(), F.now.getMonth(), 1); return [day(m), day(new Date(m.getFullYear(), m.getMonth() + 1, 0, 23, 59, 59))]; }
+    const y = F.now.getFullYear(), mo = F.now.getMonth(), q0 = Math.floor(mo / 3) * 3;
+    if (plScope === 'month') return monthRange(y, mo);
+    if (plScope === 'lastMonth') return monthRange(y, mo - 1);
+    if (plScope === 'qtr') return monthRange(y, q0, 3);
+    if (plScope === 'lastQtr') return monthRange(y, q0 - 3, 3);
     if (plScope === 'last') return [day(new Date(year - 1, 0, 1)), day(new Date(year - 1, 11, 31, 23, 59, 59))];
+    if (plScope === 'last2') return [day(new Date(year - 2, 0, 1)), day(new Date(year - 2, 11, 31, 23, 59, 59))];
+    if (plScope === 'custom' && custom) return [custom.from, custom.to];
     return [day(new Date(year, 0, 1)), Date.now()];
   };
-  const asAt = (): [number, number] => (bsScope === 'last' ? [day(new Date(year - 1, 11, 31, 23, 59, 59)), day(new Date(year - 1, 0, 1))] : [Date.now(), day(new Date(year, 0, 1))]);
-  const reconMonth = () => (bsScope === 'last' ? new Date(F.now.getFullYear(), F.now.getMonth() - 1, 1) : new Date(F.now.getFullYear(), F.now.getMonth(), 1));
+  /** [as-at date, start of that date's financial year]. */
+  const asAt = (): [number, number] => {
+    const at = bsScope === 'last' ? day(new Date(year - 1, 11, 31, 23, 59, 59)) : bsScope === 'last2' ? day(new Date(year - 2, 11, 31, 23, 59, 59))
+      : bsScope === 'eom' ? day(new Date(year, F.now.getMonth(), 0, 23, 59, 59)) : bsScope === 'custom' && customAt ? customAt : Date.now();
+    return [at, day(new Date(new Date(at).getFullYear(), 0, 1))];
+  };
+  const reconMonth = () => (bsScope === 'now' ? new Date(F.now.getFullYear(), F.now.getMonth(), 1) : bsScope === 'custom' && customAt ? new Date(new Date(customAt).getFullYear(), new Date(customAt).getMonth(), 1) : new Date(F.now.getFullYear(), F.now.getMonth() - 1, 1));
   const BANK_NAME = (acc: 'Office' | 'Client account') => { const b = (F.settings.banks || []).find((x) => (acc === 'Office' ? !/client/i.test(String(x.type || x.name)) : /client/i.test(String(x.type || x.name)))); return b ? String(b.name || '') + (b.accountNo ? ' - ' + b.accountNo : '') : acc === 'Office' ? 'Office Account' : 'Client Account'; };
   /** Reports in the accountant's layout; null = one of the firm's own reports (simple table). */
   const acctReport = (name: string): R.Report | null => {
@@ -86,9 +112,19 @@ export const ReportsTab = ({ F }: { F: FinanceCtrl }) => {
   };
   const PERIOD_REPORTS = ['Profit & loss', 'General ledger', 'Debtor ledger', 'Invoice summary'];
   const ASAT_REPORTS = ['Balance sheet', 'Trial balance'];
-  const toggles = (name: string) => PERIOD_REPORTS.includes(name) ? ([['month', 'This month'], ['ytd', year + ' to date'], ['last', 'FY ' + (year - 1)]] as const).map(([k, l]) => ({ label: l, on: plScope === k, go: () => setPlScope(k) }))
-    : ASAT_REPORTS.includes(name) ? ([['now', 'As at today'], ['last', '31 Dec ' + (year - 1)]] as const).map(([k, l]) => ({ label: l, on: bsScope === k, go: () => setBsScope(k) }))
-    : name.startsWith('Bank reconciliation') ? ([['now', 'This month'], ['last', 'Last month']] as const).map(([k, l]) => ({ label: l, on: bsScope === k, go: () => setBsScope(k) }))
+  const fmtD = (t: number) => fd(t);
+  const toggles = (name: string) => PERIOD_REPORTS.includes(name) ? [
+      ...([['month', 'This month'], ['lastMonth', 'Last month'], ['qtr', 'This quarter'], ['lastQtr', 'Last quarter'], ['ytd', year + ' to date'], ['last', 'FY ' + (year - 1)], ['last2', 'FY ' + (year - 2)]] as const).map(([k, l]) => ({ label: l, on: plScope === k, go: () => setPlScope(k) })),
+      { label: plScope === 'custom' && custom ? fmtD(custom.from) + ' – ' + fmtD(custom.to) : 'Pick dates…', on: plScope === 'custom', go: () => void pickRange() },
+    ]
+    : ASAT_REPORTS.includes(name) ? [
+      ...([['now', 'As at today'], ['eom', 'End of last month'], ['last', '31 Dec ' + (year - 1)], ['last2', '31 Dec ' + (year - 2)]] as const).map(([k, l]) => ({ label: l, on: bsScope === k, go: () => setBsScope(k) })),
+      { label: bsScope === 'custom' && customAt ? 'As at ' + fmtD(customAt) : 'Pick a date…', on: bsScope === 'custom', go: () => void pickAt() },
+    ]
+    : name.startsWith('Bank reconciliation') ? [
+      ...([['now', 'This month'], ['eom', 'Last month']] as const).map(([k, l]) => ({ label: l, on: bsScope === k || (k === 'eom' && (bsScope === 'last' || bsScope === 'last2')), go: () => setBsScope(k) })),
+      { label: bsScope === 'custom' && customAt ? 'Month of ' + fmtD(customAt) : 'Pick a month…', on: bsScope === 'custom', go: () => void pickAt() },
+    ]
     : name === 'Profit sharing' ? ([['person', 'By person'], ['file', 'By file']] as const).map(([k, l]) => ({ label: l, on: psMode === k, go: () => setPsMode(k) })) : [];
   /** Every report as the accountant's layout (the firm's own reports as a simple table in the same style). */
   const reportsOf = (name: string): R.Report[] => {
@@ -105,7 +141,7 @@ export const ReportsTab = ({ F }: { F: FinanceCtrl }) => {
     else { void SD.xlsx(name, rs.flatMap((x, i) => [...(i ? [[]] : []), ...R.reportSheet(x, F.me || 'SHCO Portal')])).then(() => F.toastMsg(name + '.xlsx downloaded')).catch(() => F.toastMsg('Excel could not be made (no internet?). Try again.')); }
   };
   // Re-render the open report when its toggle changes.
-  React.useEffect(() => { if (!viewing) return; const { rs, html } = htmlOf(viewing); F.setPaper({ title: viewing, sub: rs[0].period, html, wide: !!rs[0].landscape, toggles: toggles(viewing), pdf: () => run(viewing, 'pdf'), xls: () => run(viewing, 'xls') }); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [viewing, plScope, bsScope, psMode]);
+  React.useEffect(() => { if (!viewing) return; const { rs, html } = htmlOf(viewing); F.setPaper({ title: viewing, sub: rs[0].period, html, wide: !!rs[0].landscape, toggles: toggles(viewing), pdf: () => run(viewing, 'pdf'), xls: () => run(viewing, 'xls') }); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [viewing, plScope, bsScope, psMode, custom, customAt]);
   const hadPaper = React.useRef(false);
   React.useEffect(() => { if (F.paper) hadPaper.current = true; else if (hadPaper.current) { hadPaper.current = false; setViewing(null); } }, [F.paper]);
   const asAt0 = `${F.now.getDate()} ${F.monShort} ${year}`;

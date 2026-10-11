@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../../context/AppContext';
 import type { StaffGoal, StaffProfile } from '../../../types';
 import { card, cardTitle, labelWrap, periodLabel, thisPeriod } from './staffPortalShared';
+import { isSuper } from '../settings/permissionModel';
 
 type GoalStatus = NonNullable<StaffGoal['status']>;
 const GS: GoalStatus[] = ['Not started', 'On track', 'Behind', 'Done'];
@@ -14,7 +15,9 @@ const LBL: React.CSSProperties = { fontSize: 10, fontWeight: 700, textTransform:
 const moodName = (m: number) => (m >= 1 && m <= 5 ? MOODS[5 - m] : 'No rating');
 
 export const StaffGoalsTab: React.FC = () => {
-  const { currentUser, addStaffGoal, updateStaffGoal, updateUserStaffProfile, showToast } = useApp();
+  const { currentUser, users, addStaffGoal, updateStaffGoal, deleteStaffGoal, updateUserStaffProfile, addNotification, showToast } = useApp();
+  // Check-ins go to the Super Admin.
+  const inCharge = users.filter((u) => isSuper(u) && u.status !== 'Inactive');
   const goals = currentUser.staffProfile?.goals || [];
   const checkins = currentUser.staffProfile?.moodCheckins || [];
   const [mood, setMood] = useState(-1);
@@ -50,8 +53,19 @@ export const StaffGoalsTab: React.FC = () => {
     };
     const base = currentUser.staffProfile || ({} as StaffProfile);
     updateUserStaffProfile(currentUser.id, { ...base, moodCheckins: [...checkins.filter((c) => c.period !== period), entry] });
+    if (inCharge.length) {
+      const who = w.anon ? 'Someone in the team' : currentUser.name;
+      addNotification({
+        title: 'Monthly check-in' + (w.anon ? '' : ' · ' + currentUser.name) + (w.chat ? ' · wants a private chat' : ''),
+        message: who + ' feels “' + moodName(entry.mood) + '” this month.' + (entry.topics ? ' About: ' + entry.topics.join(', ') + '.' : '') + (entry.note ? ' “' + entry.note + '”' : '') + (w.chat ? ' They would like a private chat: please reach out.' : ''),
+        type: 'system',
+        linkTab: 'staffPortal',
+        to: inCharge.map((u) => u.id),
+        anonymous: w.anon,
+      });
+    }
     setW({ text: '', topics: [] });
-    showToast(w.chat ? 'Thank you. Someone will reach out for a private chat.' : 'Thank you for sharing.');
+    showToast(w.chat ? 'Sent. ' + (inCharge[0]?.name || 'The Super Admin') + ' will reach out for a private chat.' : 'Thank you for sharing.');
   };
 
   return (
@@ -65,14 +79,15 @@ export const StaffGoalsTab: React.FC = () => {
           {goals.filter((g) => g.type === type).map((g) => {
             const s2: GoalStatus = g.status || 'Not started';
             return (
-              <div key={g.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 110px 90px', gap: 10, alignItems: 'center', padding: '8px 14px', borderBottom: '1px solid #F0F2F5' }}>
+              <div key={g.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 130px 90px 44px', gap: 10, alignItems: 'center', padding: '8px 14px', borderBottom: '1px solid #F0F2F5' }}>
                 <input key={'t' + g.text} defaultValue={g.text} onBlur={(e) => commit(g, { text: e.target.value })} style={{ border: '1px solid #DDE3EB', borderRadius: 6, padding: '5px 7px', fontSize: 11.5, color: '#16223A', background: '#fff', fontFamily: 'inherit', outline: 'none' }} />
-                <input key={'b' + (g.by || '')} defaultValue={g.by || ''} onBlur={(e) => commit(g, { by: e.target.value })} placeholder="by when" style={{ border: '1px solid #DDE3EB', borderRadius: 6, padding: '5px 7px', fontSize: 11, color: '#16223A', background: '#fff', fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' }} />
+                <input type="date" title={g.by && !/^\d{4}-\d{2}-\d{2}$/.test(g.by) ? 'Was: ' + g.by : 'By when'} aria-label="By when" value={/^\d{4}-\d{2}-\d{2}$/.test(g.by || '') ? g.by : ''} onChange={(e) => commit(g, { by: e.target.value })} style={{ border: '1px solid #DDE3EB', borderRadius: 6, padding: '4px 6px', fontSize: 11, color: '#16223A', background: '#fff', fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' }} />
                 <button
                   type="button"
                   onClick={() => { const next = GS[(GS.indexOf(s2) + 1) % GS.length]; updateStaffGoal(currentUser.id, g.id, next === 'Done' ? { status: next, pct: 100 } : { status: next }); }}
                   style={{ border: 0, borderRadius: 10, padding: '3px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', background: GC[s2][0], color: GC[s2][1] }}
                 >{s2}</button>
+                <button type="button" title="Delete this goal" onClick={() => { if (window.confirm('Delete this goal?')) deleteStaffGoal(currentUser.id, g.id); }} style={{ border: 0, background: 'none', padding: 0, fontSize: 11, fontWeight: 700, color: '#B23A2E', cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
               </div>
             );
           })}
@@ -106,7 +121,7 @@ export const StaffGoalsTab: React.FC = () => {
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <span style={LBL}>Who sees this</span>
+            <span style={LBL}>Who sees this · it goes to {inCharge.map((u) => u.name).join(', ') || 'the Super Admin'} only</span>
             {([[false, 'With my name', 'Shown with your name so someone can follow up'], [true, 'Anonymous', 'Only the message is shown, not your name']] as [boolean, string, string][]).map(([k, label, sub]) => (
               <button key={label} type="button" onClick={() => setW({ anon: k, chat: k ? false : w.chat })} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', textAlign: 'left', border: '1px solid ' + (w.anon === k ? '#16223A' : '#DDE3EB'), borderRadius: 6, padding: '7px 9px', background: w.anon === k ? '#F6F8FA' : '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>
                 <span style={{ flex: 'none', width: 12, height: 12, marginTop: 1, borderRadius: 9999, border: '1.5px solid #16223A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Lock, ChevronDown, ChevronUp, Plus } from 'lucide-react';
+import { Lock, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import { useApp } from '../../../context/AppContext';
 import { identityTokens, isMine, partnerCode } from '../../../lib/identity';
 import { palette, tint, tintText } from '../../../lib/designTokens';
@@ -73,7 +73,7 @@ interface TeamRow {
 }
 
 const TeamTab: React.FC = () => {
-  const { currentUser, users, cases, timeEntries, leaveApplications, payslips, addStaffGoal, showToast } = useApp();
+  const { currentUser, users, cases, timeEntries, leaveApplications, payslips, addStaffGoal, deleteStaffGoal, updateUserStaffProfile, showToast } = useApp();
   const [openCode, setOpenCode] = useState<string | null>(null);
   const [goalDraft, setGoalDraft] = useState<{ type: StaffGoal['type']; text: string; help: string }>({ type: 'Career', text: '', help: '' });
   const [addingGoalFor, setAddingGoalFor] = useState<string | null>(null);
@@ -200,6 +200,12 @@ const TeamTab: React.FC = () => {
     );
   }
 
+  const saveTarget = (u: User, hours: number) => {
+    if (!Number.isFinite(hours) || hours < 0) return;
+    if (hours === (u.staffProfile?.targetHoursPerMonth ?? DEFAULT_TARGET_HOURS_PER_MONTH)) return;
+    updateUserStaffProfile(u.id, { ...(u.staffProfile || ({} as NonNullable<User['staffProfile']>)), targetHoursPerMonth: hours });
+  };
+
   const submitGoal = (userId: string) => {
     if (!goalDraft.text.trim()) {
       showToast('Add a goal description first.');
@@ -224,17 +230,13 @@ const TeamTab: React.FC = () => {
           <span className="text-[10.5px] text-[#5B6478]">click a person to see their files and goals · year to date</span>
         </div>
 
-        <div className="grid grid-cols-[minmax(0,1.3fr)_104px_50px_62px_64px_80px_84px_84px_60px_76px_18px] gap-2 border-b border-[#EEF1F5] bg-[#F6F8FA] px-3.5 py-2 text-[9.5px] font-bold uppercase tracking-wide text-[#5B6478]">
+        <div className="grid grid-cols-[minmax(0,1.6fr)_120px_60px_110px_70px_80px_18px] gap-2 border-b border-[#EEF1F5] bg-[#F6F8FA] px-3.5 py-2 text-[9.5px] font-bold uppercase tracking-wide text-[#5B6478]">
           <span>Name</span>
           <span>Workload</span>
           <span>Files</span>
+          <span>Target h / month</span>
           <span>Overtime</span>
           <span>Leave left</span>
-          <span>Monthly pay</span>
-          <span>Profit share</span>
-          <span>Total paid</span>
-          <span>Happy</span>
-          <span>Retention</span>
           <span />
         </div>
 
@@ -245,10 +247,12 @@ const TeamTab: React.FC = () => {
           const loadMeta = LOAD_META[r.load];
           return (
             <div key={r.user.id} className="border-b border-[#F0F2F5]">
-              <button
-                type="button"
+              <div
+                role="button"
+                tabIndex={0}
                 onClick={() => setOpenCode(open ? null : r.user.id)}
-                className="grid w-full grid-cols-[minmax(0,1.3fr)_104px_50px_62px_64px_80px_84px_84px_60px_76px_18px] items-center gap-2 px-3.5 py-2.5 text-left"
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpenCode(open ? null : r.user.id); } }}
+                className="grid w-full cursor-pointer grid-cols-[minmax(0,1.6fr)_120px_60px_110px_70px_80px_18px] items-center gap-2 px-3.5 py-2.5 text-left"
                 style={{ background: open ? '#F6F8FA' : '#fff' }}
               >
                 <span className="flex min-w-0 items-center gap-2">
@@ -269,19 +273,27 @@ const TeamTab: React.FC = () => {
                   <span className="text-[9.5px] text-[#5B6478]" title="target pro-rated to working days so far this month">{r.hoursThisMonth} / {r.targetHours} h to date</span>
                 </span>
                 <span className="text-[12px] font-bold text-[#16223A]">{r.filesCount}</span>
+                <span onClick={(e) => e.stopPropagation()} className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min={0}
+                    defaultValue={r.user.staffProfile?.targetHoursPerMonth ?? DEFAULT_TARGET_HOURS_PER_MONTH}
+                    onBlur={(e) => saveTarget(r.user, Number(e.target.value))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === ' ') e.stopPropagation(); }}
+                    className="w-16 rounded border border-[#E3E7EC] px-1.5 py-0.5 text-right text-[11px] font-bold text-[#16223A]"
+                    aria-label={`Target hours per month for ${r.user.name}`}
+                    title="Billable hours this person should record in a month. Type a number and click away to save."
+                  />
+                  <span className="text-[10px] text-[#5B6478]">h</span>
+                </span>
                 <span className="text-[11.5px] font-bold" style={{ color: r.overtimeHours >= 15 ? palette.red : r.overtimeHours >= 10 ? palette.gold : palette.navy }}>
                   {r.overtimeHours} h
                 </span>
                 <span className="text-[11.5px] font-bold" style={{ color: r.leaveLeft <= 2 || r.leaveLeft >= 20 ? palette.gold : palette.navy }}>
                   {r.leaveLeft} d{r.leavePending > 0 && <span className="block text-[9px] font-normal text-[#5B6478]">{r.leavePending} pending</span>}
                 </span>
-                <span className="text-[11px] text-[#5B6478]">Not tracked</span>
-                <span className="text-[11px] text-[#5B6478]">Not tracked</span>
-                <span className="text-[11px] font-bold text-[#5B6478]">Not tracked</span>
-                <span className="text-[11px] text-[#5B6478]">Not recorded</span>
-                <span className="self-center justify-self-start rounded-full bg-[#F0F2F5] px-1.5 py-0.5 text-[10px] font-bold text-[#5B6478]">Not assessed</span>
                 <span className="text-[9px] text-[#5B6478]">{open ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}</span>
-              </button>
+              </div>
 
               {open && (
                 <div className="grid grid-cols-1 gap-4 border-t border-[#EEF1F5] bg-[#FBFCFD] px-3.5 py-3 pl-12 md:grid-cols-3">
@@ -311,8 +323,11 @@ const TeamTab: React.FC = () => {
                           >
                             {g.type}
                           </span>
-                          <span className="flex-1">{g.text}</span>
+                          <span className="flex-1">{g.text}{g.by ? <span className="text-[#5B6478]"> · by {g.by}</span> : null}</span>
                           <strong>{g.pct}%</strong>
+                          <button type="button" onClick={() => { if (window.confirm('Remove this goal?')) deleteStaffGoal(r.user.id, g.id); }} title="Remove goal" className="text-[#94A3B8] hover:text-[#B23A2E]">
+                            <Trash2 className="h-3 w-3" />
+                          </button>
                         </div>
                         <div className="mt-1 h-1 rounded bg-[#EEF1F5]">
                           <div className="h-1 rounded" style={{ width: `${Math.max(0, Math.min(100, g.pct))}%`, backgroundColor: palette.purple }} />
@@ -372,8 +387,6 @@ const TeamTab: React.FC = () => {
                         <span>{t}</span>
                       </div>
                     ))}
-                    <div className="mt-2 text-[9.5px] font-bold uppercase tracking-wide text-[#5B6478]">Pay &amp; rewards</div>
-                    <div className="py-1 text-[10.5px] text-[#5B6478]">No payroll data model yet — salary, profit share, bonus and referral fees are not tracked here.</div>
                   </div>
                 </div>
               )}
@@ -382,9 +395,9 @@ const TeamTab: React.FC = () => {
         })}
 
         <div className="bg-[#F6F8FA] px-3.5 py-2 text-[10.5px] leading-relaxed text-[#5B6478]">
-          <strong className="text-[#16223A]">How workload is decided:</strong> Healthy = 85–110% of target hours (pro-rated to working days so far this month), under 2 overdue tasks, under 10 h overtime. Busy = one of these
-          slips. Overloaded = over 110% in each of the last 3 complete months, or 15+ h over the pro-rated target. Under target = below 70% hours. Happiness comes from a 2-question monthly check-in in Staff Portal —
-          not yet built, so it is shown as "Not recorded" until that exists.
+          <strong className="text-[#16223A]">Where the numbers come from:</strong> <strong>Hours</strong> = time each person records on a file (open the file → Time &amp; costs).{' '}
+          <strong>Target</strong> = the hours per month you type in the column above (160 if left blank). <strong>Leave</strong> = applications in Staff Portal → Leave (approved and waiting both count).{' '}
+          <strong>Files</strong> = open files where the person is lawyer or partner in charge. <strong>Workload:</strong> Healthy = 85–110% of target so far this month, under 2 overdue tasks, under 10 h over; Busy = one of these slips; Overloaded = over 110% for 3 months or 15+ h over; Under target = below 70%.
         </div>
       </div>
     </div>

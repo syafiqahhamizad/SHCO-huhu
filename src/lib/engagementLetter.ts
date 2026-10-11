@@ -112,6 +112,8 @@ export interface LetterheadInfo {
   image?: string;
   /** Built-in logo artwork when there is no uploaded header. */
   logo?: string;
+  /** SH monogram printed beside the firm name on letters. */
+  mono?: string;
   firmName: string;
   tag1?: string;
   tag2?: string;
@@ -128,12 +130,14 @@ const partnersColumn = (ps: LetterheadPartner[]) => {
   return blk('PARTNERS', ps.filter((p) => !p.syarie)) + (ps.some((p) => p.syarie) ? '<div style="height:3pt"></div>' : '') + blk(ps.filter((p) => p.syarie).length > 1 ? 'SYARIE PARTNERS' : 'SYARIE PARTNER', ps.filter((p) => p.syarie));
 };
 /** Letterhead: firm block (uploaded header image or built-in name, taglines and address) with the partners column. */
-const letterheadHtml = (lh: LetterheadInfo): string => {
+export const letterheadHtml = (lh: LetterheadInfo): string => {
   const firm = lh.image
     ? `<img src="${esc(lh.image)}" alt="${esc(lh.firmName)}" style="width:100%;max-width:470px;height:auto;display:block">`
     : `${lh.logo ? `<img src="${esc(lh.logo)}" alt="${esc(lh.firmName)}" width="240" style="width:240px;height:auto;display:block">` : `<div style="font-size:18pt;font-weight:bold;letter-spacing:1px">${esc(lh.firmName)}</div>`}<div style="font-size:8.5pt;font-style:italic;color:#3D6B9C;line-height:1.4;margin-top:4px">${esc(lh.tag1 || '')}${lh.tag2 ? '<br>' + esc(lh.tag2) : ''}</div>`;
   const contact = `<div style="font-size:7.5pt;line-height:1.5;color:#5B6478;margin-top:5px">${lh.reg ? esc(lh.reg) + '<br>' : ''}${esc(lh.address)}${lh.email || lh.tel ? '<br>' + [lh.email, lh.tel].filter(Boolean).map((x) => esc(x)).join(' · ') : ''}</div>`;
-  return `<table style="width:100%;border-collapse:collapse;${HDR}"><tr><td style="vertical-align:top;padding:0">${firm}${lh.image ? '' : contact}</td>${lh.partners.length ? `<td style="vertical-align:top;padding:0 0 0 10px;width:190px;border-left:1px solid #16223A;font-family:Arial,Helvetica,sans-serif;font-size:6.5pt;line-height:1.3;color:#16223A">${partnersColumn(lh.partners)}</td>` : ''}</tr></table><div style="border-top:2px solid #16223A;margin:10px 0 14px"></div>`;
+  // The SH monogram sits to the left of the name, as on the firm's printed letterhead.
+  const mono = !lh.image && lh.mono ? `<td style="vertical-align:top;padding:0 12px 0 0;width:64px"><img src="${esc(lh.mono)}" alt="SH" width="60" style="width:60px;height:auto;display:block"></td>` : '';
+  return `<table style="width:100%;border-collapse:collapse;${HDR}"><tr>${mono}<td style="vertical-align:top;padding:0">${firm}${lh.image ? '' : contact}</td>${lh.partners.length ? `<td style="vertical-align:top;padding:0 0 0 10px;width:190px;border-left:1px solid #16223A;font-family:Arial,Helvetica,sans-serif;font-size:6.5pt;line-height:1.3;color:#16223A">${partnersColumn(lh.partners)}</td>` : ''}</tr></table><div style="border-top:2px solid #16223A;margin:10px 0 14px"></div>`;
 };
 
 /* ------------------------------------------------------------------ the letter */

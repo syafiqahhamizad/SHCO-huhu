@@ -60,6 +60,8 @@ interface FileMoney extends MoneyTotals {
   accepted: Quotation[];
   clientLedger: LedgerLine[];
   officeLedger: OfficeLine[];
+  /** Disbursement share of each bill's receipts (deposit applied, payments, write-off): credits of the file's disbursement account. */
+  disbRecovered: OfficeLine[];
   /** Kept for the Working File (same value as clientAccount). */
   clientBalance: number;
 }
@@ -128,18 +130,29 @@ export const moneyForFile = (c: Pick<Case, 'id' | 'ref'>, m: MoneySources): File
   const clientLedger = clientLedgerOf(m.retainers.filter((r) => onFile(c, r.caseId)));
   const clientAccount = clientLedger.length ? clientLedger[clientLedger.length - 1].bal : 0;
 
+  // Office account = fees, reimbursements and SST. The disbursement part of each bill (and the
+  // same share of what is received against it) belongs to the file's disbursement account.
   const officeRows: Omit<OfficeLine, 'bal'>[] = [];
+  const disbRows: Omit<OfficeLine, 'bal'>[] = [];
   invs.filter(isIssued).forEach((inv) => {
-    officeRows.push({ date: inv.issuedAt || inv.date, doc: inv.id, desc: 'Bill: ' + (inv.subject || inv.matter || 'professional fees, disbursements & SST'), dr: Number(inv.total || 0), cr: 0 });
-    if (Number(inv.depositApplied || 0) > 0) officeRows.push({ date: inv.issuedAt || inv.date, doc: inv.id, desc: 'Deposit received applied', dr: 0, cr: Number(inv.depositApplied || 0) });
-    if (Number(inv.writtenOff || 0) > 0) officeRows.push({ date: inv.writeOffRequest?.decidedAt || inv.date, doc: inv.id, desc: 'Written off', dr: 0, cr: Number(inv.writtenOff || 0) });
-    m.payments.filter((p) => p.invoiceId === inv.id).forEach((p) => officeRows.push({ date: p.date, doc: p.id, desc: 'Received: ' + (p.method || 'payment') + ' for ' + inv.id, dr: 0, cr: Number(p.amount || 0) }));
+    const total = Number(inv.total || 0);
+    const disb = Math.min(total, invoiceComposition(inv).disb);
+    const share = total > 0 ? disb / total : 0;
+    const split = (date: string, doc: string, desc: string, amt: number) => {
+      const d = round2(amt * share), o = round2(amt - d);
+      if (o > 0.005) officeRows.push({ date, doc, desc, dr: 0, cr: o });
+      if (d > 0.005) disbRows.push({ date, doc, desc, dr: 0, cr: d });
+    };
+    if (total - disb > 0.005) officeRows.push({ date: inv.issuedAt || inv.date, doc: inv.id, desc: 'Bill: ' + (inv.subject || inv.matter || 'professional fees & SST') + (disb ? ' (disbursements under Disbursement account)' : ''), dr: round2(total - disb), cr: 0 });
+    if (Number(inv.depositApplied || 0) > 0) split(inv.issuedAt || inv.date, inv.id, 'Deposit received applied', Number(inv.depositApplied || 0));
+    if (Number(inv.writtenOff || 0) > 0) split(inv.writeOffRequest?.decidedAt || inv.date, inv.id, 'Written off', Number(inv.writtenOff || 0));
+    m.payments.filter((p) => p.invoiceId === inv.id).forEach((p) => split(p.date, p.id, 'Received: ' + (p.method || 'payment') + ' for ' + inv.id, Number(p.amount || 0)));
   });
   let orun = 0;
   const officeLedger = officeRows.sort(byDate).map((r) => { orun = round2(orun + r.dr - r.cr); return { ...r, bal: orun }; });
 
   const { quotes, accepted, agreed } = agreedOf(c, m.quotations);
-  return { caseId: c.id, ref: c.ref, agreed, ...t, clientAccount, clientBalance: clientAccount, bills, quotes, accepted, clientLedger, officeLedger };
+  return { caseId: c.id, ref: c.ref, agreed, ...t, clientAccount, clientBalance: clientAccount, bills, quotes, accepted, clientLedger, officeLedger, disbRecovered: disbRows.map((r) => ({ ...r, bal: 0 })) };
 };
 
 /** Files that belong to a client: Case.clientId (comma list), the parties list, or the client name. */

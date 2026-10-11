@@ -17,7 +17,7 @@ import {
   DRIVE_REQUIRED_MSG, clientFolderName, ensureClientKycFolder, isUploadReady, openLegacyDataUrl, openStoredFile, prepareStorage, storeClientKycFile, validateClaimFile,
 } from '../../services/fileStorageService';
 import {
-  KYC_PILL, P, clientsNav, conflictOf, conflictPill, ddmmyyyy, idNoOf, initials, kycOverall, kycRowsOf, otherKycDocs, portalOf, portalPill, rmWhole as rm, useSelectedClientId,
+  KYC_PILL, P, clientsNav, conflictOf, conflictPill, ddmmyyyy, idNoOf, initials, kycAddable, kycOverall, kycRequiredOf, kycRowsOf, otherKycDocs, portalOf, portalPill, rmWhole as rm, useSelectedClientId,
   type KycReqKey, type Pill, type PortalStatus, type PortalVisibility,
 } from './clients/clientModel';
 
@@ -301,6 +301,21 @@ export const ClientsView: React.FC = () => {
         showToast(err instanceof Error ? err.message : String(err));
       }
     };
+    // The KYC list is per client: drop what this client does not need, add what they do.
+    const required = kycRequiredOf(c);
+    const dropDoc = (key: string, label: string) => save({ kycRequired: required.filter((k) => k !== key) }, 'KYC: ' + label + ' not needed', 'kyc');
+    const addDoc = (v: string) => {
+      if (!v) return;
+      if (v === '__other') {
+        const label = window.prompt('Name of the document (e.g. Letter of authority, Marriage certificate)')?.trim();
+        if (!label) return;
+        const key = 'c-' + Date.now().toString(36);
+        save({ kycCustom: [...(c.kycCustom || []), { key, label }], kycRequired: [...required, key] }, 'KYC: added ' + label, 'kyc');
+        return;
+      }
+      const label = kycAddable(c).find(([k]) => k === v)?.[1] || v;
+      save({ kycRequired: [...required.filter((k) => k !== v), v] }, 'KYC: added ' + label, 'kyc');
+    };
     const icon = (s: string, fg: string) => s === 'Verified' ? <CircleCheck size={18} color={fg} /> : s === 'Missing' ? <CircleDashed size={18} color={fg} /> : <Clock size={18} color={fg} />;
     const cdd = c.cdd || {};
     const cddRows: [string, string | undefined][] = [['Risk rating', cdd.riskRating], ['PEP', cdd.pep], ['PEP details', cdd.pepDetails], ['Source of funds', cdd.sourceOfFunds], ['Source of wealth', cdd.sourceOfWealth], ['Purpose', cdd.purposeOfRelationship], ['Verified how', cdd.verificationMethod], ['Verified by', [cdd.verifiedBy, ddmmyyyy(cdd.verifiedAt)].filter(Boolean).join(' · ')], ['Enhanced due diligence', cdd.enhancedDueDiligence ? 'Yes' : undefined], ['Notes', cdd.notes]];
@@ -323,6 +338,7 @@ export const ClientsView: React.FC = () => {
                   {canUpload && <label title={isUploadReady() ? undefined : DRIVE_REQUIRED_MSG} onClick={(e) => { if (!isUploadReady()) { e.preventDefault(); showToast(DRIVE_REQUIRED_MSG); } }} style={css('display:flex;align-items:center;gap:5px;border:0;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;background:#16223A;color:#fff;cursor:pointer')}><Upload size={12} color="#FFFFFF" />Upload<input type="file" accept="image/*,.pdf" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void upload(r.key, r.label, f); }} style={css('display:none')} /></label>}
                   {r.state === 'To verify' && tier !== 'lawyer' && r.doc && <button type="button" onClick={() => verify(r.doc!, r.label)} style={css('border:1px solid #1F5A3B;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;background:#E6EFE9;color:#1F5A3B;cursor:pointer;white-space:nowrap')}>Mark verified</button>}
                   {(r.state === 'Verified' || r.state === 'To verify') && r.doc && <button type="button" onClick={() => view(r.doc!)} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;background:#fff;color:#16223A;cursor:pointer')}>View</button>}
+                  {r.state === 'Missing' && r.required && <button type="button" title="This client does not need it" onClick={() => dropDoc(r.key, r.label)} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;background:#fff;color:#5B6478;cursor:pointer;white-space:nowrap')}>Not needed</button>}
                 </span>
               </div>
             );
@@ -336,6 +352,15 @@ export const ClientsView: React.FC = () => {
               <span style={css('justify-self:end;display:flex;gap:6px')}><button type="button" onClick={() => view(k)} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;background:#fff;color:#16223A;cursor:pointer')}>View</button></span>
             </div>
           ))}
+          <div style={css('display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 16px;border-bottom:1px solid #F0F2F5')}>
+            <span style={css('font-size:11px;font-weight:700;color:#16223A')}>+ Add a document</span>
+            <select value="" onChange={(e) => addDoc(e.target.value)} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:5px 8px;font-size:11px;color:#16223A;background:#fff;font-family:inherit')}>
+              <option value="">Choose…</option>
+              {kycAddable(c).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+              <option value="__other">Other (type the name)…</option>
+            </select>
+            <span style={css('font-size:10.5px;color:#5B6478')}>Usually: {c.type === 'Corporate' ? 'SSM search and NRIC of directors' : 'NRIC / passport and bankruptcy search'}. Add or drop as this client needs.</span>
+          </div>
           <div style={css('padding:9px 16px;background:#F6F8FA;font-size:10.5px;color:#5B6478')}>Files are saved to Google Drive › Clients › {folder}.</div>
         </div>
         {cddShown.length > 0 && (

@@ -13,9 +13,9 @@ export interface Acct { key: string; code: string; name: string; type: AType }
 export interface Posting { t: number; no: string; contact: string; tags: string; desc: string; dr: string; cr: string; amount: number }
 
 export type Cell = string | number | null;
-export type RowStyle = 'head' | 'line' | 'total' | 'grand' | 'gap' | 'opening';
-export interface Row { style: RowStyle; cells: Cell[]; indent?: number }
-export interface Col { label: string; align?: 'left' | 'right'; width?: string; money?: boolean }
+type RowStyle = 'head' | 'line' | 'total' | 'grand' | 'gap' | 'opening';
+interface Row { style: RowStyle; cells: Cell[]; indent?: number }
+interface Col { label: string; align?: 'left' | 'right'; width?: string; money?: boolean }
 export interface Report { title: string; firm: string; period: string; sub?: string; cols: Col[]; rows: Row[]; landscape?: boolean; rm?: boolean }
 
 /* ------------------------------------------------------------------ numbers and dates */
@@ -27,7 +27,7 @@ export const money = (n: number, rm = true) => {
   const s = Math.abs(v).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return (v < 0 ? '-' : '') + (rm ? 'RM' : '') + s;
 };
-export const dmy = (t: number) => { const d = new Date(t); return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear(); };
+const dmy = (t: number) => { const d = new Date(t); return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear(); };
 const dmyShort = (t: number) => dmy(t).replace(/\/(\d{2})(\d{2})$/, '/$2');
 
 /* ------------------------------------------------------------------ accounts */
@@ -41,7 +41,7 @@ export const parentCode = (code: string): string | null => {
 };
 
 /** Report section of an account (Bukku: 2… non-current assets, 6… cost of sales, 7… other income). */
-export const sectionOf = (a: Acct): string => {
+const sectionOf = (a: Acct): string => {
   const first = a.code.charAt(0);
   const bukku = /^[0-9][0-9A-Z]{3}-/.test(a.code);
   if (a.type === 'Asset') return bukku && first === '2' ? 'Non-Current Assets' : 'Current Assets';
@@ -52,7 +52,7 @@ export const sectionOf = (a: Acct): string => {
 };
 
 /** Signed balance per account key (debit +, credit −) for postings with from ≤ t ≤ to. */
-export const balances = (ps: Posting[], from = -Infinity, to = Infinity) => {
+const balances = (ps: Posting[], from = -Infinity, to = Infinity) => {
   const b = new Map<string, number>();
   for (const p of ps) {
     if (p.t < from || p.t > to) continue;

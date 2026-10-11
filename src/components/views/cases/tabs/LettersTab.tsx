@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { escapeHtml } from '../../../../lib/html';
 import type { CaseDocument } from '../../../../types';
 import { exportToWordDoc } from '../../../../lib/exportUtils';
-import { EngagementLetterActions, LangToggle, engagementInputFor } from '../EngagementLetter';
-import { quotationForFile, type DocLang } from '../../../../lib/engagementLetter';
+import { EngagementLetterActions, LangToggle, branchOfCase, engagementInputFor } from '../EngagementLetter';
+import { letterheadFor, loadLogos } from '../../../../lib/financeDocs';
+import { letterheadHtml, quotationForFile, type DocLang } from '../../../../lib/engagementLetter';
 import { useApp } from '../../../../context/AppContext';
 import { prepareStorage, storeEngagementFile, storeMatterFile, openLegacyDataUrl, openStoredFile, useStorageLabel } from '../../../../services/fileStorageService';
 import { matterSubFor } from '../../../../lib/driveLayout';
@@ -29,6 +30,7 @@ export const LettersTab: React.FC<{ w: WF }> = ({ w }) => {
   // Quotations the viewer cannot read are simply absent → the letter says "as per our quotation".
   const quote = quotationForFile(quotations, c);
   const [lang, setLang] = useState<DocLang>('EN');
+  React.useEffect(() => { loadLogos(); }, []);
   const court = courtOf(c);
   const client = parties.find((p) => p.side === 'client' && !p.dischargedOn);
   const clientRec = clients.find((x) => x.id === (client?.clientId || client?.id)) || clients.find((x) => x.name === client?.name);
@@ -39,7 +41,8 @@ export const LettersTab: React.FC<{ w: WF }> = ({ w }) => {
 
   const gen = () => {
     const today = fmt(isoOf(new Date().toISOString()));
-    const head = `<div class="header-title">SYAFIQAH HAMIZAD &amp; CO</div><div class="firm-sub">Advocates &amp; Solicitors</div><p>Our ref: ${esc(c.ref)}<br/>Date: ${esc(today)}</p>`;
+    // Same letterhead as the Letter of Engagement (logo, name, address, partners).
+    const head = letterheadHtml(letterheadFor(branchOfCase(c, users))) + `<p>Our ref: ${esc(c.ref)}<br/>Date: ${esc(today)}</p>`;
     const re = `<p><strong>RE: ${esc(c.title.toUpperCase())}${court.suit ? '<br/>' + esc(court.suit) : ''}</strong></p>`;
     const sign = `<p>Yours faithfully,<br/><br/><br/>${esc(lawyer)}<br/>Syafiqah Hamizad &amp; Co</p>`;
     const intit = `<p style="text-align:center"><strong>${esc((court.name || 'IN THE COURT').toUpperCase())}</strong><br/>${esc(court.suit || '[SUIT NO.]')}</p><p style="text-align:center">BETWEEN</p>${parties.filter((p) => p.side === 'client' && !p.dischargedOn).map((p) => `<p>${esc(p.name)} ... ${esc(p.role)}</p>`).join('')}<p style="text-align:center">AND</p>${parties.filter((p) => p.side === 'opposing').map((p) => `<p>${esc(p.name)} ... ${esc(p.role)}</p>`).join('')}`;

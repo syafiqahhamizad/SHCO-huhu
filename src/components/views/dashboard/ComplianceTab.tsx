@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../../../context/AppContext';
 import { palette, tintText, serifFont } from '../../../lib/designTokens';
-import { getPracticeSettings } from '../../../services/templateService';
+import { getPracticeSettings, savePracticeSettings } from '../../../services/templateService';
+import { Trash2 } from 'lucide-react';
+import { partnerCode } from '../../../lib/identity';
 import type { ComplianceItem } from '../../../types';
 import { StatusBadge } from '../../ui';
 import { localIso } from '../../../lib/localDate';
@@ -97,7 +99,10 @@ const FREQUENCIES: ComplianceItem['frequency'][] = ['Monthly', 'Quarterly', 'Ann
  * PracticeSettingsView.tsx uses.
  */
 const ComplianceTab: React.FC = () => {
-  const { currentUser, toggleComplianceItem, updateComplianceItem, addComplianceItem } = useApp();
+  const { currentUser, users, toggleComplianceItem, updateComplianceItem, addComplianceItem } = useApp();
+  const [complaintDraft, setComplaintDraft] = useState<{ summary: string; receivedDate: string; matterRef: string } | null>(null);
+  // Owner picker: everyone active in Users & Roles, shown by their code.
+  const owners = useMemo(() => (users || []).filter((u) => u.status !== 'Inactive' && u.role !== 'Client' && u.role !== 'Reviewer').map((u) => ({ code: partnerCode(u) || u.staffProfile?.staffId || u.name, name: u.name })), [users]);
   const [settings, setSettings] = useState(() => getPracticeSettings());
   const [seg, setSeg] = useState<'all' | 'action' | 'ok'>('all');
   const today = useMemo(() => todayIso(), []);
@@ -198,6 +203,18 @@ const ComplianceTab: React.FC = () => {
       .toUpperCase()
       .slice(0, 2) || 'ME';
 
+  const removeItem = (item: ComplianceItem) => {
+    if (!window.confirm(`Remove "${item.label}" from the register?`)) return;
+    const st = getPracticeSettings();
+    savePracticeSettings({ ...st, complianceRegister: (st.complianceRegister || []).filter((i) => i.id !== item.id) });
+  };
+  const saveComplaints = (next: NonNullable<typeof settings.complaints>) => savePracticeSettings({ ...getPracticeSettings(), complaints: next });
+  const logComplaint = () => {
+    if (!complaintDraft?.summary.trim()) return;
+    saveComplaints([...complaints, { id: `CPL-${Date.now()}`, summary: complaintDraft.summary.trim(), receivedDate: complaintDraft.receivedDate || today, matterRef: complaintDraft.matterRef.trim() || undefined, status: 'Open', owner: currentUser?.name }]);
+    setComplaintDraft(null);
+  };
+
   const handleAdd = (group: ComplianceItem['group']) => {
     addComplianceItem(group, {
       label: 'New item',
@@ -226,6 +243,11 @@ const ComplianceTab: React.FC = () => {
           </div>
         ))}
       </section>
+
+      <div className="rounded-xl border px-3.5 py-2.5 text-[10.5px] leading-relaxed" style={{ borderColor: palette.border, background: palette.page, color: palette.slate }}>
+        <strong style={{ color: palette.navy }}>What this is:</strong> the firm's own checklist of regulatory duties (AMLA, client account, Bar Council, PDPA, tax &amp; licences). It started with the usual Malaysian law-firm items; nothing comes from outside.{' '}
+        <strong style={{ color: palette.navy }}>To change it:</strong> click a name, note or date and type over it · pick how often and who owns it · <strong>+ Add item</strong> under a group adds a row · the bin removes one · tick the box when it is done (repeating items roll to the next date by themselves).
+      </div>
 
       <section className="grid items-start gap-4" style={{ gridTemplateColumns: 'minmax(0,1.6fr) minmax(0,1fr)' }}>
         {/* Office compliance register */}
@@ -279,7 +301,7 @@ const ComplianceTab: React.FC = () => {
                   <div
                     key={item.id}
                     className="grid items-center gap-2.5 border-b px-3.5 py-1.5"
-                    style={{ gridTemplateColumns: '22px minmax(0,1fr) 92px 130px 92px 34px', borderColor: '#F0F2F5' }}
+                    style={{ gridTemplateColumns: '22px minmax(0,1fr) 92px 130px 80px 64px 20px', borderColor: '#F0F2F5' }}
                   >
                     <button
                       type="button"
@@ -338,13 +360,19 @@ const ComplianceTab: React.FC = () => {
                       <StatusBadge label={meta.label} tone={tone} />
                     </span>
 
-                    <span
-                      className="grid h-[22px] w-[22px] place-items-center rounded-full text-[9px] font-bold text-white"
-                      style={{ background: OWNER_COLOR[item.owner] || palette.slate }}
-                      title={item.owner}
+                    <select
+                      value={item.owner}
+                      onChange={(e) => updateComplianceItem(item.id, { owner: e.target.value })}
+                      title="Who looks after this"
+                      className="min-w-0 rounded px-1 py-0.5 text-[10.5px] font-bold"
+                      style={{ border: '1px solid #E3E7EC', color: OWNER_COLOR[item.owner] || palette.navy, background: '#fff' }}
                     >
-                      {item.owner}
-                    </span>
+                      {!owners.some((o) => o.code === item.owner) && <option value={item.owner}>{item.owner}</option>}
+                      {owners.map((o) => <option key={o.code} value={o.code}>{o.code} · {o.name}</option>)}
+                    </select>
+                    <button type="button" onClick={() => removeItem(item)} title="Remove this item" className="text-[#94A3B8] hover:text-[#B23A2E]">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 );
               })}
@@ -420,19 +448,40 @@ const ComplianceTab: React.FC = () => {
                 </div>
               ))}
             </div>
-            <p className="m-0 px-3.5 pb-3 pt-2 text-[10.5px] leading-snug" style={{ borderTop: '1px solid #F0F2F5', color: palette.slate }}>
-              {openComplaints.length === 0 ? (
-                'No open complaints.'
-              ) : (
-                <>
-                  Open: <strong style={{ color: palette.navy }}>{openComplaints[0].summary}</strong>
-                  {' · received '}
-                  {fmtDue(openComplaints[0].receivedDate)}
-                  {openComplaints[0].owner ? ` · ${openComplaints[0].owner} replying` : ''}
-                  {openComplaints.length > 1 ? ` · +${openComplaints.length - 1} more open` : ''}
-                </>
-              )}
-            </p>
+            {complaints.length === 0 && (
+              <p className="m-0 px-3.5 pb-2 pt-2 text-[10.5px]" style={{ borderTop: '1px solid #F0F2F5', color: palette.slate }}>No complaints logged.</p>
+            )}
+            {[...complaints].sort((a, b) => (a.receivedDate < b.receivedDate ? 1 : -1)).map((c) => (
+              <div key={c.id} className="flex items-center gap-2 px-3.5 py-1.5 text-[10.5px]" style={{ borderTop: '1px solid #F0F2F5' }}>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-semibold" style={{ color: palette.navy }}>{c.summary}</span>
+                  <span className="block" style={{ color: palette.slate }}>{fmtDue(c.receivedDate)}{c.matterRef ? ' · ' + c.matterRef : ''}{c.owner ? ' · ' + c.owner : ''}</span>
+                </span>
+                <button type="button" onClick={() => saveComplaints(complaints.map((x) => (x.id === c.id ? { ...x, status: x.status === 'Open' ? 'Resolved' : 'Open' } : x)))} className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: c.status === 'Open' ? '#FBEDE9' : '#E6EFE9', color: c.status === 'Open' ? palette.red : palette.green }} title="Click to change">
+                  {c.status}
+                </button>
+                <button type="button" onClick={() => { if (window.confirm('Delete this complaint?')) saveComplaints(complaints.filter((x) => x.id !== c.id)); }} title="Delete" className="text-[#94A3B8] hover:text-[#B23A2E]">
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+            {complaintDraft ? (
+              <div className="flex flex-col gap-1.5 px-3.5 py-2.5" style={{ borderTop: '1px solid #F0F2F5', background: palette.page }}>
+                <input autoFocus value={complaintDraft.summary} onChange={(e) => setComplaintDraft({ ...complaintDraft, summary: e.target.value })} placeholder="What is the complaint or feedback?" className="rounded border border-[#E3E7EC] bg-white px-2 py-1 text-[11px]" />
+                <div className="flex gap-1.5">
+                  <input type="date" value={complaintDraft.receivedDate} onChange={(e) => setComplaintDraft({ ...complaintDraft, receivedDate: e.target.value })} className="rounded border border-[#E3E7EC] bg-white px-2 py-1 text-[11px]" aria-label="Date received" />
+                  <input value={complaintDraft.matterRef} onChange={(e) => setComplaintDraft({ ...complaintDraft, matterRef: e.target.value })} placeholder="File ref (optional)" className="min-w-0 flex-1 rounded border border-[#E3E7EC] bg-white px-2 py-1 text-[11px]" />
+                </div>
+                <div className="flex gap-1.5">
+                  <button type="button" onClick={logComplaint} className="rounded bg-[#16223A] px-2.5 py-1 text-[10.5px] font-bold text-white">Save</button>
+                  <button type="button" onClick={() => setComplaintDraft(null)} className="rounded border border-[#DDE3EB] bg-white px-2.5 py-1 text-[10.5px] font-bold text-[#16223A]">Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <button type="button" onClick={() => setComplaintDraft({ summary: '', receivedDate: today, matterRef: '' })} className="px-3.5 py-2 text-left text-[10.5px] font-bold" style={{ borderTop: '1px solid #F0F2F5', color: '#8A6D3B' }}>
+                + Log a complaint or feedback
+              </button>
+            )}
           </div>
         </div>
       </section>

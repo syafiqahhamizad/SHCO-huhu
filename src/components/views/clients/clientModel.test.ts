@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { kycOverall, kycRowOf, portalOf, requirementOf } from './clientModel';
+import { kycOverall, kycRowOf, kycRowsOf, portalOf, requirementOf } from './clientModel';
 import type { Client, KycDoc } from '../../../types';
 
 const doc = (p: Partial<KycDoc>): KycDoc => ({ id: 'K' + Math.random(), name: 'f.pdf', type: '', uploadedDate: '2026-09-20', driveFolder: '', ...p });
@@ -16,10 +16,16 @@ describe('KYC states', () => {
     expect(requirementOf(c.kyc[0], 'Individual')).toBe('nric');
     expect(kycRowOf(c, 'nric').state).toBe('Verified');
   });
-  it('overall complete only when every required document is verified', () => {
-    const all = ['nric', 'addr', 'sof'].map((r) => doc({ requirement: r, status: 'Verified' }));
+  it('overall complete only when every required document is verified (usual list: NRIC + bankruptcy search)', () => {
+    const all = ['nric', 'bkr'].map((r) => doc({ requirement: r, status: 'Verified' }));
     expect(kycOverall(person(all)).t).toBe('Complete');
     expect(kycOverall(person(all.slice(1))).t).toBe('Incomplete');
+  });
+  it('a document marked not needed no longer blocks; an added one does', () => {
+    const nric = [doc({ requirement: 'nric', status: 'Verified' })];
+    expect(kycOverall(person(nric, { kycRequired: ['nric'] })).t).toBe('Complete');
+    expect(kycOverall(person(nric, { kycRequired: ['nric', 'addr'] })).t).toBe('Incomplete');
+    expect(kycRowsOf(person(nric, { kycRequired: ['nric', 'c-x'], kycCustom: [{ key: 'c-x', label: 'Letter of authority' }] })).map((r) => r.label)).toEqual(['NRIC / passport copy', 'Letter of authority']);
   });
 });
 

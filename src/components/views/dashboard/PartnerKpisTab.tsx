@@ -222,17 +222,8 @@ const PartnerKpisTab: React.FC<{ scope: 'all' | 'own' }> = ({ scope }) => {
               {PARTNER_KPI_METRICS.map((metric) => {
                 const entry = card.metrics[metric];
                 const meta = METRIC_META[metric];
-                if (!entry) {
-                  return (
-                    <div key={metric} className="border-t border-[#F0F2F5] px-3.5 py-2">
-                      <div className="flex items-baseline gap-1.5 text-[11px]">
-                        <span className="flex-1 font-semibold text-[#16223A]">{meta.label}</span>
-                        <span className="text-[#5B6478]">Not yet tracked</span>
-                      </div>
-                      <div className="mt-1 h-[5px] rounded bg-[#EEF1F5]" />
-                    </div>
-                  );
-                }
+                // Nothing recorded for this measure (e.g. client rating, mentoring): leave it out.
+                if (!entry) return null;
                 const pct = entry.target > 0 ? Math.min(100, Math.round((entry.actual / entry.target) * 100)) : 0;
                 const ratio = entry.target > 0 ? entry.actual / entry.target : 0;
                 const color = ratio >= 1 ? palette.green : ratio >= 0.8 ? palette.gold : palette.red;
@@ -271,20 +262,19 @@ const PartnerKpisTab: React.FC<{ scope: 'all' | 'own' }> = ({ scope }) => {
                 );
               })}
 
-              <div className="bg-[#F6F8FA] px-3.5 py-2 text-[10.5px] leading-relaxed text-[#5B6478]">
-                Client rating and mentoring have no data source yet — excluded from the overall score above.
-                {(!card.metrics.complianceOnTime) && ' No compliance items are owned by this partner yet either.'}
-              </div>
             </div>
           );
         })}
         {scorecards.length === 0 && <p className="text-[11.5px] text-[#5B6478]">No partner users on record.</p>}
       </section>
 
-      <p className="text-[10.5px] text-[#5B6478]">
-        Weighting: Fees {weights.feesBilled}% · Collections {weights.collectedWithin60}% · New clients {weights.newClients}% · Hours {weights.billableHours}% · Client rating{' '}
-        {weights.clientRating}% · Compliance {weights.complianceOnTime}% · Mentoring {weights.mentoring}%. You can change weights and targets.
-      </p>
+      <div className="rounded-xl border border-[#DDE3EB] bg-[#F6F8FA] px-3.5 py-2.5 text-[10.5px] leading-relaxed text-[#5B6478]">
+        <strong className="text-[#16223A]">Where the numbers come from (nothing is typed here except targets):</strong>{' '}
+        <strong>Fees billed</strong> = invoices issued this year on the partner's files. <strong>Collected within 60 days</strong> = money received within 60 days of each invoice.{' '}
+        <strong>New clients</strong> = clients whose first file opened this year. <strong>Billable hours</strong> = time recorded on files (file → Time &amp; costs).{' '}
+        <strong>Compliance</strong> = items the partner owns in the Compliance tab. <strong>Targets</strong> = the number after "/", set by the Super Admin with "Edit targets".{' '}
+        Score weighting: fees {weights.feesBilled}% · collections {weights.collectedWithin60}% · new clients {weights.newClients}% · hours {weights.billableHours}% · compliance {weights.complianceOnTime}%.
+      </div>
     </div>
   );
 };

@@ -8,7 +8,7 @@
 import type {
   Case, Client, Expense, Invoice, MatterParty, Payment, Quotation, Retainer, Task, TimeEntry, TravelClaim, User, ServiceRecord,
 } from '../../../types';
-import { round2 } from '../../../lib/financeCalc';
+import { parseDate, round2 } from '../../../lib/financeCalc';
 import { moneyForFile } from '../../../lib/moneyByFile';
 import { isApprovedForBilling } from '../../../lib/billingEngine';
 
@@ -313,5 +313,15 @@ export const matterMoney = (c: Case, m: MoneyInputs) => {
   );
   const lastBillWithBal = bills.filter((b) => b.issued && b.bal > 0).map((b) => b.id);
 
-  return { bills, billed, received, outstanding, clientLedger, clientBalance, officeLedger, agreed, quotes, accepted, te, ex, tc, ubHours, ubFees, ubDisb, lastBillWithBal };
+  // Disbursement account for this file: what the firm paid out for the client (debit) and the
+  // disbursement share of what the client paid back (credit). Balance = still to recover.
+  const disbRows = [
+    ...ex.filter((e) => e.billable && !e.writtenOff && isApprovedForBilling(e.approvalStatus)).map((e) => ({ date: e.date, doc: e.id, desc: 'Paid: ' + (e.description || e.category) + (e.payee ? ' · ' + e.payee : ''), dr: Number(e.amount || 0), cr: 0 })),
+    ...tc.filter((t) => travelBill(t) > 0 && isApprovedForBilling(t.approvalStatus)).map((t) => ({ date: t.date, doc: t.id, desc: 'Travel: ' + (t.purpose || [t.from, t.to].filter(Boolean).join(' → ')), dr: travelBill(t), cr: 0 })),
+    ...fm.disbRecovered,
+  ].sort((a, b) => (parseDate(a.date) || 0) - (parseDate(b.date) || 0));
+  let drun = 0;
+  const disbLedger = disbRows.map((r) => { drun = round2(drun + r.dr - r.cr); return { date: r.date, doc: r.doc, desc: r.desc, dr: r.dr, cr: r.cr, bal: drun }; });
+
+  return { bills, billed, received, outstanding, clientLedger, clientBalance, officeLedger, disbLedger, agreed, quotes, accepted, te, ex, tc, ubHours, ubFees, ubDisb, lastBillWithBal };
 };

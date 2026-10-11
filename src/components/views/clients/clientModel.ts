@@ -28,27 +28,35 @@ export const clientsNav = {
 export const useSelectedClientId = () => useSyncExternalStore(clientsNav.subscribe, clientsNav.get, clientsNav.get);
 
 /* ------------------------------------------------------------------ KYC */
-export type KycReqKey = 'nric' | 'addr' | 'sof' | 'ssm' | 'einfo' | 'br' | 'dir';
-/** Required documents by client type: [key, label, hint]. */
-const KYC_REQUIREMENTS: Record<Client['type'], [KycReqKey, string, string][]> = {
+export type KycReqKey = string;
+/** Every KYC document the firm may ask for, by client type: [key, label, hint]. */
+const KYC_CATALOG: Record<Client['type'], [KycReqKey, string, string][]> = {
   Individual: [
     ['nric', 'NRIC / passport copy', 'Front and back, clear copy'],
+    ['bkr', 'Bankruptcy search', 'MyInsolvensi (MdI) search result'],
     ['addr', 'Proof of address', 'Utility bill or bank statement, not older than 3 months'],
-    ['sof', 'Source of funds declaration', 'Required for conveyancing and client-account deposits'],
+    ['sof', 'Source of funds declaration', 'For conveyancing and client-account deposits'],
   ],
   Corporate: [
-    ['ssm', 'SSM certificate', 'Section 17 (or Form 9 for older companies)'],
+    ['ssm', 'SSM search / certificate', 'Company profile (e-Info) or Section 17 certificate'],
+    ['dir', 'NRIC of directors / signatory', 'Everyone who signs or instructs on behalf of the company'],
+    ['wnd', 'Winding-up search', 'MyInsolvensi (MdI) search result'],
     ['einfo', 'SSM company profile', 'e-Info printout, not older than 3 months'],
     ['br', 'Board resolution', 'Appointing the firm and naming who instructs us'],
-    ['dir', 'NRIC of directors / signatory', 'Everyone who signs or instructs on behalf of the company'],
   ],
 };
+/** What the firm usually asks for (each client can add or drop documents). */
+const KYC_DEFAULT: Record<Client['type'], KycReqKey[]> = { Individual: ['nric', 'bkr'], Corporate: ['ssm', 'dir'] };
+const catalogOf = (c: Pick<Client, 'type' | 'kycCustom'>) => [...(KYC_CATALOG[c.type] || KYC_CATALOG.Individual), ...(c.kycCustom || []).map((x) => [x.key, x.label, x.hint || ''] as [KycReqKey, string, string])];
+export const kycRequiredOf = (c: Pick<Client, 'type' | 'kycRequired'>): KycReqKey[] => c.kycRequired || KYC_DEFAULT[c.type] || KYC_DEFAULT.Individual;
 
 /** Older uploads have no `requirement`; match them by the category they were filed under. */
 export const requirementOf = (k: KycDoc, type: Client['type']): KycReqKey | null => {
   if (k.requirement) return k.requirement as KycReqKey;
   const t = String(k.type || '').toLowerCase();
   if (/identity|nric|passport/.test(t)) return type === 'Corporate' ? 'dir' : 'nric';
+  if (/bankrupt|insolv/.test(t)) return type === 'Individual' ? 'bkr' : 'wnd';
+  if (/winding/.test(t)) return type === 'Corporate' ? 'wnd' : null;
   if (/proof of address|utility/.test(t)) return type === 'Individual' ? 'addr' : null;
   if (/source of funds/.test(t)) return type === 'Individual' ? 'sof' : null;
   if (/ssm|roc/.test(t)) return type === 'Corporate' ? 'ssm' : null;
@@ -79,12 +87,22 @@ export const kycRowOf = (c: Client, key: KycReqKey): { state: KycState; doc?: Ky
   return { state: 'To verify', doc };
 };
 
-export const kycRowsOf = (c: Client) =>
-  (KYC_REQUIREMENTS[c.type] || KYC_REQUIREMENTS.Individual).map(([key, label, hint]) => ({ key, label, hint, ...kycRowOf(c, key) }));
+/** The client's KYC list: the documents they need, plus any already uploaded for another item. */
+export const kycRowsOf = (c: Client) => {
+  const cat = catalogOf(c);
+  const keys = [...kycRequiredOf(c)];
+  (c.kyc || []).forEach((k) => { const r = requirementOf(k, c.type); if (r && !keys.includes(r) && cat.some(([x]) => x === r)) keys.push(r); });
+  return keys.map((key) => {
+    const [, label, hint] = cat.find(([x]) => x === key) || [key, key, ''];
+    return { key, label, hint, required: kycRequiredOf(c).includes(key), ...kycRowOf(c, key) };
+  });
+};
+/** Documents that can still be added to this client's list. */
+export const kycAddable = (c: Client) => catalogOf(c).filter(([k]) => !kycRowsOf(c).some((r) => r.key === k));
 
 /** Overall KYC: Complete / Incomplete (design kycOf). */
 export const kycOverall = (c: Client): Pill & { done: boolean } => {
-  const st = kycRowsOf(c).map((r) => r.state);
+  const st = kycRowsOf(c).filter((r) => r.required).map((r) => r.state);
   if (st.every((x) => x === 'Verified')) return { t: 'Complete', ...P.g, done: true };
   return { t: 'Incomplete', ...P.a, done: false };
 };

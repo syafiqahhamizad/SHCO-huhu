@@ -18,7 +18,7 @@ import type { QuotationPaymentPlan } from '../types';
 
 export { ARR_TERMS, schedule };
 
-export type DocType = 'Quotation' | 'Proforma' | 'Invoice' | 'Receipt';
+type DocType = 'Quotation' | 'Proforma' | 'Invoice' | 'Receipt';
 export type DocAccount = 'Office' | 'Client account' | 'Disbursement';
 export type DocLine = [string, number];
 export interface DocLines {
@@ -26,7 +26,7 @@ export interface DocLines {
   disb: DocLine[];
   reimb: DocLine[];
 }
-export interface DocProof {
+interface DocProof {
   name: string;
   url: string;
 }
@@ -145,6 +145,11 @@ export const AREAS: Record<string, AreaTemplate> = {
     prof: [['Professional fees', 4000]],
     disb: [['Syariah Court filing fees', 80], ['Service of documents', 150]],
     reimb: [['Printing & Photocopy charges', 80], ['Travelling Expenses', 150], ['Miscellaneous', 50]] },
+  // Consultation before a file is opened (usually as a proforma). Set the fee in Settings → Fee templates.
+  Consultation: { code: 'CON', desc: 'Being our professional charges for the legal consultation, including taking instructions, perusing the documents provided and advising your goodself on the matter.',
+    prof: [['Consultation fee', 0]],
+    disb: [],
+    reimb: [] },
 };
 const areaFromRef = (ref?: string): string => { const c = (ref || '').split('/')[1]; return Object.keys(AREAS).find((a) => AREAS[a].code === c) || 'Litigation'; };
 /** Best practice-area template for a free-text practice area / matter type (e.g. "Civil Litigation"). */
@@ -315,6 +320,7 @@ export const letterheadFor = (branchName?: string): LetterheadInfo => {
   return {
     image: br?.letterheadImage || (useHq ? FIRM.header : '') || hq?.letterheadImage || undefined,
     logo: LOGO.name,
+    mono: LOGO.mono,
     firmName: FIRM.name, tag1: FIRM.tag1, tag2: FIRM.tag2, reg: FIRM.reg,
     address: useHq ? FIRM.addr : br?.address || FIRM.addr, email: FIRM.email, tel: FIRM.tel,
     partners: s.letterheadPartners && s.letterheadPartners.length ? s.letterheadPartners : DEFAULT_LETTERHEAD_PARTNERS,

@@ -8,7 +8,7 @@ import { courtOf, lawyersOf, staffOf } from './caseModel';
 import { css } from './caseUi';
 
 /** The file's branch: the branch of the lawyer in charge, else of the first partner on the file. */
-const branchOfCase = (c: Pick<Case, 'lawyerInCharge' | 'lawyers' | 'partners'> | undefined, users: User[] = []): string | undefined => {
+export const branchOfCase = (c: Pick<Case, 'lawyerInCharge' | 'lawyers' | 'partners'> | undefined, users: User[] = []): string | undefined => {
   if (!c) return undefined;
   const staff = staffOf(users);
   const byName = (n: string) => users.find((u) => u.name.trim().toLowerCase() === n.trim().toLowerCase());

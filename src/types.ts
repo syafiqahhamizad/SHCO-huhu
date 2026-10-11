@@ -35,7 +35,7 @@ export interface FirmStartCentrePage {
   cards: FirmStartCentreCard[];
 }
 
-export interface ConflictCheck {
+interface ConflictCheck {
   /** 'Pending Partner Review': a possible match was found (e.g. at registration) and a partner
    * still has to decide. */
   status: 'Not Started' | 'Clear' | 'Flagged' | 'Pending Partner Review';
@@ -49,7 +49,7 @@ export interface ConflictMatch {
   detail: string;
 }
 
-export type LeadWarmth = 'Hot' | 'Warm' | 'Cold';
+type LeadWarmth = 'Hot' | 'Warm' | 'Cold';
 
 export interface NewCasePrefill {
   clientId?: string;
@@ -59,7 +59,7 @@ export interface NewCasePrefill {
   opponentName?: string;
 }
 
-export interface PartyRecord {
+interface PartyRecord {
   id: string;
   clientId?: string; // Reference to Client.id in firm client database
   name: string;
@@ -176,7 +176,7 @@ export interface KycDoc {
 }
 
 /** Customer due diligence (AMLA 2001 / Bar Council AML/CFT guidance) captured on the client record. */
-export interface ClientCdd {
+interface ClientCdd {
   riskRating?: 'Low' | 'Medium' | 'High';
   /** Politically exposed person (or family member / close associate of one). */
   pep?: 'No' | 'Yes' | 'Not checked';
@@ -232,6 +232,10 @@ export interface Client {
   associatedCases?: string[];
   associatedCaseRefs?: string[];
   kyc: KycDoc[];
+  /** KYC documents this client needs (keys); not set = the firm's usual list for the client type. */
+  kycRequired?: string[];
+  /** Extra KYC documents named for this client only. */
+  kycCustom?: { key: string; label: string; hint?: string }[];
   /** Customer due diligence (risk rating, PEP, source of funds, verification). */
   cdd?: ClientCdd;
   tags?: string[];
@@ -259,7 +263,7 @@ export interface ClientHistoryEntry {
   kind?: 'edit' | 'kyc' | 'conflict' | 'portal' | 'file';
 }
 
-export interface ClientPortalUpdate {
+interface ClientPortalUpdate {
   id: string;
   title: string;
   message: string;
@@ -303,7 +307,7 @@ export interface CaseDocument {
   sharedWithClient?: boolean;
 }
 
-export interface OpposingSolicitorRecord {
+interface OpposingSolicitorRecord {
   id: string;
   partyRepresented: string; // e.g. "1st Defendant", "2nd Defendant", "3rd Respondent", "Intervener", "Co-Counsel"
   firmName: string; // Opposing Law Firm Name
@@ -314,7 +318,7 @@ export interface OpposingSolicitorRecord {
   isPrimary?: boolean;
 }
 
-export interface AdvocateCounsel {
+interface AdvocateCounsel {
   id: string;
   name: string;
   roleTitle?: string;
@@ -335,7 +339,7 @@ export interface LawFirmRegistryEntry {
   notes?: string;
 }
 
-export interface OpposingSolicitorHistory {
+interface OpposingSolicitorHistory {
   id: string;
   firmName: string;
   solicitorName?: string;
@@ -387,7 +391,7 @@ export interface TaskChecklistItem {
   completedAt?: string;
 }
 
-export interface TaskAttachment {
+interface TaskAttachment {
   id: string;
   name: string;
   url?: string;
@@ -484,7 +488,7 @@ export interface MatterParty {
 }
 
 /** Cases redesign — court details kept beside the legacy Case.court / judge / courtCaseNo fields. */
-export interface MatterCourtDetails {
+interface MatterCourtDetails {
   level?: string;
   location?: string;
   address?: string;
@@ -559,19 +563,21 @@ export interface MatterCloseCheck {
   detail: string;
 }
 
-export interface MatterCloseRequest {
+interface MatterCloseRequest {
   status: 'Pending' | 'Sent back' | 'Approved';
   requestedBy: string;
   requestedAt: string;
   outcome: string;
   note?: string;
   checklist: MatterCloseCheck[];
+  /** The date the file is closed on (picked; can be a past date). */
+  closeDate?: string;
   decidedBy?: string;
   decidedAt?: string;
   sendBackReason?: string;
 }
 
-export interface MeetingNote {
+interface MeetingNote {
   id: string;
   date: string;
   ourLawyers: string;
@@ -583,7 +589,7 @@ export interface MeetingNote {
   isAiGenerated?: boolean;
 }
 
-export interface InternalNote {
+interface InternalNote {
   id: string;
   date: string;
   noteType: string;
@@ -591,7 +597,7 @@ export interface InternalNote {
   recordedBy: string;
 }
 
-export interface ResearchNote {
+interface ResearchNote {
   id: string;
   date: string;
   title: string;
@@ -604,7 +610,7 @@ export interface ResearchNote {
   preparedBy: string;
 }
 
-export interface CaseStatusDetails {
+interface CaseStatusDetails {
   currentStatus: string;
   nextAction: string;
   nextActionDueDate: string;
@@ -778,6 +784,8 @@ export interface Quotation {
   consultationDate?: string;
   consultationType?: 'Initial Consultation' | 'Follow-up Consultation' | 'Urgent Consultation' | 'Document Review' | 'Video Consultation';
   consultationDurationMinutes?: number;
+  /** When it was made (delete is allowed for a few minutes after). */
+  createdAt?: string;
   date: string;
   practiceArea: string;
   fileRef: string;
@@ -908,6 +916,8 @@ export interface Expense {
   fileRef?: string;
   date: string;
   category: string;
+  /** Type picked on the staff claim form (e.g. Accommodation, Meals). */
+  claimKind?: string;
   amount: number;
   billable: boolean;
   billed?: boolean;
@@ -1345,7 +1355,8 @@ export interface AttendanceRecord {
 export interface LeaveApplication {
   id: string;
   userId: string;
-  leaveType: 'Annual' | 'Medical' | 'Emergency' | 'Unpaid' | 'Replacement' | 'Hospitalisation' | 'Maternity' | 'Paternity' | 'Compassionate' | 'Marriage' | 'Study / exam' | 'Hajj' | 'Umrah';
+  /** One of the firm's leave types (Settings → Lists & sources; built-in list until changed). */
+  leaveType: string;
   startDate: string;
   endDate: string;
   days: number;
@@ -1411,8 +1422,8 @@ export interface NotificationItem {
   from?: string;
 }
 
-export type BankAccountType = 'Trust' | 'Office';
-export type BankAccountFunction =
+type BankAccountType = 'Trust' | 'Office';
+type BankAccountFunction =
   | 'Office Account'
   | 'Trust Account'
   | 'Petty Cash'
@@ -1421,7 +1432,7 @@ export type BankAccountFunction =
   | 'Partner Draws'
   | 'Payroll';
 
-export interface VirtualPot {
+interface VirtualPot {
   id: string;
   name: string;
   allocatedAmount: number;
@@ -1676,14 +1687,14 @@ export interface FinanceProof {
   driveFolderId?: string;
 }
 
-export interface FinanceFeeArrangement {
+interface FinanceFeeArrangement {
   on: boolean;
   months: number;
   upfront: number;
   terms: string;
 }
 
-export interface WriteOffRequest {
+interface WriteOffRequest {
   amount: number;
   reason: string;
   requestedBy: string;

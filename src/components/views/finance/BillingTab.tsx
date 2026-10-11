@@ -4,6 +4,7 @@ import { css, inPeriod, picColor, rm } from './financeModel';
 import type { Quotation, Receipt } from '../../../types';
 import * as SD from '../../../lib/financeDocs';
 import { useApp } from '../../../context/AppContext';
+import { useListFilter } from '../../ui/ListFilters';
 import { FEES_FILTERS, billedPct, feesFilter, isOpenFile, moneyForFile, sumMoney, type FeesFilter } from '../../../lib/moneyByFile';
 
 type DocKind = 'quotation' | 'invoice' | 'receipt';
@@ -35,7 +36,8 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
     const canEdit = kind !== 'receipt' && F.rk !== 'R' && ['Draft', 'Sent', 'Accepted', 'Unpaid', 'Ready', 'Pending Approval', 'Overdue', 'Part-paid'].includes(st);
     const doc = () => F.buildDoc({ kind, id: menuRec.id });
     const more: [string, () => void][] = [['View', () => F.setView({ kind, id: menuRec.id })], ...(canEdit ? [['Edit', () => F.editDoc(kind, menuRec as Quotation)] as [string, () => void]] : []), ['Download PDF', () => { const d = doc(); if (d) SD.pdf(d.no, SD.docHtml(d)); }], ...(kind !== 'receipt' && F.rk !== 'R' ? [['Duplicate', () => F.duplicateDoc(kind, menuRec as Quotation)] as [string, () => void]] : [])];
-    const danger = F.actionsFor(kind, menuRec as Quotation).includes('Void') ? [{ label: 'Void (credit note)', go: run(() => F.act(kind, menuRec as Quotation, 'Void')), fw: 600, fg: '#B23A2E', sep: true }] : [];
+    const danger = F.actionsFor(kind, menuRec as Quotation).includes('Void') ? [{ label: 'Void (credit note)', go: run(() => F.act(kind, menuRec as Quotation, 'Void')), fw: 600, fg: '#B23A2E', sep: true }]
+      : kind === 'quotation' && F.canDeleteQuote(menuRec as Quotation) ? [{ label: 'Delete', go: run(() => F.deleteQuote(menuRec as Quotation)), fw: 600, fg: '#B23A2E', sep: true }] : [];
     return [...acts.map((a, i) => ({ label: a, go: run(() => F.act(kind, menuRec as Quotation, a)), fw: i ? 500 : 700, fg: '#16223A', sep: false })), ...more.map(([label, fn], i) => ({ label, go: run(fn), fw: 500, fg: '#16223A', sep: i === 0 })), ...danger];
   };
   const quotes = F.scopedQuotations.filter((q) => q.documentType !== 'Proforma');
@@ -54,7 +56,9 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
 
   /* ---- invoices ---- */
   const invFilters = ['All', 'Overdue', 'Part-paid', 'Sent', 'Paid', 'Draft', 'Voided'];
-  const invRows = invAll.filter((v) => invF === 'All' || F.invStatus(v) === invF);
+  // One filter bar for every list on this page: dates, client, search.
+  const LF = useListFilter({ who: [...invAll.map((v) => v.partyName || F.clientName(v.clientId) || ''), ...F.scopedQuotations.map((q) => q.clientName || ''), ...F.scopedReceipts.map((r) => r.receivedFrom || '')] });
+  const invRows = invAll.filter((v) => invF === 'All' || F.invStatus(v) === invF).filter((v) => LF.match({ date: v.date, who: v.partyName || F.clientName(v.clientId), text: [v.id, v.partyName, F.clientName(v.clientId), v.fileRef, v.subject, v.matter] }));
 
   /* ---- other documents ---- */
   const X: Record<string, [string, string]> = { Office: ['#E7EEF6', '#2F5680'], 'Client account': ['#E6EFE9', '#2F6F4E'] };
@@ -65,9 +69,11 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
     Invoice: { title: '', sub: '', col: '', newL: '', foot: '' },
   }[docT];
   type Row = { kind: DocKind; key: string; no: string; client: string; ref: string; date: string; amt: string; x: string; status: string; action: string; onAct: () => void; view: () => void };
-  const docRows: Row[] = docT === 'Receipt'
+  const rawDate = (r: Row) => (r.kind === 'receipt' ? F.scopedReceipts.find((x) => x.id === r.key)?.date : F.scopedQuotations.find((x) => x.id === r.key)?.date);
+  const docRowsAll: Row[] = docT === 'Receipt'
     ? F.scopedReceipts.slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).map((r: Receipt) => { const acc = r.accountSet === 'CLIENT' ? 'Client account' : 'Office'; return { kind: 'receipt' as DocKind, key: r.id, no: r.id, client: r.receivedFrom || '—', ref: 'for ' + (r.forNo || r.description || '—') + ' · ' + (r.paymentMethod || '—'), date: F.dShort(r.date), amt: rm(Number(r.amount || 0)), x: acc, status: r.historical ? 'Historical' : 'Issued', action: 'View', onAct: () => F.setView({ kind: 'receipt', id: r.id }), view: () => F.setView({ kind: 'receipt', id: r.id }) }; })
     : docT === 'Invoice' ? [] : (docT === 'Quotation' ? quotes : proformas).slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).map((q: Quotation) => { const a = F.actionsFor('quotation', q)[0]; const kase = F.qCase(q); return { kind: 'quotation' as DocKind, key: q.id, no: q.id, client: q.clientName || '—', ref: `${q.fileRef || kase?.ref || '—'} · ${q.practiceArea || '—'}`, date: F.dShort(q.date), amt: rm(Number(q.total || 0)), x: q.payInto || 'Office', status: F.qStatus(q), action: a, onAct: () => F.act('quotation', q, a), view: () => F.setView({ kind: 'quotation', id: q.id }) }; });
+  const docRows = docRowsAll.filter((r) => LF.match({ date: rawDate(r), who: r.client, text: [r.no, r.client, r.ref] }));
   /* ---- fees by file (lib/moneyByFile: same figures as each file's Money tab) ---- */
   const { cases = [], invoices = [], payments = [], retainers = [], quotations = [], setCurrentCaseId, setCaseSubTab, setCurrentView, canViewModule } = useApp();
   const [bfF, setBfF] = useState<FeesFilter>('All');
@@ -100,8 +106,9 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
           <div style={css('display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css('font-family:ui-serif, Georgia, serif;font-size:14.5px;color:#16223A')}>Invoices</strong>
             <div style={css('display:flex;gap:4px;margin-left:8px')}>{invFilters.map((f) => { const on = invF === f; const n = f === 'All' ? invAll.length : invAll.filter((v) => F.invStatus(v) === f).length; return <button key={f} type="button" onClick={() => setInvF(f)} style={css(`white-space:nowrap;border-radius:14px;padding:3px 10px;font-size:10.5px;font-weight:700;cursor:pointer;font-family:inherit;border:1px solid ${on ? '#16223A' : '#DDE3EB'};background:${on ? '#16223A' : '#fff'};color:${on ? '#fff' : '#16223A'}`)}>{f} · {n}</button>; })}</div>
             <span style={css('margin-left:auto;font-size:10.5px;color:#5B6478')}>e-Invoice: LHDN MyInvois not connected yet</span></div>
+          {LF.bar}
           <div style={css('display:grid;grid-template-columns:86px minmax(0,1.4fr) 84px 90px 90px 90px 70px 90px 84px 100px;gap:10px;padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>No.</span><span>Client · matter</span><span>Issued</span><span style={css('text-align:right')}>Total</span><span style={css('text-align:right')}>Paid</span><span style={css('text-align:right')}>Balance</span><span style={css('text-align:right')}>Days</span><span>Status</span><span>e-Invoice</span><span></span></div>
-          {invRows.length === 0 && <div style={css('padding:12px 14px;font-size:11.5px;color:#5B6478')}>{invAll.length ? 'No invoices with this status.' : 'No invoices yet. Create one from unbilled work below, or with “New quotation or invoice”.'}</div>}
+          {invRows.length === 0 && <div style={css('padding:12px 14px;font-size:11.5px;color:#5B6478')}>{invAll.length ? (LF.active ? 'Nothing matches the filter.' : 'No invoices with this status.') : 'No invoices yet. Create one from unbilled work below, or with “New quotation or invoice”.'}</div>}
           {invRows.map((d) => {
             const st = F.invStatus(d); const paid = F.invPaid(d); const a = F.actionsFor('invoice', d)[0]; const c = SC[st] || SC.Draft; const kase = F.invCase(d);
             const days = F.ageDays(d); const einv = d.eInvoiceStatus && d.eInvoiceStatus !== 'Not Submitted' ? d.eInvoiceStatus : '—';
@@ -125,8 +132,9 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
 
       {docT !== 'Invoice' && (
         <div style={css('overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}><div style={css('display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css('font-family:ui-serif, Georgia, serif;font-size:14.5px;color:#16223A')}>{D.title}</strong><span style={css('font-size:10.5px;color:#5B6478')}>{D.sub}</span><button type="button" onClick={docNewClick} style={css('margin-left:auto;border:0;border-radius:6px;padding:5px 10px;font-size:10.5px;font-weight:700;background:#16223A;color:#fff;cursor:pointer;font-family:inherit')}>{D.newL}</button></div>
+          {LF.bar}
           <div style={css('display:grid;grid-template-columns:96px minmax(0,1.5fr) 80px 100px 110px 110px 190px;gap:10px;padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>No.</span><span>Client · matter</span><span>Date</span><span style={css('text-align:right')}>Amount</span><span>{D.col}</span><span>Status</span><span></span></div>
-          {docRows.length === 0 && <div style={css('padding:12px 14px;font-size:11.5px;color:#5B6478')}>No {D.title.toLowerCase()} yet.</div>}
+          {docRows.length === 0 && <div style={css('padding:12px 14px;font-size:11.5px;color:#5B6478')}>{LF.active && docRowsAll.length ? 'Nothing matches the filter.' : 'No ' + D.title.toLowerCase() + ' yet.'}</div>}
           {docRows.map((r) => { const c = SC[r.status] || SC.Draft; const x = X[r.x] || X.Office; return (
             <div key={r.key} style={css('display:grid;grid-template-columns:96px minmax(0,1.5fr) 80px 100px 110px 110px 190px;gap:10px;align-items:center;padding:8px 14px;border-bottom:1px solid #F0F2F5')}>
               <button type="button" onClick={r.view} style={css('border:0;background:none;padding:0;text-align:left;font-size:11px;font-weight:700;color:#3D6B9C;cursor:pointer;font-family:inherit;text-decoration:underline;overflow:hidden;text-overflow:ellipsis')}>{r.no}</button>

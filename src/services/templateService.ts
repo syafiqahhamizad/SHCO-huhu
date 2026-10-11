@@ -21,7 +21,7 @@ export interface FirmBankAccount {
   typeLabel?: string;
 }
 
-export interface DefaultBillingItem {
+interface DefaultBillingItem {
   id: string;
   description: string;
   category: 'Disbursement' | 'Reimbursement';
@@ -66,7 +66,7 @@ export interface FundMove {
 
 /** Payroll › Fee sharing (Accounts & Finance). Rules and per-file / per-person choices only:
  * every amount is worked out from fees actually collected (lib/feeSharing). */
-export interface FeeSharingSettings {
+interface FeeSharingSettings {
   rules?: { own: number; intro: number; hand: number };
   /** Per month 'YYYY-MM' → per file (case id): introducer / handlers / own % rules. */
   files?: Record<string, Record<string, { intro?: string; hands?: string[]; cu?: Record<string, number>; rules?: { own: number; intro: number; hand: number } }>>;
@@ -114,6 +114,8 @@ export interface PracticeSettings {
   sstRate: number;
   /** ISO date -> holiday name. Leave counting skips these. Absent = built-in list. */
   publicHolidays?: Record<string, string>;
+  /** Leave types offered in Staff Portal (name, days a year, 0 = no fixed limit, how days are counted, note). Built-in list until set. */
+  leaveTypes?: { name: string; days: number; basis: 'working' | 'calendar'; note: string }[];
   bankName: string;
   bankAccountNo: string;
   bankAccounts?: FirmBankAccount[];
@@ -322,7 +324,7 @@ export interface ApprovalLimits {
 }
 
 /** One template line. Stored as an object — Firestore rejects nested arrays. */
-export interface FeeLine {
+interface FeeLine {
   d: string;
   a: number;
 }
@@ -371,9 +373,9 @@ export const DEFAULT_APPROVAL_LIMITS: Required<ApprovalLimits> = {
 
 /** Office expense categories used by Accounts & Finance → Record office expense. */
 /** Office expense categories = the accountant's (Bukku) expense accounts (see finance/financeModel BUKKU_EXPENSES). */
-export const DEFAULT_EXPENSE_CATEGORIES = ['Advertising and marketing', 'Bank charges', 'Course and seminar', 'Entertainment', 'Professional legal fees', 'Runner fees / delivery fees', 'Statutory / regulatory fees', 'Consulting fees – marketing', 'Accounting fee', 'Gift, donation & sponsorship', 'Insurance', 'License and registration fee', 'Computer & software', 'Printing and stationeries', 'Rental', 'Utilities', 'Reimbursement Expenses', 'Mileage claims', 'Parking, toll & travel', 'Other'];
+export const DEFAULT_EXPENSE_CATEGORIES = ['Advertising and marketing', 'Bank charges', 'Course and seminar', 'Entertainment', 'Professional legal fees', 'Runner fees / delivery fees', 'Statutory / regulatory fees', 'Consulting fees – marketing', 'Accounting fee', 'Gift, donation & sponsorship', 'Insurance', 'License and registration fee', 'Computer & software', 'Office supplies', 'Printing and stationeries', 'Rental of office', 'Upkeep of office', 'Water and electricity', 'Telephone and internet charges', 'Reimbursement Expenses', 'Mileage claims', 'Petrol, toll and parking', 'Accomodation', 'Other'];
 /** Claim types offered in My Claims (Staff Portal). */
-export const DEFAULT_CLAIM_TYPES = ['Travelling', 'Disbursement', 'Office'];
+export const DEFAULT_CLAIM_TYPES = ['Travelling', 'Grab / taxi / train', 'Accommodation', 'Meals (client meeting)', 'Courier & postage', 'Printing & photocopy', 'Phone & internet', 'Training / CPD', 'Disbursement', 'Office'];
 
 /** First number found in a typed amount ("RM 5,000" -> 5000); fallback when none. */
 const parseAmount = (v: unknown, fallback: number): number => {

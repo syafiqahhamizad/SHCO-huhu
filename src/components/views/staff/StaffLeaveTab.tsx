@@ -5,7 +5,8 @@ import { DRIVE_REQUIRED_MSG, isUploadReady, prepareStorage, storeLeaveDocument, 
 import { isMine } from '../../../lib/identity';
 import { resolveApproval } from '../../../lib/approvers';
 import { usePracticeSettings } from '../settings/settingsShared';
-import { card, cardTitle, ddmmyyyy, isoOf, labelWrap, LEAVE_COLORS, LEAVE_TYPES, getPublicHolidays } from './staffPortalShared';
+import { card, cardTitle, ddmmyyyy, isoOf, labelWrap, LEAVE_COLORS, getLeaveTypes, getPublicHolidays } from './staffPortalShared';
+import { SearchSelect } from '../../ui/SearchSelect';
 
 const LBL: React.CSSProperties = { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#5B6478' };
 const INP: React.CSSProperties = { border: '1px solid #DDE3EB', borderRadius: 6, padding: '6px 8px', fontSize: 11.5, color: '#16223A', background: '#fff', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', cursor: 'pointer', outline: 'none' };
@@ -21,7 +22,7 @@ interface Props {
 const statusLabel = (s: LeaveApplication['status']) => (s === 'Pending' ? 'Waiting' : s);
 
 export const StaffLeaveTab: React.FC<Props> = ({ myLeaves, used, me }) => {
-  const { currentUser, users, cases, clients, addLeaveApplication, addNotification, showToast } = useApp();
+  const { currentUser, users, cases, clients, addLeaveApplication, updateLeaveApplication, addNotification, showToast } = useApp();
   const [lv, setLv] = useState({ type: 'Annual', from: '', to: '', half: 'Full day', pic: '', mc: '' });
   const setL = (p: Partial<typeof lv>) => setLv((s) => ({ ...s, ...p }));
   const [dragOn, setDragOn] = useState(false);
@@ -30,6 +31,7 @@ export const StaffLeaveTab: React.FC<Props> = ({ myLeaves, used, me }) => {
   const storage = useStorageLabel();
   // Firm & Practice Settings → Who approves → Staff leave; until it is set, any partner approves.
   const [settings] = usePracticeSettings();
+  const LEAVE_TYPES = useMemo(() => getLeaveTypes(), [settings]);
   const rule = resolveApproval('leave', users, settings.approvers);
   /** Keeps the picked supporting document; blocked (with the reason) when Drive is not set up or the file is not allowed. */
   const pickMc = (f0?: File | null) => {
@@ -166,6 +168,15 @@ export const StaffLeaveTab: React.FC<Props> = ({ myLeaves, used, me }) => {
   };
 
   const leaves = [...myLeaves].sort((a, b) => b.startDate.localeCompare(a.startDate));
+  const today = isoOf(new Date());
+  /** Withdraw a request sent by mistake, or cancel approved leave that has not started. */
+  const cancelLeave = (l: LeaveApplication) => {
+    const when = ddmmyyyy(l.startDate) + (l.endDate && l.endDate !== l.startDate ? ' – ' + ddmmyyyy(l.endDate) : '');
+    if (!window.confirm('Cancel your ' + l.leaveType.toLowerCase() + ' leave ' + when + '?')) return;
+    updateLeaveApplication(l.id, { status: 'Cancelled', reviewedBy: currentUser.name, reviewedAt: new Date().toISOString() });
+    addNotification({ title: 'Leave cancelled · ' + currentUser.name, message: currentUser.name + ' cancelled ' + l.leaveType.toLowerCase() + ' leave ' + when + '.', type: 'system', linkTab: 'dashboard', to: [...(rule ? rule.people.map((u) => u.id) : ['role:Partner']), ...(l.pic ? [l.pic] : [])] });
+    showToast('Leave cancelled');
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -195,12 +206,13 @@ export const StaffLeaveTab: React.FC<Props> = ({ myLeaves, used, me }) => {
             const why = l.pic ? 'PIC: ' + l.pic : l.reason;
             const canCal = l.status === 'Approved' || l.status === 'Pending';
             return (
-              <div key={l.id} style={{ display: 'grid', gridTemplateColumns: '150px minmax(0,1fr) 44px 170px', gap: 10, alignItems: 'center', padding: '8px 14px', borderBottom: '1px solid #F0F2F5' }}>
+              <div key={l.id} style={{ display: 'grid', gridTemplateColumns: '150px minmax(0,1fr) 44px 210px', gap: 10, alignItems: 'center', padding: '8px 14px', borderBottom: '1px solid #F0F2F5' }}>
                 <span style={{ fontSize: 11.5, fontWeight: 600, color: '#16223A' }}>{ddmmyyyy(l.startDate) + (l.endDate && l.endDate !== l.startDate ? ' – ' + ddmmyyyy(l.endDate) : '') + (l.days === 0.5 ? ' (½)' : '')}</span>
                 <span style={{ fontSize: 11, color: '#5B6478' }}>{l.leaveType}{why ? ' · ' + why : ''}</span>
                 <span style={{ fontSize: 11, color: '#16223A' }}>{l.days}d</span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 8px', borderRadius: 10, background: st === 'Approved' ? '#E6EFE9' : st === 'Waiting' ? '#FBF2E9' : '#FBEDE9', color: st === 'Approved' ? '#2F6F4E' : st === 'Waiting' ? '#8A6534' : '#B23A2E' }}>{st}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 8px', borderRadius: 10, background: st === 'Approved' ? '#E6EFE9' : st === 'Waiting' ? '#FBF2E9' : st === 'Cancelled' ? '#F0F2F5' : '#FBEDE9', color: st === 'Approved' ? '#2F6F4E' : st === 'Waiting' ? '#8A6534' : st === 'Cancelled' ? '#5B6478' : '#B23A2E' }}>{st}</span>
+                  {(l.status === 'Pending' || (l.status === 'Approved' && l.startDate > today)) && <button type="button" onClick={() => cancelLeave(l)} title="Cancel this leave" style={{ border: 0, background: 'none', padding: 0, fontSize: 10, fontWeight: 700, color: '#B23A2E', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>}
                   {canCal && <button type="button" onClick={() => addCal(l)} title="Download to Google / Outlook / Apple calendar" style={{ border: 0, background: 'none', padding: 0, fontSize: 10, fontWeight: 700, color: '#3D6B9C', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>+ My calendar</button>}
                 </span>
               </div>
@@ -215,7 +227,7 @@ export const StaffLeaveTab: React.FC<Props> = ({ myLeaves, used, me }) => {
                 {LEAVE_TYPES.map(([t]) => <option key={t} value={t}>{t}</option>)}
               </select>
             </label>
-            <span style={{ fontSize: 10.5, lineHeight: 1.45, color: '#5B6478' }}>{T0[3]}</span>
+            <span style={{ fontSize: 10.5, lineHeight: 1.45, color: '#5B6478' }}>{T0[3]} <span style={{ color: '#94A3B8' }}>Leave types and public holidays are set by an admin in Settings → Lists &amp; sources.</span></span>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
               <label style={labelWrap}><span style={LBL}>From</span><input type="date" value={lv.from} onChange={(ev) => { const v = ev.target.value; setL({ from: v, to: lv.to && lv.to < v ? v : lv.to }); }} style={INP} /></label>
               <label style={labelWrap}><span style={LBL}>To</span><input type="date" value={lv.to} min={lv.from} onChange={(ev) => setL({ to: ev.target.value })} style={INP} /></label>
@@ -249,10 +261,7 @@ export const StaffLeaveTab: React.FC<Props> = ({ myLeaves, used, me }) => {
               </div>
             )}
             <label style={labelWrap}><span style={LBL}>PIC covering my files</span>
-              <select value={lv.pic} onChange={(ev) => setL({ pic: ev.target.value })} style={{ border: '1px solid #DDE3EB', borderRadius: 6, padding: '6px 8px', fontSize: 11.5, color: '#16223A', background: '#fff', fontFamily: 'inherit', outline: 'none' }}>
-                <option value="">Choose a colleague…</option>
-                {colleagues.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-              </select>
+              <SearchSelect aria-label="PIC covering my files" value={lv.pic} onChange={(v) => setL({ pic: v })} placeholder="Search a colleague…" options={colleagues} />
             </label>
             <span style={{ fontSize: 10.5, lineHeight: 1.5, color: wc }}>{warn}</span>
             <button type="button" disabled={busy} onClick={() => { void submit(); }} style={{ border: 0, borderRadius: 6, padding: '8px 12px', fontSize: 11.5, fontWeight: 700, background: '#16223A', color: '#fff', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1, fontFamily: 'inherit' }}>{busy ? 'Uploading…' : 'Send to partner'}</button>

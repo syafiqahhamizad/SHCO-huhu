@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { SearchSelect } from '../../../ui/SearchSelect';
 import { useApp } from '../../../../context/AppContext';
 import type { ServiceRecord } from '../../../../types';
 import { matterDriveLabel, openStoredFile, useStorageLabel, type StoredMatterFile } from '../../../../services/fileStorageService';
@@ -81,7 +82,7 @@ export const FilingTab: React.FC<{ w: WF }> = ({ w }) => {
           <Field label="Document" span="span 2"><input value={f.doc} onChange={(e) => setF({ ...f, doc: e.target.value })} placeholder="e.g. Affidavit in reply" style={css(S.input)} /></Field>
           <Field label={f.dir === 'Filed' ? 'Court' : f.dir === 'Served' ? 'Served on' : 'Received from'}><input value={f.party} onChange={(e) => setF({ ...f, party: e.target.value })} placeholder="Party / solicitor" style={css(S.input)} /></Field>
           <Field label="Method"><select value={f.method} onChange={(e) => setF({ ...f, method: e.target.value, proofType: '' })} style={css(S.input)}>{METHODS.map((m) => <option key={m} value={m}>{m}</option>)}</select></Field>
-          <Field label={f.dir === 'Filed' ? 'Filed by' : f.dir === 'Served' ? 'Served by' : 'Received by'}><input value={f.by} onChange={(e) => setF({ ...f, by: e.target.value })} style={css(S.input)} /></Field>
+          <Field label={f.dir === 'Filed' ? 'Filed by' : f.dir === 'Served' ? 'Served by' : 'Received by'}><SearchSelect aria-label="Done by" value={f.by} onChange={(v) => setF({ ...f, by: v })} placeholder="Search a name" options={[...w.staff.map((p) => ({ value: p.name, label: p.name, hint: p.code })), { value: 'Despatch', label: 'Despatch / runner' }]} /></Field>
           <Field label="Proof type"><select value={pt} onChange={(e) => setF({ ...f, proofType: e.target.value })} style={css(S.input)}>{PROOF_TYPES.map((p) => <option key={p} value={p}>{p}</option>)}</select></Field>
           <div style={css('display:flex;flex-direction:column;gap:5px;grid-column:span 2')}><span style={css(S.label)}>Proof file</span>
             <label style={css('display:flex;align-items:center;gap:10px;border:1px dashed #9AA6B8;border-radius:8px;padding:8px 10px;background:#fff;cursor:pointer;min-width:0')}>

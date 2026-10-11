@@ -2378,7 +2378,9 @@ export const FileClosingView: React.FC = () => {
     (cs.partners || []).map((code) => users.find((u) => partnerCode(u) === code)?.name || code).join(', ') || '—';
   const closeRequests = cases.filter((c) => c.closeRequest?.status === 'Pending');
 
-  const [checkedItems, setCheckedItems] = useState<Record<string, { inv: boolean; trust: boolean; docs: boolean; letter: boolean; boxNo: string }>>({});
+  // Local date (not UTC) so the default is today in Malaysia.
+  const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+  const [checkedItems, setCheckedItems] = useState<Record<string, { inv: boolean; trust: boolean; docs: boolean; letter: boolean; boxNo: string; closeDate?: string }>>({});
 
   const toggleCheck = (caseId: string, field: 'inv' | 'trust' | 'docs' | 'letter') => {
     setCheckedItems((prev) => {
@@ -2407,15 +2409,18 @@ export const FileClosingView: React.FC = () => {
       return alert('All 4 Malaysian Bar Council Risk Management compliance checks MUST be verified before closing the matter file!');
     }
 
-    const closedDate = new Date();
+    // The date picked on the row (today when not changed): files closed earlier keep their real date.
+    const closedDate = c.closeDate ? new Date(c.closeDate + 'T00:00:00') : new Date();
     const retainUntilDate = new Date(closedDate.getFullYear() + 7, closedDate.getMonth(), closedDate.getDate());
 
     updateCase(cs.id, {
       status: 'Closed',
-      closedDate: closedDate.toISOString().slice(0, 10),
+      closedDate: c.closeDate || todayStr,
+      closedBy: currentUser?.name,
+      destroyAfter: `${retainUntilDate.getFullYear()}-${String(retainUntilDate.getMonth() + 1).padStart(2, '0')}-${String(retainUntilDate.getDate()).padStart(2, '0')}`,
       archiveBoxNo: c.boxNo || `ARCH-${closedDate.getFullYear()}-${cs.id.slice(-4)}`,
     });
-    showToast(`Matter ${cs.ref} successfully CLOSED & ARCHIVED under Malaysian Bar Council Rules. Retain until ${retainUntilDate.toISOString().slice(0, 10)} (Box: ${c.boxNo || 'ARCH-7YR'}).`);
+    showToast(`${cs.ref} closed on ${c.closeDate || todayStr}. Keep until ${retainUntilDate.getDate()}.${retainUntilDate.getMonth() + 1}.${retainUntilDate.getFullYear()} (box ${c.boxNo || 'not set'}).`);
   };
 
   const openCases = cases.filter((c) => c.status !== 'Closed' && c.status !== 'Archive');
@@ -2557,7 +2562,15 @@ export const FileClosingView: React.FC = () => {
 
                 {/* Firm Archival Designation */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-2 border-t border-slate-100">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="font-bold text-slate-700">Date closed:</label>
+                    <input
+                      type="date"
+                      value={checks.closeDate || todayStr}
+                      max={todayStr}
+                      onChange={(e) => setCheckedItems((prev) => ({ ...prev, [cs.id]: { ...(prev[cs.id] || { inv: false, trust: false, docs: false, letter: false, boxNo: '' }), closeDate: e.target.value } }))}
+                      className="bg-slate-50 border border-slate-300 text-xs px-2.5 py-1 rounded"
+                    />
                     <label className="font-bold text-slate-700">Archive Box Designation:</label>
                     <input
                       type="text"
