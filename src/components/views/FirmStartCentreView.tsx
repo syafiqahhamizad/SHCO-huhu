@@ -1,4 +1,5 @@
 import React from 'react';
+import { getPracticeSettings, savePracticeSettings, type PracticeSettings } from '../../services/templateService';
 import {
   Archive,
   ArrowDown,
@@ -213,36 +214,42 @@ export const FirmStartCentreView: React.FC = () => {
   const [newTabLabel, setNewTabLabel] = React.useState('');
   const [editingTabId, setEditingTabId] = React.useState<string | null>(null);
   const [tabLabelDraft, setTabLabelDraft] = React.useState('');
-  const [cardDraft, setCardDraft] = React.useState<{ pageId: string; cardId: string | null; title: string; detail: string } | null>(null);
-  const [quickLinkGroups, setQuickLinkGroups] = React.useState<QuickLinkGroup[]>(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem('shco_firm_start_quick_links') || 'null');
-      if (Array.isArray(stored)) return stored.map((group, index) => ({ ...group, icon: QUICK_LINK_GROUPS[index]?.icon || BookMarked, links: (group.links || []).map((link: QuickLink) => ({ ...link, icon: FileText })) }));
-    } catch { }
-    return QUICK_LINK_GROUPS;
-  });
-  const [launcherTiles, setLauncherTiles] = React.useState<LauncherTile[]>(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem('shco_firm_start_modules') || 'null');
-      if (Array.isArray(stored)) return stored.map((tile, index) => ({ ...tile, icon: SMALL_TILES[index]?.icon || LayoutGrid }));
-    } catch { }
-    return SMALL_TILES;
-  });
-  const [shelves, setShelves] = React.useState(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem('shco_firm_start_shelves') || 'null');
-      if (Array.isArray(stored)) return stored.map((shelf) => ({ ...shelf, icon: BookOpen }));
-    } catch { }
-    return SHELVES;
-  });
+  const [cardDraft, setCardDraft] = React.useState<{ pageId: string; cardId: string | null; title: string; detail: string; link?: string } | null>(null);
+  // Shared for the whole firm (Practice Settings → cloud). Older copies kept only in this
+  // browser are used once, then saved for everyone by the next edit.
+  const [settingsTick, setSettingsTick] = React.useState(0);
+  React.useEffect(() => { const f = () => setSettingsTick((n) => n + 1); window.addEventListener('shco-practice-settings-updated', f); return () => window.removeEventListener('shco-practice-settings-updated', f); }, []);
+  const shared = React.useMemo(() => getPracticeSettings().startCentre || {}, [settingsTick]);
+  const local = <T,>(key: string): T | null => { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; } };
+  const saveShared = (patch: NonNullable<PracticeSettings['startCentre']>) => { const st = getPracticeSettings(); savePracticeSettings({ ...st, startCentre: { ...(st.startCentre || {}), ...patch } }); };
+
+  const qlRaw = shared.quickLinks || local<{ title: string; links: { label: string; url: string }[] }[]>('shco_firm_start_quick_links');
+  const quickLinkGroups: QuickLinkGroup[] = Array.isArray(qlRaw) ? qlRaw.map((g, i) => ({ title: g.title, icon: QUICK_LINK_GROUPS[i]?.icon || BookMarked, links: (g.links || []).map((l) => ({ ...l, icon: FileText })) })) : QUICK_LINK_GROUPS;
+  const setQuickLinkGroups = (fn: (g: QuickLinkGroup[]) => QuickLinkGroup[]) => saveShared({ quickLinks: fn(quickLinkGroups).map(({ title, links }) => ({ title, links: links.map(({ label, url }) => ({ label, url })) })) });
+
+  const tilesRaw = shared.tiles || local<{ label: string; view: string; bg: string }[]>('shco_firm_start_modules');
+  const launcherTiles: LauncherTile[] = Array.isArray(tilesRaw) ? tilesRaw.map((t, i) => ({ ...t, icon: SMALL_TILES.find((x) => x.label === t.label)?.icon || SMALL_TILES[i]?.icon || LayoutGrid })) : SMALL_TILES;
+  const setLauncherTiles = (fn: (t: LauncherTile[]) => LauncherTile[]) => saveShared({ tiles: fn(launcherTiles).map(({ label, view, bg }) => ({ label, view, bg })) });
+
+  type ShelfDoc = { id: string; title: string; url?: string; note?: string };
+  type Shelf = { id: string; title: string; detail: string; docs: ShelfDoc[]; icon: React.ElementType };
+  const shelvesRaw = shared.shelves || local<{ title: string; detail: string }[]>('shco_firm_start_shelves');
+  const shelves: Shelf[] = (Array.isArray(shelvesRaw) ? shelvesRaw : SHELVES).map((x, i) => ({ id: (x as { id?: string }).id || 'shelf-' + i, title: x.title, detail: x.detail, docs: (x as { docs?: ShelfDoc[] }).docs || [], icon: SHELVES.find((d) => d.title === x.title)?.icon || BookOpen }));
+  const setShelves = (fn: (s: Shelf[]) => Shelf[]) => saveShared({ shelves: fn(shelves).map(({ id, title, detail, docs }) => ({ id, title, detail, docs })) });
+  const [openShelf, setOpenShelf] = React.useState<string | null>(null);
+  const [shelfQ, setShelfQ] = React.useState('');
+  const [docDraft, setDocDraft] = React.useState<{ shelfId: string; id: string | null; title: string; url: string; note: string } | null>(null);
+  const saveDoc = () => {
+    if (!docDraft || !docDraft.title.trim()) return;
+    const d: ShelfDoc = { id: docDraft.id || 'doc-' + Date.now(), title: docDraft.title.trim(), url: docDraft.url.trim() || undefined, note: docDraft.note.trim() || undefined };
+    setShelves((all) => all.map((x) => (x.id !== docDraft.shelfId ? x : { ...x, docs: docDraft.id ? x.docs.map((y) => (y.id === d.id ? d : y)) : [...x.docs, d] })));
+    setDocDraft(null);
+  };
 
   const viewer = currentUser;
   const editMode = firmStartCentreEditMode;
   const canEditStartCentre = canEditFirmStartCentre;
 
-  React.useEffect(() => { localStorage.setItem('shco_firm_start_quick_links', JSON.stringify(quickLinkGroups.map(({ title, links }) => ({ title, links: links.map(({ label, url }) => ({ label, url })) })))); }, [quickLinkGroups]);
-  React.useEffect(() => { localStorage.setItem('shco_firm_start_modules', JSON.stringify(launcherTiles.map(({ label, view, bg }) => ({ label, view, bg })))); }, [launcherTiles]);
-  React.useEffect(() => { localStorage.setItem('shco_firm_start_shelves', JSON.stringify(shelves.map(({ title, detail }) => ({ title, detail })))); }, [shelves]);
   const [announcementOpen, setAnnouncementOpen] = React.useState(false);
   const [announcementDraft, setAnnouncementDraft] = React.useState({
     title: '',
@@ -641,51 +648,100 @@ export const FirmStartCentreView: React.FC = () => {
                 <h2 className="flex items-center gap-2 font-serif text-xl font-bold -tracking-[0.015em] text-[#16223A]">
                   <BookOpenCheck className="h-[18px] w-[18px] text-[#3D6B9C]" /> How the firm works
                 </h2>
-                <p className="mt-1 text-[#5B6478]">Six shelves. Open one to browse every document inside it.</p>
+                <p className="mt-1 text-[#5B6478]">Click a shelf to see what is inside. {canEditStartCentre ? 'Inside a shelf, “+ Add document” puts in a Google Drive link and a note.' : ''}</p>
               </div>
-              {canEditStartCentre && <button type="button" onClick={() => { const title = window.prompt('Shelf name'); const detail = title && window.prompt('Shelf description'); if (title?.trim() && detail?.trim()) setShelves((items) => [...items, { icon: BookOpen, title: title.trim(), detail: detail.trim() }]); }} className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#16223A] px-3 py-2 text-xs font-bold text-white"><Plus className="h-3.5 w-3.5 text-[#FBF2E9]" /> Add shelf</button>}
+              {canEditStartCentre && <button type="button" onClick={() => { const title = window.prompt('Shelf name (e.g. Firm policies)'); if (!title?.trim()) return; const detail = window.prompt('One line about what is inside', '') || ''; const id = 'shelf-' + Date.now(); setShelves((items) => [...items, { id, icon: BookOpen, title: title.trim(), detail: detail.trim(), docs: [] }]); setOpenShelf(id); }} className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#16223A] px-3 py-2 text-xs font-bold text-white"><Plus className="h-3.5 w-3.5 text-[#FBF2E9]" /> Add shelf</button>}
               <div className="relative flex min-w-0 flex-1 basis-[260px] items-center">
                 <Search className="absolute left-2.5 h-3.5 w-3.5 text-[#5B6478]" />
                 <input
                   type="text"
-                  placeholder="Search policies and SOPs..."
+                  value={shelfQ}
+                  onChange={(e) => setShelfQ(e.target.value)}
+                  placeholder="Search policies, SOPs and documents..."
                   className="w-full min-w-0 rounded-lg border border-[#DDE3EB] bg-white py-2 pl-8 pr-3 text-xs"
                 />
               </div>
             </div>
-            <div className="mt-3.5 grid grid-cols-[repeat(auto-fill,minmax(178px,1fr))] items-stretch gap-2.5">
-              {shelves.map(({ icon: Icon, title, detail }, shelfIndex) => (
-                <div key={title} className="relative">
-                  <button type="button" className="flex min-h-full w-full cursor-pointer flex-col gap-2.5 rounded-xl border border-[#DDE3EB] bg-white p-3.5 text-left transition hover:-translate-y-0.5 hover:border-[#8A6D3B] hover:shadow-lg">
-                    <span className="flex h-[30px] w-[30px] items-center justify-center rounded-[9px] bg-[#F6F8FA] text-[#8A6D3B]"><Icon className="h-[15px] w-[15px]" /></span>
-                    <strong className="font-serif text-sm font-bold leading-tight text-[#16223A]">{title}</strong>
-                    <span className="text-[11px] leading-relaxed text-[#5B6478]">{detail}</span>
-                  </button>
-                  {canEditStartCentre && editMode && <div className="absolute right-2 top-2 flex gap-1"><button type="button" onClick={() => { const nextTitle = window.prompt('Shelf name', title); const nextDetail = nextTitle && window.prompt('Shelf description', detail); if (nextTitle?.trim() && nextDetail?.trim()) setShelves((items) => items.map((item, itemIndex) => itemIndex === shelfIndex ? { ...item, title: nextTitle.trim(), detail: nextDetail.trim() } : item)); }} className="rounded bg-white px-1 text-[9px] font-bold text-[#16223A] shadow">Edit</button><button type="button" onClick={() => { if (window.confirm(`Delete shelf “${title}”?`)) setShelves((items) => items.filter((_, itemIndex) => itemIndex !== shelfIndex)); }} className="rounded bg-white px-1 text-[9px] font-bold text-red-700 shadow">Delete</button></div>}
-                </div>
-              ))}
-            </div>
+            {(() => {
+              const q = shelfQ.trim().toLowerCase();
+              const hit = (t?: string) => !!t && t.toLowerCase().includes(q);
+              const shown = q ? shelves.filter((x) => hit(x.title) || hit(x.detail) || x.docs.some((d) => hit(d.title) || hit(d.note))) : shelves;
+              const cur = shelves.find((x) => x.id === openShelf);
+              const docsOf = (x: Shelf) => (q && !hit(x.title) && !hit(x.detail) ? x.docs.filter((d) => hit(d.title) || hit(d.note)) : x.docs);
+              const inp = 'w-full rounded-lg border border-[#DDE3EB] bg-white px-2.5 py-1.5 text-[12px] text-[#16223A]';
+              return (
+                <>
+                  <div className="mt-3.5 grid grid-cols-[repeat(auto-fill,minmax(178px,1fr))] items-stretch gap-2.5">
+                    {shown.map((x) => { const Icon = x.icon; const on = x.id === openShelf; return (
+                      <div key={x.id} className="relative">
+                        <button type="button" onClick={() => setOpenShelf(on ? null : x.id)} className={`flex min-h-full w-full cursor-pointer flex-col gap-2.5 rounded-xl border bg-white p-3.5 text-left transition hover:-translate-y-0.5 hover:border-[#8A6D3B] hover:shadow-lg ${on ? 'border-[#8A6D3B] shadow-lg' : 'border-[#DDE3EB]'}`}>
+                          <span className="flex items-center gap-2"><span className="flex h-[30px] w-[30px] items-center justify-center rounded-[9px] bg-[#F6F8FA] text-[#8A6D3B]"><Icon className="h-[15px] w-[15px]" /></span><span className="ml-auto text-[10px] font-bold text-[#5B6478]">{x.docs.length} {x.docs.length === 1 ? 'item' : 'items'}</span></span>
+                          <strong className="font-serif text-sm font-bold leading-tight text-[#16223A]">{x.title}</strong>
+                          <span className="text-[11px] leading-relaxed text-[#5B6478]">{x.detail}</span>
+                        </button>
+                      </div>
+                    ); })}
+                    {!shown.length && <p className="col-span-full text-[12px] text-[#5B6478]">Nothing matches “{shelfQ}”.</p>}
+                  </div>
+                  {q && shown.some((x) => docsOf(x).length) && !cur && (
+                    <div className="mt-3 rounded-xl border border-[#DDE3EB] bg-white p-3">
+                      {shown.flatMap((x) => docsOf(x).map((d) => (
+                        <a key={x.id + d.id} href={d.url || undefined} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[12px] text-[#16223A] no-underline hover:bg-[#F6F8FA]">
+                          <FileText className="h-3.5 w-3.5 text-[#8A6D3B]" /><strong>{d.title}</strong><span className="text-[#5B6478]">· {x.title}</span>{d.url && <ArrowUpRight className="ml-auto h-3 w-3 text-[#94A3B8]" />}
+                        </a>
+                      )))}
+                    </div>
+                  )}
+                  {cur && (
+                    <div className="mt-3 rounded-xl border border-[#8A6D3B] bg-white">
+                      <div className="flex flex-wrap items-center gap-2 border-b border-[#EEF1F5] px-4 py-3">
+                        <strong className="font-serif text-[15px] text-[#16223A]">{cur.title}</strong>
+                        <span className="text-[11px] text-[#5B6478]">{cur.detail}</span>
+                        {canEditStartCentre && (
+                          <span className="ml-auto flex gap-1.5">
+                            <button type="button" onClick={() => setDocDraft({ shelfId: cur.id, id: null, title: '', url: '', note: '' })} className="rounded-md bg-[#16223A] px-2.5 py-1 text-[11px] font-bold text-white">+ Add document</button>
+                            <button type="button" onClick={() => { const t = window.prompt('Shelf name', cur.title); if (!t?.trim()) return; const dt = window.prompt('One line about what is inside', cur.detail) ?? cur.detail; setShelves((all) => all.map((y) => (y.id === cur.id ? { ...y, title: t.trim(), detail: dt.trim() } : y))); }} className="rounded-md border border-[#DDE3EB] px-2.5 py-1 text-[11px] font-semibold text-[#16223A]">Rename shelf</button>
+                            <button type="button" onClick={() => { if (window.confirm('Delete the shelf “' + cur.title + '” and the ' + cur.docs.length + ' item(s) in it? The files in Google Drive are not touched.')) { setShelves((all) => all.filter((y) => y.id !== cur.id)); setOpenShelf(null); } }} className="rounded-md border border-red-200 px-2.5 py-1 text-[11px] font-semibold text-red-600">Delete shelf</button>
+                          </span>
+                        )}
+                      </div>
+                      {docDraft && docDraft.shelfId === cur.id && (
+                        <div className="grid grid-cols-1 gap-2 border-b border-[#EEF1F5] bg-[#FBFCFD] px-4 py-3 md:grid-cols-2">
+                          <input value={docDraft.title} onChange={(e) => setDocDraft({ ...docDraft, title: e.target.value })} placeholder="Title, e.g. Leave policy 2026" className={inp} autoFocus />
+                          <input value={docDraft.url} onChange={(e) => setDocDraft({ ...docDraft, url: e.target.value })} placeholder="Link: open the file in Google Drive → Share → Copy link → paste here" className={inp} />
+                          <textarea value={docDraft.note} onChange={(e) => setDocDraft({ ...docDraft, note: e.target.value })} placeholder="Note (optional): what it is, who it is for, or the rule itself if it is short" rows={3} className={inp + ' md:col-span-2'} />
+                          <div className="flex gap-2 md:col-span-2">
+                            <button type="button" onClick={saveDoc} className="rounded-lg bg-[#16223A] px-3 py-1.5 text-[11px] font-bold text-white">{docDraft.id ? 'Save changes' : 'Add to shelf'}</button>
+                            <button type="button" onClick={() => setDocDraft(null)} className="rounded-lg border border-[#DDE3EB] px-3 py-1.5 text-[11px] font-semibold text-[#16223A]">Cancel</button>
+                          </div>
+                        </div>
+                      )}
+                      {docsOf(cur).map((d) => (
+                        <div key={d.id} className="flex items-start gap-3 border-b border-[#F0F2F5] px-4 py-2.5 last:border-b-0">
+                          <FileText className="mt-0.5 h-4 w-4 shrink-0 text-[#8A6D3B]" />
+                          <span className="min-w-0 flex-1">
+                            {d.url ? <a href={d.url} target="_blank" rel="noopener noreferrer" className="text-[12.5px] font-bold text-[#16223A] underline">{d.title}</a> : <strong className="text-[12.5px] text-[#16223A]">{d.title}</strong>}
+                            {d.note && <span className="mt-0.5 block whitespace-pre-line text-[11.5px] leading-relaxed text-[#5B6478]">{d.note}</span>}
+                          </span>
+                          {canEditStartCentre && (
+                            <span className="flex shrink-0 gap-2 text-[10.5px] font-bold">
+                              <button type="button" onClick={() => setDocDraft({ shelfId: cur.id, id: d.id, title: d.title, url: d.url || '', note: d.note || '' })} className="text-[#3D6B9C]">Edit</button>
+                              <button type="button" onClick={() => { if (window.confirm('Remove “' + d.title + '” from this shelf? The file in Google Drive is not touched.')) setShelves((all) => all.map((y) => (y.id === cur.id ? { ...y, docs: y.docs.filter((z) => z.id !== d.id) } : y))); }} className="text-red-600">Delete</button>
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                      {!cur.docs.length && <p className="px-4 py-4 text-[12px] text-[#5B6478]">Nothing on this shelf yet.{canEditStartCentre ? ' Press “+ Add document”.' : ''}</p>}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </section>
 
-          <aside className="flex min-w-0 flex-col self-start overflow-hidden rounded-2xl border border-[#DDE3EB] bg-[#F6F8FA] xl:sticky xl:top-0">
-            <div className="flex items-center justify-between gap-2.5 border-b border-[#DDE3EB] bg-gradient-to-b from-[#F6F8FA] to-[#F6F8FA] px-4 py-3.5">
-              <div>
-                <h2 className="font-serif text-[15px] font-bold text-[#16223A]">Quick links</h2>
-                <p className="mt-0.5 text-[10.5px] text-[#5B6478]">Portals, folders and Workspace</p>
-              </div>
-              <div className="flex items-center gap-2">
-                {canEditStartCentre && (
-                  <button type="button" onClick={() => setFirmStartCentreEditMode(!editMode)} className={`rounded-md px-2 py-1 text-[10.5px] font-bold ${editMode ? 'bg-[#16223A] text-white' : 'text-[#8A6D3B] hover:bg-[#F6F8FA]'}`} title="Toggle editing for quick links">
-                    {editMode ? 'Done' : 'Edit'}
-                  </button>
-                )}
-                {canEditStartCentre && <button type="button" onClick={() => { const title = window.prompt('New quick-link group name'); if (title?.trim()) setQuickLinkGroups((groups) => [...groups, { title: title.trim(), icon: BookMarked, links: [] }]); }} className="rounded-md p-1 text-[#8A6D3B] hover:bg-[#F6F8FA]" title="Add quick-link group" aria-label="Add quick-link group"><Plus className="h-3.5 w-3.5" /></button>}
-                <Globe2 className="h-4 w-4 shrink-0 text-[#3D6B9C]" />
-              </div>
-            </div>
-
-            {/* TODAY AT THE FIRM — moved above Quick links itself so it's visible without scrolling */}
-            <div id="people" className="flex flex-col gap-2.5 border-b border-[#DDE3EB] px-3.5 pb-3.5 pt-3.5 scroll-mt-6">
+          <div className="flex min-w-0 flex-col gap-4 self-start xl:sticky xl:top-0">
+            {/* Who is in today: its own box, separate from the links. */}
+            <div id="people" className="flex flex-col gap-2.5 rounded-2xl border border-[#DDE3EB] bg-[#F6F8FA] px-3.5 pb-3.5 pt-3.5 scroll-mt-6">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="flex items-center gap-[7px] text-[9.5px] font-bold uppercase tracking-[0.13em] text-[#5B6478]">
                   <UsersRound className="h-3.5 w-3.5 text-[#3D6B9C]" /> Today at the firm
@@ -714,6 +770,23 @@ export const FirmStartCentreView: React.FC = () => {
                     </div>
                   </React.Fragment>
                 ))}
+              </div>
+            </div>
+
+          <aside className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[#DDE3EB] bg-[#F6F8FA]">
+            <div className="flex items-center justify-between gap-2.5 border-b border-[#DDE3EB] bg-gradient-to-b from-[#F6F8FA] to-[#F6F8FA] px-4 py-3.5">
+              <div>
+                <h2 className="font-serif text-[15px] font-bold text-[#16223A]">Quick links</h2>
+                <p className="mt-0.5 text-[10.5px] text-[#5B6478]">Portals, folders and Workspace</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {canEditStartCentre && (
+                  <button type="button" onClick={() => setFirmStartCentreEditMode(!editMode)} className={`rounded-md px-2 py-1 text-[10.5px] font-bold ${editMode ? 'bg-[#16223A] text-white' : 'text-[#8A6D3B] hover:bg-[#F6F8FA]'}`} title="Toggle editing for quick links">
+                    {editMode ? 'Done' : 'Edit'}
+                  </button>
+                )}
+                {canEditStartCentre && <button type="button" onClick={() => { const title = window.prompt('New quick-link group name'); if (title?.trim()) setQuickLinkGroups((groups) => [...groups, { title: title.trim(), icon: BookMarked, links: [] }]); }} className="rounded-md p-1 text-[#8A6D3B] hover:bg-[#F6F8FA]" title="Add quick-link group" aria-label="Add quick-link group"><Plus className="h-3.5 w-3.5" /></button>}
+                <Globe2 className="h-4 w-4 shrink-0 text-[#3D6B9C]" />
               </div>
             </div>
 
@@ -760,6 +833,7 @@ export const FirmStartCentreView: React.FC = () => {
             </div>
           </aside>
           </div>
+          </div>
 
             </>
           )}
@@ -777,6 +851,8 @@ export const FirmStartCentreView: React.FC = () => {
                   </button>
                 )}
               </div>
+              {canEditStartCentre && !editMode && <p className="-mt-2 text-[11.5px] text-[#5B6478]">To put information here, press <strong>Edit this tab</strong>, then <strong>+ Add card</strong> (title, the text, and a Google Drive link if there is a document).</p>}
+              {!activePage.cards.length && !editMode && <p className="text-[12px] text-[#5B6478]">Nothing here yet.</p>}
               <div className="grid grid-cols-[repeat(auto-fit,minmax(230px,1fr))] gap-3">
                 {activePage.cards.map((card) => {
                   const isEditing = cardDraft?.pageId === activePage.id && cardDraft.cardId === card.id;
@@ -786,7 +862,7 @@ export const FirmStartCentreView: React.FC = () => {
                         <div className="absolute right-2 top-2 flex gap-1">
                           <button
                             type="button"
-                            onClick={() => setCardDraft({ pageId: activePage.id, cardId: card.id, title: card.title, detail: card.detail })}
+                            onClick={() => setCardDraft({ pageId: activePage.id, cardId: card.id, title: card.title, detail: card.detail, link: card.link || '' })}
                             className="cursor-pointer rounded-md border border-[#DDE3EB] bg-white px-1.5 py-0.5 text-[10px] font-semibold text-[#16223A]"
                           >
                             Edit
@@ -814,13 +890,14 @@ export const FirmStartCentreView: React.FC = () => {
                             onChange={(e) => setCardDraft({ ...cardDraft, detail: e.target.value })}
                             className="rounded-lg border border-[#DDE3EB] px-2.5 py-1.5 text-[11.5px] text-[#5B6478]"
                             placeholder="Detail"
-                            rows={2}
+                            rows={4}
                           />
+                          <input type="text" value={cardDraft.link || ''} onChange={(e) => setCardDraft({ ...cardDraft, link: e.target.value })} className="rounded-lg border border-[#DDE3EB] px-2.5 py-1.5 text-[11.5px] text-[#16223A]" placeholder="Link (optional): Google Drive file, form or website" />
                           <div className="flex gap-2">
                             <button
                               type="button"
                               onClick={() => {
-                                if (updateStartCentreCard(activePage.id, card.id, { title: cardDraft.title, detail: cardDraft.detail })) setCardDraft(null);
+                                if (updateStartCentreCard(activePage.id, card.id, { title: cardDraft.title, detail: cardDraft.detail, link: cardDraft.link?.trim() || undefined })) setCardDraft(null);
                               }}
                               className="cursor-pointer rounded-lg bg-[#16223A] px-2.5 py-1 text-[11px] font-bold text-white"
                             >
@@ -838,7 +915,8 @@ export const FirmStartCentreView: React.FC = () => {
                       ) : (
                         <>
                           <strong className="font-serif text-[14.5px] text-[#16223A]">{card.title}</strong>
-                          <span className="text-[11.5px] leading-relaxed text-[#5B6478]">{card.detail}</span>
+                          <span className="whitespace-pre-line text-[11.5px] leading-relaxed text-[#5B6478]">{card.detail}</span>
+                          {card.link && <a href={card.link} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 self-start text-[11.5px] font-bold text-[#3D6B9C]">Open <ArrowUpRight className="h-3 w-3" /></a>}
                         </>
                       )}
                     </div>
@@ -859,13 +937,14 @@ export const FirmStartCentreView: React.FC = () => {
                         onChange={(e) => setCardDraft({ ...cardDraft, detail: e.target.value })}
                         className="rounded-lg border border-[#DDE3EB] px-2.5 py-1.5 text-[11.5px] text-[#5B6478]"
                         placeholder="Detail"
-                        rows={2}
+                        rows={4}
                       />
+                      <input type="text" value={cardDraft.link || ''} onChange={(e) => setCardDraft({ ...cardDraft, link: e.target.value })} className="rounded-lg border border-[#DDE3EB] px-2.5 py-1.5 text-[11.5px] text-[#16223A]" placeholder="Link (optional): Google Drive file, form or website" />
                       <div className="flex gap-2">
                         <button
                           type="button"
                           onClick={() => {
-                            if (addStartCentreCard(activePage.id, { title: cardDraft.title, detail: cardDraft.detail })) setCardDraft(null);
+                            if (addStartCentreCard(activePage.id, { title: cardDraft.title, detail: cardDraft.detail, link: cardDraft.link?.trim() || undefined })) setCardDraft(null);
                           }}
                           className="cursor-pointer rounded-lg bg-[#16223A] px-2.5 py-1 text-[11px] font-bold text-white"
                         >
@@ -883,7 +962,7 @@ export const FirmStartCentreView: React.FC = () => {
                   ) : (
                     <button
                       type="button"
-                      onClick={() => setCardDraft({ pageId: activePage.id, cardId: null, title: '', detail: '' })}
+                      onClick={() => setCardDraft({ pageId: activePage.id, cardId: null, title: '', detail: '', link: '' })}
                       className="flex min-h-[100px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-[#8A6D3B] bg-white p-4 text-[#8A6D3B]"
                     >
                       <Plus className="h-4 w-4" />

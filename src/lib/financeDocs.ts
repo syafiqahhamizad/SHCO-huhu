@@ -98,8 +98,17 @@ export const defaultSstRate = (): number => {
 };
 
 export const FIRM = { reg: 'Firm Reg. No.: [to be set]', name: 'SYAFIQAH HAMIZAD & CO', addr: '8-23-03 (2nd Floor), Jalan Medan Pusat Bandar 7A, Bangi Sentral, 43650 Bandar Baru Bangi, Selangor', email: 'billing@shcolaw.com', tel: '+603-8684 1998 / +6011-7382 8754', tag1: 'Advocates & Solicitors | Syarie Counsel', tag2: 'Peguambela & Peguamcara | Peguam Syarie', header: '' };
+/** Lines under the logo on the firm's letterhead (HQ). */
+const LETTER_LINES = [
+  '8-23-03 (2nd Floor), Jalan Medan Pusat Bandar 7A, Bangi Sentral, 43650 Bandar Baru Bangi, Selangor',
+  'General email: shco@shcolaw.com',
+  'Litigation email: litigation@shcolaw.com | Conveyancing: conveyancing@shcolaw.com',
+  'Corporate: corporate@shcolaw.com',
+  'Phone Number: +603-8684 1998 / +6011-7382 8754 (WhatsApp)',
+  '(Registered address is a shared office facility | Meetings by appointment only)',
+];
 export const BANK: Record<DocAccount, [string, string, string]> = { Office: ['Syafiqah Hamizad & Co', 'Hong Leong Bank Berhad', '36301134253'], 'Client account': ['Syafiqah Hamizad & Co – Client A/C', 'Hong Leong Bank Berhad', '36301136440'], Disbursement: ['Syafiqah Hamizad & Co – Disbursement A/C', 'Hong Leong Bank Berhad', '[to be set]'] };
-const LOGO: Record<'mono' | 'word' | 'name' | 'header', string> = { mono: '/assets/sh-monogram.png', word: '/assets/sh-wordmark.png', name: '/assets/sh-name.png', header: '' };
+const LOGO: Record<'mono' | 'word' | 'name' | 'header' | 'full', string> = { mono: '/assets/sh-monogram.png', word: '/assets/sh-wordmark.png', name: '/assets/sh-name.png', header: '', full: '/assets/sh-letterhead-logo.png' };
 const toData = (k: keyof typeof LOGO) => fetch(LOGO[k]).then((r) => r.blob()).then((b) => new Promise<void>((res) => { const fr = new FileReader(); fr.onload = () => { LOGO[k] = String(fr.result); res(); }; fr.readAsDataURL(b); })).catch(() => {});
 let logosLoaded = false;
 /** Inline the logo artwork as data URLs so Word / PDF copies carry it (idempotent). */
@@ -107,7 +116,7 @@ export const loadLogos = () => {
   if (logosLoaded || typeof window === 'undefined') return;
   logosLoaded = true;
   fetch('/assets/letterhead-header.png', { method: 'HEAD' }).then((r) => { if (r.ok && /image/.test(r.headers.get('content-type') || '')) { LOGO.header = '/assets/letterhead-header.png'; toData('header'); } }).catch(() => {});
-  toData('mono'); toData('word'); toData('name');
+  toData('mono'); toData('word'); toData('name'); toData('full');
 };
 
 export const TERMS = ['The professional fees may vary depending on the actual scope of work performed and any additional requirements imposed by relevant parties;', 'The Firm reserves the right to issue further invoices for any additional fees and/or costs incurred which are not expressly included in this quotation;', 'The Firm shall have the right to invoice progressive professional fees from time to time depending on the stage and progress of work;'];
@@ -320,7 +329,9 @@ export const letterheadFor = (branchName?: string): LetterheadInfo => {
   return {
     image: br?.letterheadImage || (useHq ? FIRM.header : '') || hq?.letterheadImage || undefined,
     logo: LOGO.name,
-    mono: LOGO.mono,
+    fullLogo: LOGO.full,
+    // HQ: the lines of the firm's printed letterhead (Letterhead as at 2.7.2026). Other branches: their address.
+    lines: useHq ? LETTER_LINES : [br?.address || FIRM.addr, 'E-mail: shco@shcolaw.com'],
     firmName: FIRM.name, tag1: FIRM.tag1, tag2: FIRM.tag2, reg: FIRM.reg,
     address: useHq ? FIRM.addr : br?.address || FIRM.addr, email: FIRM.email, tel: FIRM.tel,
     partners: s.letterheadPartners && s.letterheadPartners.length ? s.letterheadPartners : DEFAULT_LETTERHEAD_PARTNERS,

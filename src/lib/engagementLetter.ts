@@ -112,8 +112,10 @@ export interface LetterheadInfo {
   image?: string;
   /** Built-in logo artwork when there is no uploaded header. */
   logo?: string;
-  /** SH monogram printed beside the firm name on letters. */
-  mono?: string;
+  /** The firm's letterhead logo (SH mark, name and both taglines in one picture). */
+  fullLogo?: string;
+  /** Lines under the logo, as on the firm's printed letterhead (address, e-mails, phone, note). */
+  lines?: string[];
   firmName: string;
   tag1?: string;
   tag2?: string;
@@ -131,13 +133,15 @@ const partnersColumn = (ps: LetterheadPartner[]) => {
 };
 /** Letterhead: firm block (uploaded header image or built-in name, taglines and address) with the partners column. */
 export const letterheadHtml = (lh: LetterheadInfo): string => {
+  const contactLines = lh.lines && lh.lines.length ? lh.lines : [lh.reg || '', lh.address, [lh.email, lh.tel].filter(Boolean).join(' · ')].filter(Boolean);
+  const contact = `<div style="font-family:'Times New Roman',Times,serif;font-size:7.5pt;line-height:1.45;color:#16223A;margin-top:4px">${contactLines.map((l, i) => (i === contactLines.length - 1 && /^\(/.test(l) ? `<i>${esc(l)}</i>` : esc(l))).join('<br>')}</div>`;
   const firm = lh.image
     ? `<img src="${esc(lh.image)}" alt="${esc(lh.firmName)}" style="width:100%;max-width:470px;height:auto;display:block">`
-    : `${lh.logo ? `<img src="${esc(lh.logo)}" alt="${esc(lh.firmName)}" width="240" style="width:240px;height:auto;display:block">` : `<div style="font-size:18pt;font-weight:bold;letter-spacing:1px">${esc(lh.firmName)}</div>`}<div style="font-size:8.5pt;font-style:italic;color:#3D6B9C;line-height:1.4;margin-top:4px">${esc(lh.tag1 || '')}${lh.tag2 ? '<br>' + esc(lh.tag2) : ''}</div>`;
-  const contact = `<div style="font-size:7.5pt;line-height:1.5;color:#5B6478;margin-top:5px">${lh.reg ? esc(lh.reg) + '<br>' : ''}${esc(lh.address)}${lh.email || lh.tel ? '<br>' + [lh.email, lh.tel].filter(Boolean).map((x) => esc(x)).join(' · ') : ''}</div>`;
-  // The SH monogram sits to the left of the name, as on the firm's printed letterhead.
-  const mono = !lh.image && lh.mono ? `<td style="vertical-align:top;padding:0 12px 0 0;width:64px"><img src="${esc(lh.mono)}" alt="SH" width="60" style="width:60px;height:auto;display:block"></td>` : '';
-  return `<table style="width:100%;border-collapse:collapse;${HDR}"><tr>${mono}<td style="vertical-align:top;padding:0">${firm}${lh.image ? '' : contact}</td>${lh.partners.length ? `<td style="vertical-align:top;padding:0 0 0 10px;width:190px;border-left:1px solid #16223A;font-family:Arial,Helvetica,sans-serif;font-size:6.5pt;line-height:1.3;color:#16223A">${partnersColumn(lh.partners)}</td>` : ''}</tr></table><div style="border-top:2px solid #16223A;margin:10px 0 14px"></div>`;
+    : lh.fullLogo
+      // Same as the printed letterhead: one logo picture, then the address lines.
+      ? `<img src="${esc(lh.fullLogo)}" alt="${esc(lh.firmName)}" width="330" style="width:330px;height:auto;display:block">${contact}`
+      : `${lh.logo ? `<img src="${esc(lh.logo)}" alt="${esc(lh.firmName)}" width="240" style="width:240px;height:auto;display:block">` : `<div style="font-size:18pt;font-weight:bold;letter-spacing:1px">${esc(lh.firmName)}</div>`}<div style="font-size:8.5pt;font-style:italic;color:#3D6B9C;line-height:1.4;margin-top:4px">${esc(lh.tag1 || '')}${lh.tag2 ? '<br>' + esc(lh.tag2) : ''}</div>${contact}`;
+  return `<table style="width:100%;border-collapse:collapse;${HDR}"><tr><td style="vertical-align:top;padding:0">${firm}</td>${lh.partners.length ? `<td style="vertical-align:top;padding:0 0 0 10px;width:190px;font-family:'Times New Roman',Times,serif;font-style:italic;font-size:6.5pt;line-height:1.3;color:#16223A">${partnersColumn(lh.partners)}</td>` : ''}</tr></table><div style="border-top:1px solid #16223A;margin:10px 0 14px"></div>`;
 };
 
 /* ------------------------------------------------------------------ the letter */

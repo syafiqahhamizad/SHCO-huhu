@@ -114,6 +114,12 @@ export interface PracticeSettings {
   sstRate: number;
   /** ISO date -> holiday name. Leave counting skips these. Absent = built-in list. */
   publicHolidays?: Record<string, string>;
+  /** Firm Start Centre content shared by everyone (was saved per browser before). */
+  startCentre?: {
+    shelves?: { id: string; title: string; detail: string; docs?: { id: string; title: string; url?: string; note?: string }[] }[];
+    quickLinks?: { title: string; links: { label: string; url: string }[] }[];
+    tiles?: { label: string; view: string; bg: string }[];
+  };
   /** Leave types offered in Staff Portal (name, days a year, 0 = no fixed limit, how days are counted, note). Built-in list until set. */
   leaveTypes?: { name: string; days: number; basis: 'working' | 'calendar'; note: string }[];
   bankName: string;

@@ -26,6 +26,8 @@ export interface FirmStartCentreCard {
   id: string;
   title: string;
   detail: string;
+  /** Optional link (Google Drive document, form, website). */
+  link?: string;
 }
 
 export interface FirmStartCentrePage {

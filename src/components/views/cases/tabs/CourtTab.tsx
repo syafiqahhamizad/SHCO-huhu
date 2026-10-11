@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { PeoplePicker } from '../PeoplePicker';
 import type { CourtDiaryEntry, Hearing, MatterCourtChange, MatterParty, Task } from '../../../../types';
-import { css, S, Card, Field, boxStyle } from '../caseUi';
-import { COURT_LEVELS, P, courtOf, lawyerOf as lawyerOfName, daysFrom, fmt, isoOf, legacyFromParties, short, stagesFor, stageIndexOf, practiceOf, todayIso } from '../caseModel';
+import { css, S, Card, Field } from '../caseUi';
+import { COURT_LEVELS, P, courtOf, daysFrom, fmt, isoOf, legacyFromParties, short, stagesFor, stageIndexOf, practiceOf, todayIso } from '../caseModel';
 import { histEntry, newId, prepUpdate, type WF } from '../wf';
 import { autoSend, isCourtDiaryConfigured } from '../clientComms';
 
