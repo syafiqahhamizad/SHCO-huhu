@@ -343,8 +343,8 @@ export const SignInPortal: React.FC = () => {
                     <button
                       type="button"
                       onClick={async () => {
-                        const em = (externalEmail || window.prompt('Your e-mail address') || '').trim();
-                        if (!em || !em.includes('@')) return;
+                        const em = externalEmail.trim();
+                        if (!em || !em.includes('@')) { setResetNote('Type your e-mail address in the box above first, then press Forgot password? again.'); return; }
                         try { await requestPasswordReset(em); } catch { /* same answer either way */ }
                         setResetNote('If ' + em + ' has a portal sign-in, a link to set a new password is on its way from the SHCO Portal mailbox. Check Spam too.');
                       }}

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { askForm } from '../ui/askForm';
 import {
   CircleCheck, CircleDashed, Clock, Download, Eye, Folder, Key, Lock, Mail, MessageCircle, Plus, Search, ShieldCheck, Trash2, Upload, Users,
 } from 'lucide-react';
@@ -307,10 +308,11 @@ export const ClientsView: React.FC = () => {
     const addDoc = (v: string) => {
       if (!v) return;
       if (v === '__other') {
-        const label = window.prompt('Name of the document (e.g. Letter of authority, Marriage certificate)')?.trim();
-        if (!label) return;
-        const key = 'c-' + Date.now().toString(36);
-        save({ kycCustom: [...(c.kycCustom || []), { key, label }], kycRequired: [...required, key] }, 'KYC: added ' + label, 'kyc');
+        void askForm('Add a KYC document', [{ key: 'label', label: 'Name of the document', placeholder: 'e.g. Letter of authority, Marriage certificate', required: true }, { key: 'hint', label: 'Note (optional)', placeholder: 'e.g. certified true copy' }]).then((f) => {
+          if (!f) return;
+          const key = 'c-' + Date.now().toString(36);
+          save({ kycCustom: [...(c.kycCustom || []), { key, label: f.label.trim(), hint: f.hint.trim() || undefined }], kycRequired: [...required, key] }, 'KYC: added ' + f.label.trim(), 'kyc');
+        });
         return;
       }
       const label = kycAddable(c).find(([k]) => k === v)?.[1] || v;

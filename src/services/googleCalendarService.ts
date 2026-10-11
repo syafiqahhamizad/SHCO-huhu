@@ -34,11 +34,9 @@ interface CourtEventInput {
   attendees?: string[];
 }
 
-interface CourtEventResult { eventId: string; htmlLink: string; calendarId: string }
-
 /** The court diary Calendar ID from Firm Settings ('' if not set). */
 /** The firm calendar "SHCO HQ" (the one the Calendar page shows) — used when Settings has none. */
-export const FIRM_CALENDAR_ID = 'c_b32b26462773cfca7a5a2ac79d0c94db962a8f67d4731072016fdb853b7f9668@group.calendar.google.com';
+const FIRM_CALENDAR_ID = 'c_b32b26462773cfca7a5a2ac79d0c94db962a8f67d4731072016fdb853b7f9668@group.calendar.google.com';
 const getCourtDiaryCalendarId = () => parseCalendarId(getPracticeSettings().courtDiaryCalendarId || '') || FIRM_CALENDAR_ID;
 export const isCourtDiaryConfigured = () => !!getCourtDiaryCalendarId();
 
@@ -81,20 +79,6 @@ const eventUrl = (calendarId: string, eventId = '') =>
   API + '/calendars/' + encodeURIComponent(calendarId) + '/events' + (eventId ? '/' + encodeURIComponent(eventId) : '');
 
 interface CalendarEvent { id: string; htmlLink?: string; organizer?: { email?: string; displayName?: string } }
-
-/** Creates the event in the court diary. Returns Google's event ID and its link. */
-export async function createCourtEvent(input: CourtEventInput): Promise<CourtEventResult> {
-  const calendarId = resolveCalendarId(input.calendarId);
-  const { body, notify } = eventBody(input);
-  const res = await googleApiFetch('calendar', eventUrl(calendarId) + '?sendUpdates=' + (notify ? 'all' : 'none'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  }, hints);
-  const ev = await res.json() as CalendarEvent;
-  if (!ev.id) throw new GoogleWorkspaceError('Google Calendar did not return the new event. Check the court diary before trying again.', 'unknown', 'calendar');
-  return { eventId: ev.id, htmlLink: ev.htmlLink || '', calendarId };
-}
 
 /**
  * Deletes the event (attendees are told it was cancelled unless `notifyAttendees` is false).

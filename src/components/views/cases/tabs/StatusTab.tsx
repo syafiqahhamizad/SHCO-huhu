@@ -6,7 +6,7 @@ import { histEntry, prepUpdate, type WF } from '../wf';
 import { autoSend, emailUpdate, updateStatus } from '../clientComms';
 import { whatsappLink } from '../../../../lib/whatsapp';
 
-const HC: Record<string, string> = { 'On track': '#1F5A3B', 'At risk': '#B7791F', Stuck: '#8E2A20' };
+export const HC: Record<string, string> = { 'On track': '#1F5A3B', 'At risk': '#B7791F', Stuck: '#8E2A20' };
 const OP: Record<string, { bg: string; fg: string }> = { Done: P.g, 'In progress': P.b, Slipped: P.r };
 const FLAGS = ['None', 'Waiting on client', 'Waiting on court', 'Waiting on other side', 'Client not responding', 'Fees outstanding'];
 const NEXT_PH: Record<string, string> = { Conveyancing: 'e.g. Obtain consent to transfer from PTG', 'Probate & Estates': 'e.g. File petition for letters of administration', Corporate: 'e.g. Send first draft SHA to client', Family: 'e.g. Serve petition on respondent', Syariah: 'e.g. Attend sulh session', Employment: 'e.g. Attend conciliation at JPP' };
@@ -22,7 +22,8 @@ const PRE: Record<string, [string, string, TaskKind, number][]> = {
   Criminal: [['Appeal deadline (14 days)', 'Notice of appeal deadline', 'Rules of Court', 14], ['Trial date', 'Trial', 'Key date', 0]],
 };
 
-const weeklyInfo = (c: Case) => {
+/** Latest weekly status of a file (shared with the firm-wide Case Status page). */
+export const weeklyInfo = (c: Case) => {
   const wk = [...(c.weeklyStatus || [])].sort((a, b) => (a.week < b.week ? 1 : -1));
   const now = mondayOf();
   const cur = wk.find((x) => x.week === now);

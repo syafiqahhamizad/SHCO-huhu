@@ -1993,7 +1993,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     serviceLog: 'cases',
     lawFirmRegistry: 'cases',
     referral: 'cases',
-    fileClosing: 'cases',
     predispute: 'predispute',
     counselRegistry: 'counselRegistry',
     templates: 'templates',

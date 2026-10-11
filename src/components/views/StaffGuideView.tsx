@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { askForm } from '../ui/askForm';
 import { useApp } from '../../context/AppContext';
 import { canSeeClientBilling, finGrants, finRoleKey } from '../../lib/financeAccess';
 import { usePracticeSettings } from './settings/settingsShared';
@@ -47,9 +48,9 @@ export const StaffGuideView: React.FC = () => {
   const topicVideos = settings.guideTopicVideos || {};
   /** Admins paste a Google Drive / YouTube link for one topic (empty = remove). */
   const setTopicVideo = (id: string, title: string) => {
-    const url = window.prompt('Video link for “' + title + '” (Google Drive or YouTube). Leave empty to remove.', topicVideos[id] || '');
-    if (url === null) return;
-    const v = url.trim();
+    void askForm('Video for “' + title + '”', [{ key: 'url', label: 'Google Drive or YouTube link', value: topicVideos[id] || '', placeholder: 'https://drive.google.com/…', hint: 'Leave empty to remove the video.' }]).then((f) => { if (f) saveTopicVideo(id, title, f.url.trim()); });
+  };
+  const saveTopicVideo = (id: string, title: string, v: string) => {
     if (v && !VIDEO_URL.test(v)) { window.alert('Paste a Google Drive or YouTube link.'); return; }
     const next = { ...topicVideos };
     if (v) next[id] = v; else delete next[id];

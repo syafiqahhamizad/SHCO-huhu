@@ -1,4 +1,5 @@
 import React from 'react';
+import { askForm } from '../ui/askForm';
 import { getPracticeSettings, savePracticeSettings, type PracticeSettings } from '../../services/templateService';
 import {
   Archive,
@@ -95,8 +96,6 @@ const formatDay = (value: string) =>
 
 const HOME_TAB = { id: 'home', label: 'Overview', icon: Home } as const;
 
-const LinkIconFallback = FileText;
-
 const QUICK_LINK_GROUPS: QuickLinkGroup[] = [
   { title: 'Due diligence', icon: SearchCheck, links: [
     { label: 'eInsolvency', icon: FileSearch, url: 'https://e-insolvensi.mdi.gov.my/' },
@@ -151,6 +150,9 @@ const QUICK_LINK_GROUPS: QuickLinkGroup[] = [
 // Literal hex here (not the shared TONE.* tokens) — the Sep 2026 redesign pack gives this
 // quick-launch grid its own distinct per-tile palette, unrelated to TONE's semantic colors
 // (TONE.forest/slate/ink etc. mean something different elsewhere in this file).
+/** Pages a module tile can open (Firm Start Centre → Add module). */
+const VIEW_CHOICES: [string, string][] = [['dashboard', 'My Dashboard'], ['cases', 'Cases'], ['clients', 'Clients'], ['leadsReferrals', 'Leads & Referrals'], ['hearings', 'Hearings'], ['calendar', 'Calendar'], ['caseStatus', 'Case Status'], ['deadlines', 'Deadlines'], ['serviceLog', 'Service Log'], ['accountingCentre', 'Finance Home'], ['approvals', 'Approvals'], ['payroll', 'Payroll'], ['reports', 'Reports'], ['billing', 'Billing & Collections'], ['retainers', 'Client Account (SAR 1990)'], ['reimbursements', 'My Claims'], ['staffPortal', 'Staff Portal'], ['clientPortal', 'Client Portal'], ['inventory', 'Office Inventory & Library'], ['guide', 'Staff Guide'], ['practiceSettings', 'Firm & Practice Settings']];
+
 const SMALL_TILES: LauncherTile[] = [
   { label: 'Practice', view: 'cases', icon: Scale, bg: '#3D6B9C' },
   { label: 'Calendar', view: 'calendar', icon: CalendarDays, bg: '#2F6F4E' },
@@ -468,7 +470,7 @@ export const FirmStartCentreView: React.FC = () => {
               <div className="min-w-0">
                 <h2 className="font-serif text-base font-bold text-[#16223A]">Every part of the practice, one click away</h2>
               </div>
-              {canEditStartCentre && <button type="button" onClick={() => { const label = window.prompt('Module name'); const view = label && window.prompt('App view ID, e.g. cases or calendar'); if (label?.trim() && view?.trim()) setLauncherTiles((items) => [...items, { label: label.trim(), view: view.trim(), icon: LayoutGrid, bg: TONE.ink }]); }} className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#16223A] px-3 py-2 text-xs font-bold text-white"><Plus className="h-3.5 w-3.5 text-[#FBF2E9]" /> Add module</button>}
+              {canEditStartCentre && <button type="button" onClick={() => { void askForm('Add module', [{ key: 'label', label: 'Name', required: true }, { key: 'view', label: 'Opens', type: 'select', options: VIEW_CHOICES.map(([, l]) => l) }]).then((v) => { if (!v) return; const view = VIEW_CHOICES.find(([, l]) => l === v.view)?.[0] || 'dashboard'; setLauncherTiles((items) => [...items, { label: v.label.trim(), view, icon: LayoutGrid, bg: TONE.ink }]); }); }} className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#16223A] px-3 py-2 text-xs font-bold text-white"><Plus className="h-3.5 w-3.5 text-[#FBF2E9]" /> Add module</button>}
             </div>
             <div className="grid grid-cols-4 gap-2.5 sm:grid-cols-8">
               {tiles.map(({ label, view, icon: Icon, bg }) => (
@@ -478,7 +480,7 @@ export const FirmStartCentreView: React.FC = () => {
                     <strong className="text-xs font-bold leading-tight !text-white">{label}</strong>
                     {canEditStartCentre && editMode && <span className="text-[9px] font-semibold !text-white/80">Target: {view}</span>}
                   </button>
-                  {canEditStartCentre && editMode && <div className="absolute right-1 top-1 flex gap-1"><button type="button" onClick={() => { const nextLabel = window.prompt('Module name', label); const nextView = nextLabel && window.prompt('App view ID', view); if (nextLabel?.trim() && nextView?.trim()) setLauncherTiles((items) => items.map((item) => item.label === label ? { ...item, label: nextLabel.trim(), view: nextView.trim() } : item)); }} className="rounded bg-white/90 px-1 text-[9px] font-bold text-[#16223A]">Edit</button><button type="button" onClick={() => { if (window.confirm(`Delete module “${label}”?`)) setLauncherTiles((items) => items.filter((item) => item.label !== label)); }} className="rounded bg-white/90 px-1 text-[9px] font-bold text-red-700">Delete</button></div>}
+                  {canEditStartCentre && editMode && <div className="absolute right-1 top-1 flex gap-1"><button type="button" onClick={() => { void askForm('Edit module', [{ key: 'label', label: 'Name', value: label, required: true }, { key: 'view', label: 'Opens', type: 'select', options: VIEW_CHOICES.map(([, l]) => l), value: VIEW_CHOICES.find(([k]) => k === view)?.[1] }]).then((v) => { if (!v) return; const nv = VIEW_CHOICES.find(([, l]) => l === v.view)?.[0] || view; setLauncherTiles((items) => items.map((item) => (item.label === label ? { ...item, label: v.label.trim(), view: nv } : item))); }); }} className="rounded bg-white/90 px-1 text-[9px] font-bold text-[#16223A]">Edit</button><button type="button" onClick={() => { if (window.confirm(`Delete module “${label}”?`)) setLauncherTiles((items) => items.filter((item) => item.label !== label)); }} className="rounded bg-white/90 px-1 text-[9px] font-bold text-red-700">Delete</button></div>}
                 </div>
               ))}
             </div>
@@ -640,7 +642,7 @@ export const FirmStartCentreView: React.FC = () => {
                 </h2>
                 <p className="mt-1 text-[#5B6478]">Click a shelf to see what is inside. {canEditStartCentre ? 'Inside a shelf, “+ Add document” puts in a Google Drive link and a note.' : ''}</p>
               </div>
-              {canEditStartCentre && <button type="button" onClick={() => { const title = window.prompt('Shelf name (e.g. Firm policies)'); if (!title?.trim()) return; const detail = window.prompt('One line about what is inside', '') || ''; const id = 'shelf-' + Date.now(); setShelves((items) => [...items, { id, icon: BookOpen, title: title.trim(), detail: detail.trim(), docs: [] }]); setOpenShelf(id); }} className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#16223A] px-3 py-2 text-xs font-bold text-white"><Plus className="h-3.5 w-3.5 text-[#FBF2E9]" /> Add shelf</button>}
+              {canEditStartCentre && <button type="button" onClick={() => { void askForm('Add shelf', [{ key: 'title', label: 'Shelf name', placeholder: 'e.g. Firm policies', required: true }, { key: 'detail', label: 'What is inside (one line)', placeholder: 'e.g. Leave, conflicts, IT & data' }]).then((v) => { if (!v) return; const id = 'shelf-' + Date.now(); setShelves((items) => [...items, { id, icon: BookOpen, title: v.title.trim(), detail: v.detail.trim(), docs: [] }]); setOpenShelf(id); }); }} className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#16223A] px-3 py-2 text-xs font-bold text-white"><Plus className="h-3.5 w-3.5 text-[#FBF2E9]" /> Add shelf</button>}
               <div className="relative flex min-w-0 flex-1 basis-[260px] items-center">
                 <Search className="absolute left-2.5 h-3.5 w-3.5 text-[#5B6478]" />
                 <input
@@ -690,7 +692,7 @@ export const FirmStartCentreView: React.FC = () => {
                         {canEditStartCentre && (
                           <span className="ml-auto flex gap-1.5">
                             <button type="button" onClick={() => setDocDraft({ shelfId: cur.id, id: null, title: '', url: '', note: '' })} className="rounded-md bg-[#16223A] px-2.5 py-1 text-[11px] font-bold text-white">+ Add document</button>
-                            <button type="button" onClick={() => { const t = window.prompt('Shelf name', cur.title); if (!t?.trim()) return; const dt = window.prompt('One line about what is inside', cur.detail) ?? cur.detail; setShelves((all) => all.map((y) => (y.id === cur.id ? { ...y, title: t.trim(), detail: dt.trim() } : y))); }} className="rounded-md border border-[#DDE3EB] px-2.5 py-1 text-[11px] font-semibold text-[#16223A]">Rename shelf</button>
+                            <button type="button" onClick={() => { void askForm('Rename shelf', [{ key: 'title', label: 'Shelf name', value: cur.title, required: true }, { key: 'detail', label: 'What is inside (one line)', value: cur.detail }]).then((v) => { if (v) setShelves((all) => all.map((y) => (y.id === cur.id ? { ...y, title: v.title.trim(), detail: v.detail.trim() } : y))); }); }} className="rounded-md border border-[#DDE3EB] px-2.5 py-1 text-[11px] font-semibold text-[#16223A]">Rename shelf</button>
                             <button type="button" onClick={() => { if (window.confirm('Delete the shelf “' + cur.title + '” and the ' + cur.docs.length + ' item(s) in it? The files in Google Drive are not touched.')) { setShelves((all) => all.filter((y) => y.id !== cur.id)); setOpenShelf(null); } }} className="rounded-md border border-red-200 px-2.5 py-1 text-[11px] font-semibold text-red-600">Delete shelf</button>
                           </span>
                         )}
@@ -775,7 +777,7 @@ export const FirmStartCentreView: React.FC = () => {
                     {editMode ? 'Done' : 'Edit'}
                   </button>
                 )}
-                {canEditStartCentre && <button type="button" onClick={() => { const title = window.prompt('New quick-link group name'); if (title?.trim()) setQuickLinkGroups((groups) => [...groups, { title: title.trim(), icon: BookMarked, links: [] }]); }} className="rounded-md p-1 text-[#8A6D3B] hover:bg-[#F6F8FA]" title="Add quick-link group" aria-label="Add quick-link group"><Plus className="h-3.5 w-3.5" /></button>}
+                {canEditStartCentre && <button type="button" onClick={() => { void askForm('Add quick-link group', [{ key: 'title', label: 'Group name', placeholder: 'e.g. Land office', required: true }]).then((v) => { if (v) setQuickLinkGroups((groups) => [...groups, { title: v.title.trim(), icon: BookMarked, links: [] }]); }); }} className="rounded-md p-1 text-[#8A6D3B] hover:bg-[#F6F8FA]" title="Add quick-link group" aria-label="Add quick-link group"><Plus className="h-3.5 w-3.5" /></button>}
                 <Globe2 className="h-4 w-4 shrink-0 text-[#3D6B9C]" />
               </div>
             </div>
@@ -798,9 +800,9 @@ export const FirmStartCentreView: React.FC = () => {
                     </button>
                     {canEditStartCentre && editMode && (
                       <div className="flex items-center justify-end gap-1 px-2.5 pb-1">
-                        <button type="button" onClick={() => { const title = window.prompt('Rename quick-link group', group.title); if (title?.trim()) setQuickLinkGroups((groups) => groups.map((item, itemIndex) => itemIndex === index ? { ...item, title: title.trim() } : item)); }} className="text-[9px] font-semibold text-[#8A6D3B] hover:underline">Edit group</button>
+                        <button type="button" onClick={() => { void askForm('Rename group', [{ key: 'title', label: 'Group name', value: group.title, required: true }]).then((v) => { if (v) setQuickLinkGroups((groups) => groups.map((item, itemIndex) => (itemIndex === index ? { ...item, title: v.title.trim() } : item))); }); }} className="text-[9px] font-semibold text-[#8A6D3B] hover:underline">Edit group</button>
                         <button type="button" onClick={() => { if (window.confirm(`Delete quick-link group “${group.title}”?`)) setQuickLinkGroups((groups) => groups.filter((_, itemIndex) => itemIndex !== index)); }} className="text-[9px] font-semibold text-red-600 hover:underline">Delete</button>
-                        <button type="button" onClick={() => { const label = window.prompt('Link name'); const url = label && window.prompt('Link URL'); if (label?.trim() && url?.trim()) setQuickLinkGroups((groups) => groups.map((item, itemIndex) => itemIndex === index ? { ...item, links: [...item.links, { label: label.trim(), url: url.trim(), icon: LinkIconFallback }] } : item)); }} className="text-[9px] font-semibold text-[#8A6D3B] hover:underline">Add link</button>
+                        <button type="button" onClick={() => { void askForm('Add link to ' + group.title, [{ key: 'label', label: 'Name', required: true }, { key: 'url', label: 'Link', placeholder: 'https://…', required: true }]).then((v) => { if (v) setQuickLinkGroups((groups) => groups.map((item, itemIndex) => (itemIndex === index ? { ...item, links: [...item.links, { label: v.label.trim(), url: v.url.trim(), icon: FileText }] } : item))); }); }} className="text-[9px] font-semibold text-[#8A6D3B] hover:underline">Add link</button>
                       </div>
                     )}
                     {isOpen && (
@@ -812,7 +814,7 @@ export const FirmStartCentreView: React.FC = () => {
                               <span className="min-w-0 flex-1 truncate text-[11.5px] font-medium">{label}</span>
                               <ArrowUpRight className="h-3 w-3 shrink-0 text-[#DDE3EB]" />
                             </a>
-                            {canEditStartCentre && editMode && <><button type="button" onClick={() => { const nextLabel = window.prompt('Rename link', label); const nextUrl = nextLabel && window.prompt('Link URL', url); if (nextLabel?.trim() && nextUrl?.trim()) setQuickLinkGroups((groups) => groups.map((item, itemIndex) => itemIndex === index ? { ...item, links: item.links.map((link, currentIndex) => currentIndex === linkIndex ? { ...link, label: nextLabel.trim(), url: nextUrl.trim() } : link) } : item)); }} className="text-[9px] font-semibold text-[#8A6D3B]">Edit</button><button type="button" onClick={() => setQuickLinkGroups((groups) => groups.map((item, itemIndex) => itemIndex === index ? { ...item, links: item.links.filter((_, currentIndex) => currentIndex !== linkIndex) } : item))} className="text-[9px] font-semibold text-red-600">Delete</button></>}
+                            {canEditStartCentre && editMode && <><button type="button" onClick={() => { void askForm('Edit link', [{ key: 'label', label: 'Name', value: label, required: true }, { key: 'url', label: 'Link', value: url, required: true }]).then((v) => { if (v) setQuickLinkGroups((groups) => groups.map((item, itemIndex) => (itemIndex === index ? { ...item, links: item.links.map((l, li) => (li === linkIndex ? { ...l, label: v.label.trim(), url: v.url.trim() } : l)) } : item))); }); }} className="text-[9px] font-semibold text-[#8A6D3B]">Edit</button><button type="button" onClick={() => setQuickLinkGroups((groups) => groups.map((item, itemIndex) => itemIndex === index ? { ...item, links: item.links.filter((_, currentIndex) => currentIndex !== linkIndex) } : item))} className="text-[9px] font-semibold text-red-600">Delete</button></>}
                           </div>
                         ))}
                       </div>

@@ -39,7 +39,7 @@ export interface CalItem {
   existingEventId?: string;
 }
 
-export const calTypeOfPurpose = (purpose: string): CalType => (/e-?review/i.test(String(purpose || '')) ? 'e-Review' : 'Court');
+const calTypeOfPurpose = (purpose: string): CalType => (/e-?review/i.test(String(purpose || '')) ? 'e-Review' : 'Court');
 
 const DEADLINE_KINDS = ['Court order', 'Rules of Court', 'Limitation', 'Key date'];
 const DONE_TASK = ['Completed', 'Done'];

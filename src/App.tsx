@@ -19,10 +19,9 @@ const ClientPortalView = React.lazy(() => import('./components/views/ClientPorta
 const PracticeViews = import('./components/views/PracticeViews');
 const HearingsView = React.lazy(() => PracticeViews.then((module) => ({ default: module.HearingsView })));
 const CalendarView = React.lazy(() => PracticeViews.then((module) => ({ default: module.CalendarView })));
-const CaseStatusView = React.lazy(() => PracticeViews.then((module) => ({ default: module.CaseStatusView })));
+const CaseStatusPage = React.lazy(() => import('./components/views/cases/CaseStatusPage').then((module) => ({ default: module.CaseStatusPage })));
 const DeadlinesView = React.lazy(() => PracticeViews.then((module) => ({ default: module.DeadlinesView })));
 const ReferralView = React.lazy(() => PracticeViews.then((module) => ({ default: module.ReferralView })));
-const FileClosingView = React.lazy(() => PracticeViews.then((module) => ({ default: module.FileClosingView })));
 // Accounts & Finance (design pack finance_latest) replaces Accounting Centre, Finance & Billing,
 // Quotations, reimbursement approvals and the trust pages as what users see. The old view files
 // are kept (not deleted) but no longer routed to for these ids.
@@ -203,7 +202,7 @@ const MainContent: React.FC = () => {
       case 'tasks':
       case 'caseStatus':
       case 'case-status':
-        return <CaseStatusView />;
+        return <CaseStatusPage />;
       case 'deadlines':
         return <DeadlinesView />;
       case 'serviceLog':
@@ -211,9 +210,6 @@ const MainContent: React.FC = () => {
       case 'referral':
       case 'referrals':
         return <ReferralView />;
-      case 'fileClosing':
-      case 'file-closing':
-        return <FileClosingView />;
 
       case 'inventory':
         return <InventoryView />;

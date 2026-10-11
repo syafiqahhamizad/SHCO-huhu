@@ -16,7 +16,6 @@ import {
   Flag,
   FileCheck2,
   Landmark,
-  FolderX,
   BarChart3,
   FileText,
   Building,
@@ -81,7 +80,6 @@ const NAV_GROUPS: NavGroup[] = [
       { id: 'caseStatus', label: 'Case Status', icon: Activity },
       { id: 'deadlines', label: 'Deadlines', icon: Flag },
       { id: 'serviceLog', label: 'Service Log', icon: FileCheck2 },
-      { id: 'fileClosing', label: 'File Closing', icon: FolderX },
     ],
   },
   {
@@ -123,7 +121,6 @@ const VIEW_ALIASES: Record<string, string> = {
   referrals: 'leadsReferrals',
   tasks: 'caseStatus',
   'case-status': 'caseStatus',
-  'file-closing': 'fileClosing',
   users: 'practiceSettings',
   roles: 'practiceSettings',
   settings: 'practiceSettings',

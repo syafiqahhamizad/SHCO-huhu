@@ -1,4 +1,5 @@
 import React from 'react';
+import { askForm } from '../../ui/askForm';
 import type { FinanceCtrl } from './useFinanceController';
 import { css, inPeriod, initials, rm, rm2 } from './financeModel';
 import type { FinTab } from '../../../lib/financeAccess';
@@ -117,12 +118,12 @@ export const FinanceHomeTab = ({ F }: { F: FinanceCtrl }) => {
               {close.map((c) => (
                 <div key={c.id} style={css('display:flex;align-items:center;gap:8px;font-size:11.5px;color:#16223A')}>
                   <span style={css('flex:1;min-width:0')}>{c.label}</span>
-                  <button type="button" onClick={() => { const n = window.prompt('Name', c.label); if (!n?.trim()) return; if ((ME.own || []).some((o) => o.id === c.id)) saveME({ own: (ME.own || []).map((o) => (o.id === c.id ? { ...o, label: n.trim() } : o)) }); else saveME({ names: { ...(ME.names || {}), [c.id]: n.trim() } }); }} style={css('border:0;background:none;padding:0;font-size:10.5px;font-weight:700;color:#2F4F7A;cursor:pointer')}>Rename</button>
+                  <button type="button" onClick={() => { void askForm('Rename', [{ key: 'n', label: 'Name', value: c.label, required: true }]).then((v) => { if (!v) return; const n = v.n.trim(); if ((ME.own || []).some((o) => o.id === c.id)) saveME({ own: (ME.own || []).map((o) => (o.id === c.id ? { ...o, label: n } : o)) }); else saveME({ names: { ...(ME.names || {}), [c.id]: n } }); }); }} style={css('border:0;background:none;padding:0;font-size:10.5px;font-weight:700;color:#2F4F7A;cursor:pointer')}>Rename</button>
                   <button type="button" onClick={() => { if (!window.confirm('Remove “' + c.label + '” from the month-end list?')) return; if ((ME.own || []).some((o) => o.id === c.id)) saveME({ own: (ME.own || []).filter((o) => o.id !== c.id) }); else saveME({ hidden: [...(ME.hidden || []), c.id] }); }} style={css('border:0;background:none;padding:0;font-size:10.5px;font-weight:700;color:#B23A2E;cursor:pointer')}>Remove</button>
                 </div>
               ))}
               <div style={css('display:flex;gap:8px;flex-wrap:wrap;align-items:center')}>
-                <button type="button" onClick={() => { const label = window.prompt('New month-end item (e.g. Renew Bar practising certificate reminder)'); if (!label?.trim()) return; const due = window.prompt('Due (e.g. 31 Oct, or 15 of next month)', lastDayLabel) || lastDayLabel; const owner = (window.prompt('Who does it (initials, e.g. AC or SH)', AC) || AC).toUpperCase().slice(0, 3); saveME({ own: [...(ME.own || []), { id: 'own-' + Date.now(), label: label.trim(), note: '', due, owner }] }); }} style={css('border:1px solid #16223A;border-radius:6px;padding:4px 10px;font-size:10.5px;font-weight:700;background:#16223A;color:#fff;cursor:pointer')}>+ Add item</button>
+                <button type="button" onClick={() => { void askForm('Add month-end item', [{ key: 'label', label: 'What', placeholder: 'e.g. Renew professional indemnity insurance', required: true }, { key: 'due', label: 'Due', value: lastDayLabel, placeholder: 'e.g. 31 Oct, or 15 of next month' }, { key: 'owner', label: 'Who does it (initials)', value: AC }]).then((v) => { if (v) saveME({ own: [...(ME.own || []), { id: 'own-' + Date.now(), label: v.label.trim(), note: '', due: v.due.trim() || lastDayLabel, owner: (v.owner.trim() || AC).toUpperCase().slice(0, 3) }] }); }); }} style={css('border:1px solid #16223A;border-radius:6px;padding:4px 10px;font-size:10.5px;font-weight:700;background:#16223A;color:#fff;cursor:pointer')}>+ Add item</button>
                 {!!((ME.hidden || []).length || Object.keys(ME.names || {}).length) && <button type="button" onClick={() => { if (window.confirm('Bring back the usual list (your own items stay)?')) saveME({ hidden: [], names: {} }); }} style={css('border:0;background:none;padding:0;font-size:10.5px;font-weight:700;color:#8A6D3B;cursor:pointer')}>Restore the usual list</button>}
               </div>
             </div>

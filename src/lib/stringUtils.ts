@@ -4,26 +4,6 @@ import { stripSalutation } from './legacyCleanup';
  */
 
 /**
- * Derives a URL/mention-safe username from a display name, e.g. "Amer Haiqal" -> "amerhaiqal".
- */
-function slugifyUsername(name: string): string {
-  return (name || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, '')
-    .split(/\s+/)
-    .filter(Boolean)
-    .join('');
-}
-
-/**
- * Returns a user's explicit username if set, otherwise derives one from their name.
- */
-export function getUsername(user: { name: string; username?: string }): string {
-  return (user.username || slugifyUsername(user.name)).replace(/[^a-z0-9]/gi, '');
-}
-
-/**
  * Normalizes any string (e.g., client or lead name) to consistent Title Case format.
  * Handles names, honorifics, hyphenated names, and legal entity acronyms (e.g. "Sdn Bhd", "LLP").
  *

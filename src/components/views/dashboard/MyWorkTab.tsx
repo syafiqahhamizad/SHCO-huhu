@@ -1,5 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useQuickCreate } from '../../../lib/quickCreate';
+import { FolderX } from 'lucide-react';
+import { can, isSuper } from '../settings/permissionModel';
 import {
   Calendar,
   CalendarX,
@@ -25,7 +27,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../../context/AppContext';
 import type { Case, Meeting, PrivateTodo, Task } from '../../../types';
-import { isMine } from '../../../lib/identity';
+import { isMine, partnerCode } from '../../../lib/identity';
 import { Donut, MiniBarChart, ProgressBar, TaskFormModal, blankTaskDraft } from '../../ui';
 import type { TaskDraft } from '../../ui';
 import { palette, serifFont, tint } from '../../../lib/designTokens';
@@ -171,6 +173,7 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
     savePrivateTodos,
     showToast,
     canViewModule,
+    rolesMatrix,
   } = useApp() as any;
   const mine = (v?: unknown) => isMine(v, me);
 
@@ -531,6 +534,13 @@ export const MyWorkTab: React.FC<Props> = ({ rows, todayStr, weekStr, me, isPart
       link: true,
       onYes: () => openMatter(r),
       onNo: () => undefined,
+    }));
+    // Requests to close a file, for whoever may approve it (Settings › Permissions; partners: their own files).
+    const myCode = partnerCode(currentUser) || '';
+    const mayClose = (c: Case) => isSuper(currentUser) || (can(rolesMatrix || ({} as never), currentUser, 'cases.approveClose') && (currentRole !== 'Partner' || (c.partners || []).includes(myCode as never)));
+    (cases || []).filter((c: Case) => c.closeRequest?.status === 'Pending' && mayClose(c)).forEach((c: Case) => out.push({
+      id: 'dec-close-' + c.id, title: 'Close file: ' + c.ref, sub: [c.title, c.closeRequest?.outcome, 'asked by ' + c.closeRequest?.requestedBy].filter(Boolean).join(' · '),
+      icon: FolderX, tint: '#F0F2F5', color: '#16223A', yes: 'Open to decide', no: '', link: true, onYes: () => openCase(c.id, 'overview'), onNo: () => undefined,
     }));
     if (!isPartner) return out;
     (leaveApplications || []).forEach((l: any) => {

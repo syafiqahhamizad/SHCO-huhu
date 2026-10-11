@@ -193,9 +193,6 @@ export const Header: React.FC = () => {
       case 'referral':
       case 'referrals':
         return { title: 'Referral Partners', sub: 'Who refers matters and what commission is owed' };
-      case 'fileClosing':
-      case 'file-closing':
-        return { title: 'File Closing', sub: 'Invoice, client account and document checks before closing a file' };
       case 'users':
       case 'roles':
       case 'practiceSettings':

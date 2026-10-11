@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { askForm } from '../../ui/askForm';
 import { useApp } from '../../../context/AppContext';
 import { DEFAULT_APPROVAL_LIMITS, type ApprovalLimits } from '../../../services/templateService';
 import { css, S, Txt, type SettingsCtx } from './settingsShared';
@@ -19,9 +20,9 @@ export const PermissionsTab = ({ C, view, setView }: { C: SettingsCtx; view: 'ro
 
   const addRole = () => {
     if (!C.isSuperAdmin) return denied();
-    const n = window.prompt('Name for the new role (starts as a copy of Assistant):', 'Custom role ' + (customRoles.length + 1));
-    if (!n || !n.trim()) return;
-    const name = n.trim();
+    void askForm('Add a role', [{ key: 'n', label: 'Name of the role', value: 'Custom role ' + (customRoles.length + 1), required: true }], { note: 'It starts as a copy of Assistant; change its ticks after.' }).then((v) => { if (v) addRoleNamed(v.n.trim()); });
+  };
+  const addRoleNamed = (name: string) => {
     if (!addCustomRole(name)) return;
     PERM_ROWS.forEach(([k]) => setRoleModulePermissions(name, k, fromBits(roleOwnBits(rolesMatrix, 'Assistant', k))));
     C.log('Custom Role Created', name + ' (copy of Assistant)');

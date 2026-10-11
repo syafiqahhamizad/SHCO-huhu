@@ -82,7 +82,7 @@ export const SECTIONS: Section[] = [
       ] },
       { t: 'The *left menu* is grouped. Click any item to open it; the item you are on is highlighted.', sub: [
         '*General*: Firm Start Centre · My Dashboard (your work) · Client Access Portal · Staff Portal (leave, payslips, profile) · My Claims.',
-        '*Practice*: Leads & Referrals · Clients · Cases (all files) · Hearings · Calendar · Case Status · Deadlines · Service Log · File Closing.',
+        '*Practice*: Leads & Referrals · Clients · Cases (all files) · Hearings · Calendar · Case Status · Deadlines · Service Log.',
         '*Finance & Accounts* (only for people allowed to see billing and money): Finance Home · Billing & Collections · Client Account (SAR 1990) · Office Account · Approvals · Payroll · Accounting · Reports.',
         '*System*: Firm & Practice Settings (admins) · Office Inventory & Library · Activity Logs · Staff Guide · About App · My Account.',
         'At the very bottom: your initials, name and role, and [[Sign out]].',
@@ -432,7 +432,7 @@ export const SECTIONS: Section[] = [
       { t: 'On the left, tick what happened on the file since the last update, then [[Add ticked to progress →]]. Edit the *Progress this week* text.' },
       { t: 'Set the *Stage* and *Health*, the *Next step*, and *Anything holding it up?*' },
       { t: 'Optional: *Also send to client* with the *Message to client* (e-mail, or open in WhatsApp). Save.' },
-      { t: 'Firm-wide: *Case Status* in the left menu shows every file as a *Kanban Board* (drag a file between stages) or *Table Matrix*, with filters by practice area, lawyer and stage.' },
+      { t: 'Firm-wide: *Case Status* in the left menu lists every open file with the same status as its Status tab (stage, health, this week, next step, weekly update due). Filter *My files* / *All files*, *Weekly update due*, *At risk / stuck*, practice area; click a file to update it.' },
     ],
     mistakes: ['Writing “no update” — say what is waiting and on whom.'] },
   { id: 'letters', title: 'Letters, Letter of Engagement and documents', roles: ['partner', 'lawyer', 'assistant'],
@@ -464,7 +464,7 @@ export const SECTIONS: Section[] = [
     steps: [
       { t: 'On the file click [[Request to close]]. The checklist shows what the system checked (open tasks, future court dates, bills, money in the client account) and what you tick yourself (original documents returned, closing letter sent).' },
       { t: 'Choose the *Outcome*, write a *Note to the approver*, click [[Send for approval]]. The approvers are notified.' },
-      { t: 'The approver opens the file (or *File Closing* in the left menu, which lists every close request). They see the checklist and either [[Approve & close file]] or write a reason and *Send back*.' },
+      { t: 'The approver sees it under *Needs your decision* on My Dashboard (and the bell), and opens the file. They see the checklist and either [[Approve & close file]] or write a reason and *Send back*.' },
       { t: 'Closed: the file is read-only. Fill in *Archive*: archive box no., where it is kept, destroy-after date (7 years from closing). [[Print file cover]] for the box.' },
       { t: 'Reopen: someone allowed clicks [[Reopen file]] on the closed file.' },
       { t: 'Delete (opened in error or duplicate only): [[Delete matter]] → choose the reason → type the file no. to confirm. Others see *Request deletion*, which goes to the partner in charge. Deleted files go to the Recycle Bin.' },

@@ -5,6 +5,7 @@
  */
 import type React from 'react';
 import { pickDate } from '../../ui/pickDate';
+import { askForm } from '../../ui/askForm';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../../../context/AppContext';
 import type {
@@ -368,11 +369,9 @@ export function useFinanceController(initialTab: FinTab) {
     setView(null); toastMsg(r.id + ' deleted · postings reversed');
   };
   const editReceipt = async (r: Receipt) => {
-    const d = await pickDate('Receipt date · ' + r.id, { initial: isoOf(parseDate(r.date) || Date.now()) });
-    if (!d) return;
-    const desc = window.prompt('Details on the receipt', r.description || '');
-    if (desc == null) return;
-    app.updateReceipt(r.id, { date: d, description: desc.trim() || r.description });
+    const v = await askForm('Edit receipt ' + r.id, [{ key: 'date', label: 'Date', type: 'date', value: isoOf(parseDate(r.date) || Date.now()), required: true }, { key: 'desc', label: 'Details on the receipt', value: r.description || '' }], { note: 'To change the amount, delete the receipt and record it again.' });
+    if (!v) return;
+    app.updateReceipt(r.id, { date: v.date, description: v.desc.trim() || r.description });
     toastMsg(r.id + ' updated · to change the amount, delete it and record it again');
   };
 
@@ -699,9 +698,9 @@ export function useFinanceController(initialTab: FinTab) {
     if (!rec) return;
     const amt0 = kind === 'travel' ? Number((rec as TravelClaim).total || 0) : Number((rec as Expense).amount || 0);
     const what0 = kind === 'travel' ? (rec as TravelClaim).purpose : (rec as Expense).description;
-    const what = window.prompt('Details', what0 || ''); if (what == null) return;
-    const a = window.prompt('Amount (RM)', String(amt0)); if (a == null) return;
-    const amt = num0(a); if (!(amt > 0)) { toastMsg('Enter an amount above 0'); return; }
+    void askForm('Edit ' + id, [{ key: 'what', label: 'Details', value: what0 || '', required: true }, { key: 'amt', label: 'Amount (RM)', type: 'number', value: String(amt0), required: true }], { note: 'A new amount goes back for approval.' }).then((v) => { if (v) applyApEdit(kind, id, v.what, num0(v.amt), amt0); });
+  };
+  const applyApEdit = (kind: 'travel' | 'expense' | 'pv', id: string, what: string, amt: number, amt0: number) => { if (!(amt > 0)) { toastMsg('Enter an amount above 0'); return; }
     const again = Math.abs(amt - amt0) > 0.004 ? { approvalStatus: 'Pending Approval' as const } : {};
     if (kind === 'travel') app.updateTravelClaim(id, { purpose: what.trim(), total: amt, ...again });
     else if (kind === 'expense') app.updateExpense(id, { description: what.trim(), amount: amt, ...again });
@@ -1004,18 +1003,20 @@ export function useFinanceController(initialTab: FinTab) {
       const inv = rec as Invoice;
       if (!(canPrepare || isMP)) { toastMsg('Invoices are voided by Accounts or the Super Admin.'); return; }
       if (invPaid(inv) > 0.005) { toastMsg(inv.id + ' has payments: refund or reallocate them before voiding.'); return; }
-      const reason = typeof window !== 'undefined' ? window.prompt(`Void ${inv.id}? It stays on file as Voided and its postings are reversed. Reason:`) : '';
-      if (!reason || !reason.trim()) return;
-      const date = todayIso();
-      app.updateInvoice(inv.id, { status: 'Voided', voidReason: reason.trim(), voidedBy: me, voidedAt: new Date().toISOString() });
-      postGL(reversalOf(inv.id, date, 'void'));
-      // Its work goes back to "Work not billed"; any proforma deposit becomes available again.
-      const si = inv.sourceItems || {};
-      (si.time || []).forEach((id) => app.updateTimeEntry(id, { billed: false, invoiceId: undefined }));
-      (si.expenses || []).forEach((id) => app.updateExpense(id, { billed: false }));
-      (si.travel || []).forEach((id) => app.updateTravelClaim(id, { billed: 'N', invoiceNo: '' }));
-      timeEntries.filter((te) => te.invoiceId === inv.id && !(si.time || []).includes(te.id)).forEach((te) => app.updateTimeEntry(te.id, { billed: false, invoiceId: undefined }));
-      setView(null); toastMsg(inv.id + ' voided · postings reversed');
+      void (async () => {
+        const v = await askForm('Void ' + inv.id, [{ key: 'reason', label: 'Reason', required: true, placeholder: 'e.g. wrong client, replaced by INV-…' }, { key: 'date', label: 'Date of the void', type: 'date', value: todayIso(), required: true }], { note: 'It stays on file as Voided and its postings are reversed.', ok: 'Void invoice' });
+        if (!v) return;
+        const reason = v.reason, date = v.date;
+        app.updateInvoice(inv.id, { status: 'Voided', voidReason: reason.trim(), voidedBy: me, voidedAt: new Date().toISOString() });
+        postGL(reversalOf(inv.id, date, 'void'));
+        // Its work goes back to "Work not billed"; any proforma deposit becomes available again.
+        const si = inv.sourceItems || {};
+        (si.time || []).forEach((id) => app.updateTimeEntry(id, { billed: false, invoiceId: undefined }));
+        (si.expenses || []).forEach((id) => app.updateExpense(id, { billed: false }));
+        (si.travel || []).forEach((id) => app.updateTravelClaim(id, { billed: 'N', invoiceNo: '' }));
+        timeEntries.filter((te) => te.invoiceId === inv.id && !(si.time || []).includes(te.id)).forEach((te) => app.updateTimeEntry(te.id, { billed: false, invoiceId: undefined }));
+        setView(null); toastMsg(inv.id + ' voided · postings reversed');
+      })();
       return;
     }
     if (a.startsWith('Issue proforma: ') || a.startsWith('Issue proforma #')) {

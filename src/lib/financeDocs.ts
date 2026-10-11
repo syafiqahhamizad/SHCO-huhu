@@ -321,7 +321,7 @@ if (typeof window !== 'undefined') {
 /** The firm's one letterhead (every letter, whatever the branch): the logo, the address / e-mail /
  * phone lines and the footer of "Letterhead as at 2.7.2026". An image uploaded in Firm & Practice
  * Settings → Firm & Letterhead replaces the logo and lines. */
-export const LETTER_FOOTER = { hours: [['Selangor Branch', 'Monday to Friday', '9.00am – 5.00pm'], ['Terengganu Branch', 'Sunday to Thursday', '9.00am to 5.00pm']] as [string, string, string][], note: 'Note: Kindly quote our reference in reply to our correspondences' };
+const LETTER_FOOTER = { hours: [['Selangor Branch', 'Monday to Friday', '9.00am – 5.00pm'], ['Terengganu Branch', 'Sunday to Thursday', '9.00am to 5.00pm']] as [string, string, string][], note: 'Note: Kindly quote our reference in reply to our correspondences' };
 export const letterheadFor = (_branchName?: string): LetterheadInfo => {
   const s = getPracticeSettings();
   const brs = s.branches || [];
