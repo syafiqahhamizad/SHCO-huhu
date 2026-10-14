@@ -547,7 +547,15 @@ export function useFinanceController(initialTab: FinTab) {
   /* ------------------------------ bank accounts ------------------------------ */
   const activeBanks = bankAccounts.filter((b) => b.status !== 'Archived');
   const bankKind = (b: (typeof bankAccounts)[number]): CashAcc => ((b.functions || []).includes('Petty Cash') ? 'Petty cash' : (b.functions || []).includes('Disbursement') ? 'Disbursement' : b.type === 'Trust' || (b.functions || []).includes('Trust Account') ? 'Client account' : 'Office');
-  const banksOf = (k: CashAcc) => activeBanks.filter((b) => bankKind(b) === k);
+  // One bank list: Firm & Practice Settings → Banks. The old bank records are only used while no bank
+  // is set there (they are kept, not deleted).
+  const banksOf = (k: CashAcc) => ((settings.bankAccounts || []).some((b) => b.isActive !== false) ? [] : activeBanks.filter((b) => bankKind(b) === k));
+  /** "Paid from" choices: the firm's own bank accounts in Settings → Banks (not the client account). */
+  const paidFromOptions = (() => {
+    const l = (settings.bankAccounts || []).filter((b) => b.isActive !== false && !['Client Trust', 'Syariah Escrow', 'Fixed Deposit Stakeholder'].includes(b.accountType))
+      .map((b) => `${b.bankName}${b.typeLabel || b.accountType ? ' · ' + (b.typeLabel || b.accountType) : ''}${b.accountNo ? ' (…' + String(b.accountNo).replace(/\s+/g, '').slice(-4) + ')' : ''}`);
+    return l.length ? l : ['Office account'];
+  })();
   /** Firm & Practice Settings → Banks: the bank accounts whose opening balances are kept there. */
   const firmBankKind = (b: { accountType: string; typeLabel?: string }): CashAcc | null => (/petty/i.test(b.typeLabel || '') ? 'Petty cash' : b.accountType === 'Client Trust' ? 'Client account' : b.accountType === 'Disbursement' ? 'Disbursement' : b.accountType === 'Office Operating' ? 'Office' : null);
   const firmBanksOf = (k: CashAcc) => (settings.bankAccounts || []).filter((b) => b.isActive !== false && firmBankKind(b) === k);
@@ -1319,14 +1327,14 @@ export function useFinanceController(initialTab: FinTab) {
       if (kindOf === PV_STATUTORY || kindOf === PV_SST || kindOf === PV_DRAWINGS) {
         // Remittances / drawings settle what is already owed (2300 statutory, 2200 SST) or are
         // equity (3100): recorded as a paid voucher, never as an office expense.
-        const from = vals.from || 'Hong Leong'; const id = app.getNextSequenceId('voucher');
+        const from = vals.from || paidFromOptions[0]; const id = app.getNextSequenceId('voucher');
         const debit = pvDebitGL(kindOf); const credit = /petty/i.test(from) ? GLA.petty : GLA.office;
         app.addPaymentVoucher({ id, date: dateIso, accountSet: 'OFFICE', voucherCategory: kindOf as PaymentVoucher['voucherCategory'], payee: vals.payee || '', paymentMethod: 'Bank transfer', description: vals.what || kindOf, amount: amt, debit, credit, clientId: '', fileRef: '', bankAccountName: /petty/i.test(from) ? 'Petty cash' : from, preparedBy: me, approvalStatus: 'Posted to GL', approved: true, postedToGl: true, paidAt: dateIso, paidProof: proofs[0], proofs });
         rememberProofUrls('form', 'pv:' + id, proofs);
         postGL([{ date: dateIso, docType: 'PV', docNo: id, accountSet: 'OFFICE', debit, credit, amount: amt, clientId: '', fileRef: '', description: `${vals.payee || ''} · ${vals.what || kindOf}` }]);
         setForm(null); toastMsg(`${id} recorded (${kindOf}) · not an office expense`); return;
       }
-      const id = app.getNextSequenceId('expense'); const from = vals.from || 'Hong Leong'; const cat = vals.cat || 'Utilities';
+      const id = app.getNextSequenceId('expense'); const from = vals.from || paidFromOptions[0]; const cat = vals.cat || 'Utilities';
       if (isStatutoryCategory(cat)) { toastMsg('EPF / SOCSO / EIS / PCB payments: choose "' + PV_STATUTORY + '" as the type (they settle payroll amounts already booked).'); return; }
       app.addExpense({ id, caseId: '', date: dateIso, category: cat, amount: amt, billable: false, description: vals.what || '', payee: vals.payee || '', accountSet: 'OFFICE', paidFrom: from, approvalStatus: 'Posted to GL', postedToGl: true, paidProof: proofs[0], documents: proofs.map((p, i) => ({ id: `DOC-${id}-${i}`, name: p.name, url: '', type: p.type, size: p.size, uploadedAt: p.uploadedAt, category: 'Receipt Photo' as const })) });
       rememberProofUrls('form', 'expense:' + id, proofs);
@@ -1465,7 +1473,7 @@ export function useFinanceController(initialTab: FinTab) {
     qStatus, qCase, proformaPaid, scopedQuotations, scopedReceipts, actionsFor, canDeleteQuote, canDeleteBills, deleteQuote, deleteInvoice, deleteReceipt, editReceipt, editApItem, deleteApItem, isAdminUser, act, buildDoc, recordOf, receiptProofList,
     ledgers, trustTotal, ledgerTotalAt, clientLedgerBalance, threeWayRec,
     unbilled, wipTotal, billMatter, billed: billed as Record<string, { inv: string; u: any }>,
-    activeBanks, bankKind, banksOf, bankBal, lastRecon, officeCash,
+    activeBanks, bankKind, banksOf, paidFromOptions, bankBal, lastRecon, officeCash,
     apItems, pendingAp, approve, apId, apRule, canSignItem, ruleFor, signoffs, signOff, myCode,
     trSub, setTrSub, ofSub, setOfSub, apSub, setApSub, paySub, setPaySub, guide, setGuide, rem, setRem, paper, setPaper, decided: decided as Record<string, { d: 'ok' | 'no'; item: ApItem }>, referral, referralFor, refDecision, toPay, markPaid, paidNow: paidNow as Record<string, { item: PayItem; file: string }>,
     saveSlipPatch, feeShareFor, fsFilesFor, fsPeople, fsCostsFor, fsApproved, saveFs, setFsFile, applyFeeShareToSlips,
