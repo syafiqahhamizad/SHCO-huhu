@@ -420,7 +420,66 @@ export function useFinanceController(initialTab: FinTab) {
     const v = await askForm('Edit receipt ' + r.id, [{ key: 'date', label: 'Date', type: 'date', value: isoOf(parseDate(r.date) || Date.now()), required: true }, { key: 'desc', label: 'Details on the receipt', value: r.description || '' }], { note: 'To change the amount, delete the receipt and record it again.' });
     if (!v) return;
     app.updateReceipt(r.id, { date: v.date, description: v.desc.trim() || r.description });
-    toastMsg(r.id + ' updated · to change the amount, delete it and record it again');
+    const old = isoOf(parseDate(r.date) || Date.now());
+    if (v.date && v.date !== old) redateDoc(r.id, v.date);
+    toastMsg(r.id + ' updated' + (v.date && v.date !== old ? ' · book entries moved to the new date' : '') + ' · to change the amount, delete it and record it again');
+  };
+
+  /* ------------------------------ edit / delete any money entry ------------------------------ */
+  /** Moves a document's postings to a new date: reversed on their own date, posted again on the new one. */
+  const redateDoc = (docNo: string, newDate: string) => {
+    const rows = generalLedger.filter((g) => g.docNo === docNo);
+    if (!rows.length) return;
+    const copy = (g: GeneralLedgerEntry) => ({ docType: g.docType, docNo, accountSet: g.accountSet, amount: g.amount, clientId: g.clientId, fileRef: g.fileRef });
+    postGL(rows.map((g) => ({ ...copy(g), date: g.date, debit: g.credit, credit: g.debit, description: `Date changed to ${newDate}: ${g.description}` })));
+    postGL(rows.map((g) => ({ ...copy(g), date: newDate, debit: g.debit, credit: g.credit, description: g.description })));
+  };
+  type MoneyKind = 'expense' | 'pv' | 'travel' | 'receipt';
+  /** Cash-book row key ("e:EX-0001", "v:…", "t:…", "r:…") → the record behind it. */
+  const entryOf = (key: string): { kind: MoneyKind; id: string } | null => {
+    const i = key.indexOf(':'); const p = key.slice(0, i), id = key.slice(i + 1);
+    return p === 'e' ? { kind: 'expense', id } : p === 'v' ? { kind: 'pv', id } : p === 't' ? { kind: 'travel', id } : p === 'r' ? { kind: 'receipt', id } : null;
+  };
+  const isClientMoney = (kind: MoneyKind, id: string) => (kind === 'expense' ? expenses.find((x) => x.id === id)?.accountSet === 'CLIENT' : kind === 'pv' ? paymentVouchers.find((x) => x.id === id)?.accountSet === 'CLIENT' : kind === 'receipt' ? receipts.find((x) => x.id === id)?.accountSet === 'CLIENT' : false);
+  /** Edit the date, who and details of a money entry (amounts: delete and record again, so the books stay clean). */
+  const editEntry = async (kind: MoneyKind, id: string) => {
+    if (!canPrepare) { toastMsg('Money entries are corrected by Accounts.'); return; }
+    if (kind === 'receipt') { const r = receipts.find((x) => x.id === id); if (r) await editReceipt(r); return; }
+    if (isClientMoney(kind, id)) { toastMsg('Client Account entries are corrected in Client Account (on hold for now).'); return; }
+    const rec = kind === 'expense' ? expenses.find((x) => x.id === id) : kind === 'pv' ? paymentVouchers.find((x) => x.id === id) : travelClaims.find((x) => x.id === id);
+    if (!rec) return;
+    const t = kind === 'travel' ? (rec as TravelClaim) : null, e = kind === 'expense' ? (rec as Expense) : null, v = kind === 'pv' ? (rec as PaymentVoucher) : null;
+    const v0 = { date: isoOf(parseDate(rec.date) || Date.now()), who: t ? t.claimant : (e?.payee || v?.payee || ''), what: t ? t.purpose : (e?.description || v?.description || '') };
+    const f = await askForm('Edit ' + id, [
+      { key: 'date', label: 'Date', type: 'date', value: v0.date, required: true },
+      ...(t ? [] : [{ key: 'who', label: 'Paid to', value: v0.who }]),
+      { key: 'what', label: 'Details', value: v0.what, required: true },
+    ], { note: 'To change the amount, delete this entry and record it again (its book entries are reversed).', ok: 'Save' });
+    if (!f) return;
+    const date = f.date || v0.date;
+    if (t) app.updateTravelClaim(id, { date, purpose: f.what.trim() });
+    else if (e) app.updateExpense(id, { date, payee: (f.who || '').trim() || e.payee, description: f.what.trim() });
+    else if (v) app.updatePaymentVoucher(id, { date, payee: (f.who || '').trim() || v.payee, description: f.what.trim() });
+    if (date !== v0.date) redateDoc(id, date);
+    toastMsg(id + ' updated' + (date !== v0.date ? ' · book entries moved to ' + fd(parseDate(date)) : ''));
+  };
+  /** Delete a money entry: its book entries are reversed and it goes to the Recycle Bin. Admins and Accounts. */
+  const deleteEntry = (kind: MoneyKind, id: string) => {
+    if (!canDeleteBills) { toastMsg('Only an admin or Accounts can delete.'); return; }
+    if (kind === 'receipt') { const r = receipts.find((x) => x.id === id); if (r) deleteReceipt(r); return; }
+    if (isClientMoney(kind, id)) { toastMsg('Client Account entries are corrected in Client Account (on hold for now).'); return; }
+    const onBill = invoices.find((i) => [...(i.sourceItems?.expenses || []), ...(i.sourceItems?.travel || [])].includes(id) && invStatus(i) !== 'Voided');
+    if (onBill) { toastMsg(id + ' is on bill ' + onBill.id + ': delete or void that bill first.'); return; }
+    if (!window.confirm('Delete ' + id + '? Its book entries are reversed and it goes to the Recycle Bin.')) return;
+    reverseDoc(id, 'deleted');
+    if (kind === 'pv') {
+      const v = paymentVouchers.find((x) => x.id === id);
+      // The billing line made with a payment request (same form, amount and description) goes too.
+      const twin = v?.formNo ? expenses.filter((x) => x.formNo === v.formNo && x.isClaimantAdvance === false && Number(x.amount) === Number(v.amount) && x.description === v.description && !x.billed).map((x) => x.id) : [];
+      app.removeFinanceRecords({ paymentVouchers: [id], expenses: twin }, 'Deleted by ' + me);
+    } else if (kind === 'travel') app.removeFinanceRecords({ travelClaims: [id] }, 'Deleted by ' + me);
+    else app.removeFinanceRecords({ expenses: [id] }, 'Deleted by ' + me);
+    toastMsg(id + ' deleted · book entries reversed');
   };
 
   const actionsFor = (kind: DocKind, rec: Quotation | Invoice | Receipt): string[] => {
@@ -1473,7 +1532,7 @@ export function useFinanceController(initialTab: FinTab) {
     lk, ownCase, clientName, staffUser,
     invBal, invPaid, invDeposit, invCredit, invStatus, invIssued, invCase, scopedInvoices, openInvoices, owedTotal, aging, ageDays,
     pnl, moneyReceived, openingAsAt, firmBanksOf, statementFor, setStatement, reconFor,
-    qStatus, qCase, proformaPaid, scopedQuotations, scopedReceipts, actionsFor, canDeleteQuote, canDeleteBills, deleteQuote, deleteInvoice, deleteReceipt, editReceipt, editApItem, deleteApItem, isAdminUser, act, buildDoc, recordOf, receiptProofList,
+    qStatus, qCase, proformaPaid, scopedQuotations, scopedReceipts, actionsFor, canDeleteQuote, canDeleteBills, entryOf, editEntry, deleteEntry, deleteQuote, deleteInvoice, deleteReceipt, editReceipt, editApItem, deleteApItem, isAdminUser, act, buildDoc, recordOf, receiptProofList,
     ledgers, trustTotal, ledgerTotalAt, clientLedgerBalance, threeWayRec,
     unbilled, wipTotal, billMatter, billed: billed as Record<string, { inv: string; u: any }>,
     activeBanks, bankKind, banksOf, paidFromOptions, bankBal, lastRecon, officeCash,

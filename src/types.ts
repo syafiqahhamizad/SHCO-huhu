@@ -1572,7 +1572,7 @@ export interface ComplaintRecord {
 export interface DeletedRecord {
   id: string;
   recordId: string;
-  entityType: 'Case' | 'Lead' | 'Client' | 'Invoice' | 'Quotation' | 'Payment Voucher' | 'Receipt' | 'Expense' | 'Time Entry' | 'Law Firm';
+  entityType: 'Case' | 'Lead' | 'Client' | 'Invoice' | 'Quotation' | 'Payment Voucher' | 'Receipt' | 'Expense' | 'Time Entry' | 'Law Firm' | 'Travel Claim';
   title: string;
   details: string;
   deletedAt: string;

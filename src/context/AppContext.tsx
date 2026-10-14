@@ -346,7 +346,7 @@ interface AppContextType {
   addReceipt: (r: Receipt) => void;
   /** Additive (Accounts & Finance): attach proof of payment etc. to an existing receipt. */
   updateReceipt: (id: string, updates: Partial<Receipt>) => void;
-  removeFinanceRecords: (r: { invoices?: string[]; receipts?: string[]; payments?: string[]; retainers?: string[] }, why: string) => void;
+  removeFinanceRecords: (r: { invoices?: string[]; receipts?: string[]; payments?: string[]; retainers?: string[]; expenses?: string[]; paymentVouchers?: string[]; travelClaims?: string[] }, why: string) => void;
   addPaymentVoucher: (pv: PaymentVoucher) => void;
   updatePaymentVoucher: (id: string, updates: Partial<PaymentVoucher>) => void;
   addRetainer: (r: Retainer) => void;
@@ -1506,6 +1506,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setReceipts((prev) => [data, ...prev]);
     } else if (entityType === 'Expense') {
       setExpenses((prev) => [data, ...prev]);
+    } else if (entityType === 'Travel Claim') {
+      setTravelClaims((prev) => [data, ...prev]);
     } else if (entityType === 'Time Entry') {
       setTimeEntries((prev) => [data, ...prev]);
     }
@@ -3098,15 +3100,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   /** Admin delete of billing records (kept in the Recycle Bin). The caller reverses the postings. */
-  const removeFinanceRecords = (r: { invoices?: string[]; receipts?: string[]; payments?: string[]; retainers?: string[] }, why: string) => {
+  const removeFinanceRecords = (r: { invoices?: string[]; receipts?: string[]; payments?: string[]; retainers?: string[]; expenses?: string[]; paymentVouchers?: string[]; travelClaims?: string[] }, why: string) => {
     const has = (l: string[] | undefined, id: string) => !!l && l.includes(id);
+    expenses.filter((x) => has(r.expenses, x.id)).forEach((x) => trackDeletedRecord('Expense', x.id + ' · ' + (x.description || x.category || ''), why, x));
+    paymentVouchers.filter((x) => has(r.paymentVouchers, x.id)).forEach((x) => trackDeletedRecord('Payment Voucher', x.id + ' · ' + (x.payee || ''), why, x));
+    travelClaims.filter((x) => has(r.travelClaims, x.id)).forEach((x) => trackDeletedRecord('Travel Claim', x.id + ' · ' + (x.claimant || ''), why, x));
+    if (r.expenses?.length) setExpenses((prev) => prev.filter((x) => !has(r.expenses, x.id)));
+    if (r.paymentVouchers?.length) setPaymentVouchers((prev) => prev.filter((x) => !has(r.paymentVouchers, x.id)));
+    if (r.travelClaims?.length) setTravelClaims((prev) => prev.filter((x) => !has(r.travelClaims, x.id)));
     invoices.filter((x) => has(r.invoices, x.id)).forEach((x) => trackDeletedRecord('Invoice', x.id + ' · ' + (x.partyName || ''), why, x));
     receipts.filter((x) => has(r.receipts, x.id)).forEach((x) => trackDeletedRecord('Receipt', x.id + ' · ' + (x.receivedFrom || ''), why, x));
     if (r.invoices?.length) setInvoices((prev) => prev.filter((x) => !has(r.invoices, x.id)));
     if (r.receipts?.length) setReceipts((prev) => prev.filter((x) => !has(r.receipts, x.id)));
     if (r.payments?.length) setPayments((prev) => prev.filter((x) => !has(r.payments, x.id)));
     if (r.retainers?.length) setRetainers((prev) => prev.filter((x) => !has(r.retainers, x.id)));
-    logAuditEvent('DELETE', 'BILLING', [...(r.invoices || []), ...(r.receipts || [])].join(', '), why, why);
+    logAuditEvent('DELETE', 'BILLING', [...(r.invoices || []), ...(r.receipts || []), ...(r.expenses || []), ...(r.paymentVouchers || []), ...(r.travelClaims || [])].join(', '), why, why);
   };
 
   const updateReceipt = (id: string, updates: Partial<Receipt>) => {

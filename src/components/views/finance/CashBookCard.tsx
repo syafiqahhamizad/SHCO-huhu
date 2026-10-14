@@ -32,7 +32,7 @@ export const CashBookCard = ({ F, accs, sub }: { F: FinanceCtrl; accs: CashAcc[]
   const missing = R.filter((r) => !(r.proofs || []).length).length;
   const openProofs = (owner: string, proofs: FinanceProof[]) => proofs.forEach((q) => { const u = proofLink(owner, q); if (u) window.open(u, '_blank', 'noopener'); else F.toastMsg(proofMissingMsg(q.name)); });
   const exportX = () => { SD.csv('Cash book ' + acc + (cur === 'all' ? '' : ' ' + monLabel(cur)), [['Date', 'Details', 'Doc no.', 'Source', 'In', 'Out', 'Balance', 'Proof'], ['—', 'Opening balance', '', 'Historical', '', '', m(OPEN), ''], ...rows.map((r) => [fd(r.t), r.who + ' · ' + r.what, r.no, r.src, r.inn ? m(r.inn) : '', r.out ? m(r.out) : '', m(r.bal), r.proofs.map((p) => p.name).join('; ')])]); F.toastMsg('Cash book exported'); };
-  const G = 'display:grid;grid-template-columns:84px minmax(0,1.6fr) 110px 96px 100px 100px 110px 150px;gap:10px;';
+  const G = 'display:grid;grid-template-columns:84px minmax(0,1.6fr) 110px 96px 100px 100px 110px 210px;gap:10px;';
   return (
     <div style={css('overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
       <div style={css('display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid #EEF1F5')}>
@@ -64,7 +64,11 @@ export const CashBookCard = ({ F, accs, sub }: { F: FinanceCtrl; accs: CashAcc[]
             <span style={css('min-width:0;display:flex;align-items:center;gap:4px')}>
               {pf.length > 0 && <button type="button" onClick={() => openProofs(r.owner, pf)} style={css('border:0;background:none;padding:0;font-size:10.5px;font-weight:700;color:#2F6F4E;cursor:pointer;font-family:inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px')}>✓ {pf.length > 1 ? pf.length + ' files' : pf[0].name}</button>}
               {r.attach && <label style={css('font-size:10.5px;font-weight:700;color:#B23A2E;cursor:pointer;white-space:nowrap')}>+ Attach<input type="file" multiple accept="image/*,.pdf" onChange={(e) => r.attach && r.attach(e.target.files)} style={css('display:none')} /></label>}
-            </span>
+                          {(() => { const en = F.entryOf(r.key); return en ? <span style={css('margin-left:auto;display:flex;gap:6px')}>
+                {F.canPrepare && <button type="button" title="Edit date, who and details" onClick={() => void F.editEntry(en.kind, en.id)} style={css('border:0;background:none;padding:0;font-size:10.5px;font-weight:700;color:#3D6B9C;cursor:pointer;font-family:inherit')}>Edit</button>}
+                {F.canDeleteBills && <button type="button" title="Delete (book entries reversed, kept in the Recycle Bin)" onClick={() => F.deleteEntry(en.kind, en.id)} style={css('border:0;background:none;padding:0;font-size:10.5px;font-weight:700;color:#B23A2E;cursor:pointer;font-family:inherit')}>Delete</button>}
+              </span> : null; })()}
+</span>
           </div>
         ); })}
       </div>

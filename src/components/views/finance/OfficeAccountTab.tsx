@@ -16,6 +16,7 @@ const dm = (iso: string) => { const t = parseDate(iso); if (!t) return '—'; co
 
 /** Office Account — design: bank cards, then Office expenses · Cash book · Disbursements ·
  * Sinking funds · Emergency fund · Investment. */
+const LINK = 'border:0;background:none;padding:0;font-size:10.5px;font-weight:700;color:#3D6B9C;cursor:pointer;font-family:inherit';
 export const OfficeAccountTab = ({ F }: { F: FinanceCtrl }) => {
   const { app, lk } = F;
   const { expenses, paymentVouchers, invoices, receipts } = app;
@@ -106,16 +107,17 @@ export const OfficeAccountTab = ({ F }: { F: FinanceCtrl }) => {
       {sub === 'e' && (
         <div style={css(CARD)}>
           <div style={css('display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(H)}>Office expenses</strong><span style={css('font-size:10.5px;color:#5B6478')}>latest first</span></div>
-          <div style={css('display:grid;grid-template-columns:70px minmax(0,1.4fr) 110px 90px 80px 76px;gap:10px;padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>Date</span><span>Paid to · for</span><span>Category</span><span style={css('text-align:right')}>Amount</span><span>From</span><span>Receipt</span></div>
+          <div style={css('display:grid;grid-template-columns:70px minmax(0,1.4fr) 110px 90px 80px 76px 92px;gap:10px;padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>Date</span><span>Paid to · for</span><span>Category</span><span style={css('text-align:right')}>Amount</span><span>From</span><span>Receipt</span></div>
           {expRows.length === 0 && <div style={css('padding:12px 14px;font-size:11.5px;color:#5B6478')}>No office expenses recorded yet. Use “Money out” › Office expense.</div>}
           {expRows.map((e) => { const has = !!(e.paidProof || (e.documents || []).length || e.attachmentUrl || e.attachmentName); return (
-            <div key={e.id} style={css('display:grid;grid-template-columns:70px minmax(0,1.4fr) 110px 90px 80px 76px;gap:10px;align-items:center;padding:7px 14px;border-bottom:1px solid #F0F2F5')}>
+            <div key={e.id} style={css('display:grid;grid-template-columns:70px minmax(0,1.4fr) 110px 90px 80px 76px 92px;gap:10px;align-items:center;padding:7px 14px;border-bottom:1px solid #F0F2F5')}>
               <span style={css('font-size:11px;color:#5B6478')}>{F.dShort(e.date)}</span>
               <span style={css('min-width:0')}><span style={css('display:block;font-size:11.5px;font-weight:600;color:#16223A')}>{e.payee || '—'}</span><span style={css('display:block;font-size:10px;color:#5B6478')}>{e.description || ''}</span></span>
               <span style={css('font-size:10.5px;color:#16223A')}>{e.category}</span>
               <span style={css('text-align:right;font-size:11.5px;font-weight:700;color:#16223A')}>{rm(Number(e.amount || 0))}</span>
               <span style={css('font-size:10.5px;color:#5B6478')}>{e.paidFrom || (e.accountSet === 'CLIENT' ? 'Client A/C' : 'Office')}</span>
               <span style={css(`font-size:10.5px;font-weight:700;color:${has ? '#2F6F4E' : '#B23A2E'}`)}>{has ? 'Attached' : 'Missing'}</span>
+              <span style={css('display:flex;gap:8px;justify-content:flex-end')}>{F.canPrepare && <button type="button" onClick={() => void F.editEntry('expense', e.id)} style={css(LINK)}>Edit</button>}{F.canDeleteBills && <button type="button" onClick={() => F.deleteEntry('expense', e.id)} style={css(LINK + ';color:#B23A2E')}>Delete</button>}</span>
             </div>
           ); })}
         </div>
@@ -126,10 +128,10 @@ export const OfficeAccountTab = ({ F }: { F: FinanceCtrl }) => {
       {sub === 'd' && (
         <div style={css(CARD)}>
           <div style={css('display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(H)}>Disbursement account</strong><span style={css('font-size:10.5px;color:#5B6478')}>court filing, searches, stamp duty, despatch paid for client files · billed back to clients</span><span style={css('margin-left:auto;display:flex;gap:14px;font-size:11px;color:#5B6478')}><span>Balance <strong style={css('color:#16223A')}>{disbBal == null ? '—' : rm(disbBal)}</strong></span><span>Waiting to be billed <strong style={css('color:#B23A2E')}>{rm2(dbUnbilled)}</strong></span><span>Billed, not yet paid <strong style={css('color:#8A6534')}>{rm2(dbOwed)}</strong></span></span></div>
-          <div style={css('display:grid;grid-template-columns:70px 104px minmax(0,1.3fr) minmax(0,1fr) 90px 120px 110px;gap:10px;padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>Date</span><span>PV no.</span><span>What · file</span><span>Paid to</span><span style={css('text-align:right')}>Amount</span><span>Billed on</span><span>Recovered</span></div>
+          <div style={css('display:grid;grid-template-columns:70px 104px minmax(0,1.3fr) minmax(0,1fr) 90px 120px 110px 92px;gap:10px;padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>Date</span><span>PV no.</span><span>What · file</span><span>Paid to</span><span style={css('text-align:right')}>Amount</span><span>Billed on</span><span>Recovered</span></div>
           {DB.length === 0 && <div style={css('padding:12px 14px;font-size:11.5px;color:#5B6478')}>No disbursements paid for client files yet.</div>}
           {DB.slice(0, 40).map((d) => { const [rbg, rfg] = d.rec === 'Recovered' ? ['#E6EFE9', '#2F6F4E'] : d.rec === 'Client owes' ? ['#FBF2E9', '#8A6534'] : ['#F0F2F5', '#5B6478']; return (
-            <div key={d.key} style={css('display:grid;grid-template-columns:70px 104px minmax(0,1.3fr) minmax(0,1fr) 90px 120px 110px;gap:10px;align-items:center;padding:8px 14px;border-bottom:1px solid #F0F2F5')}>
+            <div key={d.key} style={css('display:grid;grid-template-columns:70px 104px minmax(0,1.3fr) minmax(0,1fr) 90px 120px 110px 92px;gap:10px;align-items:center;padding:8px 14px;border-bottom:1px solid #F0F2F5')}>
               <span style={css('font-size:11px;color:#5B6478')}>{d.t ? fd(d.t).slice(0, 5) : '—'}</span>
               <span style={css('font-size:11px;font-weight:700;color:#16223A;overflow:hidden;text-overflow:ellipsis')}>{d.no}</span>
               <span style={css('min-width:0')}><span style={css('display:block;font-size:11.5px;font-weight:600;color:#16223A')}>{d.what}</span><span style={css('display:block;font-size:10px;color:#5B6478')}>{d.file}</span></span>
@@ -137,6 +139,7 @@ export const OfficeAccountTab = ({ F }: { F: FinanceCtrl }) => {
               <span style={css('text-align:right;font-size:11.5px;font-weight:700;color:#16223A')}>{rm2(d.amt)}</span>
               <span style={css(`font-size:10.5px;font-weight:700;color:${d.billed ? '#16223A' : '#B23A2E'}`)}>{d.billed || 'Not billed yet'}</span>
               <span style={css(`justify-self:start;font-size:10px;font-weight:700;padding:1px 8px;border-radius:10px;background:${rbg};color:${rfg}`)}>{d.rec}</span>
+              <span style={css('display:flex;gap:8px;justify-content:flex-end')}>{F.canPrepare && <button type="button" onClick={() => void F.editEntry(d.key[0] === 'v' ? 'pv' : 'expense', d.key.slice(1))} style={css(LINK)}>Edit</button>}{F.canDeleteBills && <button type="button" onClick={() => F.deleteEntry(d.key[0] === 'v' ? 'pv' : 'expense', d.key.slice(1))} style={css(LINK + ';color:#B23A2E')}>Delete</button>}</span>
             </div>
           ); })}
           <div style={css('padding:9px 14px;background:#F6F8FA;font-size:10.5px;color:#5B6478')}>Unbilled items are added automatically to the next invoice for that file. Top up from the office account when the balance falls below RM 5,000.</div>
