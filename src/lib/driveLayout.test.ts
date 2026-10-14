@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  clientFolderName, driveSafeName, financeFolderPath, financeKindFromOwner, financeMatterPath, matterFolderName, matterFolderPath,
+  clientFolderName, driveSafeName, financeFolderPath, financeKindFromOwner, clientFilesPath, matterFolderName, matterFolderPath,
   matterNumber, matterSubFor, matterSubfolders, practiceFolderName, uploadFolders,
   booksMonthPath, booksStatusPath, payrollMonthPath, fileCodeOf, entryName, financeSkeleton, staffFolderName,
 } from './driveLayout';
@@ -59,7 +59,7 @@ describe('matter folders', () => {
     expect(uploadFolders('Corporate')).not.toContain('Court Memo');
   });
   it('keeps a file\'s billing papers in Client Files', () => {
-    expect(financeMatterPath({ ref: 'SHC/L/SH/9/01-2026', title: 'X' })).toEqual(['Client Files', '009 - X']);
+    expect(clientFilesPath({ ref: 'SHC/L/SH/9/01-2026', title: 'X' })).toEqual(['Client Files', '009 - X']);
   });
 });
 

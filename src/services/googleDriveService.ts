@@ -269,14 +269,6 @@ export async function ensureShortcut(parentId: string, targetId: string, name: s
   return (await made.json() as { id: string }).id;
 }
 
-/** Creates a new sub-folder (always new, even if one has the same name). */
-export async function createFolder(parentId: string, name: string): Promise<string> {
-  const made = await driveFetch(API + '/files' + q({ fields: 'id' }), {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: driveSafeName(name), mimeType: FOLDER_MIME, parents: [parentId] }),
-  });
-  return (await made.json() as { id: string }).id;
-}
-
 /* ------------------------------------------------------------------ files */
 
 /** Uploads a file (or Blob) into `folderId`. Multipart up to 5 MB, resumable above that. */

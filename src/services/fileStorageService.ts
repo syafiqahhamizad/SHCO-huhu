@@ -10,7 +10,7 @@ import {
   DRIVE_TOKEN_EVENT, downloadDriveFile, driveViewUrl, ensureFolderPath, getDriveAccessToken, getDriveConfig, grantReader, hasValidDriveToken, isDriveAccessError, isDriveConfigured, ensureShortcut, moveDriveItem, renameChildFolder, uploadToDrive,
 } from './googleDriveService';
 import {
-  CLIENTS_ROOT, FIN, OLD_FIN_NAMES, booksMonthPath, clientFilesPath, matterSubfolders, clientFolderName as layoutClientFolderName, financeFolderPath, financeMatterPath, folderUrl, matterFolderDescription, matterFolderPath,
+  CLIENTS_ROOT, FIN, OLD_FIN_NAMES, booksMonthPath, clientFilesPath, matterSubfolders, clientFolderName as layoutClientFolderName, financeFolderPath, folderUrl, matterFolderDescription, matterFolderPath,
   staffFolderName, type FinanceKind, type MatterLike, type MatterSub,
 } from '../lib/driveLayout';
 
@@ -332,7 +332,7 @@ export async function storeMatterFile(opts: MatterLike & { folderId?: string; su
  */
 export async function storeEngagementFile(m: MatterLike, file: File, uploadedBy: string): Promise<StoredMatterFile> {
   try {
-    return await storeFinance(financeMatterPath(m), file, uploadedBy, { description: 'Engagement & billing for ' + m.ref + ' uploaded by ' + uploadedBy });
+    return await storeFinance(clientFilesPath(m), file, uploadedBy, { description: 'Engagement & billing for ' + m.ref + ' uploaded by ' + uploadedBy });
   } catch (err) {
     const cause = err instanceof Error ? (err as Error & { cause?: unknown }).cause : undefined;
     if (financeBase().separate && isDriveAccessError(cause)) throw new Error(file.name + ': engagement & billing papers go to the SHCO Finance Shared Drive, and your Google account cannot add files there. Ask a partner or Accounts to upload it.');
