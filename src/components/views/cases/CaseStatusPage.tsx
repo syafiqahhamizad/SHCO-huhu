@@ -26,8 +26,8 @@ export const CaseStatusPage: React.FC = () => {
     const stages = stagesFor(practiceOf(c));
     // Nothing is shown as a stage until someone sets it in the file's Status tab.
     const si = stageSet(c) ? stageIndexOf(c) : -1;
-    return { c, last, due, stage: si >= 0 ? stages[si] || '—' : '', set: si >= 0 || !!last, stageNo: si + 1, stages: stages.length, area: practiceOf(c) || 'Other' };
-  }), [cases]);
+    return { c, last, due, stage: si >= 0 ? stages[si] || '—' : '', set: (c.weeklyStatus || []).length > 0, stageNo: si + 1, stages: stages.length, area: practiceOf(c) || 'Other' };
+  }).filter((r) => r.set), [cases]); // a file appears here only once its status has been set
   const areas = useMemo(() => ['All', ...[...new Set(rows.map((r) => r.area))].sort()], [rows]);
   const mineOf = (c: Case) => isMine(c.lawyerInCharge, me) || isMine(c.lawyers as unknown, me) || isMine(c.partners as unknown, me);
   const lq = q.trim().toLowerCase();
@@ -53,7 +53,7 @@ export const CaseStatusPage: React.FC = () => {
         <select value={area} onChange={(e) => setArea(e.target.value)} className="rounded-md border border-[#DDE3EB] bg-white px-2 py-1 text-[11px]">{areas.map((a) => <option key={a}>{a}</option>)}</select>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search file ref, client, lawyer…" className="ml-auto min-w-[200px] rounded-md border border-[#DDE3EB] px-2.5 py-1.5 text-[11.5px]" />
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#DDE3EB] bg-white">
+      {rows.length > 0 && <div className="overflow-x-auto rounded-xl border border-[#DDE3EB] bg-white">
         <div className={G + ' min-w-[1050px] border-b border-[#EEF1F5] bg-[#F6F8FA] px-3.5 py-2 text-[9.5px] font-bold uppercase tracking-[.08em] text-[#5B6478]'}>
           <span>File</span><span>Stage</span><span>Health</span><span>This week</span><span>Next step</span><span>Weekly update</span>
         </div>
@@ -67,9 +67,9 @@ export const CaseStatusPage: React.FC = () => {
             {!set ? <span /> : <span className="justify-self-start rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: due.bg, color: due.fg }}>{due.label}</span>}
           </button>
         ))}
-        {!shown.length && <div className="px-3.5 py-6 text-center text-[12px] text-[#5B6478]">{rows.length ? 'No file matches.' : 'No open files.'}</div>}
+        {!shown.length && rows.length > 0 && <div className="px-3.5 py-6 text-center text-[12px] text-[#5B6478]">No file matches.</div>}
         <div className="bg-[#F6F8FA] px-3.5 py-2 text-[10.5px] text-[#5B6478]">The same status as each file’s <strong>Status</strong> tab. To update a file, click it and use its Status tab.</div>
-      </div>
+      </div>}
     </div>
   );
 };
