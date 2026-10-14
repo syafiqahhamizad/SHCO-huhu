@@ -1,14 +1,14 @@
 /**
  * Filing money entries in the finance books (Google Drive, SHCO Finance) — pure rules, no Drive calls.
  *
- *   1 Books/<account>/Pending/<entry>          claim / PV submitted or approved, not paid yet
- *   1 Books/<account>/Rejected/<entry>
- *   1 Books/<account>/<YYYY>/<YYYY-MM Month>/Money Out/<entry>   paid (month it was paid)
- *   1 Books/<account>/<YYYY>/<YYYY-MM Month>/Money In/<entry>    receipts
- *   3 Payroll/<YYYY>/<YYYY-MM Month>/Statutory | Partner Drawings/<entry>
+ *   Books/<account>/Pending/<entry>          claim / PV submitted or approved, not paid yet
+ *   Books/<account>/Rejected/<entry>
+ *   Books/<account>/<YYYY>/<YYYY-MM Month>/Money Out/<entry>   paid (month it was paid)
+ *   Books/<account>/<YYYY>/<YYYY-MM Month>/Money In/<entry>    receipts
+ *   Payroll/<YYYY>/<YYYY-MM Month>/Statutory | Partner Drawings/<entry>
  *
  * Same accounts as the cash book (Office, Client Account, Disbursement, Petty cash). The billing line a
- * client-account payment makes (an expense) is not filed twice. A file's entry also gets a link in 2 Client Files/<file>.
+ * client-account payment makes (an expense) is not filed twice. A file's entry also gets a link in Client Files/<file>.
  */
 import type { ClaimAttachment, DriveFiling, Expense, FinanceProof, PaymentVoucher, Receipt, TravelClaim } from '../../../types';
 import { PV_DRAWINGS, PV_STATUTORY } from '../../../lib/financeCalc';

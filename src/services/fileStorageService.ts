@@ -10,7 +10,7 @@ import {
   DRIVE_TOKEN_EVENT, downloadDriveFile, driveViewUrl, ensureFolderPath, getDriveAccessToken, getDriveConfig, grantReader, hasValidDriveToken, isDriveAccessError, isDriveConfigured, ensureShortcut, moveDriveItem, renameChildFolder, uploadToDrive,
 } from './googleDriveService';
 import {
-  CLIENTS_ROOT, FIN, booksMonthPath, clientFilesPath, matterSubfolders, clientFolderName as layoutClientFolderName, financeFolderPath, financeMatterPath, folderUrl, matterFolderDescription, matterFolderPath,
+  CLIENTS_ROOT, FIN, OLD_FIN_NAMES, booksMonthPath, clientFilesPath, matterSubfolders, clientFolderName as layoutClientFolderName, financeFolderPath, financeMatterPath, folderUrl, matterFolderDescription, matterFolderPath,
   staffFolderName, type FinanceKind, type MatterLike, type MatterSub,
 } from '../lib/driveLayout';
 
@@ -137,11 +137,24 @@ async function storeFinance(parts: string[], file: File, uploadedBy: string, opt
  * Files one money entry (claim, PV, office expense, receipt) in the finance books: its entry folder
  * "<DDMMYYYY doc no. file what RM>" goes under `path` (Pending, Rejected, or the month's Money In /
  * Money Out), its papers are moved into it and renamed, and a file's entry gets a link in
- * 2 Client Files/<file>. Safe to repeat: an existing entry folder is moved / renamed, not duplicated.
+ * Client Files/<file>. Safe to repeat: an existing entry folder is moved / renamed, not duplicated.
  */
+/** Renames the first set-up's numbered folders ("Books" → "Books" …) once per visit, so nothing is duplicated. */
+let oldNamesDone: Promise<void> | null = null;
+const renameOldFinanceRoots = (b: { baseId: string; prefix: string[] }) => {
+  if (!oldNamesDone) {
+    oldNamesDone = (async () => {
+      const parentId = b.prefix.length ? await ensureFolderPath(b.baseId, b.prefix) : b.baseId;
+      for (const [from, to] of OLD_FIN_NAMES) await renameChildFolder(parentId, from, to);
+    })().catch((e) => { oldNamesDone = null; throw e; });
+  }
+  return oldNamesDone;
+};
+
 export async function fileFinanceEntry(o: { path: string[]; name: string; folderId?: string; papers: { id: string; name: string }[]; matter?: MatterLike; matters?: MatterLike[] }): Promise<{ folderId: string; papers: { id: string; webViewLink?: string }[] }> {
   requireDrive();
   const b = financeBase();
+  await renameOldFinanceRoots(b);
   const parentId = await ensureFolderPath(b.baseId, [...b.prefix, ...o.path]);
   let folderId = '';
   if (o.folderId) { try { folderId = (await moveDriveItem(o.folderId, parentId, o.name)).id; } catch { folderId = ''; } }
@@ -159,13 +172,14 @@ export async function fileFinanceEntry(o: { path: string[]; name: string; folder
 export async function ensureFinanceFolders(paths: string[][], onProgress?: (done: number, total: number) => void): Promise<void> {
   requireDrive();
   const b = financeBase();
+  await renameOldFinanceRoots(b);
   for (let i = 0; i < paths.length; i += 1) { await ensureFolderPath(b.baseId, [...b.prefix, ...paths[i]]); onProgress?.(i + 1, paths.length); }
 }
 
 /** True when a separate SHCO Finance drive is set (filing into the books only happens there). */
 export const hasFinanceDrive = () => activeStorage() === 'drive' && !!getDriveConfig().financeFolderId;
 
-/** Once "Set up finance folders" is done, new finance uploads wait in 1 Books/Incoming until they are
+/** Once "Set up finance folders" is done, new finance uploads wait in Books/Incoming until they are
  * filed (the finance pages move them into their entry folder). Client-account papers keep their old place. */
 const financeUploadPath = (kind: FinanceKind, ref?: string): string[] => {
   if (!getPracticeSettings().financeFiling) return financeFolderPath(kind, yyyy(), ref);

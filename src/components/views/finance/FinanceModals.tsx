@@ -256,7 +256,7 @@ export const FormModal = ({ F }: { F: FinanceCtrl }) => {
   const addProofs = (k: string, picked: FileList | null) => {
     if (!picked || !picked.length) return;
     if (proofUploadBlocked()) { F.toastMsg(DRIVE_REQUIRED_MSG); return; }
-    // A past quotation's PDF is kept here and saved to the file's folder (2 Client Files) on Save.
+    // A past quotation's PDF is kept here and saved to the file's folder (Client Files) on Save.
     if (f.kind === 'pastQuote' || f.kind === 'pastInvoice' || f.kind === 'pastReceipt') { set(k, [...((f.vals[k] as FinanceProof[]) || []), ...Array.from(picked).map((file) => ({ name: file.name, size: file.size, type: file.type, uploadedAt: new Date().toISOString(), file }))]); return; }
     set(k, [...((f.vals[k] as FinanceProof[]) || []), ...filesToProofs('form', picked)]);
   };

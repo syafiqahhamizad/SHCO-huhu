@@ -120,8 +120,8 @@ export const DriveStorageCard = ({ C }: { C: SettingsCtx }) => {
     if (app.resetTestData()) C.msg('Test data cleared. The backup is in your Downloads (and Google Drive).');
   };
 
-  // Super Admin: the finance books in SHCO Finance (1 Books by bank account › year › month, 2 Client
-  // Files, 3 Payroll, 4 Accounts & Tax Reports, 5 Firm Records). From then on money entries are filed there.
+  // Super Admin: the finance books in SHCO Finance (Books by bank account › year › month, 2 Client
+  // Files, Payroll, Accounts & Tax Reports, Firm Records). From then on money entries are filed there.
   const [finBusy, setFinBusy] = useState('');
   const setupFinanceFolders = async () => {
     if (!hasFinanceDrive()) { C.msg('Set the SHCO Finance drive first (Finance drive folder above), then test the connection.'); return; }
@@ -131,7 +131,7 @@ export const DriveStorageCard = ({ C }: { C: SettingsCtx }) => {
       { key: 'to', label: 'Create month folders up to', type: 'text', value: cur?.to || '2026-12', placeholder: 'YYYY-MM', required: true },
     ], {
       ok: 'Create folders',
-      note: 'Creates in SHCO Finance: 1 Books › Office Account, Client Account (and Disbursement / Petty cash once set in Banks) › Pending, Rejected and each month › Money In, Money Out, Bank Statement; 2 Client Files; 3 Payroll › each month › Payslips, Statutory, Partner Drawings; 4 Accounts & Tax Reports; 5 Firm Records. From then on every claim, voucher, office expense and receipt dated from the start month is filed there automatically (named "DDMMYYYY doc no. file what RM"), with a link in its client file. Pressing it again adds anything missing (e.g. a new bank account); existing folders are reused, never moved.',
+      note: 'Creates in SHCO Finance: Books › Office Account, Client Account (and Disbursement / Petty cash once set in Banks) › Pending and Rejected (each split into Claims, Payment Vouchers, Office Costs) and each month › Money In, Money Out (Claims, Payment Vouchers, Office Costs, Disbursements), Bank Statement; Client Files; Payroll › each month › Payslips, Statutory, Partner Drawings; Accounts & Tax Reports; Firm Records. From then on every claim, voucher, office expense and receipt dated from the start month is filed there automatically (named "DDMMYYYY doc no. file what RM"), with a link in its client file. Old numbered folders ("1 Books" …) are renamed to the plain names, nothing is duplicated. Pressing it again adds anything missing (e.g. a new bank account); existing folders are reused, never moved.',
     });
     if (!v) return;
     const ok = (x: string) => /^\d{4}-(0[1-9]|1[0-2])$/.test(x.trim());

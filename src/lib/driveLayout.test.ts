@@ -58,8 +58,8 @@ describe('matter folders', () => {
     expect(matterSubFor('Draft SHA', 'Corporate')).toBe('Agreement/Draft');
     expect(uploadFolders('Corporate')).not.toContain('Court Memo');
   });
-  it('keeps a file\'s billing papers in 2 Client Files', () => {
-    expect(financeMatterPath({ ref: 'SHC/L/SH/9/01-2026', title: 'X' })).toEqual(['2 Client Files', '009 - X']);
+  it('keeps a file\'s billing papers in Client Files', () => {
+    expect(financeMatterPath({ ref: 'SHC/L/SH/9/01-2026', title: 'X' })).toEqual(['Client Files', '009 - X']);
   });
 });
 
@@ -113,9 +113,9 @@ describe('year / type filters', () => {
 
 describe('finance books', () => {
   it('books by account, year and month', () => {
-    expect(booksMonthPath('Office', '2026-10-14', 'Money Out')).toEqual(['1 Books', 'Office Account', '2026', '2026-10 October', 'Money Out']);
-    expect(booksStatusPath('Disbursement', 'Pending')).toEqual(['1 Books', 'Disbursement Account', 'Pending']);
-    expect(payrollMonthPath('2025-04-30', 'Statutory')).toEqual(['3 Payroll', '2025', '2025-04 April', 'Statutory']);
+    expect(booksMonthPath('Office', '2026-10-14', 'Money Out')).toEqual(['Books', 'Office Account', '2026', '2026-10 October', 'Money Out']);
+    expect(booksStatusPath('Disbursement', 'Pending')).toEqual(['Books', 'Disbursement Account', 'Pending']);
+    expect(payrollMonthPath('2025-04-30', 'Statutory')).toEqual(['Payroll', '2025', '2025-04 April', 'Statutory']);
   });
   it('names entries DDMMYYYY doc file what amount', () => {
     expect(fileCodeOf('SHC/SH/CORP/SZ/002/04-25')).toBe('SZ-002');
@@ -127,10 +127,11 @@ describe('finance books', () => {
   });
   it('sets up April 2025 to December 2026', () => {
     const sk = financeSkeleton('2025-04', '2026-12', ['Office']);
-    const months = new Set(sk.filter((p) => p[0] === '1 Books' && p.length === 5).map((p) => p[3]));
+    const months = new Set(sk.filter((p) => p[0] === 'Books' && p.length === 5).map((p) => p[3]));
     expect(months.size).toBe(21);
     expect([...months][0]).toBe('2025-04 April');
-    expect(sk).toContainEqual(['1 Books', 'Office Account', 'Pending']);
-    expect(sk).toContainEqual(['3 Payroll', '2026', '2026-12 December', 'Partner Drawings']);
+    expect(sk).toContainEqual(['Books', 'Office Account', 'Pending', 'Claims']);
+    expect(sk).toContainEqual(['Books', 'Office Account', '2026', '2026-10 October', 'Money Out', 'Payment Vouchers']);
+    expect(sk).toContainEqual(['Payroll', '2026', '2026-12 December', 'Partner Drawings']);
   });
 });

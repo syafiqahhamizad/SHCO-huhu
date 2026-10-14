@@ -959,7 +959,7 @@ export interface Expense {
   signatories?: FinanceSignatory[];
   paidAt?: string;
   paidProof?: FinanceProof;
-  /** Filed in the finance books (1 Books › …), see DriveFiling. */
+  /** Filed in the finance books (Books › …), see DriveFiling. */
   driveFiling?: DriveFiling;
 }
 
@@ -1057,7 +1057,7 @@ export interface Receipt {
   caseId?: string;
   proofs?: FinanceProof[];
   historical?: boolean;
-  /** Filed in the finance books (1 Books › …), see DriveFiling. */
+  /** Filed in the finance books (Books › …), see DriveFiling. */
   driveFiling?: DriveFiling;
 }
 
@@ -1104,7 +1104,7 @@ export interface PaymentVoucher {
   paidProof?: FinanceProof;
   historical?: boolean;
   proofs?: FinanceProof[];
-  /** Filed in the finance books (1 Books › …), see DriveFiling. */
+  /** Filed in the finance books (Books › …), see DriveFiling. */
   driveFiling?: DriveFiling;
 }
 
@@ -1148,7 +1148,7 @@ export interface TravelClaim {
   signatories?: FinanceSignatory[];
   paidAt?: string;
   paidProof?: FinanceProof;
-  /** Filed in the finance books (1 Books › …), see DriveFiling. */
+  /** Filed in the finance books (Books › …), see DriveFiling. */
   driveFiling?: DriveFiling;
 }
 

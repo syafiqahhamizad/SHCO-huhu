@@ -7,12 +7,12 @@ import { extractMatterRunningNumber } from '../services/matterService';
  *    Case files/<Practice area>/<NNN> - <Matter title>/{sub-folders by practice area, see matterSubfolders}
  *    Clients KYC/<Client no.> - <Client name>/KYC
  *  SHCO Finance (partners / Accounts) — or "Finance/" inside SHCO Portal until it is set
- *    1 Books/<Office Account|Disbursement Account|…>/
+ *    Books/<Office Account|Disbursement Account|…>/
  *        Pending/<entry>/ · Rejected/<entry>/
  *        <YYYY>/<YYYY-MM Month>/{Money In, Money Out, Bank Statement}/<entry>/
- *    2 Client Files/<NNN> - <Matter title>/   (quotations, invoices; links to the file's money entries)
- *    3 Payroll/<YYYY>/<YYYY-MM Month>/{Payslips, Statutory, Partner Drawings}/
- *    4 Accounts & Tax Reports/ · 5 Firm Records/ · Backups/
+ *    Client Files/<NNN> - <Matter title>/   (quotations, invoices; links to the file's money entries)
+ *    Payroll/<YYYY>/<YYYY-MM Month>/{Payslips, Statutory, Partner Drawings}/
+ *    Accounts & Tax Reports/ · Firm Records/ · Backups/
  *    (an <entry> folder is named "DDMMYYYY <doc no.> <file code> <what> RM<amount>", see entryName)
  *    Before "Set up finance folders": <YYYY>/Claims|Payment Vouchers|Bank-in Proofs|Client Account/
  *  SHCO HR
@@ -147,7 +147,9 @@ export const financeFolderPath = (kind: FinanceKind, year: string | number, ref?
 
 /* ------------------------------------------------------------------ finance books (SHCO Finance) */
 
-export const FIN = { books: '1 Books', clientFiles: '2 Client Files', payroll: '3 Payroll', reports: '4 Accounts & Tax Reports', records: '5 Firm Records' } as const;
+export const FIN = { books: 'Books', clientFiles: 'Client Files', payroll: 'Payroll', reports: 'Accounts & Tax Reports', records: 'Firm Records' } as const;
+/** The first set-up used numbered names ("Books" …); they are renamed to the plain names once. */
+export const OLD_FIN_NAMES: [string, string][] = [['1 Books', FIN.books], ['2 Client Files', FIN.clientFiles], ['3 Payroll', FIN.payroll], ['4 Accounts & Tax Reports', FIN.reports], ['5 Firm Records', FIN.records]];
 /** The bank accounts the books are kept by (Client Account filing is postponed for now). */
 export type FinAccount = 'Office' | 'Client account' | 'Disbursement' | 'Petty cash' | 'Emergency';
 const ACCOUNT_FOLDER: Record<FinAccount, string> = { Office: 'Office Account', 'Client account': 'Client Account', Disbursement: 'Disbursement Account', 'Petty cash': 'Petty Cash', Emergency: 'Emergency Account' };
@@ -159,17 +161,17 @@ const ymd = (iso: string) => { const m = String(iso || '').match(/^(\d{4})-(\d{2
 /** "2026-10-14" → "2026-10 October" (sorts in month order in Drive). */
 export const monthFolderName = (iso: string) => { const x = ymd(iso); return x ? `${x.y}-${x.m} ${MONTH_NAMES[Number(x.m) - 1]}` : 'Undated'; };
 const yearOf = (iso: string) => ymd(iso)?.y || 'Undated';
-/** 1 Books/<account>/<YYYY>/<YYYY-MM Month>/<Money In | Money Out | Bank Statement>. */
+/** Books/<account>/<YYYY>/<YYYY-MM Month>/<Money In | Money Out | Bank Statement>. */
 export const booksMonthPath = (acc: FinAccount, iso: string, flow: BookFlow, type?: OutType) => [FIN.books, accountFolderName(acc), yearOf(iso), monthFolderName(iso), flow, ...(type ? [type] : [])];
-/** 1 Books/<account>/Pending (submitted / approved, not paid yet) or /Rejected, split by type. */
+/** Books/<account>/Pending (submitted / approved, not paid yet) or /Rejected, split by type. */
 export const booksStatusPath = (acc: FinAccount, status: 'Pending' | 'Rejected', type?: OutType) => [FIN.books, accountFolderName(acc), status, ...(type ? [type] : [])];
 /** Money Out (and Pending / Rejected) is split by what was paid. Money In stays one folder: it is all official receipts. */
 export type OutType = 'Claims' | 'Payment Vouchers' | 'Office Costs' | 'Disbursements';
-/** 3 Payroll/<YYYY>/<YYYY-MM Month>/<Payslips | Statutory | Partner Drawings>. */
+/** Payroll/<YYYY>/<YYYY-MM Month>/<Payslips | Statutory | Partner Drawings>. */
 export const payrollMonthPath = (iso: string, part: PayrollPart) => [FIN.payroll, yearOf(iso), monthFolderName(iso), part];
-/** 2 Client Files/<NNN - title>: a file's quotations / invoices, and links to its money entries. */
+/** Client Files/<NNN - title>: a file's quotations / invoices, and links to its money entries. */
 export const clientFilesPath = (m: MatterLike) => [FIN.clientFiles, matterFolderName(m.ref, m.title)];
-/** Kept for older callers: a matter's billing papers now live in 2 Client Files. */
+/** Kept for older callers: a matter's billing papers now live in Client Files. */
 export const financeMatterPath = clientFilesPath;
 
 /** "SHC/SH/CORP/SZ/002/04-25" → "SZ-002" (client code - running number); '' when the ref has neither. */
@@ -191,15 +193,19 @@ export const rmLabel = (n: number) => { const v = Math.round((Number(n) || 0) * 
 export const entryName = (e: { date: string; docNo?: string; ref?: string; what?: string; amount: number }) =>
   driveSafeName([dmyCompact(e.date), shortDocNo(e.docNo), fileCodeOf(e.ref), String(e.what || '').trim(), rmLabel(e.amount)].filter(Boolean).join(' ')).slice(0, 150);
 
+/** Which Money Out types each account has (pending: only what waits for approval). */
+const outTypesFor = (a: FinAccount, pending = false): OutType[] =>
+  a === 'Client account' ? ['Payment Vouchers'] : a === 'Disbursement' ? ['Payment Vouchers', 'Disbursements'] : pending ? ['Claims', 'Payment Vouchers', 'Office Costs'] : ['Claims', 'Payment Vouchers', 'Office Costs', 'Disbursements'];
+
 /** Every folder "Set up finance folders" creates, from `from` to `to` ("YYYY-MM"), for these accounts. */
 export const financeSkeleton = (from: string, to: string, accounts: FinAccount[]): string[][] => {
   const out: string[][] = [[FIN.clientFiles], [FIN.reports], [FIN.records]];
-  accounts.forEach((a) => { out.push(booksStatusPath(a, 'Pending'), booksStatusPath(a, 'Rejected')); });
+  accounts.forEach((a) => { (['Pending', 'Rejected'] as const).forEach((st) => outTypesFor(a, true).forEach((t) => out.push(booksStatusPath(a, st, t)))); });
   let [y, m] = from.split('-').map(Number);
   const [ty, tm] = to.split('-').map(Number);
   while (y < ty || (y === ty && m <= tm)) {
     const iso = `${y}-${String(m).padStart(2, '0')}-01`;
-    accounts.forEach((a) => (['Money In', 'Money Out', 'Bank Statement'] as BookFlow[]).forEach((f) => out.push(booksMonthPath(a, iso, f))));
+    accounts.forEach((a) => { out.push(booksMonthPath(a, iso, 'Money In'), booksMonthPath(a, iso, 'Bank Statement')); outTypesFor(a).forEach((t) => out.push(booksMonthPath(a, iso, 'Money Out', t))); });
     (['Payslips', 'Statutory', 'Partner Drawings'] as PayrollPart[]).forEach((p) => out.push(payrollMonthPath(iso, p)));
     if (m === 12) { y += 1; m = 1; } else m += 1;
   }

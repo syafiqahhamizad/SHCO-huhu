@@ -246,7 +246,7 @@ export function useFinanceController(initialTab: FinTab) {
 
   /* ------------------------------ finance books filing (Google Drive) ------------------------------ */
   // Once the Super Admin has set up the finance folders, each claim / PV / office expense / receipt is
-  // filed in 1 Books (Pending, Rejected, or the month it was paid), renamed, and linked in its client
+  // filed in Books (Pending, Rejected, or the month it was paid), renamed, and linked in its client
   // file. Runs in the background for Accounts (who can open SHCO Finance), one entry at a time.
   const filingBusy = useRef(false);
   const filingSkip = useRef(new Set<string>());
@@ -1353,7 +1353,7 @@ export function useFinanceController(initialTab: FinTab) {
         if (inv) app.addInvoice({ id, recordOnly: true, pastNo: no, pastFile, historical: true, clientId: c?.id || '', caseId: kase?.id || '', fileRef: kase?.ref || '', partyType: 'Client', partyName: name, amount: amt, discount: 0, tax: 0, total: amt, date: dateIso, dueDate: dateIso, status: 'Paid', matter: desc || kase?.title, lineItems: [{ description: desc || 'Professional fees', category: 'Fee - Fixed', amount: amt, quantity: 1, unitPrice: amt, chargeType: 'Fixed' }] } as Invoice);
         else app.addReceipt({ id, recordOnly: true, pastNo: no, pastFile, historical: true, date: dateIso, accountSet: vals.account === 'Client account' ? 'CLIENT' : 'OFFICE', receivedFrom: name, description: desc || 'Past receipt', amount: amt, debit: '', credit: '', clientId: c?.id || '', fileRef: kase?.ref || '', bankRef: '', receivedBy: me, paymentMethod: vals.method || '—', forNo: desc, caseId: kase?.id } as unknown as Receipt);
       };
-      // The PDF goes to the file's folder in 2 Client Files first, then the record is saved with its link.
+      // The PDF goes to the file's folder in Client Files first, then the record is saved with its link.
       const pdf = ((vals.pdf || []) as (FinanceProof & { file?: File })[]).find((p) => p.file)?.file;
       if (pdf) {
         void (async () => {
