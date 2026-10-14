@@ -522,7 +522,7 @@ export const SECTIONS: Section[] = [
       { t: 'The gold button on each row is the next step, by status:', sub: [
         'Draft / Ready → [[Send]].', 'Sent → [[Mark accepted]] (or *Resend*).', 'Accepted → [[Make proforma]] / *Issue proforma: <stage>* for each stage, or [[Convert to invoice]] when the work is done.',
         'Proforma → *Record payment* / *Remind* / *Convert to invoice*.', 'Invoice Draft → [[Issue]]; issued → *Record paid* / *Remind*; no money yet → *Void*.',
-        'The ⋯ (*More actions*) menu has the rest (view, Word, PDF / Print, request write-off…).',
+        'The ⋯ (*More actions*) menu has the rest (view, PDF / Print, request write-off…).',
       ] },
       { t: 'The accepted quotation is also what the file’s *Letter of Engagement* uses for its fee breakdown and payment plan.' },
       { t: 'Money received: [[Money in]] (or *Record paid* on the invoice) → *Received from*, *Date received*, *This money is* (payment of an invoice, or deposit / money held for client), how (online transfer, cheque, cash), amount, and attach the *proof of payment*. A receipt (HQ-OR-…) is made and numbered by account.' },

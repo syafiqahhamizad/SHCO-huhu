@@ -67,7 +67,7 @@ export const ImportModal = ({ F }: { F: FinanceCtrl }) => {
   );
 };
 
-/* ------------------------------ Document viewer (screen = Word = PDF source) ------------------------------ */
+/* ------------------------------ Document viewer (screen = PDF source) ------------------------------ */
 export const DocViewModal = ({ F }: { F: FinanceCtrl }) => {
   const ref = F.view!; const d = F.buildDoc(ref); const rec = F.recordOf(ref);
   if (!d || !rec) return null;
@@ -86,7 +86,6 @@ export const DocViewModal = ({ F }: { F: FinanceCtrl }) => {
           <strong style={css('color:#fff;font-size:13px')}>{d.no}</strong><span style={css('font-size:10.5px;color:#C9D3E0')}>{d.type} · {statusLabel}</span>
           <div style={css('margin-left:auto;display:flex;gap:6px;flex-wrap:wrap')}>
             {acts.map((a, i) => <button key={a} type="button" onClick={() => F.act(ref.kind, rec as Quotation | Invoice, a)} style={css(`border:1px solid #DDE3EB;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;background:${i === 0 ? '#C9A86A' : '#fff'};color:#16223A`)}>{a}</button>)}
-            <button type="button" onClick={() => { SD.word(d.no, html); F.toastMsg(d.no + '.doc downloaded'); }} style={css('border:1px solid #2F5680;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:#2F5680;color:#fff;cursor:pointer;font-family:inherit;white-space:nowrap')}>Word</button>
             <button type="button" onClick={() => SD.pdf(d.no, html)} style={css('border:1px solid #B23A2E;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:#B23A2E;color:#fff;cursor:pointer;font-family:inherit;white-space:nowrap')}>PDF / Print</button>
             <button type="button" onClick={() => F.setView(null)} style={css('border:1px solid rgba(255,255,255,.35);border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:transparent;color:#fff;cursor:pointer;font-family:inherit;white-space:nowrap')}>Close</button>
           </div>
@@ -156,7 +155,6 @@ export const DocEditModal = ({ F }: { F: FinanceCtrl }) => {
             <label style={css('display:flex;flex-direction:column;gap:4px')}><span style={css(LBL)}>Your Ref</span><input value={e.yourRef} onChange={(ev) => setE({ yourRef: ev.target.value })} style={css(INPUT)} /></label>
             <label style={css('display:flex;flex-direction:column;gap:4px')}><span style={css(LBL)}>Subject</span><input value={e.subject} onChange={(ev) => setE({ subject: ev.target.value })} placeholder="e.g. TENANCY (SUMMON – SETTLEMENT)" style={css(INPUT)} /></label>
           </div>
-          <label style={css('display:flex;flex-direction:column;gap:4px')}><span style={css(LBL)}>Scope of work (paragraph above the fees)</span><textarea value={e.desc} onChange={(ev) => setE({ desc: ev.target.value })} rows={4} style={css(INPUT + ';resize:vertical;line-height:1.45')} /></label>
           <div style={css('display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px;align-items:center')}><span style={css(LBL)}>SST</span><div style={css('display:flex;flex-wrap:wrap;gap:4px')}>{seg(['Not applicable', 'SST 6%', 'SST 8%'], e.sstRate === 0.06 ? 'SST 6%' : e.sstRate === 0.08 ? 'SST 8%' : 'Not applicable', (v) => setE({ sstRate: v === 'SST 6%' ? 0.06 : v === 'SST 8%' ? 0.08 : 0 }))}</div></div>
           <div style={css('display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px;align-items:center')}><span style={css(LBL)}>{isQuote ? 'Payment plan' : 'Fee arrangement'}</span><div style={css('display:flex;flex-wrap:wrap;gap:4px')}>{isQuote
             ? seg(['Pay in full', 'Stages', 'Monthly instalments'], planKindLabel, (v) => { const kind = v === 'Stages' ? 'Stages' : v === 'Monthly instalments' ? 'Instalments' : 'Full'; setE({ plan: { ...e.plan, kind, ...(kind === 'Stages' && !(e.plan.stages || []).length ? { stages: defaultPlanFor('Litigation').stages } : {}) }, inst: kind === 'Instalments' ? { months: 8, upfront: 2000, terms: SD.ARR_TERMS, ...(e.inst || {}), on: true } : e.inst ? { ...e.inst, on: false } : null }); })
@@ -193,6 +191,7 @@ export const DocEditModal = ({ F }: { F: FinanceCtrl }) => {
           {sections.map(([k, title, note]) => (
             <div key={k} style={css('border:1px solid #DDE3EB;border-radius:8px;overflow:hidden')}>
               <div style={css('display:flex;align-items:center;gap:8px;padding:7px 12px;background:#F6F8FA')}><strong style={css('font-size:11.5px')}>{title}</strong><span style={css('font-size:10px;color:#5B6478')}>{note}</span><strong style={css('margin-left:auto;font-size:11.5px')}>{SD.money(sum(e.lines[k]))}</strong></div>
+              {k === 'prof' && <label style={css('display:flex;flex-direction:column;gap:4px;padding:8px 12px;border-top:1px solid #F0F2F5')}><span style={css(LBL)}>Scope of work</span><textarea value={e.desc} onChange={(ev) => setE({ desc: ev.target.value })} rows={4} placeholder="Being our professional charges for…" style={css(INPUT + ';resize:vertical;line-height:1.45;text-align:justify')} /></label>}
               {e.lines[k].map(([desc, a], i) => (
                 <div key={`${e.area}-${k}-${i}-${e.lines[k].length}`} style={css('display:grid;grid-template-columns:minmax(0,1fr) 130px 70px;gap:8px;align-items:center;padding:5px 12px;border-top:1px solid #F0F2F5')}><input value={desc} onChange={(ev) => { const v = ev.target.value; setLines((L) => { L[k][i][0] = v; }); }} placeholder="Description" style={css(INPUT)} /><input defaultValue={String(a)} onChange={(ev) => { const v = ev.target.value; setLines((L) => { L[k][i][1] = Number(v.replace(/[^0-9.]/g, '')) || 0; }); }} style={css(INPUT + ';text-align:right')} /><button type="button" onClick={() => setLines((L) => { L[k].splice(i, 1); })} style={css(BTN + ';color:#B23A2E;padding:5px 8px')}>Remove</button></div>
               ))}
