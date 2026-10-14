@@ -553,7 +553,7 @@ export const SECTIONS: Section[] = [
     steps: [
       { t: 'Open *Approvals*. You are also notified of each new item. Filter by *Year* and *Type*.' },
       { t: '*Waiting for approval*: each item shows who asked, what for, the file, amount and the receipts. Open the receipt to check it.' },
-      { t: 'Click [[Approve · <your code>]] to sign, or [[Reject]] with a reason. When enough people have signed it moves on; the person who asked is notified.' },
+      { t: 'Click [[Approve]] to sign, or [[Reject]] with a reason. When enough people have signed it moves on; the person who asked is notified.' },
       { t: 'Accounts: *Approved · to pay* lists what is ready to pay with the payment details from the staff form. Pay it, then drop the bank / portal receipt on the row to mark it paid — it posts to the cash book of the account it was paid from.' },
       { t: '*Referral fees*: from Leads & Referrals; the % is of professional fees actually received this month (excluding disbursements and SST).' },
       { t: '[[Drive folder ↗]] opens the item’s receipts in Google Drive.' },

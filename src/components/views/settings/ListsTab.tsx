@@ -16,6 +16,7 @@ export const ListsTab = ({ C }: { C: SettingsCtx }) => {
   const s = C.settings;
   const [hDate, setHDate] = useState('');
   const [hName, setHName] = useState('');
+  const [pick, setPick] = useState('Expense categories');
   const sources: LeadSourceDef[] = s.leadSources && s.leadSources.length ? s.leadSources : DEFAULT_LEAD_SOURCES;
   const exp = s.expenseCategories && s.expenseCategories.length ? s.expenseCategories : DEFAULT_EXPENSE_CATEGORIES;
   const claims = s.claimTypes && s.claimTypes.length ? s.claimTypes : DEFAULT_CLAIM_TYPES;
@@ -53,9 +54,14 @@ export const ListsTab = ({ C }: { C: SettingsCtx }) => {
   const setLeave = (i: number, p: Partial<(typeof leaveTypes)[number]>) => saveLeave(leaveTypes.map((t, k) => (k === i ? { ...t, ...p } : t)), (leaveTypes[i]?.name || 'Leave type') + ' changed');
   const fmtD = (iso: string) => { const d = new Date(iso + 'T00:00:00'); return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }); };
 
+  const PICKS = [...lists.map((g) => [g.title, g.items.length] as [string, number]), ['Leave types', leaveTypes.length] as [string, number], ['Public holidays', Object.keys(holidays).length] as [string, number]];
   return (
-    <div style={css('display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start')}>
-      {lists.map((g) => (
+    <div style={css('display:grid;grid-template-columns:200px minmax(0,1fr);gap:16px;align-items:start')}>
+      <div style={css(S.card + ';padding:6px')}>
+        {PICKS.map(([t, n]) => { const on = pick === t; return <button key={t} type="button" onClick={() => setPick(t)} style={css(`display:flex;width:100%;align-items:center;justify-content:space-between;border:0;border-radius:6px;padding:8px 10px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;text-align:left;background:${on ? '#16223A' : 'transparent'};color:${on ? '#fff' : '#16223A'}`)}><span>{t}</span><span style={css(`font-size:10px;font-weight:700;color:${on ? '#C9D3E0' : '#94A3B8'}`)}>{n}</span></button>; })}
+      </div>
+      <div style={css('max-width:760px')}>
+      {lists.filter((g) => g.title === pick).map((g) => (
         <div key={g.title} style={css(S.card)}>
           <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>{g.title}</strong><span style={css('display:block;font-size:10.5px;color:#5B6478')}>{g.note}</span></div>
           {g.items.map((v, ii) => (
@@ -64,7 +70,7 @@ export const ListsTab = ({ C }: { C: SettingsCtx }) => {
           <div style={css('padding:7px 14px')}><button type="button" onClick={g.add} style={css(S.addLink)}>+ Add</button></div>
         </div>
       ))}
-      <div style={css(S.card + ';grid-column:span 2')}>
+      {pick === 'Leave types' && <div style={css(S.card)}>
         <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Leave types</strong><span style={css('display:block;font-size:10.5px;color:#5B6478')}>what staff can apply for in Staff Portal → Leave · days a year (0 = no fixed limit) · how days are counted{s.leaveTypes ? '' : ' · built-in list'}</span></div>
         {leaveTypes.map((t, i) => (
           <div key={i} style={css('display:grid;grid-template-columns:140px 60px 110px minmax(0,1fr) 60px;gap:8px;align-items:center;padding:5px 14px;border-bottom:1px solid #F0F2F5')}>
@@ -79,8 +85,8 @@ export const ListsTab = ({ C }: { C: SettingsCtx }) => {
           <button type="button" onClick={() => saveLeave([...leaveTypes, { name: 'New leave', days: 0, basis: 'working', note: '' }], 'Added a leave type')} style={css(S.addLink)}>+ Add leave type</button>
           {s.leaveTypes && <button type="button" onClick={() => { if (window.confirm('Go back to the built-in leave types?')) C.save({ leaveTypes: undefined }, 'Leave Types Changed', 'Restored the built-in list'); }} style={css(S.addLink)}>Restore built-in list</button>}
         </div>
-      </div>
-      <div style={css(S.card)}>
+      </div>}
+      {pick === 'Public holidays' && <div style={css(S.card)}>
         <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Public holidays</strong><span style={css('display:block;font-size:10.5px;color:#5B6478')}>skipped when Staff Portal counts leave days{s.publicHolidays ? '' : ' · built-in 2026–2027 list'}</span></div>
         {Object.keys(holidays).sort().map((d) => (
           <div key={d} style={css('display:grid;grid-template-columns:120px minmax(0,1fr) 60px;gap:8px;align-items:center;padding:5px 14px;border-bottom:1px solid #F0F2F5')}><span style={css('font-size:10.5px;color:#5B6478;font-family:ui-monospace, Menlo, monospace')}>{fmtD(d)}</span><span style={css('font-size:11px;color:#16223A;min-width:0')}>{holidays[d]}</span><button type="button" onClick={() => { const next = { ...holidays }; delete next[d]; saveHolidays(next, 'Removed ' + d + ' ' + holidays[d]); C.msg('Public holiday removed.'); }} style={css(S.remove)}>Remove</button></div>
@@ -92,6 +98,7 @@ export const ListsTab = ({ C }: { C: SettingsCtx }) => {
           <button type="button" onClick={addHoliday} style={css(S.darkBtn)}>Add</button>
         </div>
         {s.publicHolidays && <div style={css('padding:7px 14px')}><button type="button" onClick={() => { if (window.confirm('Replace your list with the built-in 2026–2027 list?')) { saveHolidays(undefined, 'Restored the built-in list'); C.msg('Built-in holiday list restored.'); } }} style={css(S.addLink)}>Restore built-in list</button></div>}
+      </div>}
       </div>
     </div>
   );

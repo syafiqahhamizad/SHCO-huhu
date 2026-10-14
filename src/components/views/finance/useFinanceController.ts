@@ -252,6 +252,12 @@ export function useFinanceController(initialTab: FinTab) {
   const filingSkip = useRef(new Set<string>());
   const filingStopped = useRef(false);
   const [filingTick, setFilingTick] = useState(0);
+  /** What the filer is doing, shown on Finance Home so a stuck filing is never silent. */
+  const [filingLog, setFilingLog] = useState<{ done: number; last?: string; problem?: string; working?: string }>({ done: 0 });
+  const filingOff = !settings.financeFiling ? 'Finance folders are not set up yet (Settings → Google, e-mail & backup → Set up finance folders).'
+    : !canPrepare ? 'Papers are filed when Accounts or the Super Admin opens the finance pages.'
+    : !hasFinanceDrive() ? 'The SHCO Finance drive is not linked (Settings → Google, e-mail & backup).' : '';
+  const retryFiling = () => { filingSkip.current.clear(); filingStopped.current = false; setFilingLog((x) => ({ ...x, problem: undefined })); setFilingTick((x) => x + 1); };
   useEffect(() => {
     const ff = settings.financeFiling;
     if (!ff || !canPrepare || !hasFinanceDrive() || filingBusy.current || filingStopped.current) return;
@@ -259,8 +265,9 @@ export function useFinanceController(initialTab: FinTab) {
       from: ff.from,
       matterOf: (caseId, ref) => { const k = findCase(lk, caseId, ref); return k ? { ref: k.ref, title: k.title, practiceArea: k.practiceArea, type: k.type } : ref ? { ref } : undefined; },
     }, filingSkip.current);
-    if (!job) return;
+    if (!job) { setFilingLog((x) => (x.working ? { ...x, working: undefined } : x)); return; }
     filingBusy.current = true;
+    setFilingLog((x) => ({ ...x, working: job.name }));
     void (async () => {
       try {
         const res = await fileFinanceEntry({ path: job.path, name: job.name, folderId: job.folderId, papers: job.papers, matter: job.matter, matters: job.matters });
@@ -275,9 +282,11 @@ export function useFinanceController(initialTab: FinTab) {
           } else if (r.kind === 'pv') { const v = paymentVouchers.find((x) => x.id === r.recId); if (v) app.updatePaymentVoucher(v.id, applyFiled(v, job, res, 'pv')); }
           else { const x = receipts.find((y) => y.id === r.recId); if (x) app.updateReceipt(x.id, applyFiled(x, job, res, 'receipt')); }
         }
+        setFilingLog((x) => ({ ...x, done: x.done + 1, last: job.path.slice(1).join(' › ') + ' › ' + job.name }));
       } catch (err) {
         filingSkip.current.add(job.unit || job.kind + ':' + job.recId);
         const m = err instanceof Error ? err.message : String(err);
+        setFilingLog((x) => ({ ...x, problem: job.name + ': ' + m }));
         if (/permission|access|401|403|not found|insufficient/i.test(m)) { filingStopped.current = true; toastMsg('Finance filing paused: ' + m); }
       } finally {
         filingBusy.current = false;
@@ -412,6 +421,7 @@ export function useFinanceController(initialTab: FinTab) {
   const deleteReceipt = (r: Receipt) => {
     if (!canDeleteBills) { toastMsg('Only an admin or Accounts can delete.'); return; }
     if (!window.confirm('Delete receipt ' + r.id + ' (' + rm2(Number(r.amount || 0)) + ')? The payment it recorded and its postings are reversed. It stays in the Recycle Bin.')) return;
+    if (r.accountSet === 'CLIENT' && r.clientId && clientLedgerBalance(r.clientId, r.caseId || '') - Number(r.amount || 0) < -0.005) { toastMsg(r.id + ' was already used (paid out or transferred). Deleting it would take the client ledger below zero: correct it with a journal on the Client Account page.'); return; }
     reverseDoc(r.id, 'deleted');
     app.removeFinanceRecords({ receipts: [r.id], payments: payments.filter((p) => p.id === 'PAY-' + r.id).map((p) => p.id), retainers: retainers.filter((x) => x.id === 'RET-' + r.id).map((x) => x.id) }, 'Receipt deleted by ' + me);
     setView(null); toastMsg(r.id + ' deleted · postings reversed');
@@ -445,16 +455,17 @@ export function useFinanceController(initialTab: FinTab) {
   const editEntry = async (kind: MoneyKind, id: string) => {
     if (!canPrepare) { toastMsg('Money entries are corrected by Accounts.'); return; }
     if (kind === 'receipt') { const r = receipts.find((x) => x.id === id); if (r) await editReceipt(r); return; }
-    if (isClientMoney(kind, id)) { toastMsg('Client Account entries are corrected in Client Account (on hold for now).'); return; }
+    const clientPv = kind === 'pv' && isClientMoney(kind, id);
+    if (isClientMoney(kind, id) && !clientPv) { toastMsg('This line belongs to a client-account payment: edit that payment instead.'); return; }
     const rec = kind === 'expense' ? expenses.find((x) => x.id === id) : kind === 'pv' ? paymentVouchers.find((x) => x.id === id) : travelClaims.find((x) => x.id === id);
     if (!rec) return;
     const t = kind === 'travel' ? (rec as TravelClaim) : null, e = kind === 'expense' ? (rec as Expense) : null, v = kind === 'pv' ? (rec as PaymentVoucher) : null;
     const v0 = { date: isoOf(parseDate(rec.date) || Date.now()), who: t ? t.claimant : (e?.payee || v?.payee || ''), what: t ? t.purpose : (e?.description || v?.description || '') };
     const f = await askForm('Edit ' + id, [
-      { key: 'date', label: 'Date', type: 'date', value: v0.date, required: true },
+      ...(clientPv ? [] : [{ key: 'date', label: 'Date', type: 'date' as const, value: v0.date, required: true }]),
       ...(t ? [] : [{ key: 'who', label: 'Paid to', value: v0.who }]),
       { key: 'what', label: 'Details', value: v0.what, required: true },
-    ], { note: 'To change the amount, delete this entry and record it again (its book entries are reversed).', ok: 'Save' });
+    ], { note: clientPv ? 'Client money: the date and amount stay as recorded (they are in the client ledger). To correct those, use a journal on the Client Account page.' : 'To change the amount, delete this entry and record it again (its book entries are reversed).', ok: 'Save' });
     if (!f) return;
     const date = f.date || v0.date;
     if (t) app.updateTravelClaim(id, { date, purpose: f.what.trim() });
@@ -467,7 +478,10 @@ export function useFinanceController(initialTab: FinTab) {
   const deleteEntry = (kind: MoneyKind, id: string) => {
     if (!canDeleteBills) { toastMsg('Only an admin or Accounts can delete.'); return; }
     if (kind === 'receipt') { const r = receipts.find((x) => x.id === id); if (r) deleteReceipt(r); return; }
-    if (isClientMoney(kind, id)) { toastMsg('Client Account entries are corrected in Client Account (on hold for now).'); return; }
+    if (kind === 'pv' && isClientMoney(kind, id)) {
+      const v = paymentVouchers.find((x) => x.id === id);
+      if (v && (v.paidAt || v.postedToGl || v.approvalStatus === 'Posted to GL')) { toastMsg(id + ' was paid out of client money: correct it with a journal on the Client Account page (the ledger, cash book and bank must agree).'); return; }
+    } else if (isClientMoney(kind, id)) { toastMsg('This line belongs to a client-account payment: delete that payment instead.'); return; }
     const onBill = invoices.find((i) => [...(i.sourceItems?.expenses || []), ...(i.sourceItems?.travel || [])].includes(id) && invStatus(i) !== 'Voided');
     if (onBill) { toastMsg(id + ' is on bill ' + onBill.id + ': delete or void that bill first.'); return; }
     if (!window.confirm('Delete ' + id + '? Its book entries are reversed and it goes to the Recycle Bin.')) return;
@@ -1571,6 +1585,7 @@ export function useFinanceController(initialTab: FinTab) {
     ledgers, trustTotal, ledgerTotalAt, clientLedgerBalance, threeWayRec,
     unbilled, wipTotal, billMatter, billed: billed as Record<string, { inv: string; u: any }>,
     activeBanks, bankKind, banksOf, paidFromOptions, bankBal, lastRecon, officeCash,
+    filingLog, filingOff, retryFiling,
     apItems, pendingAp, approve, apId, apRule, canSignItem, ruleFor, signoffs, signOff, myCode,
     trSub, setTrSub, ofSub, setOfSub, apSub, setApSub, paySub, setPaySub, guide, setGuide, rem, setRem, paper, setPaper, decided: decided as Record<string, { d: 'ok' | 'no'; item: ApItem }>, referral, referralFor, refDecision, toPay, markPaid, paidNow: paidNow as Record<string, { item: PayItem; file: string }>,
     saveSlipPatch, feeShareFor, fsFilesFor, fsPeople, fsCostsFor, fsApproved, saveFs, setFsFile, applyFeeShareToSlips,

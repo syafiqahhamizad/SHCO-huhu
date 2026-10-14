@@ -7,12 +7,12 @@
  *   1 Books/<account>/<YYYY>/<YYYY-MM Month>/Money In/<entry>    receipts
  *   3 Payroll/<YYYY>/<YYYY-MM Month>/Statutory | Partner Drawings/<entry>
  *
- * Same accounts as the cash book (Office, Disbursement, Petty cash). Client-account entries are not
- * filed here yet (postponed). A file's entry also gets a link in 2 Client Files/<file>.
+ * Same accounts as the cash book (Office, Client Account, Disbursement, Petty cash). The billing line a
+ * client-account payment makes (an expense) is not filed twice. A file's entry also gets a link in 2 Client Files/<file>.
  */
 import type { ClaimAttachment, DriveFiling, Expense, FinanceProof, PaymentVoucher, Receipt, TravelClaim } from '../../../types';
 import { PV_DRAWINGS, PV_STATUTORY } from '../../../lib/financeCalc';
-import { booksMonthPath, booksStatusPath, entryName, payrollMonthPath, shortDocNo, type FinAccount, type MatterLike } from '../../../lib/driveLayout';
+import { booksMonthPath, booksStatusPath, entryName, payrollMonthPath, shortDocNo, type FinAccount, type MatterLike, type OutType } from '../../../lib/driveLayout';
 
 export type FilingKind = 'travel' | 'expense' | 'pv' | 'receipt';
 /** Where a paper sits on its record, so a moved / copied Drive file can be written back. */
@@ -44,13 +44,13 @@ export interface FilingCtx {
 type Stop = { s: 'Pending' } | { s: 'Rejected' } | { s: 'Paid'; on: string };
 const claimStop = (status?: string, paidAt?: string): Stop => (status === 'Rejected' ? { s: 'Rejected' } : paidAt ? { s: 'Paid', on: isoDay(paidAt) } : { s: 'Pending' });
 
-const target = (acc: FinAccount, stop: Stop, recDate: string, flow: 'Money In' | 'Money Out', payroll?: 'Statutory' | 'Partner Drawings') => {
-  if (stop.s !== 'Paid') return { path: booksStatusPath(acc, stop.s), day: recDate };
-  return { path: payroll ? payrollMonthPath(stop.on, payroll) : booksMonthPath(acc, stop.on, flow), day: stop.on };
+const target = (acc: FinAccount, stop: Stop, recDate: string, flow: 'Money In' | 'Money Out', payroll?: 'Statutory' | 'Partner Drawings', type?: OutType) => {
+  if (stop.s !== 'Paid') return { path: booksStatusPath(acc, stop.s, type), day: recDate };
+  return { path: payroll ? payrollMonthPath(stop.on, payroll) : booksMonthPath(acc, stop.on, flow, flow === 'Money Out' ? type : undefined), day: stop.on };
 };
 
 type AnyRec = TravelClaim | Expense | PaymentVoucher | Receipt;
-interface RecInfo { kind: FilingKind; rec: AnyRec; recDate: string; acc: FinAccount; stop: Stop; flow: 'Money In' | 'Money Out'; payroll?: 'Statutory' | 'Partner Drawings'; docNo: string; what: string; who: string; amount: number; ref?: string; caseId?: string; papers: RawPaper[]; form?: string }
+interface RecInfo { kind: FilingKind; rec: AnyRec; recDate: string; acc: FinAccount; stop: Stop; flow: 'Money In' | 'Money Out'; payroll?: 'Statutory' | 'Partner Drawings'; docNo: string; what: string; who: string; amount: number; ref?: string; caseId?: string; papers: RawPaper[]; form?: string; type?: OutType }
 
 /** What one record says about where it belongs (null = never filed here: client account). */
 const infoOf = (kind: FilingKind, rec: AnyRec): RecInfo | null => {
@@ -59,26 +59,24 @@ const infoOf = (kind: FilingKind, rec: AnyRec): RecInfo | null => {
   const base = { kind, rec, recDate, acc: 'Office' as FinAccount, flow: 'Money Out' as const, docNo: rec.id };
   if (kind === 'travel') {
     const t = rec as TravelClaim;
-    return { ...base, stop: claimStop(t.approvalStatus, t.paidAt), what: t.purpose || t.type, who: t.claimant, amount: Number(t.total || 0), ref: noFile(t.fileRef) ? undefined : t.fileRef, papers: rawPapers([{ list: t.attachments, field: 'attachments', label: 'Receipt' }], t.paidProof), form: t.formNo };
+    return { ...base, type: 'Claims', stop: claimStop(t.approvalStatus, t.paidAt), what: t.purpose || t.type, who: t.claimant, amount: Number(t.total || 0), ref: noFile(t.fileRef) ? undefined : t.fileRef, papers: rawPapers([{ list: t.attachments, field: 'attachments', label: 'Receipt' }], t.paidProof), form: t.formNo };
   }
   if (kind === 'expense') {
     const e = rec as Expense;
     if (e.accountSet === 'CLIENT') return null;
     const acc: FinAccount = e.billable && !e.claimant && (!e.paidFrom || /disb/i.test(e.paidFrom)) ? 'Disbursement' : /petty/i.test(e.paidFrom || '') ? 'Petty cash' : /disb/i.test(e.paidFrom || '') ? 'Disbursement' : 'Office';
     const stop: Stop = e.claimant ? claimStop(e.approvalStatus, e.paidAt) : e.approvalStatus === 'Rejected' ? { s: 'Rejected' } : e.approvalStatus === 'Pending Approval' ? { s: 'Pending' } : { s: 'Paid', on: isoDay(e.paidAt) || recDate };
-    return { ...base, acc, stop, what: e.description || e.category, who: e.claimant || e.payee || '', amount: Number(e.amount || 0), ref: noFile(e.fileRef) ? undefined : e.fileRef, caseId: e.caseId || undefined, papers: rawPapers([{ list: e.attachments, field: 'attachments', label: e.claimant ? 'Receipt' : 'Bill' }], e.paidProof), form: e.claimant ? e.formNo : undefined };
+    return { ...base, acc, stop, type: e.claimant ? 'Claims' : e.billable ? 'Disbursements' : 'Office Costs', what: e.description || e.category, who: e.claimant || e.payee || '', amount: Number(e.amount || 0), ref: noFile(e.fileRef) ? undefined : e.fileRef, caseId: e.caseId || undefined, papers: rawPapers([{ list: e.attachments, field: 'attachments', label: e.claimant ? 'Receipt' : 'Bill' }], e.paidProof), form: e.claimant ? e.formNo : undefined };
   }
   if (kind === 'pv') {
     const v = rec as PaymentVoucher;
-    if (v.accountSet === 'CLIENT') return null;
-    const acc: FinAccount = v.voucherCategory === 'Disbursement' || (v.voucherCategory as string) === 'Client Disb' ? 'Disbursement' : /petty/i.test(v.bankAccountName || '') ? 'Petty cash' : 'Office';
+    const acc: FinAccount = v.accountSet === 'CLIENT' ? 'Client account' : v.voucherCategory === 'Disbursement' || (v.voucherCategory as string) === 'Client Disb' ? 'Disbursement' : /petty/i.test(v.bankAccountName || '') ? 'Petty cash' : 'Office';
     const stop: Stop = v.approvalStatus === 'Rejected' ? { s: 'Rejected' } : v.paidAt || v.historical || v.approvalStatus === 'Posted to GL' ? { s: 'Paid', on: isoDay(v.paidAt) || recDate } : { s: 'Pending' };
     const payroll = (v.voucherCategory as string) === PV_STATUTORY ? 'Statutory' as const : (v.voucherCategory as string) === PV_DRAWINGS ? 'Partner Drawings' as const : undefined;
-    return { ...base, acc, stop, payroll, what: v.description || v.voucherCategory, who: v.payee || '', amount: Number(v.amount || 0), ref: noFile(v.fileRef) ? undefined : v.fileRef, caseId: v.caseId, papers: rawPapers([{ list: v.attachments, field: 'attachments', label: 'Bill' }, { list: v.proofs, field: 'proofs', label: '' }], v.paidProof), form: v.formNo };
+    return { ...base, acc, stop, payroll, type: 'Payment Vouchers', what: v.description || v.voucherCategory, who: v.payee || '', amount: Number(v.amount || 0), ref: noFile(v.fileRef) ? undefined : v.fileRef, caseId: v.caseId, papers: rawPapers([{ list: v.attachments, field: 'attachments', label: 'Bill' }, { list: v.proofs, field: 'proofs', label: '' }], v.paidProof), form: v.formNo };
   }
   const r = rec as Receipt;
-  if (r.accountSet === 'CLIENT') return null;
-  return { ...base, stop: { s: 'Paid', on: recDate }, flow: 'Money In', what: r.description || r.forNo || 'Received', who: r.receivedFrom || '', amount: Number(r.amount || 0), ref: noFile(r.fileRef) ? undefined : r.fileRef, caseId: r.caseId, papers: rawPapers([{ list: r.proofs, field: 'proofs', label: 'Bank-in slip' }]) };
+  return { ...base, acc: r.accountSet === 'CLIENT' ? 'Client account' as FinAccount : 'Office' as FinAccount, stop: { s: 'Paid', on: recDate }, flow: 'Money In', what: r.description || r.forNo || 'Received', who: r.receivedFrom || '', amount: Number(r.amount || 0), ref: noFile(r.fileRef) ? undefined : r.fileRef, caseId: r.caseId, papers: rawPapers([{ list: r.proofs, field: 'proofs', label: 'Bank-in slip' }]) };
 };
 
 const paperName = (p: RawPaper, n: number, docNo?: string) => {
@@ -99,7 +97,7 @@ const jobFor = (members: RecInfo[], ctx: FilingCtx): FilingJob | null => {
   const group = members.length > 1 || !!first.form;
   const live = members.filter((m) => m.stop.s !== 'Rejected');
   const stop: Stop = !live.length ? { s: 'Rejected' } : live.every((m) => m.stop.s === 'Paid') ? { s: 'Paid', on: live.map((m) => (m.stop as { on: string }).on).sort().pop()! } : { s: 'Pending' };
-  const t = target(first.acc, stop, recDate, first.flow, first.payroll);
+  const t = target(first.acc, stop, recDate, first.flow, first.payroll, first.type);
   const refs = [...new Set(members.map((m) => m.ref).filter(Boolean))] as string[];
   const matters = [...new Map(members.map((m) => (m.ref || m.caseId ? ctx.matterOf(m.caseId, m.ref) : undefined)).filter((x): x is MatterLike => !!x).map((x) => [x.ref, x])).values()];
   const amount = (live.length ? live : members).reduce((s, m) => s + m.amount, 0);

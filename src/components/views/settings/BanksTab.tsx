@@ -5,9 +5,16 @@ import { css, S, Txt, type SettingsCtx } from './settingsShared';
 
 const REF_RULES: [string, string, string, string][] = [['1', 'Firm', 'SHC', 'Always SHC.'], ['2', 'Partner(s) in charge', 'SH or SH/ZA', 'Partner codes. '], ['3', 'Lawyer(s) in charge', 'NM', 'Optional; skipped if none. A partner on the file cannot also be picked as lawyer.'], ['4', 'Matter code', 'L', 'Picked from the matter codes registered per practice area (Practice areas & codes tab), e.g. L, CONV · MOT · POC · DOC · LOAN, EST · OFS · VO · LA · PRB, CORP, CR · YBGK.'], ['5', 'Client initials', 'QA', 'First letter of the first two words of the client name, ignoring Sdn Bhd, Bhd, Datuk, Dato’, Dr., Encik, Puan, Tan Sri, Syarikat. Several clients are joined with /. Can be corrected at intake.'], ['6', 'Running no.', '001', 'Next firm-wide case number, given automatically.'], ['7', 'Month-year', '08-26', 'Month and year of the file opening date (MM-YY). Backdating allowed.']];
 
-const TYPE_LABEL: Record<FirmBankAccount['accountType'], string> = { 'Office Operating': 'Office', 'Client Trust': 'Client account', Disbursement: 'Disbursement', 'Fixed Deposit Stakeholder': 'Fixed deposit', 'Syariah Escrow': 'Syariah escrow', Other: 'Other' };
-const typeFromLabel = (v: string): FirmBankAccount['accountType'] =>
-  /client|trust/i.test(v) ? 'Client Trust' : /disburse/i.test(v) ? 'Disbursement' : /fixed|\bfd\b/i.test(v) ? 'Fixed Deposit Stakeholder' : /escrow|syariah/i.test(v) ? 'Syariah Escrow' : /office|operat/i.test(v) ? 'Office Operating' : 'Other';
+/** The kinds of bank account the firm keeps (picked from a list so they stay neat). */
+const KINDS: [string, FirmBankAccount['accountType']][] = [['Office Account', 'Office Operating'], ['Client Account', 'Client Trust'], ['Disbursement Account', 'Disbursement'], ['Emergency Account', 'Other'], ['Petty Cash', 'Other'], ['Fixed Deposit Stakeholder', 'Fixed Deposit Stakeholder'], ['Syariah Escrow', 'Syariah Escrow']];
+const kindOf = (b: FirmBankAccount) => {
+  const t = ((b.typeLabel || '') + ' ' + (b.accountType === 'Other' ? b.accountName || '' : '')).toLowerCase();
+  if (b.accountType === 'Other' && /fixed deposit|stakeholder/.test(t)) return 'Fixed Deposit Stakeholder';
+  if (b.accountType === 'Other' && /escrow|syariah/.test(t)) return 'Syariah Escrow';
+  if (/emergen/.test(t)) return 'Emergency Account';
+  if (/petty/.test(t)) return 'Petty Cash';
+  return (KINDS.find(([, at]) => at === b.accountType && at !== 'Other') || KINDS.find(([l]) => l.toLowerCase() === t))?.[0] || 'Office Account';
+};
 const fmtAmt = (n?: number) => (n == null ? '0' : Number(n).toLocaleString('en-MY', { maximumFractionDigits: 2 }));
 
 export const BanksTab = ({ C }: { C: SettingsCtx }) => {
@@ -20,8 +27,13 @@ export const BanksTab = ({ C }: { C: SettingsCtx }) => {
   const saveBank = (id: string, patch: Partial<FirmBankAccount>, what: string) => {
     C.save({ bankAccounts: banks.map((b) => (b.id === id ? { ...b, ...patch } : b)) }, 'Bank Account Changed', what);
   };
+  const removeBank = (b: FirmBankAccount) => {
+    if (!window.confirm('Remove ' + (b.accountName || kindOf(b)) + '? Entries already booked to it are kept.')) return;
+    C.save({ bankAccounts: banks.map((x) => (x.id === b.id ? { ...x, isActive: false } : x)) }, 'Bank Account Removed', (b.accountName || kindOf(b)) + ' removed');
+    C.msg('Account removed');
+  };
   const addBank = () => {
-    const nb: FirmBankAccount = { id: `bank_${Date.now()}`, bankName: '', accountName: '', accountNo: '', accountType: 'Office Operating', typeLabel: 'Office', isActive: true };
+    const nb: FirmBankAccount = { id: `bank_${Date.now()}`, bankName: '', accountName: '', accountNo: '', accountType: 'Office Operating', typeLabel: 'Office Account', isActive: true };
     C.save({ bankAccounts: [...banks, nb] }, 'Bank Account Added', 'New office account row');
     C.msg('Account added · fill in its details');
   };
@@ -60,18 +72,19 @@ export const BanksTab = ({ C }: { C: SettingsCtx }) => {
 
       <div style={css(S.card)}>
         <div style={css('display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Bank accounts</strong><span style={css('margin-left:auto;font-size:10.5px;color:#5B6478')}>Opening balances as at</span><Txt value={s.bankOpeningBalancesAsAt ? s.bankOpeningBalancesAsAt.split('-').reverse().join('.') : ''} onCommit={(v) => { const m = String(v).trim().match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/) || null; const iso = m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : /^\d{4}-\d{2}-\d{2}$/.test(String(v).trim()) ? String(v).trim() : ''; if (String(v).trim() && !iso) { C.msg('Type the date as dd.mm.yyyy'); return; } C.save({ bankOpeningBalancesAsAt: iso || undefined }, 'Opening Balance Date Changed', iso || 'cleared'); }} style={'border:1px solid #DDE3EB;border-radius:6px;padding:5px 7px;font-size:11px;color:#16223A;width:100px;text-align:left'} /><button type="button" onClick={addBank} style={css('margin-left:8px;border:1px solid #DDE3EB;border-radius:6px;padding:5px 10px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>+ Add account</button></div>
-        <div style={css('display:grid;grid-template-columns:130px minmax(0,1.3fr) minmax(0,1fr) 150px 120px;gap:10px;padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>Type</span><span>Account name</span><span>Bank</span><span>Account no.</span><span style={css('text-align:right')}>Opening balance</span></div>
+        <div style={css('display:grid;grid-template-columns:170px minmax(0,1.3fr) minmax(0,1fr) 150px 120px 60px;gap:10px;padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>Type</span><span>Account name</span><span>Bank</span><span>Account no.</span><span style={css('text-align:right')}>Opening balance</span><span></span></div>
         {shown.length === 0 && <div style={css('padding:14px;font-size:11px;color:#5B6478')}>No bank accounts yet. Add the office and client accounts with “+ Add account”.</div>}
         {shown.map((b) => {
-          const label = b.typeLabel || TYPE_LABEL[b.accountType] || b.accountType;
+          const label = kindOf(b);
           const IN = 'border:1px solid #DDE3EB;border-radius:6px;padding:5px 7px;font-size:11px;color:#16223A;text-align:';
           return (
-            <div key={b.id} style={css('display:grid;grid-template-columns:130px minmax(0,1.3fr) minmax(0,1fr) 150px 120px;gap:10px;align-items:center;padding:6px 14px;border-bottom:1px solid #F0F2F5')}>
-              <Txt value={label} onCommit={(v) => saveBank(b.id, { typeLabel: v.trim(), accountType: typeFromLabel(v) }, (b.accountName || b.id) + ' type: ' + label + ' → ' + v.trim())} style={IN + 'left'} />
+            <div key={b.id} style={css('display:grid;grid-template-columns:170px minmax(0,1.3fr) minmax(0,1fr) 150px 120px 60px;gap:10px;align-items:center;padding:6px 14px;border-bottom:1px solid #F0F2F5')}>
+              <select value={label} onChange={(e) => { const k = KINDS.find(([l]) => l === e.target.value)!; saveBank(b.id, { typeLabel: k[0], accountType: k[1] }, (b.accountName || b.id) + ' type: ' + label + ' → ' + k[0]); }} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:5px 6px;font-size:11px;color:#16223A;background:#fff;font-family:inherit;min-width:0')}>{KINDS.map(([l]) => <option key={l} value={l}>{l}</option>)}</select>
               <Txt value={b.accountName} onCommit={(v) => saveBank(b.id, { accountName: v.trim() }, 'Account name: ' + (b.accountName || '—') + ' → ' + v.trim())} style={IN + 'left'} />
               <Txt value={b.bankName} onCommit={(v) => saveBank(b.id, { bankName: v.trim() }, (b.accountName || b.id) + ' bank: ' + (b.bankName || '—') + ' → ' + v.trim())} style={IN + 'left'} />
               <Txt value={b.accountNo} onCommit={(v) => saveBank(b.id, { accountNo: v.trim() }, (b.accountName || b.id) + ' account no.: ' + (b.accountNo || '—') + ' → ' + v.trim())} style={IN + 'left'} />
               <Txt value={fmtAmt(ob[b.id])} onCommit={(v) => { const n = Number(String(v).replace(/[^0-9.-]/g, '')) || 0; C.save({ bankOpeningBalances: { ...ob, [b.id]: n } }, 'Opening Balance Changed', (b.accountName || b.id) + ': RM ' + fmtAmt(ob[b.id]) + ' → RM ' + fmtAmt(n)); }} style={IN + 'right'} />
+              <button type="button" onClick={() => removeBank(b)} style={css(S.remove)}>Remove</button>
             </div>
           );
         })}

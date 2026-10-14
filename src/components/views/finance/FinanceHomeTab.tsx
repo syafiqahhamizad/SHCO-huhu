@@ -95,8 +95,14 @@ export const FinanceHomeTab = ({ F }: { F: FinanceCtrl }) => {
   const agTot = Math.max(1, F.aging.reduce((s, v) => s + v, 0));
   const aging: [string, number, string][] = [['0–30 days', F.aging[0], '#2F6F4E'], ['31–60 days', F.aging[1], '#C9A86A'], ['61–90 days', F.aging[2], '#B2542F'], ['Over 90 days', F.aging[3], '#B23A2E']];
 
+  const fl = F.filingLog;
   return (
     <div style={css('display:flex;flex-direction:column;gap:16px')}>
+      <div style={css(`display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-radius:10px;border:1px solid ${fl.problem || F.filingOff ? '#E8C9C4' : '#DDE3EB'};background:${fl.problem || F.filingOff ? '#FBF4F2' : '#fff'};padding:9px 14px;font-size:11px;color:#16223A`)}>
+        <strong>Drive filing</strong>
+        <span style={css('color:#5B6478;min-width:0;flex:1')}>{F.filingOff || (fl.working ? 'Filing now: ' + fl.working : fl.done ? fl.done + ' filed this visit · last: ' + fl.last : 'All papers are in their folders.')}{fl.problem ? ' · Problem: ' + fl.problem : ''}</span>
+        {fl.problem && <button type="button" onClick={F.retryFiling} style={css('border:1px solid #16223A;border-radius:6px;padding:4px 10px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>Try again</button>}
+      </div>
       <div style={css('overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
         <div style={css('display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css('font-family:ui-serif, Georgia, serif;font-size:14.5px;color:#16223A')}>Alerts for Accounts</strong>{faNew > 0 && <span style={css('font-size:10px;font-weight:800;padding:1px 7px;border-radius:10px;background:#E11D48;color:#fff')}>{faNew} new</span>}<span style={css('font-size:10.5px;color:#5B6478')}>email alerts to accounts@shcolaw.com not connected yet</span><button type="button" onClick={() => F.markRead(alerts.map((a) => a.id))} style={css('margin-left:auto;border:0;background:none;font-size:10.5px;font-weight:700;color:#3D6B9C;cursor:pointer;font-family:inherit')}>Mark all read</button></div>
         {alerts.length === 0 && <div style={css('padding:12px 14px;font-size:11.5px;color:#5B6478')}>Nothing needs Accounts right now.</div>}

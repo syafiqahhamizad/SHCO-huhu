@@ -160,9 +160,11 @@ const ymd = (iso: string) => { const m = String(iso || '').match(/^(\d{4})-(\d{2
 export const monthFolderName = (iso: string) => { const x = ymd(iso); return x ? `${x.y}-${x.m} ${MONTH_NAMES[Number(x.m) - 1]}` : 'Undated'; };
 const yearOf = (iso: string) => ymd(iso)?.y || 'Undated';
 /** 1 Books/<account>/<YYYY>/<YYYY-MM Month>/<Money In | Money Out | Bank Statement>. */
-export const booksMonthPath = (acc: FinAccount, iso: string, flow: BookFlow) => [FIN.books, accountFolderName(acc), yearOf(iso), monthFolderName(iso), flow];
-/** 1 Books/<account>/Pending (submitted / approved, not paid yet) or /Rejected. */
-export const booksStatusPath = (acc: FinAccount, status: 'Pending' | 'Rejected') => [FIN.books, accountFolderName(acc), status];
+export const booksMonthPath = (acc: FinAccount, iso: string, flow: BookFlow, type?: OutType) => [FIN.books, accountFolderName(acc), yearOf(iso), monthFolderName(iso), flow, ...(type ? [type] : [])];
+/** 1 Books/<account>/Pending (submitted / approved, not paid yet) or /Rejected, split by type. */
+export const booksStatusPath = (acc: FinAccount, status: 'Pending' | 'Rejected', type?: OutType) => [FIN.books, accountFolderName(acc), status, ...(type ? [type] : [])];
+/** Money Out (and Pending / Rejected) is split by what was paid. Money In stays one folder: it is all official receipts. */
+export type OutType = 'Claims' | 'Payment Vouchers' | 'Office Costs' | 'Disbursements';
 /** 3 Payroll/<YYYY>/<YYYY-MM Month>/<Payslips | Statutory | Partner Drawings>. */
 export const payrollMonthPath = (iso: string, part: PayrollPart) => [FIN.payroll, yearOf(iso), monthFolderName(iso), part];
 /** 2 Client Files/<NNN - title>: a file's quotations / invoices, and links to its money entries. */

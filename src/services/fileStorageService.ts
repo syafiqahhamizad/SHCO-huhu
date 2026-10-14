@@ -10,7 +10,7 @@ import {
   DRIVE_TOKEN_EVENT, downloadDriveFile, driveViewUrl, ensureFolderPath, getDriveAccessToken, getDriveConfig, grantReader, hasValidDriveToken, isDriveAccessError, isDriveConfigured, ensureShortcut, moveDriveItem, renameChildFolder, uploadToDrive,
 } from './googleDriveService';
 import {
-  CLIENTS_ROOT, FIN, clientFilesPath, matterSubfolders, clientFolderName as layoutClientFolderName, financeFolderPath, financeMatterPath, folderUrl, matterFolderDescription, matterFolderPath,
+  CLIENTS_ROOT, FIN, booksMonthPath, clientFilesPath, matterSubfolders, clientFolderName as layoutClientFolderName, financeFolderPath, financeMatterPath, folderUrl, matterFolderDescription, matterFolderPath,
   staffFolderName, type FinanceKind, type MatterLike, type MatterSub,
 } from '../lib/driveLayout';
 
@@ -167,8 +167,13 @@ export const hasFinanceDrive = () => activeStorage() === 'drive' && !!getDriveCo
 
 /** Once "Set up finance folders" is done, new finance uploads wait in 1 Books/Incoming until they are
  * filed (the finance pages move them into their entry folder). Client-account papers keep their old place. */
-const financeUploadPath = (kind: FinanceKind, ref?: string): string[] =>
-  kind !== 'clientAccount' && getPracticeSettings().financeFiling ? [FIN.books, 'Incoming'] : financeFolderPath(kind, yyyy(), ref);
+const financeUploadPath = (kind: FinanceKind, ref?: string): string[] => {
+  if (!getPracticeSettings().financeFiling) return financeFolderPath(kind, yyyy(), ref);
+  // The month's client bank statement goes straight to Client Account › <year> › <month> › Bank Statement.
+  const ym = kind === 'clientAccount' ? String(ref || '').match(/(\d{4})-(\d{2})/) : null;
+  if (ym) return booksMonthPath('Client account', ym[1] + '-' + ym[2] + '-01', 'Bank Statement');
+  return [FIN.books, 'Incoming'];
+};
 
 /* ------------------------------------------------------------------ claims */
 

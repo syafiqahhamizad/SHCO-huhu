@@ -129,13 +129,13 @@ export const DriveStorageCard = ({ C }: { C: SettingsCtx }) => {
       { key: 'to', label: 'Create month folders up to', type: 'text', value: cur?.to || '2026-12', placeholder: 'YYYY-MM', required: true },
     ], {
       ok: 'Create folders',
-      note: 'Creates in SHCO Finance: 1 Books › Office Account (and Disbursement / Petty cash once set in Banks) › Pending, Rejected and each month › Money In, Money Out, Bank Statement; 2 Client Files; 3 Payroll › each month › Payslips, Statutory, Partner Drawings; 4 Accounts & Tax Reports; 5 Firm Records. From then on every claim, voucher, office expense and receipt dated from the start month is filed there automatically (named "DDMMYYYY doc no. file what RM"), with a link in its client file. Client Account is not filed yet. Your existing folders are not touched.',
+      note: 'Creates in SHCO Finance: 1 Books › Office Account, Client Account (and Disbursement / Petty cash once set in Banks) › Pending, Rejected and each month › Money In, Money Out, Bank Statement; 2 Client Files; 3 Payroll › each month › Payslips, Statutory, Partner Drawings; 4 Accounts & Tax Reports; 5 Firm Records. From then on every claim, voucher, office expense and receipt dated from the start month is filed there automatically (named "DDMMYYYY doc no. file what RM"), with a link in its client file. Pressing it again adds anything missing (e.g. a new bank account); existing folders are reused, never moved.',
     });
     if (!v) return;
     const ok = (x: string) => /^\d{4}-(0[1-9]|1[0-2])$/.test(x.trim());
     if (!ok(v.from) || !ok(v.to) || v.from.trim() > v.to.trim()) { C.msg('Use YYYY-MM for both months (e.g. 2025-04 and 2026-12), start before end.'); return; }
     const banks = (C.settings.bankAccounts || []).filter((b) => b.isActive !== false);
-    const accounts: FinAccount[] = ['Office', ...(banks.some((b) => b.accountType === 'Disbursement') ? ['Disbursement' as FinAccount] : []), ...(banks.some((b) => /petty/i.test(b.typeLabel || '')) ? ['Petty cash' as FinAccount] : [])];
+    const accounts: FinAccount[] = ['Office', 'Client account', ...(banks.some((b) => b.accountType === 'Disbursement') ? ['Disbursement' as FinAccount] : []), ...(banks.some((b) => /petty/i.test(b.typeLabel || '')) ? ['Petty cash' as FinAccount] : [])];
     const paths = financeSkeleton(v.from.trim(), v.to.trim(), accounts);
     try {
       await prepareStorage();
