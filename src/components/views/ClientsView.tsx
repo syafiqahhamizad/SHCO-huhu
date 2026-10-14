@@ -625,6 +625,9 @@ const ClientList: React.FC<{
   card: string; setCard: (c: string) => void; onOpen: (id: string) => void; onReg: () => void; showToast: (m: string) => void;
 }> = ({ clients, cases, src, seeBilling, q, setQ, type, setType, card, setCard, onOpen, onReg, showToast }) => {
   const [from, setFrom] = useRemembered('clients.from', '');
+  const { updateClient, currentUser } = useApp();
+  /** Set where a client came from straight from the list (no need to open each profile). */
+  const setSource = (x: Client, v: string) => updateClient(x.id, { source: v || undefined, history: [{ at: new Date().toISOString(), by: currentUser?.name || 'Staff', what: 'Came to us through: ' + (leadSourceLabel(x.source) || '—') + ' → ' + (leadSourceLabel(v) || '—'), kind: 'edit' }, ...(x.history || [])] });
   const info = useMemo(() => {
     const m = new Map<string, { files: Case[]; owes: number; kyc: ReturnType<typeof kycOverall> }>();
     clients.forEach((c) => {
@@ -659,7 +662,7 @@ const ClientList: React.FC<{
     showToast('SHCO_Clients.csv downloaded');
   };
   const hasFilters = !!(q || type !== 'All' || card || from);
-  const COLS = 'display:grid;grid-template-columns:minmax(230px,1.6fr) 150px minmax(170px,1fr) 70px ' + (seeBilling ? '104px ' : '') + '88px 104px 88px;gap:12px;';
+  const COLS = 'display:grid;grid-template-columns:minmax(230px,1.6fr) 150px minmax(170px,1fr) 70px ' + (seeBilling ? '104px ' : '') + '88px 104px 88px 150px;gap:12px;';
   return (
     <div style={css('display:flex;flex-direction:column;gap:16px;font-size:12px;color:#16223A;font-family:Inter,system-ui,-apple-system,sans-serif')}>
       <div style={css('display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;background:#fff;border:1px solid #DDE3EB;padding:16px;border-radius:12px')}>
@@ -698,10 +701,10 @@ const ClientList: React.FC<{
       </div>
 
       <div style={css('background:#fff;border:1px solid #DDE3EB;border-radius:12px;overflow-x:auto')}>
-        <div style={css('min-width:1020px')}>
+        <div style={css('min-width:1180px')}>
           <div style={css(COLS + 'padding:11px 14px;background:#16223A;color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em')}>
             <span>Client</span><span>NRIC / SSM no.</span><span>Contact</span><span>Files</span>{seeBilling && <span style={css('text-align:right')}>Owes us</span>}<span>KYC</span><span>Conflict</span><span>Portal</span>
-          </div>
+          <span>Came from</span></div>
           {list.map((x) => {
             const inf = I(x);
             const isCo = x.type === 'Corporate';
@@ -721,6 +724,7 @@ const ClientList: React.FC<{
                 <span style={pillCss(kp)}>{kp.t}</span>
                 <span style={pillCss(cp)}>{cp.t}</span>
                 <span style={pillCss(pp)}>{pp.t}</span>
+                <select value={x.source || ''} onClick={(e) => e.stopPropagation()} onChange={(e) => setSource(x, e.target.value)} aria-label={'Came from: ' + x.name} style={css(`border:1px solid ${x.source ? '#DDE3EB' : '#E8C9A0'};border-radius:6px;padding:4px 6px;font-size:11px;color:#16223A;background:${x.source ? '#fff' : '#FDF8EE'};font-family:inherit;min-width:0`)}><option value="">— set —</option>{getLeadSources().map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}{x.source && !getLeadSources().some((o) => o.key === x.source) && <option value={x.source}>{x.source}</option>}</select>
               </div>
             );
           })}
