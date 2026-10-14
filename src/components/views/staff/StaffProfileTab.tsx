@@ -43,7 +43,7 @@ const baseProfile = (u: User): StaffProfile =>
     emergencyContact: '',
     joinDate: '',
     employmentType: 'Permanent',
-    officeLocation: 'Kuala Lumpur Office',
+    officeLocation: '',
     bio: '',
   };
 
@@ -423,7 +423,7 @@ const RecordForm: React.FC<{ user: User; admin: boolean; self: boolean; lh: stri
           {text('designation', 'Designation', { ph: 'e.g. Associate' })}
           {text('department', 'Department', { ph: 'e.g. Litigation' })}
           {pick('employmentType', 'Employment type', same(EMPLOYMENT_TYPES))}
-          {text('officeLocation', 'Office location', { ph: 'e.g. Kuala Lumpur Office' })}
+          {text('officeLocation', 'Office location', { ph: 'e.g. Bangi (HQ) or Terengganu branch' })}
           {text('joinDate', 'Join date', { type: 'date' })}
           {text('probationEndDate', 'Probation end date', { type: 'date' })}
           {text('confirmationDate', 'Confirmation date', { type: 'date' })}

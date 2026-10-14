@@ -29,7 +29,8 @@ export const weeklyInfo = (c: Case) => {
   const cur = wk.find((x) => x.week === now);
   const prev = wk.find((x) => x.week < now);
   const ago = prev ? Math.round((new Date(now).getTime() - new Date(prev.week).getTime()) / 864e5) : 99;
-  const due = cur ? { label: 'Updated this week', ...P.g } : ago >= 14 ? { label: 'Weekly update overdue', ...P.r } : { label: 'Weekly update due', ...P.a };
+  // A file nobody has updated yet is "Not started" (not overdue); overdue = 2+ weeks since the last update.
+  const due = cur ? { label: 'Updated this week', ...P.g } : !wk.length ? { label: 'Not started', ...P.n } : ago >= 14 ? { label: 'Weekly update overdue', ...P.r } : { label: 'Weekly update due', ...P.a };
   return { wk, now, cur, prev, due };
 };
 

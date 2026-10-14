@@ -72,7 +72,7 @@ export const draftOf = (u: User): Draft => {
     phone: p?.phone || '', homeAddress: p?.homeAddress || '', personalEmail: p?.personalEmail || '',
     emName: em.name || '', emRelationship: em.relationship || '', emPhone: em.phone || '',
     code: u.code || partnerCode(u) || '', designation: p?.designation || String(u.role || ''), department: p?.department || '',
-    employmentType: p?.employmentType || 'Permanent', officeLocation: p?.officeLocation || '', joinDate: p?.joinDate || '',
+    employmentType: p?.employmentType || 'Permanent', officeLocation: p?.officeLocation && p.officeLocation !== 'Kuala Lumpur Office' ? p.officeLocation : '', joinDate: p?.joinDate || '',
     probationEndDate: e.probationEndDate || '', confirmationDate: e.confirmationDate || '', reportingTo: e.reportingTo || '',
     status: e.status || 'Active', lastWorkingDay: e.lastWorkingDay || '',
     basicSalary: numStr(pay.basicSalary), allowances: (pay.allowances || []).map((a) => ({ name: a.name, amount: numStr(a.amount) })),

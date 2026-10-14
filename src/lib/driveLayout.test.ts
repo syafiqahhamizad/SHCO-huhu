@@ -46,11 +46,11 @@ describe('matter folders', () => {
     expect(matterSubFor('Shareholders agreement', 'Corporate')).toBe('Agreement');
   });
   it('each practice area gets its own sub-folders', () => {
-    expect(matterSubfolders('Civil Litigation')).toEqual(['Cause Papers', 'Cause Papers/Draft', 'Cause Papers/Extracted', 'Correspondences', 'Correspondences/Draft', 'Documents', 'Documents/Due Diligence']);
+    expect(matterSubfolders('Civil Litigation')).toEqual(['Cause Papers', 'Cause Papers/Draft', 'Cause Papers/Extracted', 'Correspondences', 'Correspondences/Draft', 'Correspondences/Acknowledgment', 'Documents', 'Documents/Due Diligence']);
     expect(matterSubfolders('Estate Administration')).toEqual(matterSubfolders('Civil Litigation'));
-    expect(matterSubfolders('Conveyancing')).toEqual(['Documents', 'Documents/Due Diligence', 'Correspondences', 'Correspondences/Draft']);
-    expect(matterSubfolders('Corporate')).toEqual(['Agreement', 'Agreement/Draft', 'Correspondences', 'Correspondences/Draft', 'Documents', 'Documents/Due Diligence']);
-    expect(uploadFolders('Civil Litigation')).toEqual(['Cause Papers', 'Cause Papers/Draft', 'Cause Papers/Extracted', 'Correspondences', 'Correspondences/Draft', 'Documents', 'Documents/Due Diligence', 'Correspondences/Acknowledgment', 'Court Memo', 'Letter of Engagement']);
+    expect(matterSubfolders('Conveyancing')).toEqual(['Documents', 'Documents/Due Diligence', 'Correspondences', 'Correspondences/Draft', 'Correspondences/Acknowledgment']);
+    expect(matterSubfolders('Corporate')).toEqual(['Agreement', 'Agreement/Draft', 'Correspondences', 'Correspondences/Draft', 'Correspondences/Acknowledgment', 'Documents', 'Documents/Due Diligence']);
+    expect(uploadFolders('Civil Litigation')).toEqual(['Cause Papers', 'Cause Papers/Draft', 'Cause Papers/Extracted', 'Correspondences', 'Correspondences/Draft', 'Correspondences/Acknowledgment', 'Documents', 'Documents/Due Diligence', 'Court Memo', 'Letter of Engagement']);
     expect(matterSubFor('Extracted order')).toBe('Cause Papers/Extracted');
     expect(matterSubFor('Draft letter to court')).toBe('Correspondences/Draft');
     expect(matterSubFor('Land search', 'Conveyancing')).toBe('Documents/Due Diligence');

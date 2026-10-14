@@ -34,7 +34,7 @@ export const CaseStatusPage: React.FC = () => {
   const shown = rows
     .filter((r) => !mine || mineOf(r.c))
     .filter((r) => area === 'All' || r.area === area)
-    .filter((r) => show === 'all' || (show === 'due' ? r.due.label !== 'Updated this week' : r.last && r.last.health !== 'On track'))
+    .filter((r) => show === 'all' || (show === 'due' ? r.due.label === 'Weekly update due' || r.due.label === 'Weekly update overdue' : r.last && r.last.health !== 'On track'))
     .filter((r) => !lq || [r.c.ref, r.c.title, r.c.clientName, lawyerOf(r.c)].some((x) => String(x || '').toLowerCase().includes(lq)))
     .sort((a, b) => (a.due.label === b.due.label ? String(a.c.ref).localeCompare(String(b.c.ref)) : a.due.label === 'Weekly update overdue' ? -1 : b.due.label === 'Weekly update overdue' ? 1 : 0));
   const open = (c: Case) => { setCaseSubTab('status'); setCurrentCaseId(c.id); setCurrentView('cases'); };

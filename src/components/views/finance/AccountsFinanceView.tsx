@@ -50,12 +50,13 @@ export const AccountsFinanceView = ({ initialTab = 'overview' }: { initialTab?: 
     ['Money in', 'attach the bank slip, pick who paid', <Banknote key="i" size={16} color="#FFFFFF" />, '#2F6F4E', () => F.openForm('moneyIn', {})],
     ['Money out', 'attach the bill, say what it is for', <Wallet key="i" size={16} color="#FFFFFF" />, '#3D6B9C', () => setChooser(true)],
   ];
-  const outOpts: [string, string, () => void][] = [
-    ['Office expense', 'rent, utilities, Bar subscription, stationery. Above the limit it goes to Approvals.', () => F.openForm('expense', {})],
-    ['Paid on behalf of a client', 'stamp duty, court or search fees. Billed back to the client automatically.', () => F.openForm('disb', {})],
-    ['Pay out of client money', 'balance purchase price, refund, payment to a third party. Needs two signatories.', () => F.openForm('payOut', {})],
-    ['Transfer fees to office', 'move money from a client ledger to office against an issued invoice.', () => F.openForm('transfer', {})],
-    ['Staff claim or salary', 'handled in Payroll and Approvals.', () => (F.TABS.some((t) => t[0] === 'payroll') ? F.go('payroll') : F.toastMsg('Payroll is not available for your role.'))],
+  // Money out, in plain words: firm money first (office, client file, staff), client money apart.
+  const outOpts: [string, string, () => void, string?][] = [
+    ['Office cost', 'rent, utilities, Bar subscription, stationery, EPF / SOCSO, SST, partner drawings', () => F.openForm('expense', {}), 'Firm money'],
+    ['Paid for a client file', 'stamp duty, court or search fees, despatch: billed back to the client', () => F.openForm('disb', {})],
+    ['Staff claim or salary', 'staff claim in My Claims; salaries in Payroll', () => (F.TABS.some((t) => t[0] === 'payroll') ? F.go('payroll') : F.toastMsg('Payroll is not available for your role.'))],
+    ['Pay out of client money', 'balance purchase price, refund, payment to a third party (two signatories)', () => F.openForm('payOut', {}), 'Client money (Solicitors\' Account Rules)'],
+    ['Transfer fees to office', 'move a client\'s money to office against an issued invoice', () => F.openForm('transfer', {})],
   ];
 
   return (
@@ -83,9 +84,10 @@ export const AccountsFinanceView = ({ initialTab = 'overview' }: { initialTab?: 
           <div onClick={() => setChooser(false)} style={css('position:fixed;inset:0;z-index:60;background:rgba(22,34,58,.5)')}></div>
           <div style={css('position:fixed;top:120px;left:50%;transform:translateX(-50%);z-index:61;width:520px;max-width:calc(100% - 32px);background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 20px 48px rgba(22,34,58,.25)')}>
             <div style={css('display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid #EEF1F5')}><strong style={css('font-size:13px;color:#16223A')}>Money out · what is this for?</strong><button type="button" onClick={() => setChooser(false)} style={css('margin-left:auto;border:1px solid #DDE3EB;border-radius:6px;padding:4px 10px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>Close</button></div>
-            {outOpts.map(([label, note, fn]) => (
-              <button key={label} type="button" className="hover:bg-[#F6F8FA]" onClick={() => { setChooser(false); fn(); }} style={css('width:100%;display:flex;flex-direction:column;gap:2px;text-align:left;padding:11px 16px;border:0;border-bottom:1px solid #F0F2F5;background:#fff;cursor:pointer;font-family:inherit')}><strong style={css('font-size:12px;color:#16223A')}>{label}</strong><span style={css('font-size:10.5px;line-height:1.45;color:#5B6478')}>{note}</span></button>
-            ))}
+            {outOpts.map(([label, note, fn, group]) => (<React.Fragment key={label}>
+              {group && <div style={css('padding:8px 16px 4px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA')}>{group}</div>}
+              <button type="button" className="hover:bg-[#F6F8FA]" onClick={() => { setChooser(false); fn(); }} style={css('width:100%;display:flex;flex-direction:column;gap:2px;text-align:left;padding:11px 16px;border:0;border-bottom:1px solid #F0F2F5;background:#fff;cursor:pointer;font-family:inherit')}><strong style={css('font-size:12px;color:#16223A')}>{label}</strong><span style={css('font-size:10.5px;line-height:1.45;color:#5B6478')}>{note}</span></button>
+            </React.Fragment>))}
           </div>
         </>
       )}

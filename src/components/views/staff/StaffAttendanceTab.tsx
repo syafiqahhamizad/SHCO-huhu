@@ -75,7 +75,7 @@ export const StaffAttendanceTab: React.FC = () => {
   const noteOf = () => note.trim() || rec?.notes || undefined;
 
   const clockIn = () => {
-    save({ status, checkIn: nowHm(), checkOut: undefined, notes: noteOf() || currentUser.staffProfile?.officeLocation || undefined });
+    save({ status, checkIn: nowHm(), checkOut: undefined, notes: noteOf() || undefined });
     setNote('');
   };
   const clockOut = () => {

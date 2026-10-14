@@ -614,7 +614,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           emergencyContact: '',
           joinDate: '',
           employmentType: 'Permanent',
-          officeLocation: 'Kuala Lumpur Office',
+          officeLocation: '',
           bio: '',
         },
       };
@@ -1040,7 +1040,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             emergencyContact: newUser.staffProfile?.emergencyContact || '',
             joinDate: newUser.staffProfile?.joinDate || new Date().toISOString().slice(0, 10),
             employmentType: newUser.staffProfile?.employmentType || 'Permanent',
-            officeLocation: newUser.staffProfile?.officeLocation || 'Kuala Lumpur Office',
+            officeLocation: newUser.staffProfile?.officeLocation || '',
             bio: newUser.staffProfile?.bio || '',
             birthday: newUser.staffProfile?.birthday,
             callToBarDate: newUser.staffProfile?.callToBarDate,

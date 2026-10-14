@@ -64,7 +64,7 @@ const infoOf = (kind: FilingKind, rec: AnyRec): RecInfo | null => {
   if (kind === 'expense') {
     const e = rec as Expense;
     if (e.accountSet === 'CLIENT') return null;
-    const acc: FinAccount = e.billable && !e.claimant ? 'Disbursement' : /petty/i.test(e.paidFrom || '') ? 'Petty cash' : /disb/i.test(e.paidFrom || '') ? 'Disbursement' : 'Office';
+    const acc: FinAccount = e.billable && !e.claimant && (!e.paidFrom || /disb/i.test(e.paidFrom)) ? 'Disbursement' : /petty/i.test(e.paidFrom || '') ? 'Petty cash' : /disb/i.test(e.paidFrom || '') ? 'Disbursement' : 'Office';
     const stop: Stop = e.claimant ? claimStop(e.approvalStatus, e.paidAt) : e.approvalStatus === 'Rejected' ? { s: 'Rejected' } : e.approvalStatus === 'Pending Approval' ? { s: 'Pending' } : { s: 'Paid', on: isoDay(e.paidAt) || recDate };
     return { ...base, acc, stop, what: e.description || e.category, who: e.claimant || e.payee || '', amount: Number(e.amount || 0), ref: noFile(e.fileRef) ? undefined : e.fileRef, caseId: e.caseId || undefined, papers: rawPapers([{ list: e.attachments, field: 'attachments', label: e.claimant ? 'Receipt' : 'Bill' }], e.paidProof), form: e.claimant ? e.formNo : undefined };
   }

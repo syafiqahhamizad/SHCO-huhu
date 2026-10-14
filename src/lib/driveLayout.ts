@@ -40,7 +40,7 @@ export const CASE_FILES_ROOT = 'Case files';
 export const CLIENTS_ROOT = 'Clients KYC';
 
 /** Sub-folders of a court matter (litigation, criminal, syariah, family, estates…) — the firm's own. */
-export const MATTER_SUBFOLDERS = ['Cause Papers', 'Cause Papers/Draft', 'Cause Papers/Extracted', 'Correspondences', 'Correspondences/Draft', 'Documents', 'Documents/Due Diligence'] as const;
+export const MATTER_SUBFOLDERS = ['Cause Papers', 'Cause Papers/Draft', 'Cause Papers/Extracted', 'Correspondences', 'Correspondences/Draft', 'Correspondences/Acknowledgment', 'Documents', 'Documents/Due Diligence'] as const;
 /** A matter sub-folder, or a path under it ("Correspondences/Acknowledgment"). */
 export type MatterSub = string;
 /** Where service proofs go, in every file. */
@@ -60,13 +60,13 @@ export const practiceKind = (area?: string): PracticeKind => {
 };
 const SUBS: Record<PracticeKind, readonly string[]> = {
   court: MATTER_SUBFOLDERS,
-  conveyancing: ['Documents', 'Documents/Due Diligence', 'Correspondences', 'Correspondences/Draft'],
-  corporate: ['Agreement', 'Agreement/Draft', 'Correspondences', 'Correspondences/Draft', 'Documents', 'Documents/Due Diligence'],
+  conveyancing: ['Documents', 'Documents/Due Diligence', 'Correspondences', 'Correspondences/Draft', 'Correspondences/Acknowledgment'],
+  corporate: ['Agreement', 'Agreement/Draft', 'Correspondences', 'Correspondences/Draft', 'Correspondences/Acknowledgment', 'Documents', 'Documents/Due Diligence'],
 };
 /** The sub-folders a new matter folder gets, by practice area. */
 export const matterSubfolders = (area?: string): string[] => [...SUBS[practiceKind(area)]];
 /** Every folder a document can be uploaded to in a file (the sub-folders, plus the ones made on first use). */
-export const uploadFolders = (area?: string): string[] => [...matterSubfolders(area), ACK_FOLDER, ...(practiceKind(area) === 'court' ? [MEMO_FOLDER] : []), LOE_FOLDER];
+export const uploadFolders = (area?: string): string[] => [...new Set([...matterSubfolders(area), ACK_FOLDER, ...(practiceKind(area) === 'court' ? [MEMO_FOLDER] : []), LOE_FOLDER])];
 /** "Correspondences/Acknowledgment" → "Correspondences › Acknowledgment". */
 export const folderLabel = (sub: string) => sub.split('/').join(' › ');
 
