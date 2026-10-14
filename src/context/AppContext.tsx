@@ -201,6 +201,10 @@ interface AppContextType {
   addAttendanceRecord: (record: AttendanceRecord) => void;
   addLeaveApplication: (application: LeaveApplication) => void;
   updateLeaveApplication: (id: string, updates: Partial<LeaveApplication>) => void;
+  /** Admins: any leave; staff: their own cancelled leave. */
+  deleteLeaveApplication: (id: string) => void;
+  /** Admins only. */
+  deleteAttendanceRecord: (id: string) => void;
   addMeeting: (meeting: Meeting) => void;
   addProgramme: (programme: Programme) => void;
   updateProgramme: (id: string, updates: Partial<Programme>) => void;
@@ -1154,6 +1158,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setLeaveApplications((prev) => [application, ...prev]);
     addActivityLog('Leave Application Submitted', `${application.leaveType} - ${application.startDate}`);
     showToast('Leave application submitted.');
+  };
+
+  const deleteLeaveApplication = (id: string) => {
+    const l = leaveApplications.find((x) => x.id === id);
+    if (!l) return;
+    const admin = Boolean(isAdmin || currentUser?.isSuperAdmin);
+    if (!admin && !(l.userId === currentUser?.id && l.status === 'Cancelled')) { showToast('Only an admin can delete leave (you can delete your own cancelled leave).'); return; }
+    setLeaveApplications((prev) => prev.filter((x) => x.id !== id));
+    logAuditEvent('DELETE', 'LEAVE', id, l.leaveType + ' leave', `Leave ${l.startDate} – ${l.endDate} (${l.status}) deleted by ${currentUser?.name || ''}.`);
+    showToast('Leave deleted.');
+  };
+  const deleteAttendanceRecord = (id: string) => {
+    if (!(isAdmin || currentUser?.isSuperAdmin)) { showToast('Only an admin can delete attendance.'); return; }
+    const r = attendanceRecords.find((x) => x.id === id);
+    setAttendanceRecords((prev) => prev.filter((x) => x.id !== id));
+    logAuditEvent('DELETE', 'ATTENDANCE', id, r ? r.date + ' ' + r.status : id, `Attendance ${r?.date || ''} deleted by ${currentUser?.name || ''}.`);
+    showToast('Attendance entry deleted.');
   };
 
   const updateLeaveApplication = (id: string, updates: Partial<LeaveApplication>) => {
@@ -3334,6 +3355,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addAttendanceRecord,
         addLeaveApplication,
         updateLeaveApplication,
+        deleteLeaveApplication,
+        deleteAttendanceRecord,
         addMeeting,
         addProgramme,
         updateProgramme,

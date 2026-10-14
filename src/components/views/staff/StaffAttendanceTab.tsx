@@ -47,7 +47,7 @@ const Pill: React.FC<{ s: Status }> = ({ s }) => (
 );
 
 export const StaffAttendanceTab: React.FC = () => {
-  const { currentUser, users, isAdmin, attendanceRecords, addAttendanceRecord, leaveApplications } = useApp();
+  const { currentUser, users, isAdmin, attendanceRecords, addAttendanceRecord, leaveApplications, deleteAttendanceRecord } = useApp();
   const admin = Boolean(isAdmin || currentUser.isSuperAdmin);
   const today = todayIso();
   const all = attendanceRecords || [];
@@ -133,7 +133,7 @@ export const StaffAttendanceTab: React.FC = () => {
               <span style={{ fontSize: 11.5, color: '#16223A' }}>{r.checkIn || '—'}</span>
               <span style={{ fontSize: 11.5, color: '#16223A' }}>{r.checkOut || '—'}</span>
               <span style={{ fontSize: 11, color: '#5B6478' }}>{hoursOf(r) || '—'}</span>
-              <span style={{ fontSize: 11, color: '#5B6478', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.notes || ''}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}><span style={{ fontSize: 11, color: '#5B6478', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.notes || ''}</span>{admin && <button type="button" title="Delete this entry (e.g. a test)" onClick={() => { if (window.confirm('Delete the attendance entry for ' + ddmmyyyy(r.date) + '?')) deleteAttendanceRecord(r.id); }} style={{ marginLeft: 'auto', flexShrink: 0, border: 0, background: 'none', padding: 0, fontSize: 10, fontWeight: 700, color: '#8E2A20', cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>}</span>
             </div>
           ))}
           <div style={{ padding: '9px 14px', background: '#F6F8FA', fontSize: 10.5, lineHeight: 1.5, color: '#5B6478' }}>Times are taken from this device’s clock when you press the button.</div>
@@ -198,8 +198,9 @@ export const StaffAttendanceTab: React.FC = () => {
               <span style={{ fontSize: 11.5, color: '#16223A' }}>{r?.checkIn || '—'}</span>
               <span style={{ fontSize: 11.5, color: '#16223A' }}>{r?.checkOut || '—'}</span>
               <span style={{ fontSize: 11, color: '#5B6478' }}>{r ? hoursOf(r) || '—' : '—'}</span>
-              <span style={{ fontSize: 11, color: '#5B6478', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {[r?.notes, lv ? 'Approved ' + lv.leaveType.toLowerCase() + ' leave' : ''].filter(Boolean).join(' · ')}
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                <span style={{ fontSize: 11, color: '#5B6478', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{[r?.notes, lv ? 'Approved ' + lv.leaveType.toLowerCase() + ' leave' : ''].filter(Boolean).join(' · ')}</span>
+                {admin && r && <button type="button" title="Delete this entry (e.g. a test)" onClick={() => { if (window.confirm('Delete the attendance entry for ' + ddmmyyyy(r.date) + '?')) deleteAttendanceRecord(r.id); }} style={{ marginLeft: 'auto', flexShrink: 0, border: 0, background: 'none', padding: 0, fontSize: 10, fontWeight: 700, color: '#8E2A20', cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>}
               </span>
             </div>
           ))}

@@ -22,7 +22,8 @@ interface Props {
 const statusLabel = (s: LeaveApplication['status']) => (s === 'Pending' ? 'Waiting' : s);
 
 export const StaffLeaveTab: React.FC<Props> = ({ myLeaves, used, me }) => {
-  const { currentUser, users, cases, clients, addLeaveApplication, updateLeaveApplication, addNotification, showToast } = useApp();
+  const { currentUser, users, cases, clients, addLeaveApplication, updateLeaveApplication, deleteLeaveApplication, addNotification, showToast, isAdmin } = useApp();
+  const canDeleteAny = Boolean(isAdmin || currentUser.isSuperAdmin);
   const [lv, setLv] = useState({ type: 'Annual', from: '', to: '', half: 'Full day', pic: '', mc: '' });
   const setL = (p: Partial<typeof lv>) => setLv((s) => ({ ...s, ...p }));
   const [dragOn, setDragOn] = useState(false);
@@ -214,6 +215,7 @@ export const StaffLeaveTab: React.FC<Props> = ({ myLeaves, used, me }) => {
                   <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 8px', borderRadius: 10, background: st === 'Approved' ? '#E6EFE9' : st === 'Waiting' ? '#FBF2E9' : st === 'Cancelled' ? '#F0F2F5' : '#FBEDE9', color: st === 'Approved' ? '#2F6F4E' : st === 'Waiting' ? '#8A6534' : st === 'Cancelled' ? '#5B6478' : '#B23A2E' }}>{st}</span>
                   {(l.status === 'Pending' || (l.status === 'Approved' && l.startDate > today)) && <button type="button" onClick={() => cancelLeave(l)} title="Cancel this leave" style={{ border: 0, background: 'none', padding: 0, fontSize: 10, fontWeight: 700, color: '#B23A2E', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>}
                   {canCal && <button type="button" onClick={() => addCal(l)} title="Download to Google / Outlook / Apple calendar" style={{ border: 0, background: 'none', padding: 0, fontSize: 10, fontWeight: 700, color: '#3D6B9C', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>+ My calendar</button>}
+                  {(canDeleteAny || l.status === 'Cancelled') && <button type="button" onClick={() => { if (window.confirm('Delete this ' + l.leaveType.toLowerCase() + ' leave (' + ddmmyyyy(l.startDate) + ')? It is removed from the list.')) deleteLeaveApplication(l.id); }} title="Delete (e.g. a test entry)" style={{ border: 0, background: 'none', padding: 0, fontSize: 10, fontWeight: 700, color: '#8E2A20', cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>}
                 </span>
               </div>
             );
