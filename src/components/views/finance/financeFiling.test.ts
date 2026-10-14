@@ -63,4 +63,23 @@ describe('finance filing', () => {
     expect(patch.attachments?.[0]).toMatchObject({ driveFileId: 'n1', webViewLink: 'L1', driveFolderId: 'F1' });
     expect(patch.attachments?.[1]).toMatchObject({ driveFileId: 'f2', driveFolderId: 'F1' });
   });
+  it('a claim form with several items is one folder, named after the form', () => {
+    const item = (id: string, amount: number, file: string, p: Partial<Expense> = {}) => ({ id, caseId: '', date: '2026-10-14', category: 'Despatch', amount, billable: false, description: 'Runner', claimant: 'Zulaikha Afendi', formNo: 'CF-26-0001', approvalStatus: 'Pending Approval', attachments: [{ name: file, driveFileId: 'd-' + id }], ...p } as Expense);
+    const lists = { travel: [], expense: [item('EX-0002', 100, 'document.pdf'), item('EX-0003', 50, 'COF SD.pdf'), item('EX-0004', 30, 'Runner.pdf')], pv: [], receipt: [] };
+    const j = nextFilingJob(lists, ctx, new Set())!;
+    expect(j.unit).toBe('form:CF-26-0001');
+    expect(j.path).toEqual(['1 Books', 'Office Account', 'Pending']);
+    expect(j.name).toBe('14102026 CF-26-0001 Zulaikha Afendi RM180');
+    expect(j.papers.map((p) => p.name)).toEqual(['1 EX-0002 Receipt - document.pdf', '2 EX-0003 Receipt - COF SD.pdf', '3 EX-0004 Receipt - Runner.pdf']);
+    expect(j.recs?.map((r) => r.recId)).toEqual(['EX-0002', 'EX-0003', 'EX-0004']);
+    // One item rejected, the other two paid → the form goes to the month paid, total of the paid items.
+    const paid = { approvalStatus: 'Approved' as const, paidAt: '2026-10-20T00:00:00Z', paidProof: { name: 'trf.pdf', uploadedAt: '', driveFileId: 'pp' } };
+    const j2 = nextFilingJob({ ...lists, expense: [item('EX-0002', 100, 'document.pdf', paid), item('EX-0003', 50, 'COF SD.pdf', { approvalStatus: 'Rejected' }), item('EX-0004', 30, 'Runner.pdf', paid)] }, ctx, new Set())!;
+    expect(j2.path).toEqual(['1 Books', 'Office Account', '2026', '2026-10 October', 'Money Out']);
+    expect(j2.name).toBe('20102026 CF-26-0001 Zulaikha Afendi RM130');
+    expect(j2.papers.map((p) => p.name)).toContain('Payment proof EX-0004.pdf');
+    // Each item gets only its own papers written back.
+    const patch = applyFiled(lists.expense[1], j, { folderId: 'F', papers: [{ id: 'a' }, { id: 'b' }, { id: 'c' }] }, 'expense');
+    expect(patch.attachments?.[0].driveFileId).toBe('b');
+  });
 });

@@ -263,17 +263,20 @@ export function useFinanceController(initialTab: FinTab) {
     filingBusy.current = true;
     void (async () => {
       try {
-        const res = await fileFinanceEntry({ path: job.path, name: job.name, folderId: job.folderId, papers: job.papers, matter: job.matter });
-        if (job.kind === 'travel') {
-          const t = travelClaims.find((x) => x.id === job.recId);
-          if (t) { app.updateTravelClaim(t.id, applyFiled(t, job, res)); const em = staffUser(t.claimant)?.email; if (em) for (const p of res.papers) void grantReader(p.id, em).catch(() => undefined); }
-        } else if (job.kind === 'expense') {
-          const e = expenses.find((x) => x.id === job.recId);
-          if (e) { app.updateExpense(e.id, applyFiled(e, job, res)); const em = e.claimant ? staffUser(e.claimant)?.email : ''; if (em) for (const p of res.papers) void grantReader(p.id, em).catch(() => undefined); }
-        } else if (job.kind === 'pv') { const v = paymentVouchers.find((x) => x.id === job.recId); if (v) app.updatePaymentVoucher(v.id, applyFiled(v, job, res)); }
-        else { const r = receipts.find((x) => x.id === job.recId); if (r) app.updateReceipt(r.id, applyFiled(r, job, res)); }
+        const res = await fileFinanceEntry({ path: job.path, name: job.name, folderId: job.folderId, papers: job.papers, matter: job.matter, matters: job.matters });
+        // Every record of the unit (one record, or all items of a claim / payment-request form).
+        for (const r of job.recs || [{ kind: job.kind, recId: job.recId }]) {
+          if (r.kind === 'travel') {
+            const t = travelClaims.find((x) => x.id === r.recId);
+            if (t) { app.updateTravelClaim(t.id, applyFiled(t, job, res, 'travel')); const em = staffUser(t.claimant)?.email; if (em) job.papers.forEach((p, i) => { if (p.recId === t.id && res.papers[i]) void grantReader(res.papers[i].id, em).catch(() => undefined); }); }
+          } else if (r.kind === 'expense') {
+            const e = expenses.find((x) => x.id === r.recId);
+            if (e) { app.updateExpense(e.id, applyFiled(e, job, res, 'expense')); const em = e.claimant ? staffUser(e.claimant)?.email : ''; if (em) job.papers.forEach((p, i) => { if (p.recId === e.id && res.papers[i]) void grantReader(res.papers[i].id, em).catch(() => undefined); }); }
+          } else if (r.kind === 'pv') { const v = paymentVouchers.find((x) => x.id === r.recId); if (v) app.updatePaymentVoucher(v.id, applyFiled(v, job, res, 'pv')); }
+          else { const x = receipts.find((y) => y.id === r.recId); if (x) app.updateReceipt(x.id, applyFiled(x, job, res, 'receipt')); }
+        }
       } catch (err) {
-        filingSkip.current.add(job.kind + ':' + job.recId);
+        filingSkip.current.add(job.unit || job.kind + ':' + job.recId);
         const m = err instanceof Error ? err.message : String(err);
         if (/permission|access|401|403|not found|insufficient/i.test(m)) { filingStopped.current = true; toastMsg('Finance filing paused: ' + m); }
       } finally {

@@ -139,7 +139,7 @@ async function storeFinance(parts: string[], file: File, uploadedBy: string, opt
  * Money Out), its papers are moved into it and renamed, and a file's entry gets a link in
  * 2 Client Files/<file>. Safe to repeat: an existing entry folder is moved / renamed, not duplicated.
  */
-export async function fileFinanceEntry(o: { path: string[]; name: string; folderId?: string; papers: { id: string; name: string }[]; matter?: MatterLike }): Promise<{ folderId: string; papers: { id: string; webViewLink?: string }[] }> {
+export async function fileFinanceEntry(o: { path: string[]; name: string; folderId?: string; papers: { id: string; name: string }[]; matter?: MatterLike; matters?: MatterLike[] }): Promise<{ folderId: string; papers: { id: string; webViewLink?: string }[] }> {
   requireDrive();
   const b = financeBase();
   const parentId = await ensureFolderPath(b.baseId, [...b.prefix, ...o.path]);
@@ -148,8 +148,8 @@ export async function fileFinanceEntry(o: { path: string[]; name: string; folder
   if (!folderId) folderId = await ensureFolderPath(parentId, [o.name]);
   const papers: { id: string; webViewLink?: string }[] = [];
   for (const p of o.papers) papers.push(await moveDriveItem(p.id, folderId, p.name));
-  if (o.matter) {
-    const cf = await ensureFolderPath(b.baseId, [...b.prefix, ...clientFilesPath(o.matter)]);
+  for (const m of o.matters || (o.matter ? [o.matter] : [])) {
+    const cf = await ensureFolderPath(b.baseId, [...b.prefix, ...clientFilesPath(m)]);
     await ensureShortcut(cf, folderId, o.name);
   }
   return { folderId, papers };
