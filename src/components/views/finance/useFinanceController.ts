@@ -1396,7 +1396,8 @@ export function useFinanceController(initialTab: FinTab) {
         postGL([{ date: dateIso, docType: 'PV', docNo: id, accountSet: 'OFFICE', debit, credit, amount: amt, clientId: '', fileRef: '', description: `${vals.payee || ''} · ${vals.what || kindOf}` }]);
         setForm(null); toastMsg(`${id} recorded (${kindOf}) · not an office expense`); return;
       }
-      const id = app.getNextSequenceId('expense'); const from = vals.from || paidFromOptions[0]; const cat = vals.cat || 'Utilities';
+      if (vals.cat === 'Other' && !String(vals.catOther || '').trim()) { toastMsg('Category is Other: say what it is.'); return; }
+      const id = app.getNextSequenceId('expense'); const from = vals.from || paidFromOptions[0]; const cat = vals.cat === 'Other' ? 'Other: ' + String(vals.catOther).trim() : vals.cat || 'Utilities';
       if (isStatutoryCategory(cat)) { toastMsg('EPF / SOCSO / EIS / PCB payments: choose "' + PV_STATUTORY + '" as the type (they settle payroll amounts already booked).'); return; }
       app.addExpense({ id, caseId: '', date: dateIso, category: cat, amount: amt, billable: false, description: vals.what || '', payee: vals.payee || '', accountSet: 'OFFICE', paidFrom: from, approvalStatus: 'Posted to GL', postedToGl: true, paidProof: proofs[0], documents: proofs.map((p, i) => ({ id: `DOC-${id}-${i}`, name: p.name, url: '', type: p.type, size: p.size, uploadedAt: p.uploadedAt, category: 'Receipt Photo' as const })) });
       rememberProofUrls('form', 'expense:' + id, proofs);

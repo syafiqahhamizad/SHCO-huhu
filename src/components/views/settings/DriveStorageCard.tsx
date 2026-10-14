@@ -4,8 +4,7 @@ import { useApp } from '../../../context/AppContext';
 import { getDriveConfig, isDriveConfigured, looksLikeClientId, parseDriveFolderId, testDriveConnection } from '../../../services/googleDriveService';
 import { ensureFinanceFolders, hasFinanceDrive, prepareStorage, renameClientFolder } from '../../../services/fileStorageService';
 import { exportAllFirmData, SHARED_STATE_KEYS } from '../../../services/firmBackupService';
-import { DEFAULT_PRACTICE_SETTINGS } from '../../../services/templateService';
-import { driveSafeName, financeSkeleton, type FinAccount } from '../../../lib/driveLayout';
+import { financeSkeleton, type FinAccount } from '../../../lib/driveLayout';
 import { css, S, Txt, type SettingsCtx } from './settingsShared';
 import { GoogleWorkspaceCard } from './GoogleWorkspaceCard';
 import { EmailNotificationsCard } from './EmailNotificationsCard';
@@ -168,17 +167,6 @@ export const DriveStorageCard = ({ C }: { C: SettingsCtx }) => {
     C.msg(done.length + ' clients numbered. ' + renamed + ' Drive folders renamed' + (failed ? ', ' + failed + ' could not be renamed (rename them by hand in Drive › Clients)' : '') + '.');
   };
 
-  // Practice area → folder name under Case files/ (blank = the area name).
-  const areas = (s.practiceAreas && s.practiceAreas.length ? s.practiceAreas : DEFAULT_PRACTICE_SETTINGS.practiceAreas) || [];
-  const areaNames = s.drivePracticeFolderNames || {};
-  const saveAreaFolder = (area: string, raw: string) => {
-    const v = raw.trim();
-    const next = { ...areaNames };
-    if (v && v !== area) next[area] = driveSafeName(v); else delete next[area];
-    C.save({ drivePracticeFolderNames: next }, 'Drive Storage Changed', 'Case files folder for ' + area + ': ' + (next[area] || area));
-    C.msg('New files in ' + area + ' go to Case files › ' + (next[area] || area) + '. Existing folders are not renamed');
-  };
-
   const last = s.driveLastTest;
   const status: { color: string; bg: string; text: string } = !cfg.clientId && !cfg.rootFolderId
     ? { color: '#5B6478', bg: '#F6F8FA', text: 'Not set up · uploads are blocked until Google Drive is set up' }
@@ -215,15 +203,6 @@ export const DriveStorageCard = ({ C }: { C: SettingsCtx }) => {
               {!!cfg.rootFolderId && <button type="button" onClick={switchOff} style={css(S.lightBtn)}>Turn off Drive storage</button>}
               <span style={css('font-size:10.5px;color:#5B6478')}>The test checks each Shared Drive set above, writes a tiny file, reads it back and moves it to trash.</span>
             </div>
-            <details style={css('margin-top:4px;font-size:11px;color:#16223A')}>
-              <summary style={css('cursor:pointer;font-weight:700')}>Case files folder names by practice area</summary>
-              <p style={css('margin:6px 0;font-size:10.5px;line-height:1.5;color:#5B6478')}>New files go to SHCO Portal › Case files › <i>practice area</i> › “NNN - title”. Blank = the practice area’s own name. Changing a name affects new folders only; nothing already in Drive is renamed.</p>
-              <div style={css('display:flex;flex-direction:column;gap:6px')}>
-                {areas.map((a) => (
-                  <label key={a.id || a.name} style={css(ROW)}><span style={css(S.fieldLabel)}>{a.name}</span><Txt value={areaNames[a.name] || ''} placeholder={a.name} onCommit={(v) => saveAreaFolder(a.name, v)} style={INPUT} /></label>
-                ))}
-              </div>
-            </details>
           </div>
           <details style={css('font-size:11px;line-height:1.55;color:#16223A;min-width:0')} open={!on}>
             <summary style={css('cursor:pointer;font-weight:700')}>One-time setup</summary>

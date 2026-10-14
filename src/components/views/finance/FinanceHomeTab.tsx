@@ -14,9 +14,19 @@ export const FinanceHomeTab = ({ F }: { F: FinanceCtrl }) => {
 
   /* ---------------- Alerts for Accounts (real items only) ---------------- */
   type Alert = { id: string; kind: 'Approved · to pay' | 'New claim' | 'Reminder' | 'Top up'; text: string; meta: string; amt: number; cta: string; tab: FinTab };
+  const [showAll, setShowAll] = React.useState(false);
   const alerts: Alert[] = [];
   F.toPay.forEach((p) => alerts.push({ id: 'pay:' + p.key, kind: 'Approved · to pay', text: `${p.no} approved. Pay ${p.payee.replace(' (claim)', '')} ${rm2(p.amount)} from the ${p.from === 'Client account' ? 'client' : p.from} account.`, meta: p.what, amt: p.amount, cta: 'Pay', tab: 'approvals' }));
-  F.apItems.filter((a) => a.type === 'Staff claim').forEach((a) => alerts.push({ id: 'claim:' + a.key, kind: 'New claim', text: `${a.by} submitted ${a.id}. Waiting for a partner to approve.`, meta: a.sub, amt: a.amount, cta: 'View', tab: 'approvals' }));
+  // Staff claims: one line per claim form (all its items together), not one per item.
+  const formOf = (a: { kind: string; id: string }) => (a.kind === 'travel' ? F.app.travelClaims.find((x) => x.id === a.id)?.formNo : a.kind === 'expense' ? F.app.expenses.find((x) => x.id === a.id)?.formNo : undefined);
+  const claimGroups = new Map<string, typeof F.apItems>();
+  F.apItems.filter((a) => a.type === 'Staff claim').forEach((a) => { const k = formOf(a) || a.key; claimGroups.set(k, [...(claimGroups.get(k) || []), a]); });
+  claimGroups.forEach((items, k) => {
+    const a = items[0], form = formOf(a);
+    alerts.push(items.length > 1 || form
+      ? { id: 'claimform:' + k, kind: 'New claim', text: `${a.by} submitted claim form ${form || a.id}${items.length > 1 ? ' (' + items.length + ' items: ' + items.map((x) => x.id).join(', ') + ')' : ''}. Waiting for a partner to approve.`, meta: a.sub.replace(/\s*·?\s*form [^·]*$/, ''), amt: items.reduce((s2, x) => s2 + x.amount, 0), cta: 'View', tab: 'approvals' }
+      : { id: 'claim:' + a.key, kind: 'New claim', text: `${a.by} submitted ${a.id}. Waiting for a partner to approve.`, meta: a.sub, amt: a.amount, cta: 'View', tab: 'approvals' });
+  });
   F.ledgers.filter((l) => l.balance < -0.005).forEach((l) => alerts.push({ id: 'od:' + l.key, kind: 'Reminder', text: `${l.client} client ledger is overdrawn: top up immediately (Solicitors' Account Rules 1990).`, meta: l.ref, amt: l.balance, cta: 'Open', tab: 'trust' }));
   F.scopedInvoices.filter((i) => F.invCredit(i) > 0.005).forEach((i) => alerts.push({ id: 'credit:' + i.id, kind: 'Reminder', text: `${i.id}: ${i.partyName || F.clientName(i.clientId) || '—'} paid ${rm2(F.invCredit(i))} more than the invoice. Refund it or apply it to another invoice.`, meta: 'credit owed to the client', amt: F.invCredit(i), cta: 'Open', tab: 'billing' }));
   F.openInvoices.filter((i) => F.ageDays(i) > 90).forEach((i) => alerts.push({ id: 'old:' + i.id, kind: 'Reminder', text: `${i.id} for ${i.partyName || F.clientName(i.clientId) || '—'} is ${F.ageDays(i)} days past due: chase, or ask an admin for a write-off.`, meta: 'due ' + F.fd(i.dueDate || i.date), amt: F.invBal(i), cta: 'Open', tab: 'billing' }));
@@ -90,7 +100,7 @@ export const FinanceHomeTab = ({ F }: { F: FinanceCtrl }) => {
       <div style={css('overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
         <div style={css('display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css('font-family:ui-serif, Georgia, serif;font-size:14.5px;color:#16223A')}>Alerts for Accounts</strong>{faNew > 0 && <span style={css('font-size:10px;font-weight:800;padding:1px 7px;border-radius:10px;background:#E11D48;color:#fff')}>{faNew} new</span>}<span style={css('font-size:10.5px;color:#5B6478')}>email alerts to accounts@shcolaw.com not connected yet</span><button type="button" onClick={() => F.markRead(alerts.map((a) => a.id))} style={css('margin-left:auto;border:0;background:none;font-size:10.5px;font-weight:700;color:#3D6B9C;cursor:pointer;font-family:inherit')}>Mark all read</button></div>
         {alerts.length === 0 && <div style={css('padding:12px 14px;font-size:11.5px;color:#5B6478')}>Nothing needs Accounts right now.</div>}
-        {alerts.slice(0, 12).map((a) => { const r = !!F.faRead[a.id]; return (
+        {(showAll ? alerts : alerts.slice(0, 8)).map((a) => { const r = !!F.faRead[a.id]; return (
           <div key={a.id} style={css(`display:grid;grid-template-columns:10px 120px minmax(0,1fr) 110px 120px;gap:10px;align-items:center;padding:9px 14px;border-bottom:1px solid #F0F2F5;background:${r ? '#fff' : '#FFF9FA'}`)}>
             <span style={css(`width:8px;height:8px;border-radius:9999px;background:${r ? '#C9D3E0' : '#E11D48'}`)}></span>
             <span style={css(`justify-self:start;font-size:10px;font-weight:700;padding:2px 9px;border-radius:10px;background:${FK[a.kind][0]};color:${FK[a.kind][1]}`)}>{a.kind}</span>
@@ -99,6 +109,7 @@ export const FinanceHomeTab = ({ F }: { F: FinanceCtrl }) => {
             <button type="button" onClick={() => { F.markRead([a.id]); if (a.tab === 'approvals') F.setApSub(a.cta === 'Pay' ? 'p' : 'w'); F.go(F.TABS.some((t) => t[0] === a.tab) ? a.tab : F.tab); }} style={css('justify-self:end;border:1px solid #16223A;border-radius:6px;padding:4px 10px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit;white-space:nowrap')}>{a.cta}</button>
           </div>
         ); })}
+        {alerts.length > 8 && <button type="button" onClick={() => setShowAll(!showAll)} style={css('width:100%;border:0;background:#F6F8FA;padding:8px 14px;font-size:11px;font-weight:700;color:#2F4F7A;cursor:pointer;font-family:inherit;text-align:left')}>{showAll ? 'Show fewer' : 'Show all ' + alerts.length + ' alerts'}</button>}
       </div>
       <section style={css('display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px')}>
         {kpis.map(([label, value, note, color]) => (

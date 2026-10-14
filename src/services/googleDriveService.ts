@@ -82,7 +82,9 @@ export const getDriveConfig = (): DriveConfig => {
     hrFolderId: parseDriveFolderId(s.driveHrFolderId || ''),
     financeFolderId: parseDriveFolderId(s.driveFinanceFolderId || ''),
     financeFolderName: s.driveFinanceFolderName || '',
-    practiceFolderNames: s.drivePracticeFolderNames || {},
+    // Case files always go to Case files/<practice area> (the old per-area folder-name boxes were
+    // removed from Settings; anything saved there is ignored).
+    practiceFolderNames: {},
   };
 };
 

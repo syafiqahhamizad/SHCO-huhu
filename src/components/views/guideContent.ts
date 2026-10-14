@@ -613,7 +613,7 @@ export const SECTIONS: Section[] = [
     steps: [
       { t: 'Open *Firm & Practice Settings* → *Google, e-mail & backup*.' },
       { t: '*Google Drive storage*: paste the link of each Shared Drive:', sub: ['*SHCO Portal* — files, clients, matters (all staff are members).', '*Finance* — claims, payment vouchers, bank-in proofs, client-account papers, engagement & billing, backups (only the people you allow). If not set, these go into a Finance folder inside SHCO Portal that all staff can see.', '*HR* — staff records (partners / admin only).', 'Click [[Test connection]]: it writes a tiny file to each drive, reads it back and deletes it.'] },
-      { t: '*Case files folder names by practice area*: rename the folders new files go into (SHCO Portal › Case files › <area> › <NNN - title>).' },
+      { t: 'Case files go to SHCO Portal › Case files › <practice area> › <NNN - title>. A practice area added in Practice areas & codes gets its own folder there by itself.' },
       { t: 'Existing files without a folder: in *Cases*, click the bar *N files have no Google Drive folder yet* once — it creates them all. Paste old-drive links per file in Edit matter details → *Old folder*.' },
       { t: '*Google Calendar, Tasks & Gmail*: the *Court diary Calendar ID* (Google Calendar → the calendar’s *Settings and sharing* → *Integrate calendar*) → [[Test Calendar]].' },
       { t: '*Notification e-mails*: the sending account and its Google *App password* → [[Save e-mail settings]] → [[Send test e-mail to me]]. The password can never be read back; paste a new one to change it.' },
