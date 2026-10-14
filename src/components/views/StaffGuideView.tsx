@@ -4,6 +4,8 @@ import { useApp } from '../../context/AppContext';
 import { canSeeClientBilling, finGrants, finRoleKey } from '../../lib/financeAccess';
 import { usePracticeSettings } from './settings/settingsShared';
 import { ROLES, SECTIONS, type GuideRole } from './guideContent';
+import { QUICK_TABS } from './quickGuide';
+import { useRemembered } from '../../lib/navHistory';
 
 /**
  * "How to use the portal" — the staff guide, by role. Opens on the reader's own role; the other
@@ -43,6 +45,14 @@ export const StaffGuideView: React.FC = () => {
       : s.roles === 'admin' ? isAdminViewer
         : s.roles === 'billing' ? (isAdminViewer ? role === 'partner' || role === 'accounts' || seesBilling : seesBilling)
           : s.roles.includes(role)), [role, isAdminViewer, seesBilling]);
+  const [mode, setMode] = useRemembered<'quick' | 'full'>('guide.mode', 'quick');
+  const quick = useMemo(() => QUICK_TABS.filter((t) =>
+    t.roles === 'all' ? true
+      : t.roles === 'admin' ? isAdminViewer
+        : t.roles === 'billing' ? (isAdminViewer ? role === 'partner' || role === 'accounts' || seesBilling : seesBilling)
+          : t.roles.includes(role)), [role, isAdminViewer, seesBilling]);
+  const [qPick, setQPick] = useRemembered('guide.quick', 'dashboard');
+  const qTab = quick.find((t) => t.id === qPick) || quick[0];
   const video = settings.guideVideos?.[role] || '';
   const roleLabel = ROLES.find(([k]) => k === role)?.[1] || '';
   const topicVideos = settings.guideTopicVideos || {};
@@ -70,7 +80,16 @@ export const StaffGuideView: React.FC = () => {
       <div className="flex flex-col gap-1">
         <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8A6D3B]">Staff guide</span>
         <h2 className="m-0 font-serif text-2xl font-bold text-[#16223A]">How to use the portal</h2>
-        <p className="m-0 max-w-[68ch] text-[#5B6478]">Step by step, for your role. Button names match what you see on screen.{isAdminViewer ? ' As an admin you can switch roles below to check each one.' : ''}</p>
+        <p className="m-0 max-w-[68ch] text-[#5B6478]">For your role. Pick a tab on the left to see what it is and what to do. Button names match what you see on screen.{isAdminViewer ? ' As an admin you can switch roles below to check each one.' : ''}</p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {([['quick', 'Quick guide', 'Short, one tab at a time'], ['full', 'Full guide', 'Every step, in detail']] as const).map(([k, label, sub]) => { const on = mode === k; return (
+          <button key={k} type="button" onClick={() => setMode(k)} className={`flex cursor-pointer flex-col items-start rounded-lg border px-3.5 py-2 text-left transition ${on ? 'border-[#8A6D3B] bg-[#FBF5EA]' : 'border-[#DDE3EB] bg-white hover:border-[#8A6D3B]'}`}>
+            <span className="text-[13px] font-bold text-[#16223A]">{label}</span>
+            <span className="text-[11px] text-[#5B6478]">{sub}</span>
+          </button>
+        ); })}
       </div>
 
       {isAdminViewer && <div className="flex flex-wrap gap-2" role="tablist" aria-label="Guide by role">
@@ -86,7 +105,40 @@ export const StaffGuideView: React.FC = () => {
         })}
       </div>}
 
-      {(video || canEditVideo) && (
+      {mode === 'quick' && qTab && (
+        <div className="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)] md:items-start">
+          <nav className="flex flex-col gap-0.5 rounded-xl border border-[#DDE3EB] bg-white p-1.5" aria-label="Tabs">
+            {quick.map((t, i) => (
+              <React.Fragment key={t.id}>
+                {(i === 0 || quick[i - 1].group !== t.group) && <span className="px-2.5 pb-1 pt-2.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#94A3B8]">{t.group}</span>}
+                <button type="button" onClick={() => setQPick(t.id)} className={`cursor-pointer rounded-md border-0 px-2.5 py-2 text-left text-[12.5px] font-bold ${t.id === qTab.id ? 'bg-[#16223A] !text-white' : 'bg-transparent text-[#16223A] hover:bg-[#F6F8FA]'}`}>{t.label}</button>
+              </React.Fragment>
+            ))}
+          </nav>
+          <section className="rounded-xl border border-[#DDE3EB] bg-white p-5">
+            <span className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-[#8A6D3B]">{qTab.group}</span>
+            <h3 className="m-0 mt-0.5 font-serif text-[20px] font-bold text-[#16223A]">{qTab.label}</h3>
+            <p className="m-0 mt-1.5 max-w-[68ch] text-[15px] text-[#1E2A40]">{rich(qTab.what)}</p>
+            <ol className="m-0 mt-4 flex list-none flex-col gap-2.5 p-0">
+              {qTab.steps.map((t, j) => (
+                <li key={j} className="grid grid-cols-[26px_minmax(0,1fr)] items-start gap-2.5">
+                  <span className="mt-0.5 grid h-[22px] w-[22px] place-items-center rounded-full border border-[#8A6D3B] bg-[#FBF5EA] font-mono text-[11px] text-[#8A6D3B]">{j + 1}</span>
+                  <span className="max-w-[68ch]">{rich(t)}</span>
+                </li>
+              ))}
+            </ol>
+            {qTab.byRole?.[role] && (
+              <div className="mt-4 max-w-[68ch] rounded-r-lg border-l-[3px] border-[#16223A] bg-[#F6F8FA] px-3 py-2">
+                <strong className="mb-1 block text-[11.5px] uppercase tracking-[0.08em] text-[#5B6478]">For {roleLabel}</strong>
+                <ul className="m-0 flex list-disc flex-col gap-1 pl-5">{qTab.byRole[role]!.map((t, j) => <li key={j}>{rich(t)}</li>)}</ul>
+              </div>
+            )}
+            <button type="button" onClick={() => setMode('full')} className="mt-4 cursor-pointer border-0 bg-transparent p-0 text-[12.5px] font-bold text-[#3D6B9C]">Need every step? Open the Full guide →</button>
+          </section>
+        </div>
+      )}
+
+      {mode === 'full' && (video || canEditVideo) && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[#DDE3EB] bg-white px-4 py-3">
           <span className="min-w-0 flex-1">
             <strong className="block text-[13.5px] text-[#16223A]">Video walkthrough · {roleLabel}</strong>
@@ -105,6 +157,7 @@ export const StaffGuideView: React.FC = () => {
         </div>
       )}
 
+      {mode === 'full' && <>
       <nav className="flex flex-wrap gap-x-3 gap-y-1 border-b border-[#DDE3EB] pb-3 text-[12.5px]" aria-label="Sections">
         {sections.map((s, i) => (
           <a key={s.id} href={'#guide-' + s.id} onClick={(e) => { e.preventDefault(); document.getElementById('guide-' + s.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} className="text-[#3D6B9C] hover:underline">{i + 1}. {s.title}</a>
@@ -174,6 +227,7 @@ export const StaffGuideView: React.FC = () => {
           </section>
         ))}
       </div>
+      </>}
     </div>
   );
 };

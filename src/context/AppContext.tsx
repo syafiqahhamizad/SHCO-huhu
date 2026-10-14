@@ -371,7 +371,7 @@ interface AppContextType {
   sequenceCounters: SequenceCounters;
   /** `date` (any date string) picks the year for year-numbered documents (invoice, quotation,
    * journal): the running number restarts at 0001 each year per prefix. Defaults to today. */
-  getNextSequenceId: (type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense' | 'journal', date?: string) => string;
+  getNextSequenceId: (type: 'invoice' | 'quotation' | 'proforma' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense' | 'journal', date?: string) => string;
   incrementSequenceCounter: (type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense') => void;
 }
 
@@ -1718,11 +1718,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const liveReceipts = useMemo(() => receipts.filter((x) => !x.recordOnly), [receipts]);
   const pastReceipts = useMemo(() => receipts.filter((x) => x.recordOnly), [receipts]);
 
-  const nextYearSequenceId = (type: 'invoice' | 'quotation' | 'journal', date?: string): string => {
+  const nextYearSequenceId = (type: 'invoice' | 'quotation' | 'proforma' | 'journal', date?: string): string => {
     const m = String(date || '').match(/(\d{4})-\d{1,2}-\d{1,2}/) || String(date || '').match(/\d{1,2}[./-]\d{1,2}[./-](\d{4})/);
     const year = m ? Number(m[1]) : new Date().getFullYear();
-    const prefix = type === 'invoice' ? `INV-${year}-` : type === 'quotation' ? `QUOT-${year}-` : `JV-${year}-`;
-    const ids = type === 'invoice' ? invoices.map((i) => i.id) : type === 'quotation' ? quotations.map((q) => q.id) : manualJournals.map((j) => j.id);
+    // Proformas have their own numbers (PF-), separate from quotations.
+    const prefix = type === 'invoice' ? `INV-${year}-` : type === 'quotation' ? `QUOT-${year}-` : type === 'proforma' ? `PF-${year}-` : `JV-${year}-`;
+    const ids = type === 'invoice' ? invoices.map((i) => i.id) : type === 'quotation' || type === 'proforma' ? quotations.map((q) => q.id) : manualJournals.map((j) => j.id);
     const highestReal = highestNumericSuffix(ids, prefix);
     let store: Record<string, number> = {};
     try { store = JSON.parse(localStorage.getItem(yearSeqKey) || '{}') || {}; } catch { store = {}; }
@@ -1736,10 +1737,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const getNextSequenceId = (
-    type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense' | 'journal',
+    type: 'invoice' | 'quotation' | 'proforma' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense' | 'journal',
     date?: string
   ): string => {
-    if (type === 'invoice' || type === 'quotation' || type === 'journal') return nextYearSequenceId(type, date);
+    if (type === 'invoice' || type === 'quotation' || type === 'proforma' || type === 'journal') return nextYearSequenceId(type, date);
     const key = (type + 'Seq') as keyof SequenceCounters;
     const counterValue = sequenceCounters[key] || 0;
     // Nothing ever called incrementSequenceCounter() for any of these types (only 'case'

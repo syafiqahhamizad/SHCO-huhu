@@ -9,7 +9,8 @@
  *                     accepted yet, the latest quotation that is not declined (a revised quote
  *                     replaces the earlier one; proformas excluded)
  *   billed          = sum of issued invoices (not Draft / Pending Review / Voided)
- *   received        = payments + proforma deposits applied on those invoices
+ *   received        = payments + proforma deposits applied on those invoices, plus office money
+ *                     paid on proformas that no invoice has used yet (paid in advance)
  *   outstanding     = sum of owedBalance (total − paid − written off − deposit applied, floor 0),
  *                     the same rule as the finance dashboards
  *   client account  = sum of the client ledger (retainer) entries: Deposit +, Apply / Refund −
@@ -35,7 +36,11 @@ interface MoneyBill {
   /** What the bill is for (subject / matter), '' when not recorded. */
   what: string;
   caseId?: string;
-  fees: number; disb: number; sst: number; total: number;
+  /** Firm income on the bill: professional fees + reimbursements. */
+  fees: number;
+  /** The same, shown apart: professional fees only, and reimbursements only. */
+  prof: number; reimb: number;
+  disb: number; sst: number; total: number;
   /** Payments + deposit applied. */
   paid: number;
   writtenOff: number;
@@ -51,6 +56,8 @@ interface LedgerLine { id: string; date: string; doc: string; desc: string; dr: 
 interface OfficeLine { date: string; doc: string; desc: string; dr: number; cr: number; bal: number }
 
 interface MoneyTotals { agreed: number; billed: number; received: number; outstanding: number; writtenOff: number; clientAccount: number }
+/** A proforma on the file (a request to pay first) and what has been paid on it. */
+export interface FileProforma { id: string; date: string; what: string; total: number; paid: number; payInto: string; status: 'Draft' | 'Unpaid' | 'Part-paid' | 'Paid' | 'Declined' }
 
 interface FileMoney extends MoneyTotals {
   caseId: string;
@@ -64,6 +71,10 @@ interface FileMoney extends MoneyTotals {
   disbRecovered: OfficeLine[];
   /** Kept for the Working File (same value as clientAccount). */
   clientBalance: number;
+  /** Proformas on the file and what was paid on each. */
+  proformas: FileProforma[];
+  /** Office money paid on proformas not used by an invoice yet (included in received). */
+  advance: number;
 }
 
 const byDate = <T extends { date: string }>(a: T, b: T) => parseDate(a.date) - parseDate(b.date);
@@ -85,7 +96,7 @@ const billOf = (inv: Invoice, payments: Payment[], receipts: Receipt[] = []): Mo
   const status = !issued ? inv.status : bal <= 0.005 ? 'Paid' : paid > 0 ? 'Part-paid' : inv.status === 'Partial' ? 'Part-paid' : inv.status;
   return {
     id: inv.id, date: inv.issuedAt || inv.date, what: inv.subject || inv.matter || '', caseId: inv.caseId,
-    fees: round2(comp.fees + comp.reimb), disb: comp.disb, sst: comp.sst, total: Number(inv.total || 0),
+    fees: round2(comp.fees + comp.reimb), prof: comp.fees, reimb: comp.reimb, disb: comp.disb, sst: comp.sst, total: Number(inv.total || 0),
     paid, writtenOff: issued ? Number(inv.writtenOff || 0) : 0, bal, status, issued,
     receiptNos: receipts.filter((r) => r.invoiceId === inv.id).map((r) => r.id),
     inv,
@@ -152,7 +163,22 @@ export const moneyForFile = (c: Pick<Case, 'id' | 'ref'>, m: MoneySources): File
   const officeLedger = officeRows.sort(byDate).map((r) => { orun = round2(orun + r.dr - r.cr); return { ...r, bal: orun }; });
 
   const { quotes, accepted, agreed } = agreedOf(c, m.quotations);
-  return { caseId: c.id, ref: c.ref, agreed, ...t, clientAccount, clientBalance: clientAccount, bills, quotes, accepted, clientLedger, officeLedger, disbRecovered: disbRows.map((r) => ({ ...r, bal: 0 })) };
+  // Proformas on the file, and office money paid on them that no issued invoice has used yet.
+  const quoteIds = new Set(quotes.map((q) => q.id));
+  const recs = m.receipts || [];
+  const proformas: FileProforma[] = m.quotations
+      .filter((p) => p.documentType === 'Proforma' && !p.historical && (onFile(c, p.caseId, p.fileRef) || (!!p.sourceQuotationId && quoteIds.has(p.sourceQuotationId))))
+    .map((p) => {
+      const paid = round2(recs.filter((r) => r.quotationId === p.id || r.forNo === p.id).reduce((a, r) => a + Number(r.amount || 0), 0));
+      const total = Number(p.total || 0);
+      const status: FileProforma['status'] = p.status === 'Declined' ? 'Declined' : ['Draft', 'Pending Approval'].includes(p.status) && !paid ? 'Draft' : paid >= total - 0.005 && total > 0 ? 'Paid' : paid > 0 ? 'Part-paid' : 'Unpaid';
+      return { id: p.id, date: p.date, what: p.planRowLabel || p.matter || '', total, paid, payInto: p.payInto || 'Office', status };
+    })
+    .sort((a, b) => byDate(b, a));
+  const officePaid = sum(proformas.filter((p) => p.payInto !== 'Client account').map((p) => p.paid));
+  const applied = sum(invs.filter(isIssued).map((i) => Number(i.depositApplied || 0)));
+  const advance = Math.max(0, round2(officePaid - applied));
+  return { caseId: c.id, ref: c.ref, agreed, ...t, received: round2(t.received + advance), advance, proformas, clientAccount, clientBalance: clientAccount, bills, quotes, accepted, clientLedger, officeLedger, disbRecovered: disbRows.map((r) => ({ ...r, bal: 0 })) };
 };
 
 /** Files that belong to a client: Case.clientId (comma list), the parties list, or the client name. */
@@ -190,6 +216,7 @@ export const moneyForClient = (client: Pick<Client, 'id' | 'name'>, cases: Case[
     files, bills, ledger,
     agreed: sum(files.map((f) => f.agreed)),
     ...t,
+    received: round2(t.received + sum(files.map((f) => f.advance))),
     clientAccount: ledger.length ? ledger[ledger.length - 1].bal : 0,
   };
 };

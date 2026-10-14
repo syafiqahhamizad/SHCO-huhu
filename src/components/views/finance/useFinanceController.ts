@@ -367,6 +367,7 @@ export function useFinanceController(initialTab: FinTab) {
   const proformaPaid = (q: Quotation) => receiptsFor(q.id).reduce((s, r) => s + Number(r.amount || 0), 0);
   const qStatus = (q: Quotation): string => {
     if (q.documentType === 'Proforma') {
+      if (q.historical) return 'Past';
       if (['Draft', 'Pending Approval'].includes(q.status)) return 'Draft';
       if (q.status === 'Declined') return 'Declined';
       return proformaPaid(q) >= Number(q.total || 0) - 0.005 && q.total > 0 ? 'Paid' : 'Unpaid';
@@ -1162,18 +1163,32 @@ export function useFinanceController(initialTab: FinTab) {
       if (!row) { toastMsg('That payment-plan row was not found.'); return; }
       if (row.proforma) { toastMsg(row.label + ' already has proforma ' + row.proforma.id + '.'); return; }
       if (!(row.amount > 0)) { toastMsg(row.label + ' has no amount: set its % or RM on the quotation first.'); return; }
-      const id = app.getNextSequenceId('quotation');
       const what = row.key.startsWith('stage:') ? `Stage ${Number(row.key.slice(6)) + 1}: ${row.label}${row.pct != null ? ' (' + row.pct + '% of ' + q.id + ')' : ' (' + q.id + ')'}` : `Instalment ${row.label} (${q.id})`;
-      app.addQuotation({ id, documentType: 'Proforma', sourceQuotationId: q.id, planRowKey: row.key, planRowLabel: row.label, partyType: q.partyType || 'Client', partyId: q.partyId, date: onDate, practiceArea: q.practiceArea, fileRef: q.fileRef, leadId: q.leadId || '', clientName: q.clientName, status: 'Draft', total: row.amount, billedSoFar: 0, remaining: row.amount, courtLevel: '', stage: row.label, feeMethod: 'Template', subtype: q.subtype || '', approvalStatus: 'Pending', approvedBy: '', approvedDate: '', sstApplied: false, caseId: q.caseId, matter: q.matter, subject: q.subject, yourRef: q.yourRef, tin: q.tin, scope: row.due ? 'Payable: ' + row.due : '', terms: [], payInto: 'Office', language: q.language, lineItems: [{ description: what, category: 'Fee - Fixed', amount: row.amount, quantity: 1, unitPrice: row.amount, chargeType: 'Fixed' }] });
-      setView({ kind: 'quotation', id }); setDocT('Proforma');
-      toastMsg(id + ' created for ' + row.label + ' · ' + rm2(row.amount));
+      // Disbursements are asked for separately (client account, SAR 1990): this row's share of the
+      // quotation's disbursements goes on its own proforma, the rest (fees) on the office proforma.
+      const qItems = q.lineItems || [];
+      const disbAll = round2(qItems.filter((x) => x.category === 'Disbursement').reduce((a2, x) => a2 + Number(x.amount || 0), 0));
+      const allAmt = round2(qItems.reduce((a2, x) => a2 + Number(x.amount || 0), 0));
+      const dPart = allAmt > 0 && disbAll > 0 ? round2(row.amount * (disbAll / allAmt)) : 0;
+      const fPart = round2(row.amount - dPart);
+      const parts: [number, 'Office' | 'Client account', string][] = [...(fPart > 0.005 ? [[fPart, 'Office', what] as [number, 'Office' | 'Client account', string]] : []), ...(dPart > 0.005 ? [[dPart, 'Client account', 'Disbursements · ' + what] as [number, 'Office' | 'Client account', string]] : [])];
+      const ids = seqIds('proforma', parts.length);
+      // On the office proforma, reimbursements are shown on their own line (still firm income).
+      const reimbAll = round2(qItems.filter((x) => x.category === 'Reimbursement').reduce((a2, x) => a2 + Number(x.amount || 0), 0));
+      const rPart = allAmt > 0 && reimbAll > 0 ? Math.min(fPart, round2(row.amount * (reimbAll / allAmt))) : 0;
+      const linesFor = (amt: number, into: string, desc: string): Quotation['lineItems'] => (into === 'Client account'
+        ? [{ description: desc, category: 'Disbursement', amount: amt, quantity: 1, unitPrice: amt, chargeType: 'Fixed' }]
+        : [{ description: desc, category: 'Fee - Fixed', amount: round2(amt - rPart), quantity: 1, unitPrice: round2(amt - rPart), chargeType: 'Fixed' }, ...(rPart > 0.005 ? [{ description: 'Reimbursements · ' + what, category: 'Reimbursement', amount: rPart, quantity: 1, unitPrice: rPart, chargeType: 'Fixed' }] : [])]) as Quotation['lineItems'];
+      parts.forEach(([amt, into, desc], n) => app.addQuotation({ id: ids[n], documentType: 'Proforma', sourceQuotationId: q.id, planRowKey: row.key, planRowLabel: row.label, partyType: q.partyType || 'Client', partyId: q.partyId, date: onDate, practiceArea: q.practiceArea, fileRef: q.fileRef, leadId: q.leadId || '', clientName: q.clientName, status: 'Draft', total: amt, billedSoFar: 0, remaining: amt, courtLevel: '', stage: row.label, feeMethod: 'Template', subtype: q.subtype || '', approvalStatus: 'Pending', approvedBy: '', approvedDate: '', sstApplied: false, caseId: q.caseId, matter: q.matter, subject: q.subject, yourRef: q.yourRef, tin: q.tin, scope: row.due ? 'Payable: ' + row.due : '', terms: [], payInto: into, language: q.language, lineItems: linesFor(amt, into, desc) }));
+      setView({ kind: 'quotation', id: ids[0] }); setDocT('Proforma');
+      toastMsg(ids.join(' + ') + ' created for ' + row.label + ' · ' + rm2(row.amount) + (parts.length > 1 ? ' (fees → office, disbursements → client account)' : ''));
       return;
     }
     if (a === 'Make proforma') {
       const q = rec as Quotation; const t = recordTotals(q.lineItems || [], recordSstRate(q));
       const made: Quotation[] = [];
       const want = [t.fees > 0, t.disbursements > 0].filter(Boolean).length;
-      const ids = seqIds('quotation', Math.max(1, want));
+      const ids = seqIds('proforma', Math.max(1, want));
       const base = { documentType: 'Proforma' as const, sourceQuotationId: q.id, partyType: q.partyType || 'Client' as const, partyId: q.partyId, date: onDate, practiceArea: q.practiceArea, fileRef: q.fileRef, leadId: q.leadId || '', clientName: q.clientName, status: 'Draft' as const, billedSoFar: 0, courtLevel: '', stage: '', feeMethod: 'Template' as const, subtype: q.subtype || '', approvalStatus: 'Pending' as const, approvedBy: '', approvedDate: '', sstApplied: false, caseId: q.caseId, matter: q.matter, subject: q.subject, yourRef: q.yourRef, tin: q.tin, scope: '', terms: [] };
       // The office proforma copies the quotation's fee lines in full (no automatic percentage); change it with Edit before sending.
       if (t.fees > 0) { const items = (q.lineItems || []).filter((i) => i.category !== 'Disbursement'); const amt = round2(items.reduce((a2, i) => a2 + Number(i.amount || 0), 0)); made.push({ ...base, id: ids[made.length], total: amt, remaining: amt, payInto: 'Office', lineItems: items }); }
@@ -1271,7 +1286,7 @@ export function useFinanceController(initialTab: FinTab) {
       app.addInvoice({ id, clientId: client?.id || '', caseId: kase?.id || e.ref || '', fileRef: e.ref, partyType: 'Client', partyName: e.client || 'New client', amount: t.fees + t.disbursements + t.reimbursements, discount: 0, tax: t.sst, total: t.grandTotal, date: e.date || todayIso(), dueDate: todayIso(), status: 'Draft', lineItems: items, sstRate: rate || undefined, matter: e.matter, subject, yourRef: e.yourRef, tin: e.tin, scope: e.desc, payInto: e.account, feeArrangement: e.inst });
       setEd(null); setView(andView ? { kind: 'invoice', id } : null); setDocT('Invoice'); setInvF('All'); go('billing'); toastMsg(id + ' saved as draft');
     } else {
-      const id = app.getNextSequenceId('quotation');
+      const id = app.getNextSequenceId(e.type === 'Proforma' ? 'proforma' : 'quotation');
       app.addQuotation({ id, createdAt: new Date().toISOString(), documentType: e.type, partyType: 'Client', partyId: client?.id, date: e.date || todayIso(), practiceArea: e.area, fileRef: e.ref, leadId: (app.leads || []).find((l) => l.name === e.client)?.id || '', clientName: e.client || 'New client', status: 'Draft', total: t.grandTotal, billedSoFar: 0, remaining: t.grandTotal, courtLevel: '', stage: '', feeMethod: 'Template', subtype: '', approvalStatus: 'Pending', approvedBy: '', approvedDate: '', lineItems: items, sstApplied: rate > 0, sstRate: rate || undefined, validityDays: Number(settings.quotationValidityDays) || 30, caseId: kase?.id, matter: e.matter, subject, yourRef: e.yourRef, tin: e.tin, scope: e.desc, terms: e.type === 'Quotation' ? SD.TERMS.slice() : [], feeArrangement: e.inst, payInto: e.account, ...(e.type === 'Quotation' ? planFields(e) : {}) });
       setEd(null); setView(andView ? { kind: 'quotation', id } : null); setDocT(e.type); go('billing'); toastMsg(id + ' saved as draft');
     }
@@ -1324,6 +1339,35 @@ export function useFinanceController(initialTab: FinTab) {
     const dateIso = isoOf(parseDate(vals.date)) || todayIso();
     const proofs: FinanceProof[] = vals.proofs || [];
     if (rk === 'R' || rk === 'S') { toastMsg('Read-only access.'); return; }
+    if (kind === 'pastProforma') {
+      // A proforma made before the portal: kept with its PDF for reference, never counted as unpaid.
+      if (!canPrepare) { toastMsg('Proformas are recorded by Accounts.'); return; }
+      const no = String(vals.no || '').trim();
+      if (!no) { toastMsg('Enter the proforma number as printed.'); return; }
+      if (quotations.some((q) => q.id.toLowerCase() === no.toLowerCase())) { toastMsg(no + ' is already in the list.'); return; }
+      if (!String(vals.client || '').trim()) { toastMsg('Enter the client.'); return; }
+      if (amt <= 0) { toastMsg('Enter the total.'); return; }
+      const c = clientByName(vals.client || ''); const kase = vals.matter ? caseForRef(String(vals.matter)) : undefined;
+      const into = vals.payInto === 'Client account' ? 'Client account' : 'Office';
+      app.addQuotation({
+        id: no, historical: true, documentType: 'Proforma', partyType: 'Client', partyId: c?.id, date: dateIso, createdAt: new Date().toISOString(),
+        practiceArea: kase?.practiceArea || kase?.type || '', fileRef: kase?.ref || '', caseId: kase?.id, matter: kase?.title, leadId: '', clientName: c?.name || String(vals.client).trim(),
+        status: 'Sent', total: amt, billedSoFar: 0, remaining: amt, courtLevel: '', stage: '', feeMethod: 'Fixed', subtype: '', payInto: into,
+        approvalStatus: 'Approved', approvedBy: me, approvedDate: dateIso, lineItems: [{ description: String(vals.what || '').trim() || 'As per proforma ' + no, category: into === 'Client account' ? 'Disbursement' : 'Fee - Fixed', amount: amt }],
+      } as Quotation);
+      const pdf = ((vals.pdf || []) as (FinanceProof & { file?: File })[]).find((p) => p.file)?.file;
+      if (pdf) {
+        void (async () => {
+          try {
+            await prepareStorage();
+            const up = await storeEngagementFile(kase ? { ref: kase.ref, title: kase.title } : { ref: '', title: 'Past proformas' }, pdf, me);
+            app.updateQuotation(no, { pastFile: { name: up.name, driveFileId: up.driveFileId, webViewLink: up.webViewLink } });
+          } catch (e) { toastMsg(no + ' saved, but its PDF was not uploaded: ' + (e instanceof Error ? e.message : String(e))); }
+        })();
+      }
+      setForm(null); toastMsg(no + ' recorded (for reference)' + (pdf ? ' · PDF saving to Google Drive' : ''));
+      return;
+    }
     if (kind === 'pastQuote') {
       if (!canPrepare) { toastMsg('Quotations are recorded by Accounts.'); return; }
       const no = String(vals.no || '').trim();

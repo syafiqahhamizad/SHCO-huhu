@@ -36,7 +36,7 @@ const ST: Record<string, { bg: string; fg: string }> = { Active: { bg: '#E6EFE9'
 
 export const WorkingFile: React.FC<{ c: Case }> = ({ c }) => {
   const app = useApp();
-  const { users = [], clients = [], currentUser, currentRole, isAdmin, caseSubTab, setCaseSubTab, setCurrentCaseId, updateCase, showToast, invoices = [], payments = [], retainers = [], quotations = [], timeEntries = [], expenses = [], travelClaims = [] } = app;
+  const { users = [], clients = [], currentUser, currentRole, isAdmin, caseSubTab, setCaseSubTab, setCurrentCaseId, updateCase, showToast, invoices = [], receipts = [], payments = [], retainers = [], quotations = [], timeEntries = [], expenses = [], travelClaims = [] } = app;
   const staff = useMemo(() => staffOf(users), [users]);
   const me = currentUser?.name || '';
   const meP = staff.find((p) => p.name === me);
@@ -53,7 +53,7 @@ export const WorkingFile: React.FC<{ c: Case }> = ({ c }) => {
   const ro = c.status === 'Closed' || c.status === 'Archive';
   const canApprove = isSuper(currentUser) || (can(app.rolesMatrix || {}, currentUser, 'cases.approveClose') && (currentRole !== 'Partner' || (c.partners || []).some((p) => p === meCode)));
   const parties = useMemo(() => partiesOf(c, clients), [c, clients]);
-  const money = useMemo(() => matterMoney(c, { invoices, payments, retainers, quotations, timeEntries, expenses, travelClaims }), [c, invoices, payments, retainers, quotations, timeEntries, expenses, travelClaims]);
+  const money = useMemo(() => matterMoney(c, { invoices, payments, retainers, quotations, receipts, timeEntries, expenses, travelClaims }), [c, invoices, payments, retainers, quotations, receipts, timeEntries, expenses, travelClaims]);
 
   const tab0 = TAB_ALIAS[caseSubTab] || 'overview';
   const tab = !seeFin && tab0 === 'money' ? 'overview' : tab0;

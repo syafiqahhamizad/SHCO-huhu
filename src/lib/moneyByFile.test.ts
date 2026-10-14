@@ -93,3 +93,23 @@ describe('agreed fees with stage / instalment proformas', () => {
     eq(moneyForFile(C, s).agreed, 12000);
   });
 });
+
+describe('proforma paid before the invoice', () => {
+  const F = kase('CS-9', 'REF/P', 'C9');
+  const q = { ...quote('Q-9', 'CS-9', 1500, 'Accepted') } as Quotation;
+  const pf = { ...quote('PF-9', '', 750, 'Sent', 'Proforma'), sourceQuotationId: 'Q-9', payInto: 'Office' } as Quotation;
+  const rc = { id: 'OR-9', quotationId: 'PF-9', amount: 750, date: '2026-10-01', accountSet: 'OFFICE' } as unknown as import('../types').Receipt;
+  it('shows on the file as paid in advance and counts as received', () => {
+    const m = moneyForFile(F, { invoices: [], payments: [], retainers: [], quotations: [q, pf], receipts: [rc] });
+    expect(m.proformas.map((p) => [p.id, p.status])).toEqual([['PF-9', 'Paid']]);
+    eq(m.advance, 750);
+    eq(m.received, 750);
+  });
+  it('once the invoice deducts it, it is no longer counted twice', () => {
+    const i = inv('INV-9', 'CS-9', 1500, { depositApplied: 750 });
+    const m = moneyForFile(F, { invoices: [i], payments: [], retainers: [], quotations: [q, pf], receipts: [rc] });
+    eq(m.advance, 0);
+    eq(m.received, 750);
+    eq(m.outstanding, 750);
+  });
+});

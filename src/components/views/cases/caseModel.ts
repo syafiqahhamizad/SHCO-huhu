@@ -6,7 +6,7 @@
  * payments, retainers, time entries, expenses, travel claims…). Nothing here invents records.
  */
 import type {
-  Case, Client, Expense, Invoice, MatterParty, Payment, Quotation, Retainer, Task, TimeEntry, TravelClaim, User, ServiceRecord,
+  Case, Client, Expense, Invoice, MatterParty, Payment, Quotation, Receipt, Retainer, Task, TimeEntry, TravelClaim, User, ServiceRecord,
 } from '../../../types';
 import { parseDate, round2 } from '../../../lib/financeCalc';
 import { moneyForFile } from '../../../lib/moneyByFile';
@@ -293,14 +293,14 @@ const onFile = (c: Pick<Case, 'id' | 'ref'>, caseId?: string, fileRef?: string) 
 /* ------------------------------------------------------------------ money on the file */
 
 interface MoneyInputs {
-  invoices: Invoice[]; payments: Payment[]; retainers: Retainer[]; quotations: Quotation[];
+  invoices: Invoice[]; payments: Payment[]; retainers: Retainer[]; quotations: Quotation[]; receipts?: Receipt[];
   timeEntries: TimeEntry[]; expenses: Expense[]; travelClaims: TravelClaim[];
 }
 
 export const matterMoney = (c: Case, m: MoneyInputs) => {
   // Agreed / billed / received / outstanding / client account: the single money source.
   const fm = moneyForFile(c, m);
-  const { bills, billed, received, outstanding, clientLedger, clientBalance, officeLedger, agreed, quotes, accepted } = fm;
+  const { bills, billed, received, outstanding, clientLedger, clientBalance, officeLedger, agreed, quotes, accepted, proformas, advance } = fm;
 
   // Work not billed — same rule as Accounts & Finance (billable, not billed / written off, approved).
   const te = m.timeEntries.filter((t) => onFile(c, t.caseId));
@@ -326,5 +326,5 @@ export const matterMoney = (c: Case, m: MoneyInputs) => {
   let drun = 0;
   const disbLedger = disbRows.map((r) => { drun = round2(drun + r.dr - r.cr); return { date: r.date, doc: r.doc, desc: r.desc, dr: r.dr, cr: r.cr, bal: drun }; });
 
-  return { bills, billed, received, outstanding, clientLedger, clientBalance, officeLedger, disbLedger, agreed, quotes, accepted, te, ex, tc, ubHours, ubFees, ubDisb, lastBillWithBal };
+  return { bills, billed, received, outstanding, clientLedger, clientBalance, officeLedger, disbLedger, agreed, quotes, accepted, proformas, advance, te, ex, tc, ubHours, ubFees, ubDisb, lastBillWithBal };
 };
