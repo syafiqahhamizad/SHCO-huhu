@@ -5,6 +5,9 @@
  */
 import type React from 'react';
 import { pickDate } from '../../ui/pickDate';
+import { applyFiled, nextFilingJob } from './financeFiling';
+import { fileFinanceEntry, hasFinanceDrive } from '../../../services/fileStorageService';
+import { grantReader } from '../../../services/googleDriveService';
 import { askForm } from '../../ui/askForm';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../../../context/AppContext';
@@ -241,6 +244,46 @@ export function useFinanceController(initialTab: FinTab) {
   const clientName = (id?: string) => (id && lk.clientById.get(id)?.name) || '';
   const staffUser = (nameOrId?: string): User | undefined => users.find((u) => u.id === nameOrId || norm(u.name) === norm(nameOrId));
 
+  /* ------------------------------ finance books filing (Google Drive) ------------------------------ */
+  // Once the Super Admin has set up the finance folders, each claim / PV / office expense / receipt is
+  // filed in 1 Books (Pending, Rejected, or the month it was paid), renamed, and linked in its client
+  // file. Runs in the background for Accounts (who can open SHCO Finance), one entry at a time.
+  const filingBusy = useRef(false);
+  const filingSkip = useRef(new Set<string>());
+  const filingStopped = useRef(false);
+  const [filingTick, setFilingTick] = useState(0);
+  useEffect(() => {
+    const ff = settings.financeFiling;
+    if (!ff || !canPrepare || !hasFinanceDrive() || filingBusy.current || filingStopped.current) return;
+    const job = nextFilingJob({ travel: travelClaims, expense: expenses, pv: paymentVouchers, receipt: receipts }, {
+      from: ff.from,
+      matterOf: (caseId, ref) => { const k = findCase(lk, caseId, ref); return k ? { ref: k.ref, title: k.title, practiceArea: k.practiceArea, type: k.type } : ref ? { ref } : undefined; },
+    }, filingSkip.current);
+    if (!job) return;
+    filingBusy.current = true;
+    void (async () => {
+      try {
+        const res = await fileFinanceEntry({ path: job.path, name: job.name, folderId: job.folderId, papers: job.papers, matter: job.matter });
+        if (job.kind === 'travel') {
+          const t = travelClaims.find((x) => x.id === job.recId);
+          if (t) { app.updateTravelClaim(t.id, applyFiled(t, job, res)); const em = staffUser(t.claimant)?.email; if (em) for (const p of res.papers) void grantReader(p.id, em).catch(() => undefined); }
+        } else if (job.kind === 'expense') {
+          const e = expenses.find((x) => x.id === job.recId);
+          if (e) { app.updateExpense(e.id, applyFiled(e, job, res)); const em = e.claimant ? staffUser(e.claimant)?.email : ''; if (em) for (const p of res.papers) void grantReader(p.id, em).catch(() => undefined); }
+        } else if (job.kind === 'pv') { const v = paymentVouchers.find((x) => x.id === job.recId); if (v) app.updatePaymentVoucher(v.id, applyFiled(v, job, res)); }
+        else { const r = receipts.find((x) => x.id === job.recId); if (r) app.updateReceipt(r.id, applyFiled(r, job, res)); }
+      } catch (err) {
+        filingSkip.current.add(job.kind + ':' + job.recId);
+        const m = err instanceof Error ? err.message : String(err);
+        if (/permission|access|401|403|not found|insufficient/i.test(m)) { filingStopped.current = true; toastMsg('Finance filing paused: ' + m); }
+      } finally {
+        filingBusy.current = false;
+        setFilingTick((x) => x + 1);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings, canPrepare, travelClaims, expenses, paymentVouchers, receipts, lk, filingTick]);
+
   /* ------------------------------ invoices & payments ------------------------------ */
   const paidByInvoice = useMemo(() => { const m = new Map<string, number>(); payments.forEach((p) => m.set(p.invoiceId, (m.get(p.invoiceId) || 0) + Number(p.amount || 0))); return m; }, [payments]);
   const invPaid = (inv: Invoice) => paidByInvoice.get(inv.id) || 0;
@@ -326,11 +369,13 @@ export function useFinanceController(initialTab: FinTab) {
 
   /** A quotation / proforma can be deleted within 10 minutes of making it, or any time while it is a draft
    * nothing was made from (no proforma, invoice or money received). Quotations are never voided. */
-  // Delete is for admins only (Super Admin or anyone marked Admin in Users & Roles).
+  // Delete: admins (Super Admin or anyone marked Admin in Users & Roles). Quotations, bills and
+  // receipts can also be deleted by Accounts.
   const isAdminUser = !!(app.isAdmin || currentUser?.isSuperAdmin);
-  const canDeleteQuote = (q: Quotation): boolean => isAdminUser && !invoiceForQuote(q.id) && !quotations.some((p) => p.sourceQuotationId === q.id) && receiptsFor(q.id).length === 0;
+  const canDeleteBills = isAdminUser || rk === 'A';
+  const canDeleteQuote = (q: Quotation): boolean => canDeleteBills && !invoiceForQuote(q.id) && !quotations.some((p) => p.sourceQuotationId === q.id) && receiptsFor(q.id).length === 0;
   const deleteQuote = (q: Quotation) => {
-    if (!canDeleteQuote(q)) { toastMsg(isAdminUser ? 'Something was made from it (a proforma, invoice or receipt): delete that first.' : 'Only an admin can delete.'); return; }
+    if (!canDeleteQuote(q)) { toastMsg(canDeleteBills ? 'Something was made from it (a proforma, invoice or receipt): delete that first.' : 'Only an admin or Accounts can delete.'); return; }
     if (typeof window !== 'undefined' && !window.confirm('Delete ' + q.id + (q.clientName ? ' for ' + q.clientName : '') + '? It goes to the Recycle Bin.')) return;
     app.deleteQuotation(q.id);
     setView(null);
@@ -350,7 +395,7 @@ export function useFinanceController(initialTab: FinTab) {
     if (rows.length) postGL(rows);
   };
   const deleteInvoice = (inv: Invoice) => {
-    if (!isAdminUser) { toastMsg('Only an admin can delete.'); return; }
+    if (!canDeleteBills) { toastMsg('Only an admin or Accounts can delete.'); return; }
     if (invPaid(inv) > 0.005) { toastMsg(inv.id + ' has money received: delete those receipts first.'); return; }
     if (!window.confirm('Delete ' + inv.id + '? Its postings are reversed and its work goes back to "Work not billed yet". It stays in the Recycle Bin.')) return;
     reverseDoc(inv.id, 'deleted');
@@ -362,7 +407,7 @@ export function useFinanceController(initialTab: FinTab) {
     setView(null); toastMsg(inv.id + ' deleted · postings reversed');
   };
   const deleteReceipt = (r: Receipt) => {
-    if (!isAdminUser) { toastMsg('Only an admin can delete.'); return; }
+    if (!canDeleteBills) { toastMsg('Only an admin or Accounts can delete.'); return; }
     if (!window.confirm('Delete receipt ' + r.id + ' (' + rm2(Number(r.amount || 0)) + ')? The payment it recorded and its postings are reversed. It stays in the Recycle Bin.')) return;
     reverseDoc(r.id, 'deleted');
     app.removeFinanceRecords({ receipts: [r.id], payments: payments.filter((p) => p.id === 'PAY-' + r.id).map((p) => p.id), retainers: retainers.filter((x) => x.id === 'RET-' + r.id).map((x) => x.id) }, 'Receipt deleted by ' + me);
@@ -1417,7 +1462,7 @@ export function useFinanceController(initialTab: FinTab) {
     lk, ownCase, clientName, staffUser,
     invBal, invPaid, invDeposit, invCredit, invStatus, invIssued, invCase, scopedInvoices, openInvoices, owedTotal, aging, ageDays,
     pnl, moneyReceived, openingAsAt, firmBanksOf, statementFor, setStatement, reconFor,
-    qStatus, qCase, proformaPaid, scopedQuotations, scopedReceipts, actionsFor, canDeleteQuote, deleteQuote, deleteInvoice, deleteReceipt, editReceipt, editApItem, deleteApItem, isAdminUser, act, buildDoc, recordOf, receiptProofList,
+    qStatus, qCase, proformaPaid, scopedQuotations, scopedReceipts, actionsFor, canDeleteQuote, canDeleteBills, deleteQuote, deleteInvoice, deleteReceipt, editReceipt, editApItem, deleteApItem, isAdminUser, act, buildDoc, recordOf, receiptProofList,
     ledgers, trustTotal, ledgerTotalAt, clientLedgerBalance, threeWayRec,
     unbilled, wipTotal, billMatter, billed: billed as Record<string, { inv: string; u: any }>,
     activeBanks, bankKind, banksOf, bankBal, lastRecon, officeCash,

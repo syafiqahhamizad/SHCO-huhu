@@ -42,9 +42,9 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
     const danger = [
       ...(F.actionsFor(kind, menuRec as Quotation).includes('Void') ? [{ label: 'Void (credit note)', go: run(() => F.act(kind, menuRec as Quotation, 'Void')), fw: 600, fg: '#B23A2E', sep: true }] : []),
       // Delete: admins only. Postings are reversed; the record goes to the Recycle Bin.
-      ...(F.isAdminUser && kind === 'quotation' ? [del(() => F.deleteQuote(menuRec as Quotation))] : []),
-      ...(F.isAdminUser && kind === 'invoice' ? [del(() => F.deleteInvoice(menuRec as import('../../../types').Invoice))] : []),
-      ...(F.isAdminUser && kind === 'receipt' ? [del(() => F.deleteReceipt(menuRec as Receipt))] : []),
+      ...(F.canDeleteBills && kind === 'quotation' ? [del(() => F.deleteQuote(menuRec as Quotation))] : []),
+      ...(F.canDeleteBills && kind === 'invoice' ? [del(() => F.deleteInvoice(menuRec as import('../../../types').Invoice))] : []),
+      ...(F.canDeleteBills && kind === 'receipt' ? [del(() => F.deleteReceipt(menuRec as Receipt))] : []),
     ];
     if (kind === 'receipt' && F.rk !== 'R') more.push(['Edit', () => void F.editReceipt(menuRec as Receipt)]);
     return [...acts.map((a, i) => ({ label: a, go: run(() => F.act(kind, menuRec as Quotation, a)), fw: i ? 500 : 700, fg: '#16223A', sep: false })), ...more.map(([label, fn], i) => ({ label, go: run(fn), fw: 500, fg: '#16223A', sep: i === 0 })), ...danger];

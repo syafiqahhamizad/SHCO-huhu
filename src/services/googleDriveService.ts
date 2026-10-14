@@ -225,6 +225,56 @@ export async function renameChildFolder(parentId: string, oldName: string, newNa
   return true;
 }
 
+/** Moves a Drive item into `toFolderId` (and renames it when `name` is given). Within a shared
+ * drive this is a plain move; when Drive refuses a move between shared drives, a file is copied
+ * into the new folder and the old copy is trashed. Returns the item's (possibly new) id and link. */
+export async function moveDriveItem(id: string, toFolderId: string, name?: string): Promise<{ id: string; webViewLink?: string }> {
+  const cur = await getDriveFile(id, 'id,name,mimeType,parents,webViewLink');
+  const parents = cur.parents || [];
+  const already = parents.includes(toFolderId);
+  if (already && (!name || cur.name === driveSafeName(name))) return { id, webViewLink: cur.webViewLink };
+  const params: Record<string, string> = { fields: 'id,webViewLink' };
+  if (!already) { params.addParents = toFolderId; if (parents.length) params.removeParents = parents.join(','); }
+  try {
+    const res = await driveFetch(API + '/files/' + encodeURIComponent(id) + q(params), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(name ? { name: driveSafeName(name) } : {}),
+    });
+    return res.json();
+  } catch (err) {
+    if (already || cur.mimeType === FOLDER_MIME) throw err;
+    const copy = await driveFetch(API + '/files/' + encodeURIComponent(id) + '/copy' + q({ fields: 'id,webViewLink' }), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ parents: [toFolderId], name: driveSafeName(name || cur.name) }),
+    });
+    const made = await copy.json() as { id: string; webViewLink?: string };
+    try { await trashDriveFile(id); } catch { /* the old copy stays where it was */ }
+    return made;
+  }
+}
+
+/** A Drive shortcut to `targetId` inside `parentId`, named `name` (made once; reused after). */
+export async function ensureShortcut(parentId: string, targetId: string, name: string): Promise<string> {
+  const query = "'" + esc(parentId) + "' in parents and mimeType = 'application/vnd.google-apps.shortcut' and trashed = false";
+  const res = await driveFetch(API + '/files' + q({ q: query, fields: 'files(id,name,shortcutDetails)', includeItemsFromAllDrives: 'true', corpora: 'allDrives', pageSize: '200' }));
+  const found = ((await res.json() as { files?: { id: string; name: string; shortcutDetails?: { targetId?: string } }[] }).files || []).find((f) => f.shortcutDetails?.targetId === targetId);
+  if (found) {
+    if (found.name !== driveSafeName(name)) await driveFetch(API + '/files/' + encodeURIComponent(found.id) + q({ fields: 'id' }), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: driveSafeName(name) }) });
+    return found.id;
+  }
+  const made = await driveFetch(API + '/files' + q({ fields: 'id' }), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: driveSafeName(name), mimeType: 'application/vnd.google-apps.shortcut', parents: [parentId], shortcutDetails: { targetId } }),
+  });
+  return (await made.json() as { id: string }).id;
+}
+
+/** Creates a new sub-folder (always new, even if one has the same name). */
+export async function createFolder(parentId: string, name: string): Promise<string> {
+  const made = await driveFetch(API + '/files' + q({ fields: 'id' }), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: driveSafeName(name), mimeType: FOLDER_MIME, parents: [parentId] }),
+  });
+  return (await made.json() as { id: string }).id;
+}
+
 /* ------------------------------------------------------------------ files */
 
 /** Uploads a file (or Blob) into `folderId`. Multipart up to 5 MB, resumable above that. */

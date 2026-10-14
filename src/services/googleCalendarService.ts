@@ -128,6 +128,7 @@ const firmEventBody = (item: CalItem) => {
     ...(color ? { colorId: color } : {}),
     status: 'confirmed',
     transparency: item.free ? 'transparent' : 'opaque',
+    ...(item.private ? { visibility: 'private' } : {}),
     start: t.start,
     end: t.end,
     attendees: attendees.map((email) => ({ email })),

@@ -166,7 +166,7 @@ export const NewFilePage: React.FC = () => {
       opposingCounsel: [],
       status: 'Active', nextHearing: '', lastAccessed: new Date().toISOString(), caseNotes: '',
       hearings: [], documents: [], courtDiary: [], tasks: [], serviceRecord: [], meetingNotes: [], internalNotes: [],
-      statusStage: 0, intakeDetails: Object.keys(intake).length ? intake : undefined,
+      intakeDetails: Object.keys(intake).length ? intake : undefined,
       conflictReview: conflict.length ? { status: 'Reviewed', detail: conflict.join(' '), by: currentUser?.name, at: stamp() } : { status: 'Clear', at: stamp() },
       activityLogs: [{ id: 'CAL-' + Date.now(), timestamp: stamp().replace('T', ' '), type: 'Status Update', title: 'File opened', description: 'File opened' + (conflict.length ? '. Possible conflict reviewed by ' + (currentUser?.name || 'staff') : '. Conflict check clear'), actor: currentUser?.name || '' }],
       ...mapped,

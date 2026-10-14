@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useRemembered } from '../../lib/navHistory';
 import { clientRef } from '../../lib/clientNumbers';
 import { MY_STATES, formatAddress, parseAddress, type AddressParts } from '../../lib/address';
 import { askForm } from '../ui/askForm';
@@ -99,10 +100,10 @@ export const ClientsView: React.FC = () => {
 
   const selId = useSelectedClientId();
   useEffect(() => () => clientsNav.set(null), []);
-  const [tab, setTab] = useState<Tab>('profile');
-  const [q, setQ] = useState('');
-  const [type, setType] = useState<'All' | 'Individual' | 'Corporate'>('All');
-  const [card, setCard] = useState('');
+  const [tab, setTab] = useRemembered<Tab>('clients.tab', 'profile');
+  const [q, setQ] = useRemembered('clients.q', '');
+  const [type, setType] = useRemembered<'All' | 'Individual' | 'Corporate'>('clients.type', 'All');
+  const [card, setCard] = useRemembered('clients.card', '');
   const [reg, setReg] = useState(false);
   const open = (id: string, t: Tab = 'profile') => { setTab(t); clientsNav.set(id); };
 

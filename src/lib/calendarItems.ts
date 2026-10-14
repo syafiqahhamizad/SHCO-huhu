@@ -13,10 +13,10 @@
  */
 import type { Case, Deadline, FirmAnnouncement, Hearing, LeaveApplication, Meeting, Task, User } from '../types';
 
-export type CalType = 'Court' | 'e-Review' | 'Deadline' | 'Meeting' | 'Leave' | 'Office closed';
+export type CalType = 'Court' | 'e-Review' | 'Deadline' | 'Meeting' | 'Leave' | 'Office closed' | 'Goal';
 
 /** Google Calendar colorId per type ('' = the calendar's own colour), as used in SHCO HQ. */
-export const CAL_COLOR: Record<CalType, string> = { Court: '7', 'e-Review': '2', Deadline: '11', Meeting: '', Leave: '', 'Office closed': '8' };
+export const CAL_COLOR: Record<CalType, string> = { Court: '7', 'e-Review': '2', Deadline: '11', Meeting: '', Leave: '', 'Office closed': '8', Goal: '5' };
 
 export interface CalItem {
   /** Stable key of the record this event belongs to, e.g. "hearing:CS-1:H-3". */
@@ -35,6 +35,8 @@ export interface CalItem {
   attendees: string[];
   /** Shown as free time (deadlines, leave, closures), like the firm's own events. */
   free?: boolean;
+  /** Private event: only the people invited (and the calendar's owners) see what it is. */
+  private?: boolean;
   /** An event made before automatic sync (old "Add to Google Calendar" tick box) — reused, never duplicated. */
   existingEventId?: string;
 }
@@ -193,6 +195,23 @@ export function calendarItems(src: CalSources): CalItem[] {
     });
   }
 
+  // Staff goals' "by when" date: a private all-day event for that person (others only see "busy").
+  for (const u of users) {
+    for (const g of u.staffProfile?.goals || []) {
+      if (g.status === 'Done' || !g.by || !keep(g.by)) continue;
+      out.push({
+        key: 'goal:' + u.id + ':' + g.id,
+        type: 'Goal',
+        title: codeOf(u.name) + ' | Goal due: ' + (g.text || 'goal').slice(0, 80),
+        date: g.by,
+        description: [g.type ? g.type + ' goal' : 'Goal', g.text || '', g.help ? 'How the firm can help: ' + g.help : '', portalLine].filter(Boolean).join('\n'),
+        attendees: u.email ? [String(u.email).toLowerCase()] : [],
+        free: true,
+        private: true,
+      });
+    }
+  }
+
   for (const a of src.announcements || []) {
     if (a.category !== 'Holiday' || !a.published || !keep(a.eventDate || '')) continue;
     out.push({ key: 'closure:' + a.id, type: 'Office closed', title: 'FIRM CLOSED: ' + a.title.toUpperCase(), date: a.eventDate as string, description: [a.body, portalLine].filter(Boolean).join('\n'), attendees: [], free: true });
@@ -207,9 +226,10 @@ export const calSignature = (i: CalItem) => {
 };
 
 /** Which portal record a key points to, for bringing back a date moved in Google. */
-export const parseCalKey = (key: string): { kind: 'hearing' | 'task' | 'deadline' | 'meeting' | 'leave' | 'closure'; caseId?: string; id: string } | null => {
+export const parseCalKey = (key: string): { kind: 'hearing' | 'task' | 'deadline' | 'meeting' | 'leave' | 'closure' | 'goal'; caseId?: string; userId?: string; id: string } | null => {
   const p = String(key || '').split(':');
   if ((p[0] === 'hearing' || p[0] === 'task') && p.length === 3) return { kind: p[0], caseId: p[1], id: p[2] };
+  if (p[0] === 'goal' && p.length === 3) return { kind: 'goal', userId: p[1], id: p[2] };
   if (['deadline', 'meeting', 'leave', 'closure'].includes(p[0]) && p.length === 2) return { kind: p[0] as 'deadline', id: p[1] };
   return null;
 };

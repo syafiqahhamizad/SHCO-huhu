@@ -82,3 +82,18 @@ describe('notes typed in Google are kept', () => {
     expect(keptNotes('File X\nAdded from the SHCO portal\n\n' + NOTES_MARK + '\nBring originals')).toBe('Bring originals');
   });
 });
+
+describe('staff goals in the firm calendar', () => {
+  it('a dated goal is a private all-day event for that person; done / undated goals are not', () => {
+    const withGoals = [{ ...users[1], staffProfile: { goals: [
+      { id: 'G1', type: 'Career', text: 'Pass the CLP mock', pct: 20, help: 'Study leave', by: '2026-12-15', status: 'On track' },
+      { id: 'G2', type: 'Personal', text: 'Done one', pct: 100, help: '', by: '2026-11-01', status: 'Done' },
+      { id: 'G3', type: 'Personal', text: 'No date', pct: 0, help: '', by: '', status: 'Not started' },
+    ] } }] as unknown as User[];
+    const items = calendarItems({ users: withGoals }).filter((i) => i.type === 'Goal');
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ key: 'goal:u2:G1', date: '2026-12-15', private: true, free: true, attendees: ['za@shcolaw.com'] });
+    expect(items[0].title).toBe('ZA | Goal due: Pass the CLP mock');
+    expect(parseCalKey('goal:u2:G1')).toEqual({ kind: 'goal', userId: 'u2', id: 'G1' });
+  });
+});

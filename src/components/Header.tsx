@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { requestQuick, type QuickKind } from '../lib/quickCreate';
 import { useApp } from '../context/AppContext';
 import { clientsNav, useSelectedClientId } from './views/clients/clientModel';
+import { goBack, useNavDepth } from '../lib/navHistory';
 import {
   Search,
   RefreshCw,
@@ -145,6 +146,7 @@ export const Header: React.FC = () => {
 
   // Titles stay short (they must not wrap past 2 lines at a 900px main column); the sub is one line.
   // Long names (e.g. a matter's title) belong in the page content, not the header.
+  const navDepth = useNavDepth();
   const getViewInfo = (): { title: string; sub: string; crumb?: string; onCrumb?: () => void } => {
     if (isFinanceView(currentView)) {
       // Design: the page title is the open finance page (sidebar drives the pages, no tab strip).
@@ -233,14 +235,23 @@ export const Header: React.FC = () => {
   return (
     <header style={{ background: '#16223A' }} className="sticky top-0 z-20 box-border rounded-2xl border border-[#16223A] text-[#F6F8FA] px-4 sm:px-6 py-3 flex flex-row flex-wrap items-center justify-start gap-x-6 gap-y-2.5 shadow-[0_12px_24px_-16px_rgba(22,34,58,.8)] font-sans">
       <div className="min-w-0 flex-[1_1_280px]">
-        {info.crumb && (
-          <button
-            type="button"
-            onClick={info.onCrumb}
-            className="shco-nav-ink inline-block mb-0.5 p-0 bg-transparent border-0 text-[11px] font-semibold tracking-[.02em] text-[#8FB3DE] hover:text-white cursor-pointer"
-          >
-            ‹ {info.crumb}
-          </button>
+        {(navDepth > 0 || info.crumb) && (
+          <span className="inline-flex items-center gap-3 mb-0.5">
+            {navDepth > 0 && (
+              <button type="button" onClick={goBack} title="Back to the previous page" className="shco-nav-ink inline-block p-0 bg-transparent border-0 text-[11px] font-semibold tracking-[.02em] text-[#8FB3DE] hover:text-white cursor-pointer">
+                ‹ Back
+              </button>
+            )}
+            {info.crumb && (
+              <button
+                type="button"
+                onClick={info.onCrumb}
+                className="shco-nav-ink inline-block p-0 bg-transparent border-0 text-[11px] font-semibold tracking-[.02em] text-[#8FB3DE] hover:text-white cursor-pointer"
+              >
+                {navDepth > 0 ? 'All ' + info.crumb.toLowerCase() : '‹ ' + info.crumb}
+              </button>
+            )}
+          </span>
         )}
         <h1 className="shco-nav-ink m-0 font-serif text-[20px] leading-[28px] font-bold tracking-tight text-[#F6F8FA]">{info.title}</h1>
         <p className="shco-nav-ink mt-0.5 mb-0 text-[12px] leading-4 text-[#DDE3EB] truncate" title={info.sub}>{info.sub}</p>

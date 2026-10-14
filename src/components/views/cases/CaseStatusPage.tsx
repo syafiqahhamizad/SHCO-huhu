@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
+import { useRemembered } from '../../../lib/navHistory';
 import { useApp } from '../../../context/AppContext';
 import type { Case } from '../../../types';
 import { identityTokens, isMine } from '../../../lib/identity';
 import { isOpenFile } from '../../../lib/moneyByFile';
-import { lawyerOf, practiceOf, short, stageIndexOf, stagesFor } from './caseModel';
+import { lawyerOf, practiceOf, short, stageIndexOf, stageSet, stagesFor } from './caseModel';
 import { HC, weeklyInfo } from './tabs/StatusTab';
 
 /**
@@ -14,17 +15,18 @@ import { HC, weeklyInfo } from './tabs/StatusTab';
 export const CaseStatusPage: React.FC = () => {
   const { cases = [], currentUser, setCurrentCaseId, setCaseSubTab, setCurrentView } = useApp();
   const me = useMemo(() => identityTokens(currentUser), [currentUser]);
-  const [mine, setMine] = useState(true);
-  const [q, setQ] = useState('');
-  const [area, setArea] = useState('All');
-  const [show, setShow] = useState<'all' | 'due' | 'risk'>('all');
+  const [mine, setMine] = useRemembered('status.mine', true);
+  const [q, setQ] = useRemembered('status.q', '');
+  const [area, setArea] = useRemembered('status.area', 'All');
+  const [show, setShow] = useRemembered<'all' | 'due' | 'risk'>('status.show', 'all');
 
   const rows = useMemo(() => (cases as Case[]).filter(isOpenFile).map((c) => {
     const { cur, prev, due } = weeklyInfo(c);
     const last = cur || prev;
     const stages = stagesFor(practiceOf(c));
-    const si = stageIndexOf(c);
-    return { c, last, due, stage: stages[si] || '—', stageNo: si + 1, stages: stages.length, area: practiceOf(c) || 'Other' };
+    // Nothing is shown as a stage until someone sets it in the file's Status tab.
+    const si = stageSet(c) ? stageIndexOf(c) : -1;
+    return { c, last, due, stage: si >= 0 ? stages[si] || '—' : 'Not set yet', stageNo: si + 1, stages: stages.length, area: practiceOf(c) || 'Other' };
   }), [cases]);
   const areas = useMemo(() => ['All', ...[...new Set(rows.map((r) => r.area))].sort()], [rows]);
   const mineOf = (c: Case) => isMine(c.lawyerInCharge, me) || isMine(c.lawyers as unknown, me) || isMine(c.partners as unknown, me);
@@ -58,7 +60,7 @@ export const CaseStatusPage: React.FC = () => {
         {shown.map(({ c, last, due, stage, stageNo, stages }) => (
           <button key={c.id} type="button" onClick={() => open(c)} className={G + ' min-w-[1050px] w-full items-start border-b border-[#F0F2F5] px-3.5 py-2.5 text-left hover:bg-[#F6F8FA]'}>
             <span className="min-w-0"><span className="block truncate font-mono text-[11px] font-bold text-[#3D6B9C]">{c.ref}</span><span className="block truncate text-[12px] font-semibold text-[#16223A]">{c.title}</span><span className="block text-[10.5px] text-[#5B6478]">{lawyerOf(c) || '—'}</span></span>
-            <span><span className="block text-[11.5px] font-semibold text-[#16223A]">{stage}</span><span className="block text-[10px] text-[#5B6478]">stage {stageNo} of {stages}</span></span>
+            <span><span className="block text-[11.5px] font-semibold text-[#16223A]">{stage}</span><span className="block text-[10px] text-[#5B6478]">{stageNo > 0 ? 'stage ' + stageNo + ' of ' + stages : 'set it in the file’s Status tab'}</span></span>
             <span className="text-[11.5px] font-bold" style={{ color: last ? HC[last.health] : '#94A3B8' }}>{last ? last.health : '—'}{last?.flag && last.flag !== 'None' && <span className="block text-[10px] font-semibold text-[#8A6534]">{last.flag}</span>}</span>
             <span className="text-[11.5px] leading-relaxed text-[#16223A]">{last?.progress || <span className="text-[#94A3B8]">No update yet</span>}</span>
             <span className="text-[11.5px] text-[#16223A]">{last?.next ? <>{last.next}<span className="block text-[10px] text-[#5B6478]">by {short(last.nextBy)}</span></> : '—'}</span>

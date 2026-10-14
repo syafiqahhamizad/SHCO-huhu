@@ -96,6 +96,7 @@ export function useCalendarAutoSync() {
     }
     if (k.kind === 'meeting') return L.meetings.length > 0;
     if (k.kind === 'leave') return L.leaveApplications.length > 0;
+    if (k.kind === 'goal') return (L.users as User[]).some((u) => u.id === k.userId); // person loaded, goal done / deleted / undated
     return false;
   };
 

@@ -9,6 +9,8 @@ import { SignInPortal } from './components/SignInPortal';
 import { ShieldAlert } from 'lucide-react';
 import { FINANCE_VIEW_TO_TAB, FIN_TABS, isFinanceView } from './lib/financeAccess';
 import { useCalendarAutoSync } from './hooks/useCalendarAutoSync';
+import { useNavHistory } from './lib/navHistory';
+import { clientsNav, useSelectedClientId } from './components/views/clients/clientModel';
 
 const ComprehensiveDashboardView = React.lazy(() => import('./components/views/ComprehensiveDashboardView').then((module) => ({ default: module.ComprehensiveDashboardView })));
 const LeadsReferralsView = React.lazy(() => import('./components/views/LeadsReferralsView').then((module) => ({ default: module.LeadsReferralsView })));
@@ -56,7 +58,16 @@ const MainContent: React.FC = () => {
     retryCloudSync,
     logoutUser,
     setCurrentCaseId,
+    currentCaseId,
   } = useApp();
+  // Back / forward between pages (sidebar page, client, file) with the browser's Back button.
+  const selectedClientId = useSelectedClientId();
+  useNavHistory({ v: currentView, c: currentCaseId, k: selectedClientId }, (to) => {
+    setIsNewCaseModalOpen(false);
+    setCurrentView(to.v);
+    setCurrentCaseId(to.c);
+    clientsNav.set(to.k);
+  });
   // Every date in the portal ⇄ the firm Google Calendar (SHCO HQ).
   useCalendarAutoSync();
 

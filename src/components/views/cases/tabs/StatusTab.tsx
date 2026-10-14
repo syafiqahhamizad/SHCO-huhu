@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import type { Case, MatterWeeklyStatus, TaskKind } from '../../../../types';
 import { css, S, Card, Modal, boxStyle } from '../caseUi';
-import { P, stamp, addDays, avatarOf, courtOf, daysFrom, fmt, isDeadline, isDone, isoOf, mondayOf, practiceOf, short, stageIndexOf, stageKey, stageMessage, stagesFor, todayIso } from '../caseModel';
+import { P, stamp, addDays, avatarOf, courtOf, daysFrom, fmt, isDeadline, isDone, isoOf, mondayOf, practiceOf, short, stageIndexOf, stageSet, stageKey, stageMessage, stagesFor, todayIso } from '../caseModel';
 import { histEntry, prepUpdate, type WF } from '../wf';
 import { autoSend, emailUpdate, updateStatus } from '../clientComms';
 import { whatsappLink } from '../../../../lib/whatsapp';
@@ -122,7 +122,7 @@ export const StatusTab: React.FC<{ w: WF }> = ({ w }) => {
         </Card>
         <Card>
           <div style={css(S.head)}><strong style={css('font-family:Georgia, serif;font-size:15px;color:#16223A')}>Stages</strong><span style={css(S.sub)}>{courtOf(c).name || practiceOf(c)}</span></div>
-          {stages.map((s, i) => { const at = stageIndexOf(c); return <div key={s} style={css(`display:flex;align-items:center;gap:10px;padding:8px 16px;border-top:1px solid #F0F2F5;font-size:12.5px;color:${i <= at ? '#16223A' : '#4A5468'};font-weight:${i === at ? 800 : 500}`)}><span style={css(`width:10px;height:10px;border-radius:3px;background:${i < at ? '#1F5A3B' : i === at ? '#16223A' : '#DDE3EB'}`)} />{s}</div>; })}
+          {stages.map((s, i) => { const at = stageSet(c) ? stageIndexOf(c) : -1; return <div key={s} style={css(`display:flex;align-items:center;gap:10px;padding:8px 16px;border-top:1px solid #F0F2F5;font-size:12.5px;color:${i <= at ? '#16223A' : '#4A5468'};font-weight:${i === at ? 800 : 500}`)}><span style={css(`width:10px;height:10px;border-radius:3px;background:${i < at ? '#1F5A3B' : i === at ? '#16223A' : '#DDE3EB'}`)} />{s}</div>; })}
         </Card>
       </div>
     </div>

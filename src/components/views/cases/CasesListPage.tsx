@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useRemembered } from '../../../lib/navHistory';
 import { Archive, Plus, Scale, Search, Trash2 } from 'lucide-react';
 import { useApp } from '../../../context/AppContext';
 import type { Case } from '../../../types';
@@ -17,12 +18,12 @@ const COL: Record<string, string> = { Active: '#2F6F4E', Pending: '#8A6D3B', Clo
 export const CasesListPage: React.FC = () => {
   const { cases = [], clients = [], users = [], currentUser, currentPartnerCode, isAdmin, deletedRecords = [], setCurrentCaseId, setCaseSubTab, setIsNewCaseModalOpen, deleteCase, updateCase, showToast } = useApp();
   const { confirm, ConfirmationModal } = useConfirmation();
-  const [q, setQ] = useState('');
-  const [status, setStatus] = useState('');
-  const [pic, setPic] = useState('ALL');
-  const [area, setArea] = useState('');
+  const [q, setQ] = useRemembered('cases.q', '');
+  const [status, setStatus] = useRemembered('cases.status', '');
+  const [pic, setPic] = useRemembered('cases.pic', 'ALL');
+  const [area, setArea] = useRemembered('cases.area', '');
   const [folderRun, setFolderRun] = useState<string | null>(null);
-  const [closeOnly, setCloseOnly] = useState(false);
+  const [closeOnly, setCloseOnly] = useRemembered('cases.closeOnly', false);
   const [binOpen, setBinOpen] = useState(false);
   const staff = useMemo(() => staffOf(users), [users]);
   const isFirmAdmin = Boolean(isAdmin || currentUser?.isSuperAdmin);

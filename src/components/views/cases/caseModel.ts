@@ -111,6 +111,9 @@ export const stageKey = (practice: string): string => {
 };
 export const stagesFor = (practice: string) => STAGES[stageKey(practice)];
 
+/** True once someone has set the stage in the file's Status tab (a new file starts "not set"). */
+export const stageSet = (c: Pick<Case, 'statusStageName'>) => !!c.statusStageName;
+
 /** Current stage index: Case.statusStage, else mapped from the legacy free-text Case.stage. */
 export const stageIndexOf = (c: Case): number => {
   const list = stagesFor(practiceOf(c));

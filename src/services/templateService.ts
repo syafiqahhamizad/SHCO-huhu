@@ -299,6 +299,8 @@ export interface PracticeSettings {
   guideVideos?: Partial<Record<'partner' | 'lawyer' | 'assistant' | 'accounts', string>>;
   /** Staff Guide: one short video per topic (topic id → Google Drive / YouTube link). */
   guideTopicVideos?: Record<string, string>;
+  /** "Set up finance folders" (Super Admin): the finance books in Drive start from `from` (YYYY-MM); money entries from then on are filed there. */
+  financeFiling?: { from: string; to: string; at: string; by: string };
 }
 
 export interface FirmBranch {

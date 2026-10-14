@@ -4,7 +4,7 @@ import type { Case, PartnerCode } from '../../../types';
 import { DEFAULT_PRACTICE_SETTINGS, getPracticeSettings } from '../../../services/templateService';
 import { css, S, Modal } from './caseUi';
 import { PeoplePicker } from './PeoplePicker';
-import { COURT_LEVELS, courtOf, fmt, isDone, isFileHandler, lawyersOf, openedOf, practiceOf, rm, stagesFor, todayIso } from './caseModel';
+import { COURT_LEVELS, courtOf, fmt, isDone, isFileHandler, lawyersOf, openedOf, practiceOf, rm, todayIso } from './caseModel';
 import { histEntry, type WF } from './wf';
 import { rebuildRef } from '../../../lib/caseRef';
 import { practiceKind } from '../../../lib/driveLayout';
@@ -49,7 +49,7 @@ export const EditMatterModal: React.FC<{ w: WF; onClose: () => void }> = ({ w, o
       lawyerInCharge: ed.lawyers[0] || undefined, lawyers: ed.lawyers, gdriveFolderUrl: ed.drive.trim() || undefined, oldDriveFolderUrl: ed.oldDrive.trim() || undefined,
       ...(ed.drive.trim() !== init.drive ? { gdriveFolderId: (ed.drive.match(/folders\/([\w-]+)/) || [])[1] || undefined } : {}),
       ...(firmAdmin || ed.opened === init.opened ? { fileOpenedDate: ed.opened || c.fileOpenedDate } : {}),
-      ...(practiceChanged ? { statusStage: 0, statusStageName: stagesFor(ed.practice)[0] } : {}),
+      ...(practiceChanged ? { statusStage: undefined, statusStageName: undefined } : {}),
       // Court details: kept for court work; a file moved to conveyancing / corporate drops them.
       ...(practiceKind(ed.practice) === 'court'
         ? (['courtLevel', 'courtLoc', 'suit'].some((k) => diff.includes(k)) ? { courtDetails: { ...(c.courtDetails || {}), level: ed.courtLevel || undefined, location: ed.courtLoc.trim() || undefined }, court: [ed.courtLevel, ed.courtLoc.trim()].filter(Boolean).join(' '), courtCaseNo: ed.suit.trim() || undefined } : {})

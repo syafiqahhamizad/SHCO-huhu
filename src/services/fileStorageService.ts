@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { getPracticeSettings } from './templateService';
 import type { ClaimAttachment, FinanceProof, HrDocument } from '../types';
 import {
   getClaimAttachmentUrl,
@@ -6,10 +7,10 @@ import {
   validateClaimFile,
 } from './firebaseStorageService';
 import {
-  DRIVE_TOKEN_EVENT, downloadDriveFile, driveViewUrl, ensureFolderPath, getDriveAccessToken, getDriveConfig, grantReader, hasValidDriveToken, isDriveAccessError, isDriveConfigured, renameChildFolder, uploadToDrive,
+  DRIVE_TOKEN_EVENT, downloadDriveFile, driveViewUrl, ensureFolderPath, getDriveAccessToken, getDriveConfig, grantReader, hasValidDriveToken, isDriveAccessError, isDriveConfigured, ensureShortcut, moveDriveItem, renameChildFolder, uploadToDrive,
 } from './googleDriveService';
 import {
-  CLIENTS_ROOT, matterSubfolders, clientFolderName as layoutClientFolderName, financeFolderPath, financeMatterPath, folderUrl, matterFolderDescription, matterFolderPath,
+  CLIENTS_ROOT, FIN, clientFilesPath, matterSubfolders, clientFolderName as layoutClientFolderName, financeFolderPath, financeMatterPath, folderUrl, matterFolderDescription, matterFolderPath,
   staffFolderName, type FinanceKind, type MatterLike, type MatterSub,
 } from '../lib/driveLayout';
 
@@ -130,6 +131,45 @@ async function storeFinance(parts: string[], file: File, uploadedBy: string, opt
   }
 }
 
+/* ------------------------------------------------------------------ finance books filing */
+
+/**
+ * Files one money entry (claim, PV, office expense, receipt) in the finance books: its entry folder
+ * "<DDMMYYYY doc no. file what RM>" goes under `path` (Pending, Rejected, or the month's Money In /
+ * Money Out), its papers are moved into it and renamed, and a file's entry gets a link in
+ * 2 Client Files/<file>. Safe to repeat: an existing entry folder is moved / renamed, not duplicated.
+ */
+export async function fileFinanceEntry(o: { path: string[]; name: string; folderId?: string; papers: { id: string; name: string }[]; matter?: MatterLike }): Promise<{ folderId: string; papers: { id: string; webViewLink?: string }[] }> {
+  requireDrive();
+  const b = financeBase();
+  const parentId = await ensureFolderPath(b.baseId, [...b.prefix, ...o.path]);
+  let folderId = '';
+  if (o.folderId) { try { folderId = (await moveDriveItem(o.folderId, parentId, o.name)).id; } catch { folderId = ''; } }
+  if (!folderId) folderId = await ensureFolderPath(parentId, [o.name]);
+  const papers: { id: string; webViewLink?: string }[] = [];
+  for (const p of o.papers) papers.push(await moveDriveItem(p.id, folderId, p.name));
+  if (o.matter) {
+    const cf = await ensureFolderPath(b.baseId, [...b.prefix, ...clientFilesPath(o.matter)]);
+    await ensureShortcut(cf, folderId, o.name);
+  }
+  return { folderId, papers };
+}
+
+/** "Set up finance folders": creates every folder in `paths` (inside the finance base). */
+export async function ensureFinanceFolders(paths: string[][], onProgress?: (done: number, total: number) => void): Promise<void> {
+  requireDrive();
+  const b = financeBase();
+  for (let i = 0; i < paths.length; i += 1) { await ensureFolderPath(b.baseId, [...b.prefix, ...paths[i]]); onProgress?.(i + 1, paths.length); }
+}
+
+/** True when a separate SHCO Finance drive is set (filing into the books only happens there). */
+export const hasFinanceDrive = () => activeStorage() === 'drive' && !!getDriveConfig().financeFolderId;
+
+/** Once "Set up finance folders" is done, new finance uploads wait in 1 Books/Incoming until they are
+ * filed (the finance pages move them into their entry folder). Client-account papers keep their old place. */
+const financeUploadPath = (kind: FinanceKind, ref?: string): string[] =>
+  kind !== 'clientAccount' && getPracticeSettings().financeFiling ? [FIN.books, 'Incoming'] : financeFolderPath(kind, yyyy(), ref);
+
 /* ------------------------------------------------------------------ claims */
 
 /**
@@ -137,7 +177,7 @@ async function storeFinance(parts: string[], file: File, uploadedBy: string, opt
  * (or `<YYYY>/Payment Vouchers/<form no.>/` for a payment request).
  */
 export async function storeClaimReceipt(opts: { userId: string; recordId: string; formNo: string; file: File; uploadedBy: string; kind?: 'claim' | 'pv' }): Promise<ClaimAttachment> {
-  return storeFinance(financeFolderPath(opts.kind || 'claim', yyyy(), opts.formNo || opts.recordId), opts.file, opts.uploadedBy, {
+  return storeFinance(financeUploadPath(opts.kind || 'claim', opts.formNo || opts.recordId), opts.file, opts.uploadedBy, {
     name: opts.recordId + ' - ' + opts.file.name,
     description: 'Receipt for ' + opts.recordId + ' (' + (opts.formNo || '') + ') uploaded by ' + opts.uploadedBy,
     fallbackToPortal: true,
@@ -187,7 +227,7 @@ export async function storeLeaveDocument(staff: HrStaffRef, file: File, leaveId:
  * client account statements / reconciliation proofs `<YYYY>/Client Account/`.
  */
 export async function storeFinanceProof(file: File, uploadedBy: string, ref?: string, kind: FinanceKind = 'bankin'): Promise<Pick<FinanceProof, 'driveFileId' | 'webViewLink' | 'uploadedBy' | 'driveFolderId'>> {
-  const up = await storeFinance(financeFolderPath(kind, yyyy(), ref), file, uploadedBy, {
+  const up = await storeFinance(financeUploadPath(kind, ref), file, uploadedBy, {
     name: (ref ? ref + ' - ' : '') + file.name,
     description: 'Finance proof' + (ref ? ' for ' + ref : '') + ' uploaded by ' + uploadedBy,
   });

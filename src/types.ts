@@ -956,6 +956,8 @@ export interface Expense {
   signatories?: FinanceSignatory[];
   paidAt?: string;
   paidProof?: FinanceProof;
+  /** Filed in the finance books (1 Books › …), see DriveFiling. */
+  driveFiling?: DriveFiling;
 }
 
 export interface Invoice {
@@ -1043,6 +1045,8 @@ export interface Receipt {
   caseId?: string;
   proofs?: FinanceProof[];
   historical?: boolean;
+  /** Filed in the finance books (1 Books › …), see DriveFiling. */
+  driveFiling?: DriveFiling;
 }
 
 export interface PaymentVoucher {
@@ -1088,6 +1092,8 @@ export interface PaymentVoucher {
   paidProof?: FinanceProof;
   historical?: boolean;
   proofs?: FinanceProof[];
+  /** Filed in the finance books (1 Books › …), see DriveFiling. */
+  driveFiling?: DriveFiling;
 }
 
 export interface TravelClaim {
@@ -1130,6 +1136,8 @@ export interface TravelClaim {
   signatories?: FinanceSignatory[];
   paidAt?: string;
   paidProof?: FinanceProof;
+  /** Filed in the finance books (1 Books › …), see DriveFiling. */
+  driveFiling?: DriveFiling;
 }
 
 export interface Retainer {
@@ -1670,6 +1678,13 @@ export interface Payslip {
 }
 
 /* ---------------- Accounts & Finance module additions ---------------- */
+
+/** Where a money entry is filed in the finance books (Google Drive): its entry folder and the
+ * place it was filed to (path + name), so the portal only moves it when that changes. */
+export interface DriveFiling {
+  key: string;
+  folderId: string;
+}
 
 /** One approver's sign-off on a finance item (claims, vouchers, client-account payments,
  * journals). Approval rule: < RM5k any partner; >= RM5k or anything from the client account

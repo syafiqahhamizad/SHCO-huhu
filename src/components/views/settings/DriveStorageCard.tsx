@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { askForm } from '../../ui/askForm';
 import { useApp } from '../../../context/AppContext';
 import { getDriveConfig, isDriveConfigured, looksLikeClientId, parseDriveFolderId, testDriveConnection } from '../../../services/googleDriveService';
-import { prepareStorage, renameClientFolder } from '../../../services/fileStorageService';
+import { ensureFinanceFolders, hasFinanceDrive, prepareStorage, renameClientFolder } from '../../../services/fileStorageService';
 import { exportAllFirmData, SHARED_STATE_KEYS } from '../../../services/firmBackupService';
 import { DEFAULT_PRACTICE_SETTINGS } from '../../../services/templateService';
-import { driveSafeName } from '../../../lib/driveLayout';
+import { driveSafeName, financeSkeleton, type FinAccount } from '../../../lib/driveLayout';
 import { css, S, Txt, type SettingsCtx } from './settingsShared';
 import { GoogleWorkspaceCard } from './GoogleWorkspaceCard';
 import { EmailNotificationsCard } from './EmailNotificationsCard';
@@ -119,6 +119,36 @@ export const DriveStorageCard = ({ C }: { C: SettingsCtx }) => {
     if (app.resetTestData()) C.msg('Test data cleared. The backup is in your Downloads (and Google Drive).');
   };
 
+  // Super Admin: the finance books in SHCO Finance (1 Books by bank account › year › month, 2 Client
+  // Files, 3 Payroll, 4 Accounts & Tax Reports, 5 Firm Records). From then on money entries are filed there.
+  const [finBusy, setFinBusy] = useState('');
+  const setupFinanceFolders = async () => {
+    if (!hasFinanceDrive()) { C.msg('Set the SHCO Finance drive first (Finance drive folder above), then test the connection.'); return; }
+    const cur = C.settings.financeFiling;
+    const v = await askForm('Set up finance folders', [
+      { key: 'from', label: 'Books start from (month)', type: 'text', value: cur?.from || '2025-04', placeholder: 'YYYY-MM', required: true },
+      { key: 'to', label: 'Create month folders up to', type: 'text', value: cur?.to || '2026-12', placeholder: 'YYYY-MM', required: true },
+    ], {
+      ok: 'Create folders',
+      note: 'Creates in SHCO Finance: 1 Books › Office Account (and Disbursement / Petty cash once set in Banks) › Pending, Rejected and each month › Money In, Money Out, Bank Statement; 2 Client Files; 3 Payroll › each month › Payslips, Statutory, Partner Drawings; 4 Accounts & Tax Reports; 5 Firm Records. From then on every claim, voucher, office expense and receipt dated from the start month is filed there automatically (named "DDMMYYYY doc no. file what RM"), with a link in its client file. Client Account is not filed yet. Your existing folders are not touched.',
+    });
+    if (!v) return;
+    const ok = (x: string) => /^\d{4}-(0[1-9]|1[0-2])$/.test(x.trim());
+    if (!ok(v.from) || !ok(v.to) || v.from.trim() > v.to.trim()) { C.msg('Use YYYY-MM for both months (e.g. 2025-04 and 2026-12), start before end.'); return; }
+    const banks = (C.settings.bankAccounts || []).filter((b) => b.isActive !== false);
+    const accounts: FinAccount[] = ['Office', ...(banks.some((b) => b.accountType === 'Disbursement') ? ['Disbursement' as FinAccount] : []), ...(banks.some((b) => /petty/i.test(b.typeLabel || '')) ? ['Petty cash' as FinAccount] : [])];
+    const paths = financeSkeleton(v.from.trim(), v.to.trim(), accounts);
+    try {
+      await prepareStorage();
+      await ensureFinanceFolders(paths, (d, t) => setFinBusy('Creating folders ' + d + ' / ' + t + '…'));
+      C.save({ financeFiling: { from: v.from.trim(), to: v.to.trim(), at: new Date().toISOString(), by: app.currentUser?.name || '' } }, 'Drive Storage Changed', 'Finance folders set up: ' + v.from.trim() + ' to ' + v.to.trim() + ' (' + accounts.join(', ') + ')');
+      C.msg(paths.length + ' finance folders ready. Entries from ' + v.from.trim() + ' are filed as Accounts open the finance pages.');
+    } catch (e) {
+      C.msg('Finance folders not finished: ' + (e instanceof Error ? e.message : String(e)) + '. Press the button again to carry on (folders already made are reused).');
+    }
+    setFinBusy('');
+  };
+
   // Super Admin: one client number style for everyone (CL-<year of first file>-<NNN>), after a backup.
   const numberClientsNow = async () => {
     const list = app.assignClientNumbers(false);
@@ -227,7 +257,7 @@ export const DriveStorageCard = ({ C }: { C: SettingsCtx }) => {
           <span style={css('margin-left:auto;font-size:10.5px;color:#5B6478')}>{on ? 'Downloads the file and saves a copy to Google Drive → ' + (s.driveFinanceFolderId ? 'SHCO Finance › Backups.' : 'SHCO Portal › Finance › Backups (no Finance drive set).') : 'Downloads the file. Set up Google Drive above to also keep a copy in SHCO Finance › Backups.'}</span>
         </div>
         {exportMsg && <div style={css(`padding:8px 14px;font-size:11px;line-height:1.5;border-top:1px solid #EEF1F5;color:${exportMsg.ok ? '#2F6F4E' : '#B23A2E'};background:${exportMsg.ok ? '#E6EFE9' : '#FBEDE9'}`)}>{exportMsg.text}</div>}
-        {isSuperAdmin && <div style={css('display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid #EEF1F5;background:#FBF4F2')}><button type="button" disabled={exporting} onClick={() => void resetData()} style={css('border:1px solid #B23A2E;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:#fff;color:#B23A2E;cursor:pointer;font-family:inherit')}>Reset test data…</button><button type="button" disabled={exporting} onClick={() => void numberClientsNow()} style={css('border:1px solid #16223A;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>Client numbers…</button><span style={css('font-size:10.5px;color:#5B6478')}>Super Admin only. Backs everything up first, then clears test entries. Clients, cases, users, settings and running numbers stay.</span></div>}
+        {isSuperAdmin && <div style={css('display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid #EEF1F5;background:#FBF4F2')}><button type="button" disabled={exporting} onClick={() => void resetData()} style={css('border:1px solid #B23A2E;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:#fff;color:#B23A2E;cursor:pointer;font-family:inherit')}>Reset test data…</button><button type="button" disabled={exporting || !!finBusy} onClick={() => void setupFinanceFolders()} style={css('border:1px solid #16223A;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>{finBusy || (C.settings.financeFiling ? 'Finance folders (from ' + C.settings.financeFiling.from + ')…' : 'Set up finance folders…')}</button><button type="button" disabled={exporting} onClick={() => void numberClientsNow()} style={css('border:1px solid #16223A;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>Client numbers…</button><span style={css('font-size:10.5px;color:#5B6478')}>Super Admin only. Backs everything up first, then clears test entries. Clients, cases, users, settings and running numbers stay.</span></div>}
         <div style={css(S.foot)}>Passwords are never included. Attached files themselves are not inside the JSON: Drive files stay in the Shared Drive, older ones in Firebase Storage. Keep backups private; they contain client and staff personal data.</div>
       </div>
     </>
