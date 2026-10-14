@@ -238,6 +238,9 @@ interface AppContextType {
   timeEntries: TimeEntry[];
   expenses: Expense[];
   invoices: Invoice[];
+  /** Invoices / receipts from before the portal, record only (kept out of every total). */
+  pastInvoices: Invoice[];
+  pastReceipts: Receipt[];
   payments: Payment[];
   retainers: Retainer[];
   users: User[];
@@ -1709,6 +1712,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // the highest existing id for that prefix+year across all synced records, plus a per-year
   // counter on this device (covers several ids handed out before the records re-render).
   const yearSeqKey = STORAGE_KEY + '_yearSequenceCounters';
+  // Past papers (record only) stay out of every total; the rest of the app sees only live ones.
+  const liveInvoices = useMemo(() => invoices.filter((x) => !x.recordOnly), [invoices]);
+  const pastInvoices = useMemo(() => invoices.filter((x) => x.recordOnly), [invoices]);
+  const liveReceipts = useMemo(() => receipts.filter((x) => !x.recordOnly), [receipts]);
+  const pastReceipts = useMemo(() => receipts.filter((x) => x.recordOnly), [receipts]);
+
   const nextYearSequenceId = (type: 'invoice' | 'quotation' | 'journal', date?: string): string => {
     const m = String(date || '').match(/(\d{4})-\d{1,2}-\d{1,2}/) || String(date || '').match(/\d{1,2}[./-]\d{1,2}[./-](\d{4})/);
     const year = m ? Number(m[1]) : new Date().getFullYear();
@@ -3375,7 +3384,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         officeBuckets,
         chartOfAccounts,
         travelClaims,
-        receipts,
+        receipts: liveReceipts,
         paymentVouchers,
         generalLedger,
         trialBalance,
@@ -3383,7 +3392,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deadlines,
         timeEntries,
         expenses,
-        invoices,
+        invoices: liveInvoices,
+        pastInvoices,
+        pastReceipts,
         payments,
         retainers,
         users,

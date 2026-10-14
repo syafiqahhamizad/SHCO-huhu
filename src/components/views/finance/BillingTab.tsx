@@ -84,7 +84,7 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
     : docT === 'Invoice' ? [] : (docT === 'Quotation' ? quotes : proformas).slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).map((q: Quotation) => { const a = F.actionsFor('quotation', q)[0]; const kase = F.qCase(q); return { kind: 'quotation' as DocKind, key: q.id, no: q.id, client: q.clientName || '—', ref: `${q.fileRef || kase?.ref || '—'} · ${q.practiceArea || '—'}`, date: F.dShort(q.date), amt: rm(Number(q.total || 0)), x: q.payInto || 'Office', status: F.qStatus(q), action: a, onAct: () => F.act('quotation', q, a), view: () => F.setView({ kind: 'quotation', id: q.id }) }; });
   const docRows = docRowsAll.filter((r) => LF.match({ date: rawDate(r), who: r.client, text: [r.no, r.client, r.ref] }));
   /* ---- fees by file (lib/moneyByFile: same figures as each file's Money tab) ---- */
-  const { cases = [], invoices = [], payments = [], retainers = [], quotations = [], setCurrentCaseId, setCaseSubTab, setCurrentView, canViewModule } = useApp();
+  const { cases = [], invoices = [], payments = [], retainers = [], quotations = [], pastInvoices = [], pastReceipts = [], setCurrentCaseId, setCaseSubTab, setCurrentView, canViewModule } = useApp();
   const [bfF, setBfF] = useState<FeesFilter>('All');
   const byFileAll = cases.filter((c) => F.ownCase(c)).map((c) => ({ c, m: moneyForFile(c, { invoices, payments, retainers, quotations }) }))
     .filter(({ c, m }) => (isOpenFile(c) && (m.agreed > 0 || m.billed > 0)) || m.outstanding > 0.005)
@@ -159,6 +159,29 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
           ); })}
           <div style={css('padding:9px 14px;background:#F6F8FA;font-size:10.5px;color:#5B6478')}>{D.foot}</div></div>
       )}
+
+      {(docT === 'Invoice' || docT === 'Receipt') && (() => {
+        const inv = docT === 'Invoice';
+        const list = (inv ? pastInvoices : pastReceipts).filter((x) => !x.caseId || F.ownCase(F.app.cases.find((k) => k.id === x.caseId))).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+        return (
+          <div style={css('overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
+            <div style={css('display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css('font-family:ui-serif, Georgia, serif;font-size:14.5px;color:#16223A')}>{inv ? 'Past invoices' : 'Past receipts'}</strong><span style={css('font-size:10.5px;color:#5B6478')}>made before the portal · for reference only, not counted in any total</span>{F.canPrepare && <button type="button" onClick={() => F.openForm(inv ? 'pastInvoice' : 'pastReceipt', inv ? {} : { account: 'Office', method: 'Online transfer' })} style={css('margin-left:auto;border:1px solid #16223A;border-radius:6px;padding:5px 10px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>{inv ? '+ Past invoice' : '+ Past receipt'}</button>}</div>
+            {list.length === 0 && <div style={css('padding:12px 14px;font-size:11.5px;color:#5B6478')}>None yet. Use “{inv ? '+ Past invoice' : '+ Past receipt'}” to key in an old one with its PDF.</div>}
+            {list.map((x) => { const r = x as { id: string; pastNo?: string; date: string; fileRef?: string; pastFile?: { driveFileId?: string; webViewLink?: string } }; const who = inv ? (x as typeof pastInvoices[number]).partyName : (x as typeof pastReceipts[number]).receivedFrom; const amt = inv ? (x as typeof pastInvoices[number]).total : (x as typeof pastReceipts[number]).amount; const what = inv ? (x as typeof pastInvoices[number]).matter : (x as typeof pastReceipts[number]).description; return (
+              <div key={r.id} style={css('display:grid;grid-template-columns:120px minmax(0,1.5fr) 80px 100px 150px;gap:10px;align-items:center;padding:8px 14px;border-bottom:1px solid #F0F2F5')}>
+                <span style={css('font-size:11px;font-weight:700;color:#16223A;overflow:hidden;text-overflow:ellipsis')}>{r.pastNo || r.id}</span>
+                <span style={css('min-width:0')}><span style={css('display:block;font-size:11.5px;font-weight:600;color:#16223A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{who || '—'}</span><span style={css('display:block;font-size:10px;color:#5B6478')}>{[r.fileRef, what].filter(Boolean).join(' · ') || '—'}</span></span>
+                <span style={css('font-size:11px;color:#5B6478')}>{F.dShort(r.date)}</span>
+                <span style={css('text-align:right;font-size:12px;font-weight:700;color:#16223A')}>{rm(Number(amt || 0))}</span>
+                <span style={css('display:flex;gap:10px;justify-content:flex-end')}>
+                  <button type="button" onClick={() => F.openPastFile(r.pastFile)} style={css('border:0;background:none;padding:0;font-size:10.5px;font-weight:700;color:#3D6B9C;cursor:pointer;font-family:inherit')}>{r.pastFile ? 'View PDF' : 'No PDF'}</button>
+                  {F.canDeleteBills && <button type="button" onClick={() => { if (window.confirm('Delete past ' + (inv ? 'invoice ' : 'receipt ') + (r.pastNo || r.id) + '? (Recycle Bin keeps a copy. The PDF stays in Drive.)')) F.app.removeFinanceRecords(inv ? { invoices: [r.id] } : { receipts: [r.id] }, 'Past ' + (inv ? 'invoice' : 'receipt') + ' deleted'); }} style={css('border:0;background:none;padding:0;font-size:10.5px;font-weight:700;color:#B23A2E;cursor:pointer;font-family:inherit')}>Delete</button>}
+                </span>
+              </div>
+            ); })}
+          </div>
+        );
+      })()}
 
       </>}
 

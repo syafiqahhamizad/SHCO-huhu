@@ -1297,6 +1297,10 @@ export function useFinanceController(initialTab: FinTab) {
   };
 
   /* ------------------------------ forms ------------------------------ */
+  const openPastFile = (pf?: { driveFileId?: string; webViewLink?: string }) => {
+    if (pf?.webViewLink || pf?.driveFileId) window.open(pf.webViewLink || 'https://drive.google.com/file/d/' + pf.driveFileId + '/view', '_blank', 'noopener');
+    else toastMsg('No PDF attached yet.');
+  };
   const openForm = (kind: string, vals: Record<string, any> = {}) => setForm({ kind, vals });
   const saveForm = () => {
     if (!form) return;
@@ -1330,6 +1334,37 @@ export function useFinanceController(initialTab: FinTab) {
         })();
       }
       setForm(null); toastMsg(no + ' recorded' + (pdf ? ' · PDF saving to Google Drive' : ''));
+      return;
+    }
+    if (kind === 'pastInvoice' || kind === 'pastReceipt') {
+      // Record only: kept with its PDF for reference. Never posted, never counted, numbers untouched.
+      const inv = kind === 'pastInvoice'; const what = inv ? 'invoice' : 'receipt';
+      if (!canPrepare) { toastMsg('Past papers are recorded by Accounts.'); return; }
+      const no = String(vals.no || '').trim();
+      if (!no) { toastMsg('Enter the ' + what + ' number as printed.'); return; }
+      const past = inv ? (app.pastInvoices || []) : (app.pastReceipts || []);
+      if (past.some((x) => String(x.pastNo || '').toLowerCase() === no.toLowerCase())) { toastMsg(no + ' is already recorded.'); return; }
+      if (!String(vals.client || '').trim()) { toastMsg('Enter the client.'); return; }
+      if (amt <= 0) { toastMsg('Enter the amount.'); return; }
+      const c = clientByName(vals.client || ''); const kase = vals.matter ? caseForRef(String(vals.matter)) : undefined;
+      const id = 'PAST ' + no; const name = c?.name || String(vals.client).trim(); const desc = String(vals.what || '').trim();
+      type PastFile = { name: string; driveFileId?: string; webViewLink?: string };
+      const save = (pastFile?: PastFile) => {
+        if (inv) app.addInvoice({ id, recordOnly: true, pastNo: no, pastFile, historical: true, clientId: c?.id || '', caseId: kase?.id || '', fileRef: kase?.ref || '', partyType: 'Client', partyName: name, amount: amt, discount: 0, tax: 0, total: amt, date: dateIso, dueDate: dateIso, status: 'Paid', matter: desc || kase?.title, lineItems: [{ description: desc || 'Professional fees', category: 'Fee - Fixed', amount: amt, quantity: 1, unitPrice: amt, chargeType: 'Fixed' }] } as Invoice);
+        else app.addReceipt({ id, recordOnly: true, pastNo: no, pastFile, historical: true, date: dateIso, accountSet: vals.account === 'Client account' ? 'CLIENT' : 'OFFICE', receivedFrom: name, description: desc || 'Past receipt', amount: amt, debit: '', credit: '', clientId: c?.id || '', fileRef: kase?.ref || '', bankRef: '', receivedBy: me, paymentMethod: vals.method || '—', forNo: desc, caseId: kase?.id } as unknown as Receipt);
+      };
+      // The PDF goes to the file's folder in 2 Client Files first, then the record is saved with its link.
+      const pdf = ((vals.pdf || []) as (FinanceProof & { file?: File })[]).find((p) => p.file)?.file;
+      if (pdf) {
+        void (async () => {
+          try {
+            await prepareStorage();
+            const up = await storeEngagementFile(kase ? { ref: kase.ref, title: kase.title } : { ref: '', title: inv ? 'Past invoices' : 'Past receipts' }, pdf, me);
+            save({ name: up.name, driveFileId: up.driveFileId, webViewLink: up.webViewLink });
+          } catch (e) { save(); toastMsg(no + ' saved, but its PDF was not uploaded: ' + (e instanceof Error ? e.message : String(e))); }
+        })();
+      } else save();
+      setForm(null); toastMsg(no + ' recorded (for reference, not counted)' + (pdf ? ' · PDF saving to Google Drive' : ''));
       return;
     }
     if (kind === 'moneyIn') {
@@ -1585,7 +1620,7 @@ export function useFinanceController(initialTab: FinTab) {
     ledgers, trustTotal, ledgerTotalAt, clientLedgerBalance, threeWayRec,
     unbilled, wipTotal, billMatter, billed: billed as Record<string, { inv: string; u: any }>,
     activeBanks, bankKind, banksOf, paidFromOptions, bankBal, lastRecon, officeCash,
-    filingLog, filingOff, retryFiling,
+    filingLog, filingOff, retryFiling, openPastFile,
     apItems, pendingAp, approve, apId, apRule, canSignItem, ruleFor, signoffs, signOff, myCode,
     trSub, setTrSub, ofSub, setOfSub, apSub, setApSub, paySub, setPaySub, guide, setGuide, rem, setRem, paper, setPaper, decided: decided as Record<string, { d: 'ok' | 'no'; item: ApItem }>, referral, referralFor, refDecision, toPay, markPaid, paidNow: paidNow as Record<string, { item: PayItem; file: string }>,
     saveSlipPatch, feeShareFor, fsFilesFor, fsPeople, fsCostsFor, fsApproved, saveFs, setFsFile, applyFeeShareToSlips,

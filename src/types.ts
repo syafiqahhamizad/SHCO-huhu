@@ -965,6 +965,11 @@ export interface Expense {
 
 export interface Invoice {
   id: string;
+  /** A paper from before the portal, kept for reference only: never counted in totals, books or running numbers. */
+  recordOnly?: boolean;
+  /** Its number as printed (the id is "PAST …" so it never clashes with the portal's numbers). */
+  pastNo?: string;
+  pastFile?: { name: string; driveFileId?: string; webViewLink?: string };
   clientId: string;
   caseId: string;
   fileRef?: string;
@@ -1026,6 +1031,10 @@ export interface Payment {
 
 export interface Receipt {
   id: string;
+  /** A paper from before the portal, kept for reference only (see Invoice.recordOnly). */
+  recordOnly?: boolean;
+  pastNo?: string;
+  pastFile?: { name: string; driveFileId?: string; webViewLink?: string };
   date: string;
   accountSet: 'OFFICE' | 'CLIENT';
   receivedFrom: string;
