@@ -4,9 +4,10 @@ import type { Case, PartnerCode } from '../../../types';
 import { DEFAULT_PRACTICE_SETTINGS, getPracticeSettings } from '../../../services/templateService';
 import { css, S, Modal } from './caseUi';
 import { PeoplePicker } from './PeoplePicker';
-import { fmt, isDone, isFileHandler, lawyersOf, openedOf, practiceOf, rm, stagesFor, todayIso } from './caseModel';
+import { COURT_LEVELS, courtOf, fmt, isDone, isFileHandler, lawyersOf, openedOf, practiceOf, rm, stagesFor, todayIso } from './caseModel';
 import { histEntry, type WF } from './wf';
 import { rebuildRef } from '../../../lib/caseRef';
+import { practiceKind } from '../../../lib/driveLayout';
 
 export const EditMatterModal: React.FC<{ w: WF; onClose: () => void }> = ({ w, onClose }) => {
   const { currentUser, isAdmin, renameCaseRef, addNotification } = useApp();
@@ -14,10 +15,11 @@ export const EditMatterModal: React.FC<{ w: WF; onClose: () => void }> = ({ w, o
   const s = getPracticeSettings();
   const areas = (s.practiceAreas && s.practiceAreas.length ? s.practiceAreas : DEFAULT_PRACTICE_SETTINGS.practiceAreas) || [];
   const practices = Array.from(new Set([practiceOf(c), ...areas.map((a) => a.name)].filter(Boolean)));
-  const init = { title: c.title, practice: practiceOf(c), status: c.status, partners: [...(c.partners || [])] as string[], lawyers: lawyersOf(c), opened: openedOf(c), drive: c.gdriveFolderUrl || '', oldDrive: c.oldDriveFolderUrl || '', ref: c.ref || '', why: '' };
+  const crt = courtOf(c);
+  const init = { title: c.title, practice: practiceOf(c), status: c.status, partners: [...(c.partners || [])] as string[], lawyers: lawyersOf(c), opened: openedOf(c), drive: c.gdriveFolderUrl || '', oldDrive: c.oldDriveFolderUrl || '', ref: c.ref || '', why: '', courtLevel: crt.level || COURT_LEVELS.find((l) => crt.name.toLowerCase().startsWith(l.toLowerCase())) || '', courtLoc: crt.location, suit: crt.suit };
   const [ed, setEd] = useState(init);
   const firmAdmin = Boolean(isAdmin || currentUser?.isSuperAdmin);
-  const L: Record<string, string> = { title: 'Title', practice: 'Practice', status: 'Status', partners: 'Partner', lawyers: 'Lawyers', opened: 'Opened', drive: 'Drive folder', oldDrive: 'Old folder', ref: 'Reference' };
+  const L: Record<string, string> = { title: 'Title', practice: 'Practice', status: 'Status', partners: 'Partner', lawyers: 'Lawyers', opened: 'Opened', drive: 'Drive folder', oldDrive: 'Old folder', ref: 'Reference', courtLevel: 'Court', courtLoc: 'Court location', suit: 'Suit no.' };
   const lawyerCodeOf = (name: string) => staff.find((p) => p.name === name)?.code || '';
   // Prefer the file's own saved matter code; the firm-wide list is only a fallback for older files.
   const matterCodes = c.matterCode ? [c.matterCode.split('/')[0]] : [
@@ -48,6 +50,10 @@ export const EditMatterModal: React.FC<{ w: WF; onClose: () => void }> = ({ w, o
       ...(ed.drive.trim() !== init.drive ? { gdriveFolderId: (ed.drive.match(/folders\/([\w-]+)/) || [])[1] || undefined } : {}),
       ...(firmAdmin || ed.opened === init.opened ? { fileOpenedDate: ed.opened || c.fileOpenedDate } : {}),
       ...(practiceChanged ? { statusStage: 0, statusStageName: stagesFor(ed.practice)[0] } : {}),
+      // Court details: kept for court work; a file moved to conveyancing / corporate drops them.
+      ...(practiceKind(ed.practice) === 'court'
+        ? (['courtLevel', 'courtLoc', 'suit'].some((k) => diff.includes(k)) ? { courtDetails: { ...(c.courtDetails || {}), level: ed.courtLevel || undefined, location: ed.courtLoc.trim() || undefined }, court: [ed.courtLevel, ed.courtLoc.trim()].filter(Boolean).join(' '), courtCaseNo: ed.suit.trim() || undefined } : {})
+        : practiceChanged ? { courtDetails: { ...(c.courtDetails || {}), level: undefined, location: undefined }, court: '', courtCaseNo: undefined } : {}),
     };
     const what = 'Matter details updated: ' + diff.map((k) => L[k] + (k === 'title' || k === 'drive' || k === 'oldDrive' ? '' : ' → ' + (k === 'opened' ? fmt(ed.opened) : k === 'partners' ? ed.partners.join(', ') : k === 'lawyers' ? ed.lawyers.join(', ') : String((ed as Record<string, unknown>)[k]) || '—'))).join(', ') + (ed.why.trim() ? ' (' + ed.why.trim() + ')' : '');
     w.save({ ...patch, activityLogs: [histEntry(what, w.me), ...(c.activityLogs || [])] });
@@ -66,6 +72,11 @@ export const EditMatterModal: React.FC<{ w: WF; onClose: () => void }> = ({ w, o
         <label style={css('grid-column:1/-1;display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>Matter title</span><input value={ed.title} onChange={(e) => setEd({ ...ed, title: e.target.value })} style={css(inp)} /></label>
         <label style={css('display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>Practice area</span><select value={ed.practice} onChange={(e) => setEd({ ...ed, practice: e.target.value })} style={css(inp)}>{practices.map((o) => <option key={o} value={o}>{o}</option>)}</select></label>
         <label style={css('display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>File status</span><select value={ed.status} onChange={(e) => setEd({ ...ed, status: e.target.value as Case['status'] })} style={css(inp)}><option value="Active">Active</option><option value="Pending">Pending (on hold)</option>{(init.status === 'Closed' || init.status === 'Archive') && <option value={init.status}>{init.status}</option>}</select></label>
+        {practiceKind(ed.practice) === 'court' && <>
+          <label style={css('display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>Court</span><select value={ed.courtLevel} onChange={(e) => setEd({ ...ed, courtLevel: e.target.value })} style={css(inp)}><option value="">—</option>{COURT_LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}</select></label>
+          <label style={css('display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>Court location</span><input value={ed.courtLoc} placeholder="e.g. Shah Alam" onChange={(e) => setEd({ ...ed, courtLoc: e.target.value })} style={css(inp)} /></label>
+          <label style={css('grid-column:1/-1;display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>Suit no.</span><input value={ed.suit} placeholder="e.g. BA-22NCvC-1-01/2026" onChange={(e) => setEd({ ...ed, suit: e.target.value })} style={css(inp)} /></label>
+        </>}
         <div style={css('grid-column:1/-1;display:flex;flex-direction:column;gap:5px')}><span style={css(lb)}>Partner in charge</span>
           <PeoplePicker id="matter-partners" value={ed.partners} onChange={(v) => setEd({ ...ed, partners: v })} placeholder="Search partner by name or code"
             options={[...partners.map((p) => ({ value: p.code, label: p.name + ' (' + p.code + ')' })), ...ed.partners.filter((code) => !partners.some((p) => p.code === code)).map((code) => ({ value: code, label: code }))]} />

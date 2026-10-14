@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   clientFolderName, driveSafeName, financeFolderPath, financeKindFromOwner, financeMatterPath, matterFolderName, matterFolderPath,
-  matterNumber, matterSubFor, practiceFolderName, staffFolderName,
+  matterNumber, matterSubFor, matterSubfolders, practiceFolderName, uploadFolders, staffFolderName,
 } from './driveLayout';
 import { financeDocType, firstDriveFolderId, matchesYearType, yearOf, yearOptions } from './claimFilters';
 
@@ -25,20 +25,37 @@ describe('matter folders', () => {
   });
   it('puts the matter under its practice area, renamed when set', () => {
     const m = { ref: 'SHC/CONV/SH/3/01-2026', title: 'SPA Lot 5', practiceArea: 'Conveyancing' };
-    expect(matterFolderPath(m)).toEqual(['Matters', 'Conveyancing', '003 - SPA Lot 5']);
-    expect(matterFolderPath(m, { Conveyancing: 'Property & Conveyancing' })).toEqual(['Matters', 'Property & Conveyancing', '003 - SPA Lot 5']);
+    expect(matterFolderPath(m)).toEqual(['Case files', 'Conveyancing', '003 - SPA Lot 5']);
+    expect(matterFolderPath(m, { Conveyancing: 'Property & Conveyancing' })).toEqual(['Case files', 'Property & Conveyancing', '003 - SPA Lot 5']);
     expect(practiceFolderName('', {})).toBe('Other');
     expect(practiceFolderName('Civil Litigation', { 'Civil Litigation': '  ' })).toBe('Civil Litigation');
   });
-  it('routes document categories to sub-folders or Finance', () => {
-    expect(matterSubFor('Filing')).toBe('Court Papers');
-    expect(matterSubFor('Service')).toBe('Court Papers');
-    expect(matterSubFor('Correspondence')).toBe('Correspondence');
-    expect(matterSubFor('Client Documents')).toBe('Client Documents');
-    expect(matterSubFor('Research')).toBe('Research');
-    expect(matterSubFor('Closing')).toBe('Closing');
+  it('routes documents to the firm\'s own folders by practice area, or Finance', () => {
+    expect(matterSubFor('Filing')).toBe('Cause Papers');
+    expect(matterSubFor('Service')).toBe('Correspondences/Acknowledgment');
+    expect(matterSubFor('Court memo')).toBe('Court Memo');
+    expect(matterSubFor('Signed letter of engagement')).toBe('Letter of Engagement');
     expect(matterSubFor('Engagement & Billing')).toBe('finance');
-    expect(matterSubFor(undefined)).toBe('Correspondence');
+    expect(matterSubFor('Quotation')).toBe('finance');
+    expect(matterSubFor('Client Documents')).toBe('Documents');
+    expect(matterSubFor(undefined)).toBe('Correspondences');
+    expect(matterSubFor('Court memo', 'Conveyancing')).toBe('Correspondences');
+    expect(matterSubFor('Filing', 'Corporate')).toBe('Correspondences');
+    expect(matterSubFor('SPA', 'Conveyancing')).toBe('Documents');
+    expect(matterSubFor('Shareholders agreement', 'Corporate')).toBe('Agreement');
+  });
+  it('each practice area gets its own sub-folders', () => {
+    expect(matterSubfolders('Civil Litigation')).toEqual(['Cause Papers', 'Cause Papers/Draft', 'Cause Papers/Extracted', 'Correspondences', 'Correspondences/Draft', 'Documents', 'Documents/Due Diligence']);
+    expect(matterSubfolders('Estate Administration')).toEqual(matterSubfolders('Civil Litigation'));
+    expect(matterSubfolders('Conveyancing')).toEqual(['Documents', 'Documents/Due Diligence', 'Correspondences', 'Correspondences/Draft']);
+    expect(matterSubfolders('Corporate')).toEqual(['Agreement', 'Agreement/Draft', 'Correspondences', 'Correspondences/Draft', 'Documents', 'Documents/Due Diligence']);
+    expect(uploadFolders('Civil Litigation')).toEqual(['Cause Papers', 'Cause Papers/Draft', 'Cause Papers/Extracted', 'Correspondences', 'Correspondences/Draft', 'Documents', 'Documents/Due Diligence', 'Correspondences/Acknowledgment', 'Court Memo', 'Letter of Engagement']);
+    expect(matterSubFor('Extracted order')).toBe('Cause Papers/Extracted');
+    expect(matterSubFor('Draft letter to court')).toBe('Correspondences/Draft');
+    expect(matterSubFor('Land search', 'Conveyancing')).toBe('Documents/Due Diligence');
+    expect(matterSubFor('Draft SOC')).toBe('Cause Papers/Draft');
+    expect(matterSubFor('Draft SHA', 'Corporate')).toBe('Agreement/Draft');
+    expect(uploadFolders('Corporate')).not.toContain('Court Memo');
   });
   it('keeps engagement papers in Finance/Files', () => {
     expect(financeMatterPath({ ref: 'SHC/L/SH/9/01-2026', title: 'X' })).toEqual(['Files', '009 - X']);

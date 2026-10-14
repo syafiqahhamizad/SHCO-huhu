@@ -23,6 +23,7 @@ import {
   type AccessUsers,
 } from '../services/accessListService';
 import { normalizeClientName } from '../lib/stringUtils';
+import { clientRef, nextClientNo, numberClients } from '../lib/clientNumbers';
 import { partnerCode } from '../lib/identity';
 import { generateNextMatterSequenceNumber, syncClientMatterLinks } from '../services/matterService';
 import {
@@ -336,6 +337,9 @@ interface AppContextType {
   addQuotation: (q: Quotation) => void;
   updateQuotation: (id: string, updates: Partial<Quotation>) => void;
   deleteQuotation: (id: string) => void;
+  resetTestData: () => boolean;
+  /** Super Admin: gives every client its CL-<year>-<NNN> number; returns old → new for each client changed. */
+  assignClientNumbers: (apply: boolean) => { id: string; name: string; from: string; to: string }[];
   addReferralPartner: (rp: ReferralPartner) => void;
   addTravelClaim: (tc: TravelClaim) => void;
   updateTravelClaim: (id: string, updates: Partial<TravelClaim>) => void;
@@ -807,7 +811,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // A Client ID is accepted as a convenience when this device already knows the client.
     const email = term.includes('@')
       ? term
-      : (clients.find((c) => c.id.toLowerCase() === term)?.email || '').trim().toLowerCase();
+      : (clients.find((c) => c.id.toLowerCase() === term || (c.clientNo || '').toLowerCase() === term)?.email || '').trim().toLowerCase();
 
     if (!email) {
       const errorMsg = 'Use a registered client email address or Client ID for portal access.';
@@ -2717,6 +2721,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const normalizedClient: Client = {
       ...client,
+      clientNo: client.clientNo || nextClientNo(clients.map((c) => c.clientNo)),
       createdAt: client.createdAt || new Date().toISOString(),
       name: normalizeClientName(client.name),
       contactPerson: client.contactPerson ? normalizeClientName(client.contactPerson) : client.contactPerson,
@@ -3011,6 +3016,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setQuotations((prev) => [editedQuotation, ...prev]);
     addActivityLog('Quotation Created', `${q.id} — RM ${q.total.toLocaleString()}`);
     showToast('Quotation created');
+  };
+
+  /**
+   * Super Admin: clears test data after a full backup (Settings → Google, e-mail & backup).
+   * Kept: clients, case records (their details and documents), Users & Roles, firm settings,
+   * Firm Start Centre, running numbers, referral partners, law-firm registry, inventory and bank
+   * accounts. Cleared: everything else, and inside every file the tasks, hearings, memos, notes,
+   * filing & service, weekly status, close request and history.
+   */
+  const assignClientNumbers = (apply: boolean) => {
+    const nums = numberClients(clients, cases.map((k) => ({ clientIds: String(k.clientId || '').split(',').map((x) => x.trim()).filter(Boolean), opened: String(k.fileOpenedDate || k.createdDate || '').slice(0, 10) })));
+    const changes = clients.filter((c) => nums.get(c.id) && nums.get(c.id) !== c.clientNo).map((c) => ({ id: c.id, name: c.name, from: clientRef(c), to: nums.get(c.id)! }));
+    if (!apply || !changes.length) return changes;
+    if (!currentUser?.isSuperAdmin && String(currentUser?.email || '').toLowerCase() !== 'syafiqahhamizad@shcolaw.com') { showToast('Only the Super Admin can renumber clients.'); return []; }
+    const by = new Map(changes.map((x) => [x.id, x.to]));
+    setClients((prev) => prev.map((c) => (by.has(c.id) ? { ...c, clientNo: by.get(c.id) } : c)));
+    logAuditEvent('UPDATE', 'CLIENTS', 'numbers', 'Client numbers', changes.length + ' clients numbered CL-<year>-<NNN>: ' + changes.map((x) => x.from + ' → ' + x.to).join(', '));
+    return changes;
+  };
+
+  const resetTestData = (): boolean => {
+    if (!currentUser?.isSuperAdmin && String(currentUser?.email || '').toLowerCase() !== 'syafiqahhamizad@shcolaw.com') { showToast('Only the Super Admin can reset data.'); return false; }
+    [setLeads, setQuotations, setPaymentVouchers, setTravelClaims, setReceipts, setDeadlines, setInvoices, setPayments, setRetainers, setAttendanceRecords, setLeaveApplications, setMeetings, setProgrammes, setNotifications, setDeletedRecords, setTimeEntries, setExpenses, setLogs, setAuditLogs, setManualJournals, setBankReconciliationEntries, setTrustAuditLogs, setGeneralLedger, setClientAccountChecks, setPayslips, setPrivateTodos]
+      .forEach((set) => (set as (v: never[]) => void)([]));
+    setCases((prev) => prev.map((c) => ({ ...c, tasks: [], hearings: [], courtDiary: [], fileNotes: [], meetingNotes: [], researchNotes: [], internalNotes: [], memos: [], serviceRecord: [], weeklyStatus: [], clientUpdates: [], courtChanges: [], activityLogs: [], closeRequest: undefined, nextHearing: undefined })));
+    const st = getPracticeSettings();
+    savePracticeSettings({
+      ...st,
+      sinkingFunds: [], commitments: [], complianceRegister: undefined, complaints: [], vision: undefined, mission: undefined, roadmap: [], firmGoals: [], panelships: [], investmentChannels: [], partnersNotes: '',
+      monthEndClose: {}, clientStatementRuns: undefined, referralFeeApprovals: {}, financeSignoffs: undefined, emergencyFund: undefined, investments: undefined, fundSplits: undefined, clientBankStatements: {},
+    } as PracticeSettings);
+    logAuditEvent('DELETE', 'SYSTEM', 'reset', 'Test data reset', 'Test data cleared by ' + currentUser.name + ' after a full backup. Clients, cases, users, settings and running numbers kept.');
+    showToast('Test data cleared. Clients, cases, users, settings and running numbers were kept.');
+    return true;
   };
 
   /** Deletes a quotation / proforma (kept in the Recycle Bin). Billing decides when it is allowed. */
@@ -3394,6 +3433,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addQuotation,
         updateQuotation,
         deleteQuotation,
+        resetTestData,
+        assignClientNumbers,
         addReferralPartner,
         addTravelClaim,
         updateTravelClaim,

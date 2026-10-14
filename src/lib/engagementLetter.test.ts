@@ -42,9 +42,11 @@ describe('engagementLetterHtml', () => {
     expect(h).toContain('PARTNERS');
     expect(h).toContain('KHAIRUNNISA BINTI SHOBAT SETTIC');
     expect(h).toContain('SYARIE PARTNER');
-    expect(h).toContain('Your Ref / <i>Rujukan Tuan</i>');
-    expect(h).toContain('Our Ref / <i>Rujukan Kami</i>');
-    expect(h).toContain('Date / <i>Tarikh</i>');
+    expect(h).toContain('Your Ref:<br><span style="font-size:5.5pt">Rujukan Tuan:</span>');
+    expect(h).toContain('font-family:Arial');
+    expect(h).toContain('class="lh-page"');
+    expect(h).toContain('Rujukan Kami:');
+    expect(h).toContain('Tarikh:');
     expect(h).toContain('<b>TEST CLIENT</b><br>No. 1, Jalan Test<br>Kuala Lumpur');
     expect(h).toContain('Dear Sir/Madam,');
     expect(h).toContain('LETTER OF ENGAGEMENT');
@@ -52,16 +54,25 @@ describe('engagementLetterHtml', () => {
     expect(h).toContain('IN THE MATTER OF HIGH COURT SHAH ALAM');
     expect(h).toContain('PLAINTIFF: TEST CLIENT');
     expect(h).toContain('DEFENDANT: TEST PARTY');
-    expect(h).toContain('Nurul Syafiqah binti Hamizad');
+    expect(h).not.toContain('Nurul Syafiqah binti Hamizad');
+    expect(h).toContain('under the supervision of the partner in charge');
+    expect(h).toContain('Anti-Money Laundering');
+    expect(h).toContain('Personal Data Protection Act 2010');
     expect(h).toContain('fourteen (14) days');
     expect(h).toContain('Rule 9.02 of the Bar Council Rules');
     expect(h).toContain('laws of Malaysia');
-    expect(h).toContain('for and on behalf of <b>SYAFIQAH HAMIZAD &amp; CO</b>');
-    expect(h).toContain('I confirm that I have read and understood the contents of this Letter of Engagement');
+    expect(h).toContain('Regards,<br>For and on behalf');
+    expect(h).toContain('<b>MESSRS SYAFIQAH HAMIZAD &amp; CO</b>');
+    // The client speaks only in the acceptance slip they sign.
+    expect(h).toContain('I confirm that I have read and understood the contents of this Letter of Engagement, that its contents have been explained to me, that I am of sound mind,');
     expect(h).toContain('AUTHORITY AND TERMS OF ENGAGEMENT');
-    expect(h).toContain('I hereby authorise and appoint <strong>Messrs. Syafiqah Hamizad &amp; Co.,</strong>');
-    expect(h).toContain('the initial payment <em>(retainer)</em> is non-refundable');
-    for (const x of ['Authority.', 'Legal fees and related disbursements.', 'Termination of services.', 'Indemnity.', 'Limitation of liability.']) expect(h).toContain(x);
+    expect(h).toContain('By signing the acceptance below, you agree to the following terms:');
+    expect(h).toContain('You authorise and appoint us');
+    expect(h).toContain('The initial payment <em>(retainer)</em> is non-refundable');
+    for (const x of ['Authority.', 'Legal fees and disbursements.', 'Termination of services.', 'Indemnity.', 'Limitation of liability.', 'Anti-money laundering.', 'Personal data.']) expect(h).toContain(x);
+    const terms = h.slice(h.indexOf('AUTHORITY AND TERMS'), h.indexOf('Regards,'));
+    expect(terms).not.toMatch(/\b(I|I\/We|me|my)\b/);
+    expect(h).toContain('Encl.: Quotation QUOT-26-0007');
     // One document only: no separate warrant page or title.
     expect(h).not.toMatch(/warrant/i);
     expect(h).not.toContain('page-break-before');
@@ -72,22 +83,26 @@ describe('engagementLetterHtml', () => {
     const t = feeTotals(base.fees!);
     expect(t).toMatchObject({ prof: 10000, disb: 100, reimb: 200, sst: 816, net: 10300, total: 11116 });
     const h = engagementLetterHtml(base);
-    expect(h).toContain('Filing fees');
-    expect(h).toContain('11,116.00');
-    expect(h).toContain('5,558.00'); // 50% stage
+    // The quotation (with its payment plan) is enclosed: the letter refers to it, no fee table.
+    expect(h).toContain('FEES AND PAYMENT PLAN');
+    expect(h).toContain('set out in our quotation (QUOT-26-0007) enclosed with this letter, for a total of <b>RM11,116.00</b>');
+    expect(h).not.toContain('AMOUNT (RM)');
+    expect(h).not.toContain('Filing fees');
+    expect(h).not.toContain('5,558.00');
     expect(h).toContain('Hong Leong Bank Berhad');
   });
   it('no quotation → "as per our quotation", no fee table or payment plan (never invented)', () => {
     const h = engagementLetterHtml({ ...base, fees: undefined, plan: undefined });
-    expect(h).toContain('PROPOSED FEES');
+    expect(h).toContain('FEES AND PAYMENT PLAN');
     expect(h).toContain('as per our quotation');
-    expect(h).not.toContain('PAYMENT PLAN');
+    expect(h).not.toContain('Encl.');
+    expect(h).not.toContain('&nbsp;&nbsp;PAYMENT PLAN');
     expect(h).not.toContain('AMOUNT (RM)');
     expect(h).not.toMatch(/RM ?[0-9]/);
     expect(h).not.toMatch(/[0-9],[0-9]{3}\.[0-9]{2}/);
     const bm = engagementLetterHtml({ ...base, lang: 'BM', fees: undefined, plan: undefined });
     expect(bm).toContain('seperti dalam sebut harga kami');
-    expect(bm).not.toContain('PELAN PEMBAYARAN');
+    expect(bm).not.toContain('&nbsp;&nbsp;PELAN PEMBAYARAN');
   });
   it('BM: Malay text and the firm’s own BM clauses inside the letter', () => {
     const h = engagementLetterHtml({ ...base, lang: 'BM', plan: { kind: 'Instalments', months: 3, upfront: 5000 } });
@@ -96,20 +111,15 @@ describe('engagementLetterHtml', () => {
     expect(h).not.toContain('SEBUT HARGA &amp;');
     expect(h).toContain('DALAM PERKARA HIGH COURT SHAH ALAM');
     expect(h).toContain('Aturan 9.02 Kaedah Majlis Peguam');
-    expect(h).toContain('ansuran bulanan selama tiga (3) bulan');
-    expect(h).toContain('Bulan 1 (Bayaran Pendahuluan)');
-    expect(h).toContain('Penyelesaian Awal');
+    expect(h).toContain('sebut harga kami (QUOT-26-0007) yang dilampirkan bersama surat ini');
+    expect(h).toContain('Lampiran: Sebut harga QUOT-26-0007');
     expect(h).toContain('Yang benar,');
     expect(h).not.toMatch(/waran/i);
-    expect(h).toContain('Saya dengan ini memberi kuasa dan melantik <strong>Tetuan Syafiqah Hamizad &amp; Co.,</strong>');
-    expect(h).toContain('sepertimana Aturan 9.02 Kaedah Majlis Peguam');
-    for (const x of ['Autoriti.', 'Fi Guaman dan kos-kos pengeluaran berkaitan.', 'Penamatan servis.', 'Indemniti.', 'Had Tanggungjawab.']) expect(h).toContain(x);
+    expect(h).toContain('Tuan/puan memberi kuasa dan melantik kami');
+    for (const x of ['Autoriti.', 'Fi guaman dan pengeluaran.', 'Penamatan perkhidmatan.', 'Indemniti.', 'Had tanggungjawab.']) expect(h).toContain(x);
+    const terms = h.slice(h.indexOf('AUTORITI DAN TERMA'), h.indexOf('Yang benar,'));
+    expect(terms).not.toMatch(/\b(Saya|saya)\b/);
     expect(h).toContain('Saya mengesahkan bahawa saya telah membaca dan memahami kandungan Surat Perlantikan ini');
-    // Default litigation stages are printed in BM; stages the firm typed stay as typed.
-    const st = engagementLetterHtml({ ...base, lang: 'BM', plan: defaultPlanFor('Civil Litigation') });
-    expect(st).toContain('Pemfailan');
-    expect(st).toContain('Selepas pliding ditutup');
-    expect(engagementLetterHtml({ ...base, lang: 'BM', plan: { kind: 'Stages', stages: [{ label: 'Deposit kami', pct: 100 }] } })).toContain('>Deposit kami<');
   });
   it('company: attention line, authorised signatory, designation and company stamp', () => {
     const h = engagementLetterHtml({ ...base, client: { name: 'Test Sdn Bhd', type: 'Corporate', contactPerson: 'Ali bin Abu' }, plan: { kind: 'Full' } });
@@ -117,8 +127,8 @@ describe('engagementLetterHtml', () => {
     expect(h).toContain('duly authorised signatory of <b>TEST SDN BHD</b>');
     expect(h).toContain('Company stamp');
     expect(h).toContain('We confirm that we have read and understood');
-    expect(h).toContain('We hereby authorise and appoint');
-    expect(h).toContain('payable in full');
+    expect(h).toContain('You authorise and appoint us');
+    expect(h).not.toContain('sound mind');
   });
   it('without a suit the RE line is the matter title', () => {
     const h = engagementLetterHtml({ ...base, matter: { title: 'SPA Taman Bangi' } });
@@ -132,11 +142,11 @@ describe('engagementLetterHtml', () => {
 });
 
 describe('authorityClauses', () => {
-  it('Kami for a company, Saya/Kami when the client type is unknown; escapes the firm name', () => {
-    expect(authorityClauses({ lang: 'BM', client: { type: 'Corporate' } })[0][1]).toMatch(/^Kami dengan ini/);
-    expect(authorityClauses({ lang: 'BM', client: {} })[0][1]).toMatch(/^Saya\/Kami dengan ini/);
-    expect(authorityClauses({ client: {}, firmName: 'A & <B>' })[0][1]).toContain('A &amp; &lt;B&gt;');
-    expect(authorityClauses({ client: {} }).map(([h]) => h)).toEqual(['Authority', 'Legal fees and related disbursements', 'Termination of services', 'Indemnity', 'Limitation of liability']);
+  it('written by the firm to the client: "you" and "we", never the client\'s "I" or "Saya"', () => {
+    expect(authorityClauses({ lang: 'BM' })[0][1]).toMatch(/^Tuan\/puan memberi kuasa/);
+    expect(authorityClauses({})[0][1]).toMatch(/^You authorise and appoint us/);
+    expect(authorityClauses({}).map(([h]) => h)).toEqual(['Authority', 'Legal fees and disbursements', 'Termination of services', 'Indemnity', 'Limitation of liability', 'Negotiation and settlement', 'Change of solicitors', 'Original documents', 'Anti-money laundering', 'Personal data']);
+    expect(authorityClauses({ lang: 'BM' })).toHaveLength(10);
   });
 });
 

@@ -24,6 +24,7 @@ import { HistoryTab } from './tabs/HistoryTab';
 import { ClosedBanner, CloseRequestPanel, RequestCloseModal } from './CloseFlow';
 import { DeleteMatterModal, EditMatterModal } from './MatterModals';
 import { syncTask, unsyncTask } from './clientComms';
+import { practiceKind } from '../../../lib/driveLayout';
 
 /** Old workspace sub-tab ids (still used by links from other pages) → new Working File tabs. */
 const TAB_ALIAS: Record<string, string> = {
@@ -141,19 +142,24 @@ export const WorkingFile: React.FC<{ c: Case }> = ({ c }) => {
     try {
       await prepareStorage();
       const f = await ensureMatterFolder(c);
-      if (f) { save({ gdriveFolderId: f.id, gdriveFolderUrl: f.url }, 'Google Drive folder created'); toast('Drive folder created: SHCO Portal › Matters › ' + (c.practiceArea || c.type || 'Other')); }
+      if (f) { save({ gdriveFolderId: f.id, gdriveFolderUrl: f.url }, 'Google Drive folder created'); toast('Drive folder created: SHCO Portal › Case files › ' + (c.practiceArea || c.type || 'Other')); }
     } catch (e) { toast('Drive folder not created: ' + (e instanceof Error ? e.message : String(e))); }
     setDriveBusy(false);
   };
 
+  // Court work shows court details, Court and Filing & service; conveyancing / corporate files don't
+  // (unless they already hold hearings or filings).
+  const courtWork = practiceKind(practiceOf(c)) === 'court';
   const tabs: [string, string][] = [
-    ['overview', 'Overview'], ['status', 'Status'], ['court', 'Court (' + (c.hearings || []).length + ')'], ['service', 'Filing & service (' + (c.serviceRecord || []).length + ')'],
+    ['overview', 'Overview'], ['status', 'Status'],
+    ...(courtWork || (c.hearings || []).length ? [['court', 'Court (' + (c.hearings || []).length + ')'] as [string, string]] : []),
+    ...(courtWork || (c.serviceRecord || []).length ? [['service', 'Filing & service (' + (c.serviceRecord || []).length + ')'] as [string, string]] : []),
     ['tasks', 'Tasks (' + openTasks + ' open)'], ['time', 'Time & costs'], ...(seeFin ? [['money', 'Money'] as [string, string]] : []),
     ['notes', 'Notes (' + ((c.fileNotes || []).length + (c.meetingNotes || []).length + (c.researchNotes || []).length + (c.internalNotes || []).length + (c.memos || []).length) + ')'], ['letters', 'Letters & e-sign'], ['history', 'History'],
   ];
   const meta: [string, React.ReactNode][] = [
     ['Clients', nClients], ['Opposing', nOpp + ' part' + (nOpp === 1 ? 'y' : 'ies') + ' · ' + nFirms + ' firm' + (nFirms === 1 ? '' : 's')], ['Practice', practiceOf(c) || '—'],
-    ...(court.name ? [['Court', court.name] as [string, React.ReactNode]] : []), ...(court.suit ? [['Suit', court.suit] as [string, React.ReactNode]] : []),
+    ...(courtWork && court.name ? [['Court', court.name] as [string, React.ReactNode]] : []), ...(courtWork && court.suit ? [['Suit', court.suit] as [string, React.ReactNode]] : []),
     ['Opened', fmt(openedOf(c))], ['PIC', ['Partner ' + ((c.partners || []).join(', ') || '—'), lawyerOf(c)].filter(Boolean).join(' · ')],
   ];
   const bal = money.bills.filter((b) => b.issued && b.bal > 0);

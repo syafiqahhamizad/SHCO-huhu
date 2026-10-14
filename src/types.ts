@@ -210,7 +210,10 @@ export type CorporateEntityCategory =
   | 'Cooperative (Koperasi)';
 
 export interface Client {
+  /** Internal key (never changes; files, bills and receipts point to it). */
   id: string;
+  /** Client number shown to people, CL-<year>-<NNN> (see lib/clientNumbers). */
+  clientNo?: string;
   name: string;
   type: 'Individual' | 'Corporate';
   entityCategory?: CorporateEntityCategory;
@@ -459,7 +462,7 @@ export interface ServiceRecord {
   action?: 'Filed' | 'Served' | 'Received';
   proofType?: string;
   proofFileName?: string;
-  /** Proof stored in the firm Google Drive (Matters/<file>/Filing or /Service). */
+  /** Proof stored in the firm Google Drive (Case files/<file>/Filing or /Service). */
   driveFileId?: string;
   webViewLink?: string;
   /** LEGACY: proof stored in Firebase Storage before uploads moved to Google Drive (read-only). */

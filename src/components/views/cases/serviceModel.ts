@@ -4,6 +4,7 @@
  * (Drive `<matter>/Filing|Service` when Drive is set up, else Firebase Storage).
  */
 import type { Case, ServiceRecord, Task } from '../../../types';
+import { ACK_FOLDER, practiceKind } from '../../../lib/driveLayout';
 import { prepareStorage, storeMatterFile, type StoredMatterFile } from '../../../services/fileStorageService';
 import { actionOf, deriveMatchKey, isDeadline, isDone, proofTypeFor, todayIso } from './caseModel';
 import { histEntry, newId } from './wf';
@@ -21,10 +22,10 @@ interface ServiceDraft {
   notes: string;
 }
 
-/** Upload filing / service proof for a record on this file → the matter's `Court Papers` folder. */
-export const uploadServiceProof = async (c: Pick<Case, 'ref' | 'title' | 'gdriveFolderId' | 'practiceArea' | 'type'>, file: File, _action: string, me: string): Promise<StoredMatterFile> => {
+/** Filing proof → Cause Papers (court work); service proof → Correspondences/Acknowledgment. */
+export const uploadServiceProof = async (c: Pick<Case, 'ref' | 'title' | 'gdriveFolderId' | 'practiceArea' | 'type'>, file: File, action: string, me: string): Promise<StoredMatterFile> => {
   await prepareStorage();
-  return storeMatterFile({ ref: c.ref, title: c.title, practiceArea: c.practiceArea, type: c.type, folderId: c.gdriveFolderId, sub: 'Court Papers', file, uploadedBy: me });
+  return storeMatterFile({ ref: c.ref, title: c.title, practiceArea: c.practiceArea, type: c.type, folderId: c.gdriveFolderId, sub: (action === 'Filed' && practiceKind(c.practiceArea || c.type) === 'court' ? 'Cause Papers' : ACK_FOLDER), file, uploadedBy: me });
 };
 
 const proofFields = (stored: StoredMatterFile) => ({ proofFileName: stored.name, driveFileId: stored.driveFileId, webViewLink: stored.webViewLink, storagePath: stored.storagePath });

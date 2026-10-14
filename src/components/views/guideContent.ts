@@ -340,7 +340,7 @@ export const SECTIONS: Section[] = [
       { t: '*2. Matter*: choose the *Practice area*, then the *Matter code*. Type the *Matter title*, e.g. *Client name v. Other side (nature of claim)*. Fill in the extra boxes for that area (court and suit no. for litigation, title no. and price for conveyancing, deceased name for probate…).' },
       { t: '*3. Team*: pick one or more *Partner in charge* (type a name or code), and the *Lawyer in charge* if any.', sub: ['Watch *File no. preview* at the top — it builds the number from the partner, lawyer, client initials and running number.'] },
       { t: '*4. Letter of Engagement*: tick *Prepare Letter of Engagement* and choose the *Language* (English / Bahasa Malaysia) if you want it ready when the file opens. Fees come from the file’s quotation in Billing; if none is made yet it says “as per our quotation”.' },
-      { t: 'Click [[Open file]]. You see *File opened* and *What happens next*:', sub: ['*Quotation* — make it in Billing & Collections (billing people).', '*Engagement letter* — print it for the client to sign; upload the signed copy in the file’s Letters tab.', '*File cover* — print and put on the physical file.', 'The Google Drive folder is created automatically: SHCO Portal › Matters › <practice area> › <NNN - title>, with Court Papers, Correspondence, Client Documents, Research and Closing.'] },
+      { t: 'Click [[Open file]]. You see *File opened* and *What happens next*:', sub: ['*Quotation* — make it in Billing & Collections (billing people).', '*Engagement letter* — print it for the client to sign; upload the signed copy in the file’s Letters tab.', '*File cover* — print and put on the physical file.', 'The Google Drive folder is created automatically: SHCO Portal › Case files › <practice area> › <NNN - title>, with Court Papers, Correspondence, Client Documents, Research and Closing.'] },
       { t: 'Click [[Go to the file]] to start working on it.' },
     ],
     stuck: [
@@ -417,7 +417,7 @@ export const SECTIONS: Section[] = [
     who: 'Assistants / clerks and lawyers.',
     steps: [
       { t: 'On the file → *Filing & service* tab → add an entry: *What happened* (filed, served, received), *Date*, *Document* (e.g. Affidavit in reply, Encl. 18), the party / solicitor, *Method* (by hand, e-filing, post, e-mail…).' },
-      { t: 'Attach the proof: *Proof type* and [[Choose file]]. It is saved to the file’s Court Papers folder in Drive. Add *Notes* if useful, then save.' },
+      { t: 'Attach the proof: *Proof type* and [[Choose file]]. Filing proofs are saved to the file’s Cause Papers folder in Drive; service proofs to Correspondences › Acknowledgment. Add *Notes* if useful, then save.' },
       { t: 'Firm-wide: *Service Log* in the left menu shows every entry from every file. [[+ Add entry]] → *Pick the file…* → same boxes. Search with *Search document, file, party…*; click a file no. to open the file.' },
       { t: 'Entries made in the Service Log show on the file, and the other way round.' },
     ],
@@ -442,7 +442,7 @@ export const SECTIONS: Section[] = [
       { t: 'Open the file → *Letters & e-sign*.' },
       { t: 'Letter of Engagement: choose it in *Generate from template*, pick *EN* or *BM*, then view, print or save as PDF / Word. The fee breakdown and payment plan come from the file’s accepted (else latest) quotation; if you cannot see quotations it says “as per our quotation”.' },
       { t: 'Other letters: choose the template (next court date to client, letter to opposing solicitors, blank affidavit with intitulement, notice of change, closing letter) → [[Generate draft]]. A Word draft downloads, filled from the file — finish it in Word.' },
-      { t: 'Upload a document (signed letter of engagement, correspondence, court papers…): choose the *category* — it decides the Drive folder (Correspondence, Court Papers, Client Documents, Research, Closing, or *Engagement & Billing* which goes to the private Finance drive) — then choose the file.' },
+      { t: 'Upload a document (signed letter of engagement, correspondence, court papers…): choose the *category* — it decides the Drive folder, which follows the practice area (litigation and other court work: Cause Papers (› Draft, › Extracted), Correspondences (› Draft), Documents (› Due Diligence), Court Memo; conveyancing: Documents (› Due Diligence), Correspondences (› Draft); corporate: Agreement (› Draft), Correspondences (› Draft), Documents (› Due Diligence); every file: Letter of Engagement and Correspondences › Acknowledgment), or *Billing (Finance drive)* for quotations, invoices and receipts — then choose the file.' },
       { t: 'Tick *Share with client* on a document to show it in the client’s portal.' },
       { t: '*E-signature* is not connected yet: print, get it signed, scan and upload.' },
     ],
@@ -613,7 +613,7 @@ export const SECTIONS: Section[] = [
     steps: [
       { t: 'Open *Firm & Practice Settings* → *Google, e-mail & backup*.' },
       { t: '*Google Drive storage*: paste the link of each Shared Drive:', sub: ['*SHCO Portal* — files, clients, matters (all staff are members).', '*Finance* — claims, payment vouchers, bank-in proofs, client-account papers, engagement & billing, backups (only the people you allow). If not set, these go into a Finance folder inside SHCO Portal that all staff can see.', '*HR* — staff records (partners / admin only).', 'Click [[Test connection]]: it writes a tiny file to each drive, reads it back and deletes it.'] },
-      { t: '*Matters folder names by practice area*: rename the folders new files go into (SHCO Portal › Matters › <area> › <NNN - title>).' },
+      { t: '*Case files folder names by practice area*: rename the folders new files go into (SHCO Portal › Case files › <area> › <NNN - title>).' },
       { t: 'Existing files without a folder: in *Cases*, click the bar *N files have no Google Drive folder yet* once — it creates them all. Paste old-drive links per file in Edit matter details → *Old folder*.' },
       { t: '*Google Calendar, Tasks & Gmail*: the *Court diary Calendar ID* (Google Calendar → the calendar’s *Settings and sharing* → *Integrate calendar*) → [[Test Calendar]].' },
       { t: '*Notification e-mails*: the sending account and its Google *App password* → [[Save e-mail settings]] → [[Send test e-mail to me]]. The password can never be read back; paste a new one to change it.' },

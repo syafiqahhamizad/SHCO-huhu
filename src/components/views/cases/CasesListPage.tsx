@@ -7,6 +7,7 @@ import { useConfirmation } from '../../../hooks/useConfirmation';
 import { RecycleBinModal } from '../../RecycleBinModal';
 import { css } from './caseUi';
 import { activeStorage, ensureMatterFolder, prepareStorage } from '../../../services/fileStorageService';
+import { DEFAULT_PRACTICE_SETTINGS, getPracticeSettings } from '../../../services/templateService';
 import { fileAge, lawyerOf, openedOf, partiesOf, practiceOf, staffOf } from './caseModel';
 
 const ST: Record<string, [string, string]> = { Active: ['#E6EFE9', '#2F6F4E'], Pending: ['#FBF2E9', '#8A6D3B'], Closed: ['#EEF1F5', '#5B6478'], Archive: ['#FBEDE9', '#B23A2E'] };
@@ -45,7 +46,10 @@ export const CasesListPage: React.FC = () => {
   const byQ = (c: Case) => !ql || [c.ref, c.title, clientOf(c), c.courtCaseNo].join(' ').toLowerCase().includes(ql);
   const byPic = (c: Case) => pic === 'ALL' || (c.partners || []).includes(pic as never) || (c.lawyers || []).includes(pic) || lawyerOf(c) === pic;
   const pendingClose = (c: Case) => c.closeRequest?.status === 'Pending';
-  const areas = Array.from(new Set(scoped.map((c) => practiceOf(c)).filter(Boolean))).sort();
+  // Every practice area registered in Firm Settings, plus any older name still on a file, with its count.
+  const registered = ((getPracticeSettings().practiceAreas && getPracticeSettings().practiceAreas!.length ? getPracticeSettings().practiceAreas : DEFAULT_PRACTICE_SETTINGS.practiceAreas) || []).map((a) => a.name);
+  const areas = Array.from(new Set([...registered, ...scoped.map((c) => practiceOf(c)).filter(Boolean)]));
+  const areaCount = (a: string) => scoped.filter((c) => practiceOf(c) === a).length;
   const byArea = (c: Case) => !area || practiceOf(c) === area;
   const pre = scoped.filter((c) => byPic(c) && byArea(c) && byQ(c) && (!closeOnly || pendingClose(c)));
   const list = pre.filter((c) => !status || c.status === status);
@@ -126,7 +130,7 @@ export const CasesListPage: React.FC = () => {
       {isFirmAdmin && activeStorage() === 'drive' && noFolder.length > 0 && (
         <button type="button" disabled={!!folderRun} onClick={createMissingFolders} style={css('display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;border:1px solid #C9D6E6;background:#F3F7FB;font-size:12.5px;color:#16223A;cursor:pointer;text-align:left;font-family:inherit')}>
           <strong>{folderRun || noFolder.length + ' file' + (noFolder.length > 1 ? 's have' : ' has') + ' no Google Drive folder yet.'}</strong>
-          {!folderRun && <span style={css('color:#4A5468')}>Click to create {noFolder.length > 1 ? 'them all' : 'it'} in SHCO Portal › Matters › practice area › “NNN - title”, each with Court Papers, Correspondence, Client Documents, Research and Closing. Old drives are not touched.</span>}
+          {!folderRun && <span style={css('color:#4A5468')}>Click to create {noFolder.length > 1 ? 'them all' : 'it'} in SHCO Portal › Case files › practice area › “NNN - title”, each with the working folders for its practice area (litigation: Cause Papers, Correspondences, Documents; conveyancing: Documents, Correspondences; corporate: Agreement, Correspondences, Documents). Old drives are not touched.</span>}
         </button>
       )}
 
@@ -140,7 +144,7 @@ export const CasesListPage: React.FC = () => {
         <label style={css('display:flex;align-items:center;gap:6px')}><span style={css('font-size:10px;font-weight:700;text-transform:uppercase;color:#5B6478')}>Practice area</span>
           <select value={area} onChange={(e) => setArea(e.target.value)} style={css('font-size:12px;background:#F6F8FA;border:1px solid #DDE3EB;border-radius:6px;padding:5px 8px;font-weight:600;color:#16223A')}>
             <option value="">All practice areas</option>
-            {areas.map((a) => <option key={a} value={a}>{a}</option>)}
+            {areas.map((a) => <option key={a} value={a}>{a} ({areaCount(a)})</option>)}
           </select>
         </label>
         {isFirmAdmin && (

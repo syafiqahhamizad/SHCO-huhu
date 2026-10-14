@@ -6,10 +6,10 @@ import {
   validateClaimFile,
 } from './firebaseStorageService';
 import {
-  DRIVE_TOKEN_EVENT, downloadDriveFile, driveViewUrl, ensureFolderPath, getDriveAccessToken, getDriveConfig, grantReader, hasValidDriveToken, isDriveAccessError, isDriveConfigured, uploadToDrive,
+  DRIVE_TOKEN_EVENT, downloadDriveFile, driveViewUrl, ensureFolderPath, getDriveAccessToken, getDriveConfig, grantReader, hasValidDriveToken, isDriveAccessError, isDriveConfigured, renameChildFolder, uploadToDrive,
 } from './googleDriveService';
 import {
-  MATTER_SUBFOLDERS, clientFolderName as layoutClientFolderName, financeFolderPath, financeMatterPath, folderUrl, matterFolderDescription, matterFolderPath,
+  CLIENTS_ROOT, matterSubfolders, clientFolderName as layoutClientFolderName, financeFolderPath, financeMatterPath, folderUrl, matterFolderDescription, matterFolderPath,
   staffFolderName, type FinanceKind, type MatterLike, type MatterSub,
 } from '../lib/driveLayout';
 
@@ -17,7 +17,7 @@ import {
  * One place that decides where uploaded files go: the firm's Google Shared Drives, and nowhere
  * else (firm decision, Oct 2026). Folder layout: lib/driveLayout.ts.
  *
- * - SHCO Portal (root folder, all staff): Matters/<area>/<NNN - title>/<sub>, Clients/<ID - name>/KYC.
+ * - SHCO Portal (root folder, all staff): Case files/<area>/<NNN - title>/<sub>, Clients KYC/<client no. - name>/KYC.
  * - SHCO Finance (partners / Accounts; Finance/ inside SHCO Portal until it is set): claims,
  *   payment vouchers, bank-in proofs, client account, engagement & billing papers, backups.
  * - SHCO HR (HR folder setting; HR/ inside SHCO Portal until it is set): <Staff ID - Name>/.
@@ -199,17 +199,25 @@ export async function storeFinanceProof(file: File, uploadedBy: string, ref?: st
 /** Drive folder name for a client: "<client id> - <name>". */
 export const clientFolderName = (name: string, id: string) => layoutClientFolderName(name, id);
 
-/** A client's KYC / CDD document (IC, SSM extract, proof of address…). Drive: `Clients/<ID - name>/KYC/`. */
+/** A client's KYC / CDD document (IC, SSM extract, proof of address…). Drive: `Clients KYC/<client no. - name>/KYC/`. */
 export async function storeClientKycFile(client: { id: string; name: string }, file: File, uploadedBy: string): Promise<StoredFileMeta> {
-  return storeIn(['Clients', clientFolderName(client.name, client.id), 'KYC'], file, uploadedBy, { description: 'KYC document for ' + client.name + ' (' + client.id + ') uploaded by ' + uploadedBy });
+  return storeIn([CLIENTS_ROOT, clientFolderName(client.name, client.id), 'KYC'], file, uploadedBy, { description: 'KYC document for ' + client.name + ' (' + client.id + ') uploaded by ' + uploadedBy });
 }
 
-/** Creates (or finds) the client's KYC folder, `Clients/<ID - name>/KYC/`. Null when Drive is not set up. */
+/** Creates (or finds) the client's KYC folder, `Clients KYC/<client no. - name>/KYC/`. Null when Drive is not set up. */
 export async function ensureClientKycFolder(client: { id: string; name: string }): Promise<{ id: string; url: string } | null> {
   if (activeStorage() !== 'drive') return null;
   const c = getDriveConfig();
-  const id = await ensureFolderPath(c.rootFolderId, ['Clients', clientFolderName(client.name, client.id), 'KYC']);
+  const id = await ensureFolderPath(c.rootFolderId, [CLIENTS_ROOT, clientFolderName(client.name, client.id), 'KYC']);
   return { id, url: folderUrl(id) };
+}
+
+/** Renames a client's Drive folder `<old no> - name` → `<new no> - name` (Clients/). True when renamed. */
+export async function renameClientFolder(name: string, fromNo: string, toNo: string): Promise<boolean> {
+  if (activeStorage() !== 'drive') return false;
+  const c = getDriveConfig();
+  const clientsId = await ensureFolderPath(c.rootFolderId, [CLIENTS_ROOT]);
+  return renameChildFolder(clientsId, clientFolderName(name, fromNo), clientFolderName(name, toNo));
 }
 
 /* ------------------------------------------------------------------ firm letterhead */
@@ -227,19 +235,19 @@ export async function storeLetterheadImage(branchName: string, file: File, uploa
 /* ------------------------------------------------------------------ matter files */
 
 
-/** "Matters › Civil Litigation › 042 - Title" (for "Goes to …" hints). */
+/** "Case files › Civil Litigation › 042 - Title" (for "Goes to …" hints). */
 export const matterDriveLabel = (m: MatterLike) => matterFolderPath(m, getDriveConfig().practiceFolderNames).join(' › ');
 
 /**
- * Creates (or finds) the matter's folder in SHCO Portal, `Matters/<Practice area>/<NNN> - <title>/`,
- * with its five sub-folders, and puts the full file ref in the folder description.
+ * Creates (or finds) the matter's folder in SHCO Portal, `Case files/<Practice area>/<NNN> - <title>/`,
+ * with its sub-folders for the practice area (court work, conveyancing or corporate), and puts the full file ref in the folder description.
  * Returns null when Drive is not set up in Firm Settings.
  */
 export async function ensureMatterFolder(m: MatterLike): Promise<{ id: string; url: string } | null> {
   if (activeStorage() !== 'drive') return null;
   const c = getDriveConfig();
   const id = await ensureFolderPath(c.rootFolderId, matterFolderPath(m, c.practiceFolderNames), matterFolderDescription(m));
-  for (const sub of MATTER_SUBFOLDERS) await ensureFolderPath(id, [sub]);
+  for (const sub of matterSubfolders(m.practiceArea || m.type)) await ensureFolderPath(id, sub.split('/'));
   return { id, url: folderUrl(id) };
 }
 
@@ -248,15 +256,15 @@ export interface StoredMatterFile { name: string; driveFileId?: string; webViewL
 
 /**
  * A file kept on a matter. Drive: `<matter folder>/<sub>/` — the matter's own folder when it has
- * one (gdriveFolderId), else `Matters/<area>/<NNN - title>/<sub>/` in SHCO Portal.
- * Subs: Court Papers (filing / service proofs), Correspondence, Client Documents, Research, Closing.
+ * one (gdriveFolderId), else `Case files/<area>/<NNN - title>/<sub>/` in SHCO Portal.
+ * Subs: see matterSubfolders (e.g. Cause Papers, Correspondences/Acknowledgment, Letter of Engagement).
  */
 export async function storeMatterFile(opts: MatterLike & { folderId?: string; sub: MatterSub; file: File; uploadedBy: string }): Promise<StoredMatterFile> {
   const description = opts.sub + ' for ' + opts.ref + ' uploaded by ' + opts.uploadedBy;
-  if (opts.folderId) return storeIn([opts.sub], opts.file, opts.uploadedBy, { baseId: opts.folderId, description });
+  if (opts.folderId) return storeIn(opts.sub.split('/'), opts.file, opts.uploadedBy, { baseId: opts.folderId, description });
   const c = requireDrive();
   const folder = await ensureFolderPath(c.rootFolderId, matterFolderPath(opts, c.practiceFolderNames), matterFolderDescription(opts));
-  return storeIn([opts.sub], opts.file, opts.uploadedBy, { baseId: folder, description });
+  return storeIn(opts.sub.split('/'), opts.file, opts.uploadedBy, { baseId: folder, description });
 }
 
 /**

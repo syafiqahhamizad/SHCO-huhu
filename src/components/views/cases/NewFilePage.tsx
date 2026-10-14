@@ -174,7 +174,7 @@ export const NewFilePage: React.FC = () => {
     addCase(kase);
     incrementSequenceCounter('case');
     setDone(kase);
-    // Every new file gets its Google Drive folder straight away (SHCO Portal › Matters › <area> › <NNN - title>, with its 5 sub-folders).
+    // Every new file gets its Google Drive folder straight away (SHCO Portal › Case files › <area> › <NNN - title>, with its practice-area sub-folders).
     if (activeStorage() === 'drive') {
       void (async () => {
         try {

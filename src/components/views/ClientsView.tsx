@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { clientRef } from '../../lib/clientNumbers';
+import { MY_STATES, formatAddress, parseAddress, type AddressParts } from '../../lib/address';
 import { askForm } from '../ui/askForm';
 import {
   CircleCheck, CircleDashed, Clock, Download, Eye, Folder, Key, Lock, Mail, MessageCircle, Plus, Search, ShieldCheck, Trash2, Upload, Users,
@@ -30,11 +32,10 @@ import {
  */
 
 const LABEL = 'font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#5B6478';
-const INPUT = 'width:100%;border:1px solid #DDE3EB;border-radius:6px;padding:7px 9px;font-size:12px;color:#16223A;background:#fff;outline-color:#3D6B9C';
+const INPUT = 'width:100%;border:1px solid #DDE3EB;border-radius:6px;padding:7px 9px;font-size:12px;color:#16223A;background:#fff;outline-color:#3D6B9C;font-family:Arial,Helvetica,sans-serif';
 const CARD_HEAD = 'padding:12px 16px;border-bottom:1px solid #EEF1F5';
 const H = 'font-family:Georgia,serif;font-size:14.5px;color:#16223A';
 const pillCss = (p: { bg: string; fg: string }) => css(`justify-self:start;font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;background:${p.bg};color:${p.fg}`);
-const MONO = 'ui-monospace, monospace';
 const ENTITY_TYPES: CorporateEntityCategory[] = ['Sdn Bhd', 'Berhad', 'Enterprise', 'Sole Proprietorship', 'Partnership', 'LLP', 'Society/Association', 'Foreign Corp', 'Government / Statutory Body', 'Cooperative (Koperasi)'];
 const FILE_PILL: Record<string, { bg: string; fg: string }> = { Active: P.g, Pending: P.a, Closed: P.n, Archive: P.r };
 const HIST_C: Record<string, string> = { edit: '#3D6B9C', kyc: '#8A6D3B', conflict: '#8E2A20', portal: '#2F4F7A', file: '#16223A' };
@@ -52,6 +53,30 @@ const CommitField: React.FC<{ value: string; onCommit: (v: string) => void; mult
   return multiline
     ? <textarea rows={2} {...common} onChange={(e) => setDraft(e.target.value)} />
     : <input {...common} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />;
+};
+
+/** Client address as the usual letter lines: address 1, address 2, postcode, city, state. Saves on blur. */
+const AddressFields: React.FC<{ value: string; onCommit: (v: string) => void }> = ({ value, onCommit }) => {
+  const [a, setA] = useState<AddressParts>(() => parseAddress(value));
+  const focused = useRef(false);
+  useEffect(() => { if (!focused.current) setA(parseAddress(value)); }, [value]);
+  const done = (next: AddressParts) => { focused.current = false; const v = formatAddress(next); if (v !== value) onCommit(v); };
+  const fld = (k: keyof AddressParts, label: string, col: string, ph = '') => (
+    <label style={css(`display:flex;flex-direction:column;gap:4px;grid-column:${col}`)}><span style={css(LABEL)}>{label}</span>
+      {k === 'state'
+        ? <select value={a.state} onChange={(e) => { const n = { ...a, state: e.target.value }; setA(n); done(n); }} style={css(INPUT)}><option value="">—</option>{MY_STATES.map((x) => <option key={x} value={x}>{x}</option>)}</select>
+        : <input value={a[k]} placeholder={ph} onFocus={() => { focused.current = true; }} onChange={(e) => setA({ ...a, [k]: e.target.value })} onBlur={() => done(a)} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} style={css(INPUT)} />}
+    </label>
+  );
+  return (
+    <>
+      {fld('line1', 'Address line 1', '1 / -1', 'e.g. No. 125-2, Jalan Lavender Heights 3')}
+      {fld('line2', 'Address line 2', '1 / -1', 'e.g. Pusat Perniagaan Lavender Heights')}
+      {fld('postcode', 'Postcode', 'auto', 'e.g. 70400')}
+      {fld('city', 'City / town', 'span 2', 'e.g. Seremban')}
+      {fld('state', 'State', 'auto')}
+    </>
+  );
 };
 
 type Tier = 'fin' | 'partner' | 'lawyer';
@@ -128,7 +153,7 @@ export const ClientsView: React.FC = () => {
         <div style={css('display:flex;flex-direction:column;gap:6px;min-width:0;flex:1 1 360px')}>
           <strong style={css('font-family:Georgia,serif;font-size:21px;color:#16223A;line-height:1.25')}>{c.name}</strong>
           <div style={css('display:flex;flex-wrap:wrap;gap:6px;align-items:center')}>
-            <span style={css('font-family:ui-monospace,monospace;font-size:10.5px;font-weight:700;color:#16223A;background:#F1F4F7;border:1px solid #DDE3EB;border-radius:5px;padding:2px 7px')}>{c.id}</span>
+            <span style={css('font-family:ui-monospace,monospace;font-size:10.5px;font-weight:700;color:#16223A;background:#F1F4F7;border:1px solid #DDE3EB;border-radius:5px;padding:2px 7px')}>{clientRef(c)}</span>
             <span style={css('font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;background:#E4ECF5;color:#2F4F7A')}>{isCo ? 'Company · ' + (c.entityCategory || 'Company') : 'Individual'}</span>
             {(c.tags || []).map((t) => <span key={t} style={css('font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;background:#FBF2E9;color:#8A6D3B;border:1px solid #E8D6B5')}>{t}</span>)}
           </div>
@@ -260,29 +285,35 @@ export const ClientsView: React.FC = () => {
     const rows = kycRowsOf(c);
     const all = kycOverall(c);
     const others = otherKycDocs(c);
-    const folder = clientFolderName(c.name, c.id);
+    const folder = clientFolderName(c.name, clientRef(c));
     const view = async (k: KycDoc) => {
       if (k.driveFileId || k.webViewLink) { const err = await openStoredFile({ driveFileId: k.driveFileId, webViewLink: k.webViewLink }); if (err) showToast(err); return; }
       if (k.dataUrl) { const err = openLegacyDataUrl(k.dataUrl, k.name); if (err) showToast(err); return; }
-      showToast('Only the name of this document was recorded. There is no stored copy.');
+      showToast('This entry has no copy in Google Drive (only its name was recorded). Use Replace to upload the document.');
     };
-    const upload = async (key: KycReqKey, label: string, file: File) => {
+    const upload = async (key: KycReqKey, label: string, file: File, replace?: KycDoc) => {
       if (!isUploadReady()) { showToast(DRIVE_REQUIRED_MSG); return; }
       const problem = validateClaimFile(file);
       if (problem) { showToast(problem); return; }
       try {
         await prepareStorage();
-        const up = await storeClientKycFile({ id: c.id, name: c.name }, file, me);
+        const up = await storeClientKycFile({ id: clientRef(c), name: c.name }, file, me);
         const doc: KycDoc = {
-          id: 'KYC-' + Date.now(), name: file.name, type: label, uploadedDate: up.uploadedAt.slice(0, 10), driveFolder: 'Clients/' + folder + '/KYC',
+          id: 'KYC-' + Date.now(), name: file.name, type: label, uploadedDate: up.uploadedAt.slice(0, 10), driveFolder: 'Clients KYC/' + folder + '/KYC',
           driveFileId: up.driveFileId, webViewLink: up.webViewLink, size: up.size, contentType: up.contentType, uploadedAt: up.uploadedAt, uploadedBy: up.uploadedBy,
           requirement: key, status: 'To verify',
         };
-        save({ kyc: [...(c.kyc || []), doc] }, 'KYC uploaded: ' + label + ' (' + file.name + ')', 'kyc');
+        save({ kyc: [...(c.kyc || []).filter((k) => k.id !== replace?.id), doc] }, (replace ? 'KYC replaced: ' : 'KYC uploaded: ') + label + ' (' + file.name + ')', 'kyc');
         showToast(file.name + ' saved to Drive. Waiting for verification');
       } catch (err) {
         showToast('Not uploaded: ' + (err instanceof Error ? err.message : String(err)));
       }
+    };
+    /** Takes the entry off the list (the file stays in Drive); the requirement shows as missing again. */
+    const removeDoc = (doc: KycDoc, label: string) => {
+      if (!window.confirm('Remove ' + label + ' (' + doc.name + ') from this client? The copy in Google Drive is kept.')) return;
+      save({ kyc: (c.kyc || []).filter((k) => k.id !== doc.id) }, 'KYC removed: ' + label + ' (' + doc.name + ')', 'kyc');
+      showToast(label + ' removed');
     };
     const verify = (doc: KycDoc, label: string) => {
       const at = new Date().toISOString();
@@ -294,7 +325,7 @@ export const ClientsView: React.FC = () => {
       const w = window.open('', '_blank');
       try {
         await prepareStorage();
-        const f = await ensureClientKycFolder({ id: c.id, name: c.name });
+        const f = await ensureClientKycFolder({ id: clientRef(c), name: c.name });
         if (!f) throw new Error(DRIVE_REQUIRED_MSG);
         if (w) w.location.href = f.url; else window.open(f.url, '_blank', 'noopener');
       } catch (err) {
@@ -331,7 +362,7 @@ export const ClientsView: React.FC = () => {
             const dt = r.doc ? ddmmyyyy(r.doc.uploadedAt || r.doc.uploadedDate) : '';
             const canUpload = r.state === 'Missing';
             return (
-              <div key={r.key} style={css('display:grid;grid-template-columns:28px minmax(0,1fr) 110px 120px 200px;gap:12px;align-items:center;padding:11px 16px;border-bottom:1px solid #F0F2F5')}>
+              <div key={r.key} style={css('display:grid;grid-template-columns:28px minmax(0,1fr) 110px 120px 260px;gap:12px;align-items:center;padding:11px 16px;border-bottom:1px solid #F0F2F5')}>
                 {icon(r.state, p.fg)}
                 <span style={css('min-width:0')}><span style={css('display:block;font-size:12px;font-weight:700;color:#16223A')}>{r.label}</span><span style={css('display:block;font-size:10.5px;color:#5B6478')}>{r.hint}</span></span>
                 <span style={pillCss(p)}>{p.t}</span>
@@ -340,6 +371,8 @@ export const ClientsView: React.FC = () => {
                   {canUpload && <label title={isUploadReady() ? undefined : DRIVE_REQUIRED_MSG} onClick={(e) => { if (!isUploadReady()) { e.preventDefault(); showToast(DRIVE_REQUIRED_MSG); } }} style={css('display:flex;align-items:center;gap:5px;border:0;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;background:#16223A;color:#fff;cursor:pointer')}><Upload size={12} color="#FFFFFF" />Upload<input type="file" accept="image/*,.pdf" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void upload(r.key, r.label, f); }} style={css('display:none')} /></label>}
                   {r.state === 'To verify' && tier !== 'lawyer' && r.doc && <button type="button" onClick={() => verify(r.doc!, r.label)} style={css('border:1px solid #1F5A3B;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;background:#E6EFE9;color:#1F5A3B;cursor:pointer;white-space:nowrap')}>Mark verified</button>}
                   {(r.state === 'Verified' || r.state === 'To verify') && r.doc && <button type="button" onClick={() => view(r.doc!)} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;background:#fff;color:#16223A;cursor:pointer')}>View</button>}
+                  {(r.state === 'Verified' || r.state === 'To verify') && r.doc && <label title="Upload a new copy to Google Drive (it then needs verifying again)" onClick={(e) => { if (!isUploadReady()) { e.preventDefault(); showToast(DRIVE_REQUIRED_MSG); } }} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;background:#fff;color:#16223A;cursor:pointer')}>Replace<input type="file" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void upload(r.key as KycReqKey, r.label, f, r.doc!); }} /></label>}
+                  {(r.state === 'Verified' || r.state === 'To verify') && r.doc && tier !== 'lawyer' && <button type="button" title="Remove from this client (the Drive copy stays)" onClick={() => removeDoc(r.doc!, r.label)} style={css('border:1px solid #E7C3BE;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;background:#fff;color:#8E2A20;cursor:pointer')}>Remove</button>}
                   {r.state === 'Missing' && r.required && <button type="button" title="This client does not need it" onClick={() => dropDoc(r.key, r.label)} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;background:#fff;color:#5B6478;cursor:pointer;white-space:nowrap')}>Not needed</button>}
                 </span>
               </div>
@@ -510,7 +543,7 @@ const ProfileTab: React.FC<{ c: Client; ccPill: Pill; ccState: string; tier: Tie
   ];
   const em: F[] = [{ label: 'Name', key: 'emergencyContactName', col: '1 / -1' }, { label: isCo ? 'Role' : 'Relationship', key: 'emergencyContactRelationship' }, { label: 'Phone', key: 'emergencyContactPhone', mono: true }];
   const input = (f: F) => {
-    const st = css(INPUT + `;font-family:${f.mono ? MONO : 'inherit'}`);
+    const st = css(INPUT);
     if (f.select) return <select value={fieldVal(f.key)} onChange={(e) => commit(f)(e.target.value)} style={st}>{!fieldVal(f.key) && <option value="">—</option>}{f.select.map((o) => <option key={o} value={o}>{o}</option>)}</select>;
     if (f.multi) return <CommitField multiline value={fieldVal(f.key)} onCommit={commit(f)} aria-label={f.label} style={css(INPUT + ';line-height:1.5;resize:vertical')} />;
     return <CommitField value={fieldVal(f.key)} onCommit={commit(f)} aria-label={f.label} style={st} />;
@@ -543,7 +576,7 @@ const ProfileTab: React.FC<{ c: Client; ccPill: Pill; ccState: string; tier: Tie
         <div style={css('grid-column:1 / -1;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
           <div style={css(CARD_HEAD)}><strong style={css(H)}>{isCo ? 'Company & contact' : 'Client details'}</strong></div>
           <div style={css('display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:14px 16px')}>
-            {det.map((f) => <label key={String(f.key)} style={css(`display:flex;flex-direction:column;gap:4px;grid-column:${f.col || 'auto'}`)}><span style={css(LABEL)}>{f.label}</span>{input(f)}</label>)}
+            {det.map((f) => (f.key === 'address' ? <AddressFields key="address" value={fieldVal('address')} onCommit={commit(f)} /> : <label key={String(f.key)} style={css(`display:flex;flex-direction:column;gap:4px;grid-column:${f.col || 'auto'}`)}><span style={css(LABEL)}>{f.label}</span>{input(f)}</label>))}
           </div>
         </div>
         <div style={css('border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
@@ -591,7 +624,7 @@ const ClientList: React.FC<{
   }, [clients, cases, src, seeBilling]);
   const I = (c: Client) => info.get(c.id) || { files: [], owes: 0, kyc: kycOverall(c) };
   const s = q.trim().toLowerCase();
-  const byQ = (x: Client) => !s || [x.name, x.id, idNoOf(x), x.icNo, x.icNumber, x.registrationNo, x.phone, x.email, x.contactPerson, ...(x.tags || [])].join(' ').toLowerCase().includes(s);
+  const byQ = (x: Client) => !s || [x.name, x.id, x.clientNo, idNoOf(x), x.icNo, x.icNumber, x.registrationNo, x.phone, x.email, x.contactPerson, ...(x.tags || [])].join(' ').toLowerCase().includes(s);
   const byT = (x: Client) => type === 'All' || x.type === type;
   const CF: Record<string, (x: Client) => boolean> = {
     kyc: (x) => !I(x).kyc.done,
@@ -663,7 +696,7 @@ const ClientList: React.FC<{
               <div key={x.id} onClick={() => onOpen(x.id)} className="bg-white hover:bg-[#F6F8FA]" style={css(COLS + 'align-items:center;padding:11px 14px;border-bottom:1px solid #F0F2F5;cursor:pointer')}>
                 <span style={css('display:flex;align-items:center;gap:10px;min-width:0')}>
                   <span style={css(`width:32px;height:32px;flex-shrink:0;border-radius:${isCo ? '8px' : '9999px'};display:grid;place-items:center;font-size:11px;font-weight:800;color:#fff;background:${isCo ? '#3D6B9C' : '#16223A'}`)}>{initials(x.name)}</span>
-                  <span style={css('display:flex;flex-direction:column;gap:2px;min-width:0')}><span style={css('font-size:12.5px;font-weight:700;color:#16223A;line-height:1.35')}>{x.name}</span><span style={css('font-size:10.5px;color:#5B6478')}>{x.id + ' · ' + (isCo ? x.entityCategory || 'Company' : 'Individual') + ((x.tags || []).length ? ' · ' + (x.tags || []).join(', ') : '')}</span></span>
+                  <span style={css('display:flex;flex-direction:column;gap:2px;min-width:0')}><span style={css('font-size:12.5px;font-weight:700;color:#16223A;line-height:1.35')}>{x.name}</span><span style={css('font-size:10.5px;color:#5B6478')}>{clientRef(x) + ' · ' + (isCo ? x.entityCategory || 'Company' : 'Individual') + ((x.tags || []).length ? ' · ' + (x.tags || []).join(', ') : '')}</span></span>
                 </span>
                 <span style={css('font-family:ui-monospace,monospace;font-size:11px;color:#1E293B')}>{idNoOf(x) || '—'}</span>
                 <span style={css('display:flex;flex-direction:column;gap:2px;min-width:0')}><span style={css('font-weight:600;color:#16223A')}>{x.phone || '—'}</span><span style={css('font-size:11px;color:#5B6478;overflow:hidden;text-overflow:ellipsis;white-space:nowrap')}>{x.email}</span></span>

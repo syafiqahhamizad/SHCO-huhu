@@ -52,7 +52,7 @@ interface DriveConfig {
   /** "SHCO Finance" Shared Drive (partners / Accounts). '' = use Finance/ inside the root. */
   financeFolderId: string;
   financeFolderName: string;
-  /** Practice area name → folder name under Matters/ (blank = the area name). */
+  /** Practice area name → folder name under Case files/ (blank = the area name). */
   practiceFolderNames: Record<string, string>;
   /** Where the client ID came from, for the settings card. */
   clientIdSource: 'env' | 'settings' | 'none';
@@ -203,6 +203,26 @@ export async function ensureFolderPath(rootId: string, parts: string[], lastDesc
   let id = rootId;
   for (let i = 0; i < parts.length; i += 1) id = await findOrCreateFolder(id, parts[i], i === parts.length - 1 ? lastDescription : undefined);
   return id;
+}
+
+/**
+ * Renames the sub-folder `oldName` of `parentId` to `newName` (when it exists and no folder already
+ * has the new name). Returns true when renamed. Used when clients get their new numbers.
+ */
+export async function renameChildFolder(parentId: string, oldName: string, newName: string): Promise<boolean> {
+  const from = driveSafeName(oldName), to = driveSafeName(newName);
+  if (from === to) return false;
+  const find = async (name: string) => {
+    const query = "name = '" + esc(name) + "' and '" + esc(parentId) + "' in parents and mimeType = '" + FOLDER_MIME + "' and trashed = false";
+    const res = await driveFetch(API + '/files' + q({ q: query, fields: 'files(id,name)', includeItemsFromAllDrives: 'true', corpora: 'allDrives', pageSize: '1' }));
+    return ((await res.json() as { files?: DriveFile[] }).files || [])[0];
+  };
+  const old = await find(from);
+  if (!old || await find(to)) return false;
+  await driveFetch(API + '/files/' + encodeURIComponent(old.id) + q({ fields: 'id' }), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: to }) });
+  folderCache.delete(parentId + '/' + from);
+  folderCache.set(parentId + '/' + to, Promise.resolve(old.id));
+  return true;
 }
 
 /* ------------------------------------------------------------------ files */

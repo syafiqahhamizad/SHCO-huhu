@@ -97,13 +97,11 @@ export const defaultSstRate = (): number => {
   return Number(s.sstRate) || 0;
 };
 
-export const FIRM = { reg: 'Firm Reg. No.: [to be set]', name: 'SYAFIQAH HAMIZAD & CO', addr: '8-23-03 (2nd Floor), Jalan Medan Pusat Bandar 7A, Bangi Sentral, 43650 Bandar Baru Bangi, Selangor', email: 'billing@shcolaw.com', tel: '+603-8684 1998 / +6011-7382 8754', tag1: 'Advocates & Solicitors | Syarie Counsel', tag2: 'Peguambela & Peguamcara | Peguam Syarie', header: '' };
-/** Lines under the logo on the firm's letterhead (HQ). */
+export const FIRM = { reg: 'Firm Reg. No.: 000020008754', name: 'SYAFIQAH HAMIZAD & CO', addr: '8-23-03 (2nd Floor), Jalan Medan Pusat Bandar 7A, Bangi Sentral, 43650 Bandar Baru Bangi, Selangor', email: 'billing@shcolaw.com', tel: '+603-8684 1998 / +6011-7382 8754', tag1: 'Advocates & Solicitors | Syarie Counsel', tag2: 'Peguambela & Peguamcara | Peguam Syarie', header: '' };
+/** Lines under the logo on the firm's letterhead (Letterhead as at 2.7.2026); the Firm Reg. No. goes first. */
 const LETTER_LINES = [
   '8-23-03 (2nd Floor), Jalan Medan Pusat Bandar 7A, Bangi Sentral, 43650 Bandar Baru Bangi, Selangor',
-  'General email: shco@shcolaw.com',
-  'Litigation email: litigation@shcolaw.com | Conveyancing: conveyancing@shcolaw.com',
-  'Corporate: corporate@shcolaw.com',
+  'Email: shco@shcolaw.com',
   'Phone Number: +603-8684 1998 / +6011-7382 8754 (WhatsApp)',
   '(Registered address is a shared office facility | Meetings by appointment only)',
 ];
@@ -246,7 +244,15 @@ ${terms.map((x, i) => { const m2 = x.match(/^([^:]{3,40}):\s*(.*)$/); return `<p
 const wrap = (title: string, body: string) => `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>@page{size:A4;margin:14mm 16mm}body{margin:0}</style></head><body>${body}</body></html>`;
 const dl = (blob: Blob, name: string) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500); };
 /** Word (.doc) download of the same HTML. */
-export const word = (title: string, body: string) => dl(new Blob(['﻿', `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>${esc(title)}</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]--><style>@page{size:21cm 29.7cm;margin:1.4cm 1.6cm}</style></head><body>${body}</body></html>`], { type: 'application/msword' }), title + '.doc');
+/** Word: the letter footer (class lh-foot) becomes a real page footer, so it shows on every page. */
+const WORD_FOOT_CSS = '@page WordSection1{size:21cm 29.7cm;margin:1.4cm 1.6cm 2.6cm;mso-footer:f1;mso-footer-margin:.8cm}div.WordSection1{page:WordSection1}';
+const wordBody = (body: string) => {
+  const m = body.match(/<div class="lh-foot"[\s\S]*?<!--\/lh-foot-->/);
+  if (!m) return body;
+  const rest = body.replace(m[0], '').replace(/<style>@media print[^<]*<\/style>/, '');
+  return `<div class="WordSection1">${rest}<table style="margin-left:50in"><tr><td><div style="mso-element:footer" id="f1">${m[0].replace(' class="lh-foot"', '').replace(/margin-top:24pt;/, '')}</div></td></tr></table></div>`;
+};
+export const word = (title: string, body: string) => dl(new Blob(['﻿', `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>${esc(title)}</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]--><style>@page{size:21cm 29.7cm;margin:1.4cm 1.6cm}${WORD_FOOT_CSS}</style></head><body>${wordBody(body)}</body></html>`], { type: 'application/msword' }), title + '.doc');
 /** PDF via the browser print dialog of the same HTML (server-side PDF recommended in production). */
 export const pdf = (title: string, body: string) => { const f = document.createElement('iframe'); f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'; document.body.appendChild(f); const w = f.contentWindow; if (!w) return; w.document.open(); w.document.write(wrap(title, body)); w.document.close(); setTimeout(() => { try { w.focus(); w.print(); } catch (e) { /* print blocked */ } setTimeout(() => f.remove(), 60000); }, 500); };
 export const csv = (title: string, rows: unknown[][]) => dl(new Blob(['﻿' + rows.map((r) => r.map((c) => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n')], { type: 'text/csv' }), title + '.csv');
@@ -321,7 +327,7 @@ if (typeof window !== 'undefined') {
 /** The firm's one letterhead (every letter, whatever the branch): the logo, the address / e-mail /
  * phone lines and the footer of "Letterhead as at 2.7.2026". An image uploaded in Firm & Practice
  * Settings → Firm & Letterhead replaces the logo and lines. */
-const LETTER_FOOTER = { hours: [['Selangor Branch', 'Monday to Friday', '9.00am – 5.00pm'], ['Terengganu Branch', 'Sunday to Thursday', '9.00am to 5.00pm']] as [string, string, string][], note: 'Note: Kindly quote our reference in reply to our correspondences' };
+const LETTER_FOOTER = { branch: ['Terengganu Branch:', 'No. 3B, Lot 12039-1 Bangunan 6 Unit 3,', 'Tingkat Cerang Guling, 21400 Marang, Terengganu', 'Email: trg@shcolaw.com', 'Phone number: +6014-503 2290'], hours: [['Selangor Branch', 'Monday to Friday', '9.00am – 5.00pm'], ['Terengganu Branch', 'Sunday to Thursday', '9.00am to 5.00pm']] as [string, string, string][], note: 'Note: Kindly quote our reference in reply to our correspondences' };
 export const letterheadFor = (_branchName?: string): LetterheadInfo => {
   const s = getPracticeSettings();
   const brs = s.branches || [];
@@ -330,7 +336,7 @@ export const letterheadFor = (_branchName?: string): LetterheadInfo => {
     image: hq?.letterheadImage || FIRM.header || undefined,
     logo: LOGO.name,
     fullLogo: LOGO.full,
-    lines: LETTER_LINES,
+    lines: [FIRM.reg, ...LETTER_LINES],
     footer: LETTER_FOOTER,
     firmName: FIRM.name, tag1: FIRM.tag1, tag2: FIRM.tag2, reg: FIRM.reg,
     address: FIRM.addr, email: FIRM.email, tel: FIRM.tel,

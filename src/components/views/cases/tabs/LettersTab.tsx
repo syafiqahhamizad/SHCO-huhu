@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { escapeHtml } from '../../../../lib/html';
 import type { CaseDocument } from '../../../../types';
-import { exportToWordDoc } from '../../../../lib/exportUtils';
 import { EngagementLetterActions, LangToggle, branchOfCase, engagementInputFor } from '../EngagementLetter';
-import { letterheadFor, loadLogos } from '../../../../lib/financeDocs';
+import { letterheadFor, loadLogos, word } from '../../../../lib/financeDocs';
 import { letterFooterHtml, letterheadHtml, quotationForFile, type DocLang } from '../../../../lib/engagementLetter';
 import { useApp } from '../../../../context/AppContext';
 import { prepareStorage, storeEngagementFile, storeMatterFile, openLegacyDataUrl, openStoredFile, useStorageLabel } from '../../../../services/fileStorageService';
-import { matterSubFor } from '../../../../lib/driveLayout';
+import { folderLabel, matterSubFor, practiceKind, uploadFolders } from '../../../../lib/driveLayout';
 import { css, S, Card } from '../caseUi';
 import { courtOf, daysFrom, fmt, isoOf, lawyerOf } from '../caseModel';
 import { histEntry, newId, type WF } from '../wf';
@@ -15,17 +14,23 @@ import { histEntry, newId, type WF } from '../wf';
 const LOE = 'Letter of Engagement';
 const TEMPLATES = [LOE, 'Letter to client: next court date', 'Letter to opposing solicitors', 'Affidavit (blank, with intitulement)', 'Notice of change of solicitors', 'Closing letter to client'];
 /** Upload categories → where the file goes (matter sub-folder in SHCO Portal, or SHCO Finance). */
-const ENGAGEMENT = 'Engagement & Billing';
-const UPLOAD_CATS = ['Correspondence', 'Court Papers', 'Client Documents', 'Research', 'Closing', ENGAGEMENT];
+/** Quotations, invoices and receipts → the SHCO Finance drive (partners / Accounts only). */
+const ENGAGEMENT = 'Billing (Finance drive)';
+/** Letters that only make sense for court work. */
+const COURT_ONLY = new Set(['Letter to client: next court date', 'Affidavit (blank, with intitulement)', 'Notice of change of solicitors']);
 const esc = escapeHtml;
 
 export const LettersTab: React.FC<{ w: WF }> = ({ w }) => {
   const { c, parties, me, ro } = w;
   const { clients = [], quotations = [], users = [] } = useApp();
   const storage = useStorageLabel();
+  // Upload choices and letter templates follow the practice area (court work / conveyancing / corporate).
+  const area = c.practiceArea || c.type;
+  const UPLOAD_CATS = [...uploadFolders(area), ENGAGEMENT];
+  const templates = practiceKind(area) === 'court' ? TEMPLATES : TEMPLATES.filter((x) => !COURT_ONLY.has(x));
   const [tpl, setTpl] = useState(TEMPLATES[0]);
   const [busy, setBusy] = useState(false);
-  const [upCat, setUpCat] = useState('Correspondence');
+  const [upCat, setUpCat] = useState('Correspondences');
   // Letter of Engagement: fees from the file's accepted quotation, else its latest one not declined.
   // Quotations the viewer cannot read are simply absent → the letter says "as per our quotation".
   const quote = quotationForFile(quotations, c);
@@ -53,7 +58,7 @@ export const LettersTab: React.FC<{ w: WF }> = ({ w }) => {
       'Notice of change of solicitors': `${intit}<p style="text-align:center"><strong>NOTICE OF CHANGE OF SOLICITORS</strong></p><p>TAKE NOTICE that Messrs. Syafiqah Hamizad &amp; Co have been appointed to act for ${esc(client?.name || '[party]')} in place of [previous solicitors].</p><p>Dated: ${esc(today)}</p>`,
       'Closing letter to client': `${head}<p>${esc(client?.name || '[Client]')}</p>${re}<p>We are pleased to inform you that the above matter has been concluded and we are closing our file. Original documents held by us have been / will be returned to you. Our file will be kept for 7 years from the date of closing.</p><p>Thank you for your instructions.</p>${sign}`,
     };
-    exportToWordDoc(tpl.replace(/[^\w]+/g, '_') + '_' + c.ref.replace(/\//g, '-'), body[tpl] + (body[tpl].startsWith(head) ? letterFooterHtml(letterheadFor()) : ''));
+    word(tpl.replace(/[^\w]+/g, '_') + '_' + c.ref.replace(/\//g, '-'), `<div style="font-family:Arial,Helvetica,sans-serif;font-size:10.5pt;line-height:1.45;text-align:justify;color:#000">${body[tpl]}${body[tpl].startsWith(head) ? letterFooterHtml(letterheadFor()) : ''}</div>`);
     w.save({}, 'Draft generated: ' + tpl, 'Document Upload');
     w.toast('Draft "' + tpl + '" downloaded as a Word file. Check and finalise before sending');
   };
@@ -62,13 +67,13 @@ export const LettersTab: React.FC<{ w: WF }> = ({ w }) => {
     setBusy(true);
     try {
       await prepareStorage();
-      const dest = matterSubFor(upCat);
+      const dest = matterSubFor(upCat, area);
       const st = dest === 'finance'
         ? await storeEngagementFile({ ref: c.ref, title: c.title }, file, me)
         : await storeMatterFile({ ref: c.ref, title: c.title, practiceArea: c.practiceArea, type: c.type, folderId: c.gdriveFolderId, sub: dest, file, uploadedBy: me });
       const doc: CaseDocument & { driveFileId?: string; storagePath?: string } = { id: newId('DOC'), name: st.name, category: upCat, uploadedDate: isoOf(st.uploadedAt), driveUrl: st.webViewLink, mimeType: st.contentType, driveFileId: st.driveFileId, storagePath: st.storagePath };
       w.save({ documents: [doc, ...(c.documents || [])], activityLogs: [histEntry('Document uploaded: ' + st.name, me, 'Document Upload'), ...(c.activityLogs || [])] });
-      w.toast('Uploaded to ' + (dest === 'finance' ? 'SHCO Finance › Files' : dest) + '. ' + storage);
+      w.toast('Uploaded to ' + (dest === 'finance' ? 'SHCO Finance › Files' : folderLabel(dest)) + '. ' + storage);
     } catch (e) { w.toast('Not uploaded: ' + (e instanceof Error ? e.message : String(e))); }
     setBusy(false);
   };
@@ -92,7 +97,7 @@ export const LettersTab: React.FC<{ w: WF }> = ({ w }) => {
       <Card>
         <div style={css(S.head)}><strong style={css('font-family:Georgia, serif;font-size:15px;color:#16223A')}>Generate from template</strong><span style={css('margin-left:auto;font-size:12px;color:#4A5468')}>Filled from this file</span></div>
         <div style={css('padding:14px 16px;display:flex;flex-direction:column;gap:12px')}>
-          <label style={css('display:flex;flex-direction:column;gap:5px')}><span style={css(S.label)}>Template</span><select value={tpl} onChange={(e) => setTpl(e.target.value)} style={css(S.input)}>{TEMPLATES.map((t) => <option key={t} value={t}>{t}</option>)}</select></label>
+          <label style={css('display:flex;flex-direction:column;gap:5px')}><span style={css(S.label)}>Template</span><select value={tpl} onChange={(e) => setTpl(e.target.value)} style={css(S.input)}>{templates.map((t) => <option key={t} value={t}>{t}</option>)}</select></label>
           <div style={css('border:1px solid #EEF1F5;border-radius:8px')}>
             {fields.map(([k, v]) => <div key={k} style={css('display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px;padding:7px 12px;border-top:1px solid #F0F2F5;font-size:12.5px')}><span style={css('color:#4A5468')}>{k}</span><span style={css('color:#16223A;font-weight:600')}>{v}</span></div>)}
           </div>
@@ -114,7 +119,7 @@ export const LettersTab: React.FC<{ w: WF }> = ({ w }) => {
       </Card>
       <Card style="grid-column:1/-1">
         <div style={css(S.head)}><strong style={css('font-family:Georgia, serif;font-size:15px;color:#16223A')}>Documents</strong><span style={css(S.sub)}>{storage.replace('Saved to', 'Uploads go to')}</span>
-          {!ro && <select value={upCat} onChange={(e) => setUpCat(e.target.value)} title={upCat === ENGAGEMENT ? 'Saved to the SHCO Finance Shared Drive (partners / Accounts)' : 'Saved to this file’s ' + upCat + ' folder'} style={css('margin-left:auto;border:1px solid #C9D1DC;border-radius:8px;padding:6px 8px;font-size:12px;font-family:inherit;color:#16223A;background:#fff')}>{UPLOAD_CATS.map((k) => <option key={k} value={k}>{k}</option>)}</select>}
+          {!ro && <select value={upCat} onChange={(e) => setUpCat(e.target.value)} title={upCat === ENGAGEMENT ? 'Saved to the SHCO Finance Shared Drive (partners / Accounts)' : 'Saved to this file’s ' + folderLabel(upCat) + ' folder'} style={css('margin-left:auto;border:1px solid #C9D1DC;border-radius:8px;padding:6px 8px;font-size:12px;font-family:inherit;color:#16223A;background:#fff')}>{UPLOAD_CATS.map((k) => <option key={k} value={k}>{folderLabel(k)}</option>)}</select>}
           {!ro && <label style={css(S.btnPri + (busy ? ';opacity:.5' : ''))}><input type="file" style={css('display:none')} onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void upload(file); }} />{busy ? 'Uploading…' : '+ Upload document'}</label>}
         </div>
         {docs.map((d) => (

@@ -280,7 +280,7 @@ export interface PracticeSettings {
    * root folder (all staff can see it). */
   driveFinanceFolderId?: string;
   driveFinanceFolderName?: string;
-  /** Practice area name → folder name under `Matters/` in SHCO Portal (blank = the area name). */
+  /** Practice area name → folder name under `Case files/` in SHCO Portal (blank = the area name). */
   drivePracticeFolderNames?: Record<string, string>;
   /** OAuth 2.0 Web client ID used for Google Drive access (overridden by VITE_GOOGLE_OAUTH_CLIENT_ID). */
   googleOAuthClientId?: string;

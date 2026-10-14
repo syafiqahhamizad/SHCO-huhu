@@ -53,7 +53,12 @@ function toTitleCase(str: string): string {
 /**
  * Pipeline helper to enforce normalized Title Case casing for Client names across the dashboard.
  */
-/** Title Case, without a courtesy salutation in front (Mr, Ms, Encik, Puan … — firm rule). */
+/**
+ * A client name as the firm typed it, without a courtesy salutation in front (Mr, Ms, Encik, Puan …
+ * — firm rule). Capitals are kept exactly (e.g. "HF Legacy", "ABC Sdn Bhd"); only a name typed
+ * entirely in small letters is put in Title Case.
+ */
 export function normalizeClientName(name: string): string {
-  return toTitleCase(stripSalutation(name));
+  const n = stripSalutation(name).trim().replace(/\s+/g, ' ');
+  return /[A-Z]/.test(n) ? n : toTitleCase(n);
 }

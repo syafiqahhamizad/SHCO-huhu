@@ -38,7 +38,8 @@ export const CourtTab: React.FC<{ w: WF }> = ({ w }) => {
     const change: MatterCourtChange | null = changed ? { id: newId('CC'), date: today, field: 'Court details', from: before.filter(Boolean).join(', ') || '—', to: after.filter(Boolean).join(', ') || '—', reason: 'Edited', by: w.me } : null;
     w.save({
       courtDetails: { ...(c.courtDetails || {}), level: cd.level || undefined, location: cd.loc || undefined, division: cd.div || undefined, address: cd.addr || undefined },
-      court: [cd.level, cd.loc].filter(Boolean).join(' ') || c.court,
+      // The old free-text court is replaced too, so a wrong court can be cleared for good.
+      court: [cd.level, cd.loc].filter(Boolean).join(' ') || '',
       courtCaseNo: cd.suit || undefined,
       ...(change ? { courtChanges: [change, ...(c.courtChanges || [])] } : {}),
     }, changed ? 'Court details edited' : undefined);
@@ -203,7 +204,7 @@ export const CourtTab: React.FC<{ w: WF }> = ({ w }) => {
   return (
     <>
       <Card>
-        <div style={css(S.head)}><strong style={css('font-family:Georgia, serif;font-size:15px;color:#16223A')}>Court details</strong>{!ro && <button type="button" onClick={() => setCd({ level: court.level, loc: court.location, div: court.division, suit: court.suit, addr: court.address })} style={css('margin-left:auto;' + S.btnSec)}>Edit court details</button>}</div>
+        <div style={css(S.head)}><strong style={css('font-family:Georgia, serif;font-size:15px;color:#16223A')}>Court details</strong>{!ro && <button type="button" onClick={() => setCd({ level: court.level || COURT_LEVELS.find((l) => court.name.toLowerCase().startsWith(l.toLowerCase())) || '', loc: court.location, div: court.division, suit: court.suit, addr: court.address })} style={css('margin-left:auto;' + S.btnSec)}>Edit court details</button>}</div>
         {cd && (
           <div style={css(S.formGrid(200))}>
             <Field label="Court level"><select value={cd.level} onChange={(e) => setCd({ ...cd, level: e.target.value })} style={css(S.input)}><option value="">—</option>{COURT_LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}{cd.level && !COURT_LEVELS.includes(cd.level) && <option value={cd.level}>{cd.level}</option>}</select></Field>
