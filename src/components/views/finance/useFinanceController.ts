@@ -342,6 +342,8 @@ export function useFinanceController(initialTab: FinTab) {
   /** The quotation a proforma was made from (itself for a quotation / stand-alone proforma). */
   const rootQuoteId = (q: Quotation) => (q.documentType === 'Proforma' && q.sourceQuotationId ? q.sourceQuotationId : q.id);
   const proformasOf = (rootId: string) => quotations.filter((p) => p.documentType === 'Proforma' && (p.id === rootId || p.sourceQuotationId === rootId));
+  /** The live invoice made straight from this quotation / proforma (stage billing: one per proforma). */
+  const invoiceForDoc = (docId: string) => invoices.find((i) => i.status !== 'Voided' && i.quotationId === docId);
   const invoiceForQuote = (rootId: string) => { const pf = new Set(proformasOf(rootId).map((p) => p.id)); return invoices.find((i) => i.status !== 'Voided' && !!i.quotationId && (i.quotationId === rootId || pf.has(i.quotationId))); };
   /** Office-account proforma receipts for this quotation not yet applied to another live invoice
    * (client-account money stays client money: it reaches an invoice only by a transfer). */
@@ -372,7 +374,7 @@ export function useFinanceController(initialTab: FinTab) {
       if (q.status === 'Declined') return 'Declined';
       return proformaPaid(q) >= Number(q.total || 0) - 0.005 && q.total > 0 ? 'Paid' : 'Unpaid';
     }
-    if (invoiceForQuote(q.id)) return 'Invoiced';
+    if (invoiceForDoc(q.id)) return 'Invoiced';
     if (quotations.some((p) => p.documentType === 'Proforma' && p.sourceQuotationId === q.id)) return 'Proforma made';
     if (q.status === 'Sent' && daysSince(q.documentSentDate || q.date) > (q.validityDays || Number(settings.quotationValidityDays) || 30)) return 'Expired';
     return q.status;
@@ -503,13 +505,13 @@ export function useFinanceController(initialTab: FinTab) {
       const inv = rec as Invoice, S = invStatus(inv);
       // Void: issued invoices with no money received (refund / reallocate money first).
       const canVoid = S !== 'Draft' && S !== 'Voided' && invPaid(inv) < 0.005 && !(inv.writtenOff || 0);
-      const base = S === 'Draft' ? ['Issue'] : S === 'Paid' ? ['View receipt'] : S === 'Voided' || S === 'Written off' ? ['View'] : S === 'Overdue' ? ['Remind', 'Record paid'] : ['Record paid', 'Remind'];
+      const base = S === 'Draft' ? ['Issue', 'Record paid'] : S === 'Paid' ? ['View receipt'] : S === 'Voided' || S === 'Written off' ? ['View'] : S === 'Overdue' ? ['Remind', 'Record paid'] : ['Record paid', 'Remind'];
       return canVoid ? [...base, 'Void'] : base;
     }
     const q = rec as Quotation, S = qStatus(q);
     if (q.historical) return ['View'];
     if (q.documentType === 'Proforma') {
-      const invoiced = !!invoiceForQuote(rootQuoteId(q));
+      const invoiced = !!invoiceForDoc(q.id);
       // Sending is offered, never required: a draft proforma can be paid or invoiced straight away.
       const base = S === 'Draft' ? ['Send', 'Record payment'] : S === 'Paid' ? ['View receipt'] : S === 'Declined' ? ['View'] : ['Record payment', 'Remind'];
       return S !== 'Declined' && !invoiced ? [...base, 'Convert to invoice'] : base;
@@ -1113,6 +1115,7 @@ export function useFinanceController(initialTab: FinTab) {
       setRem({ kind, id: rec.id, to: c?.email || '', subj: (n ? 'Second reminder' : 'Payment reminder') + ': ' + docNo + ' · ' + amt + ' outstanding', body: `Dear ${who},\n\nRe: ${(inv?.matter || (rec as Quotation).matter || '')}\n\nOur records show that ${docNo} dated ${fd(rec.date)} has an outstanding balance of ${amt}${inv ? ', now ' + days + ' days past due' : ''}.\n\nWe would be grateful if payment could be made to our office account:\n${bank}\nPlease quote ${docNo} as the payment reference.\n\nIf payment has already been made, kindly send us the bank-in slip and disregard this reminder.\n\nThank you.\n\nYours faithfully,\n${SD.FIRM.name}`, attach: true, viaE: true, viaW: !!c?.phone, phone: c?.phone || '', wa: `Salam / Hi ${who}, a reminder from ${SD.FIRM.name}: ${docNo} has ${amt} outstanding${inv ? ' (' + days + ' days overdue)' : ''}. Please pay to ${SD.BANK.Office[0]} ${SD.BANK.Office[2]} (${SD.BANK.Office[1]}) quoting ${docNo}. If already paid, kindly send us the bank-in slip. Thank you.` });
       return;
     }
+    if (a === 'Record paid' && kind === 'invoice' && invStatus(rec as Invoice) === 'Draft') act(kind, rec, 'Issue', todayIso()); // paying a draft issues it today
     if (a === 'Record payment' || a === 'Record paid') { const bal = kind === 'invoice' ? invBal(rec as Invoice) : Number((rec as Quotation).total || 0) - proformaPaid(rec as Quotation); setForm({ kind: 'pay', vals: { docKind: kind, docId: rec.id, title: docNo, amount: String(Math.round(bal * 100) / 100), date: fd(Date.now()) } }); return; }
     if (a === 'View receipt') { const r = receipts.find((x) => x.invoiceId === rec.id || x.quotationId === rec.id || x.forNo === rec.id); if (r) setView({ kind: 'receipt', id: r.id }); else toastMsg('No receipt yet'); return; }
     if (a === 'Issue') {
@@ -1163,7 +1166,7 @@ export function useFinanceController(initialTab: FinTab) {
       if (!row) { toastMsg('That payment-plan row was not found.'); return; }
       if (row.proforma) { toastMsg(row.label + ' already has proforma ' + row.proforma.id + '.'); return; }
       if (!(row.amount > 0)) { toastMsg(row.label + ' has no amount: set its % or RM on the quotation first.'); return; }
-      const what = row.key.startsWith('stage:') ? `Stage ${Number(row.key.slice(6)) + 1}: ${row.label}${row.pct != null ? ' (' + row.pct + '% of ' + q.id + ')' : ' (' + q.id + ')'}` : `Instalment ${row.label} (${q.id})`;
+      const what = (row.key.startsWith('stage:') ? `Stage ${Number(row.key.slice(6)) + 1}: ${row.label}${row.pct != null ? ' (' + row.pct + '% of ' + q.id + ')' : ' (' + q.id + ')'}` : `Instalment ${row.label} (${q.id})`) + (row.due ? ' · payable ' + row.due : '');
       // Disbursements are asked for separately (client account, SAR 1990): this row's share of the
       // quotation's disbursements goes on its own proforma, the rest (fees) on the office proforma.
       const qItems = q.lineItems || [];
@@ -1179,7 +1182,7 @@ export function useFinanceController(initialTab: FinTab) {
       const linesFor = (amt: number, into: string, desc: string): Quotation['lineItems'] => (into === 'Client account'
         ? [{ description: desc, category: 'Disbursement', amount: amt, quantity: 1, unitPrice: amt, chargeType: 'Fixed' }]
         : [{ description: desc, category: 'Fee - Fixed', amount: round2(amt - rPart), quantity: 1, unitPrice: round2(amt - rPart), chargeType: 'Fixed' }, ...(rPart > 0.005 ? [{ description: 'Reimbursements · ' + what, category: 'Reimbursement', amount: rPart, quantity: 1, unitPrice: rPart, chargeType: 'Fixed' }] : [])]) as Quotation['lineItems'];
-      parts.forEach(([amt, into, desc], n) => app.addQuotation({ id: ids[n], documentType: 'Proforma', sourceQuotationId: q.id, planRowKey: row.key, planRowLabel: row.label, partyType: q.partyType || 'Client', partyId: q.partyId, date: onDate, practiceArea: q.practiceArea, fileRef: q.fileRef, leadId: q.leadId || '', clientName: q.clientName, status: 'Draft', total: amt, billedSoFar: 0, remaining: amt, courtLevel: '', stage: row.label, feeMethod: 'Template', subtype: q.subtype || '', approvalStatus: 'Pending', approvedBy: '', approvedDate: '', sstApplied: false, caseId: q.caseId, matter: q.matter, subject: q.subject, yourRef: q.yourRef, tin: q.tin, scope: row.due ? 'Payable: ' + row.due : '', terms: [], payInto: into, language: q.language, lineItems: linesFor(amt, into, desc) }));
+      parts.forEach(([amt, into, desc], n) => app.addQuotation({ id: ids[n], documentType: 'Proforma', sourceQuotationId: q.id, planRowKey: row.key, planRowLabel: row.label, partyType: q.partyType || 'Client', partyId: q.partyId, date: onDate, practiceArea: q.practiceArea, fileRef: q.fileRef, leadId: q.leadId || '', clientName: q.clientName, status: 'Draft', total: amt, billedSoFar: 0, remaining: amt, courtLevel: '', stage: row.label, feeMethod: 'Template', subtype: q.subtype || '', approvalStatus: 'Pending', approvedBy: '', approvedDate: '', sstApplied: false, caseId: q.caseId, matter: q.matter, subject: q.subject, yourRef: q.yourRef, tin: q.tin, scope: q.scope || '', terms: [], payInto: into, language: q.language, lineItems: linesFor(amt, into, desc) }));
       setView({ kind: 'quotation', id: ids[0] }); setDocT('Proforma');
       toastMsg(ids.join(' + ') + ' created for ' + row.label + ' · ' + rm2(row.amount) + (parts.length > 1 ? ' (fees → office, disbursements → client account)' : ''));
       return;
@@ -1189,7 +1192,7 @@ export function useFinanceController(initialTab: FinTab) {
       const made: Quotation[] = [];
       const want = [t.fees > 0, t.disbursements > 0].filter(Boolean).length;
       const ids = seqIds('proforma', Math.max(1, want));
-      const base = { documentType: 'Proforma' as const, sourceQuotationId: q.id, partyType: q.partyType || 'Client' as const, partyId: q.partyId, date: onDate, practiceArea: q.practiceArea, fileRef: q.fileRef, leadId: q.leadId || '', clientName: q.clientName, status: 'Draft' as const, billedSoFar: 0, courtLevel: '', stage: '', feeMethod: 'Template' as const, subtype: q.subtype || '', approvalStatus: 'Pending' as const, approvedBy: '', approvedDate: '', sstApplied: false, caseId: q.caseId, matter: q.matter, subject: q.subject, yourRef: q.yourRef, tin: q.tin, scope: '', terms: [] };
+      const base = { documentType: 'Proforma' as const, sourceQuotationId: q.id, partyType: q.partyType || 'Client' as const, partyId: q.partyId, date: onDate, practiceArea: q.practiceArea, fileRef: q.fileRef, leadId: q.leadId || '', clientName: q.clientName, status: 'Draft' as const, billedSoFar: 0, courtLevel: '', stage: '', feeMethod: 'Template' as const, subtype: q.subtype || '', approvalStatus: 'Pending' as const, approvedBy: '', approvedDate: '', sstApplied: false, caseId: q.caseId, matter: q.matter, subject: q.subject, yourRef: q.yourRef, tin: q.tin, scope: q.scope || '', terms: [] };
       // The office proforma copies the quotation's fee lines in full (no automatic percentage); change it with Edit before sending.
       if (t.fees > 0) { const items = (q.lineItems || []).filter((i) => i.category !== 'Disbursement'); const amt = round2(items.reduce((a2, i) => a2 + Number(i.amount || 0), 0)); made.push({ ...base, id: ids[made.length], total: amt, remaining: amt, payInto: 'Office', lineItems: items }); }
       if (t.disbursements > 0) { const items = (q.lineItems || []).filter((i) => i.category === 'Disbursement'); made.push({ ...base, id: ids[made.length], total: t.disbursements, remaining: t.disbursements, payInto: 'Client account', lineItems: items }); }
@@ -1200,16 +1203,18 @@ export function useFinanceController(initialTab: FinTab) {
       return;
     }
     if (a === 'Convert to invoice') {
-      // From a quotation, or from one of its proformas: the final invoice bills the QUOTATION's
-      // lines, and the office proforma money already received is deducted ("LESS: DEPOSIT RECEIVED").
-      const src = rec as Quotation; const rootId = rootQuoteId(src);
-      if (invoiceForQuote(rootId)) { toastMsg('This quotation already has an invoice (' + invoiceForQuote(rootId)!.id + ').'); return; }
-      const q = quotations.find((x) => x.id === rootId) || src;
-      const rate = SD.defaultSstRate(); const t = recordTotals(q.lineItems || [], rate); const date = todayIso(); const id = app.getNextSequenceId('invoice', date); const kase = qCase(q) || qCase(src);
-      const dep = depositFor(rootId, t.grandTotal);
-      app.addInvoice({ id, clientId: q.partyId || src.partyId || kase?.clientId?.split(',')[0].trim() || '', caseId: kase?.id || q.caseId || q.fileRef || '', fileRef: q.fileRef || src.fileRef, quotationId: rootId, partyType: q.partyType || 'Client', partyName: q.clientName, amount: round2(t.fees + t.disbursements + t.reimbursements), discount: 0, tax: t.sst, total: t.grandTotal, date, dueDate: date, status: 'Draft', lineItems: (q.lineItems || []).filter((i) => (i.category as string) !== 'Tax'), sstRate: rate || undefined, matter: q.matter, subject: q.subject, yourRef: q.yourRef, tin: q.tin, scope: q.scope, payInto: 'Office', ...(dep.amount ? { depositApplied: dep.amount, depositReceiptIds: dep.ids } : {}) });
+      // We bill by stage / month. From a PROFORMA the invoice bills that proforma's lines (as edited)
+      // and deducts what was paid on it. From a QUOTATION (no stage billing) it bills the whole quotation.
+      const src = rec as Quotation; const isPf = src.documentType === 'Proforma'; const rootId = rootQuoteId(src);
+      const done = isPf ? invoiceForDoc(src.id) : invoiceForQuote(rootId);
+      if (done) { toastMsg((isPf ? 'This proforma' : 'This quotation') + ' already has an invoice (' + done.id + ').' + (isPf ? '' : ' For stage billing, convert each proforma.')); return; }
+      const q = isPf ? src : quotations.find((x) => x.id === rootId) || src;
+      const items = (q.lineItems || []).filter((i) => (i.category as string) !== 'Tax');
+      const rate = SD.defaultSstRate(); const t = recordTotals(items, rate); const date = todayIso(); const id = app.getNextSequenceId('invoice', date); const kase = qCase(q) || qCase(src);
+      const dep = depositFor(isPf ? src.id : rootId, t.grandTotal);
+      app.addInvoice({ id, clientId: q.partyId || src.partyId || kase?.clientId?.split(',')[0].trim() || '', caseId: kase?.id || q.caseId || q.fileRef || '', fileRef: q.fileRef || src.fileRef, quotationId: isPf ? src.id : rootId, partyType: q.partyType || 'Client', partyName: q.clientName, amount: round2(t.fees + t.disbursements + t.reimbursements), discount: 0, tax: t.sst, total: t.grandTotal, date, dueDate: date, status: 'Draft', lineItems: items, sstRate: rate || undefined, matter: q.matter, subject: q.subject, yourRef: q.yourRef, tin: q.tin, scope: q.scope, payInto: 'Office', ...(dep.amount ? { depositApplied: dep.amount, depositReceiptIds: dep.ids } : {}) });
       setView({ kind: 'invoice', id }); setDocT('Invoice');
-      toastMsg('Draft ' + id + ' created' + (dep.amount ? ` · deposit ${rm2(dep.amount)} received on the proforma will be deducted` : ''));
+      toastMsg('Draft ' + id + ' created from ' + src.id + (dep.amount ? ` · ${rm2(dep.amount)} already paid on it will be deducted` : ''));
       return;
     }
     if (a === 'Request write-off') { const inv = rec as Invoice; setForm({ kind: 'writeoff', vals: { docId: inv.id, title: inv.id, amount: String(Math.round(invBal(inv) * 100) / 100) } }); return; }
