@@ -173,6 +173,8 @@ async function getDriveFile(id: string, fields = FILE_FIELDS): Promise<DriveFile
 /* ------------------------------------------------------------------ folders */
 
 const folderCache = new Map<string, Promise<string>>();
+/** Forget remembered folder ids (e.g. after folders were deleted in Drive), so the next lookup asks Drive again. */
+export const clearFolderCache = () => folderCache.clear();
 
 /** Finds a sub-folder by exact name under `parentId`, creating it if missing (with `description`). Cached per session. */
 function findOrCreateFolder(parentId: string, name: string, description?: string): Promise<string> {

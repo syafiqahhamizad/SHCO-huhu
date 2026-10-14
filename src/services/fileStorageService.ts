@@ -7,7 +7,7 @@ import {
   validateClaimFile,
 } from './firebaseStorageService';
 import {
-  DRIVE_TOKEN_EVENT, downloadDriveFile, driveViewUrl, ensureFolderPath, getDriveAccessToken, getDriveConfig, grantReader, hasValidDriveToken, isDriveAccessError, isDriveConfigured, ensureShortcut, moveDriveItem, renameChildFolder, uploadToDrive,
+  DRIVE_TOKEN_EVENT, downloadDriveFile, driveViewUrl, ensureFolderPath, getDriveAccessToken, getDriveConfig, grantReader, hasValidDriveToken, isDriveAccessError, isDriveConfigured, ensureShortcut, moveDriveItem, renameChildFolder, clearFolderCache, uploadToDrive,
 } from './googleDriveService';
 import {
   CLIENTS_ROOT, FIN, OLD_FIN_NAMES, booksMonthPath, clientFilesPath, matterSubfolders, clientFolderName as layoutClientFolderName, financeFolderPath, folderUrl, matterFolderDescription, matterFolderPath,
@@ -172,6 +172,9 @@ export async function fileFinanceEntry(o: { path: string[]; name: string; folder
 export async function ensureFinanceFolders(paths: string[][], onProgress?: (done: number, total: number) => void): Promise<void> {
   requireDrive();
   const b = financeBase();
+  // Folders may have been deleted in Drive since they were last looked up: always ask Drive afresh.
+  clearFolderCache();
+  oldNamesDone = null;
   await renameOldFinanceRoots(b);
   for (let i = 0; i < paths.length; i += 1) { await ensureFolderPath(b.baseId, [...b.prefix, ...paths[i]]); onProgress?.(i + 1, paths.length); }
 }
