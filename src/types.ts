@@ -844,6 +844,9 @@ export interface Quotation {
   /** Proforma only: the payment-plan row it asks for (e.g. "stage:0", "month:3") and its label. */
   planRowKey?: string;
   planRowLabel?: string;
+  /** A quotation made before the portal: recorded with its own number and the original PDF (View opens it). */
+  historical?: boolean;
+  pastFile?: { name: string; driveFileId?: string; webViewLink?: string };
 }
 
 export interface ReferralPartner {

@@ -221,6 +221,7 @@ export const FormModal = ({ F }: { F: FinanceCtrl }) => {
     disb: ['Paid on behalf of a client', [['client', 'For client'], ['matter', 'Matter (file ref.)', 'SHC/…'], ['payee', 'Paid to', 'e.g. Pejabat Tanah, LHDN, Mahkamah'], ['what', 'For', 'e.g. land search, stamp duty, filing fee'], ['amount', 'Amount (RM)'], ['date', 'Date paid', 'dd.mm.yyyy'], ['proofs', 'Receipt', 'file']]],
     transfer: ['Transfer fees to office', [['client', 'From client ledger'], ['matter', 'Matter (file ref.)', 'SHC/…'], ['forNo', 'For invoice', 'INV-2026-…'], ['amount', 'Amount (RM)'], ['date', 'Date', 'dd.mm.yyyy']]],
     expense: ['Record office expense', [['kind', 'Type', ['Office expense', PV_STATUTORY, PV_SST, PV_DRAWINGS]], ['payee', 'Paid to'], ['what', 'For'], ...(!f.vals.kind || f.vals.kind === 'Office expense' ? [['cat', 'Category', expenseCategories()], ...(f.vals.cat === 'Other' ? [['catOther', 'Other: what is it?', 'e.g. parking at court, key cutting']] : [])] as FieldDef[] : []), ['amount', 'Amount (RM)'], ['date', 'Date paid', 'dd.mm.yyyy'], ['from', 'Paid from', F.paidFromOptions], ['proofs', 'Bill or receipt', 'file']]],
+    pastQuote: ['Record a past quotation (made before the portal)', [['no', 'Quotation no. (as printed)', 'e.g. QUO/2025/012'], ['client', 'Client'], ['matter', 'File (if any)', 'SHC/…'], ['date', 'Date of the quotation', 'dd.mm.yyyy'], ['amount', 'Total (RM)'], ['status', 'Status', ['Accepted', 'Sent', 'Declined']], ['pdf', 'The quotation (PDF)', 'file']]],
     fund: ['Add sinking fund', [['name', 'Fund name'], ['target', 'Target (RM)'], ['saved', 'Saved so far (RM)'], ['due', 'Due', 'e.g. Dec 2026'], ['monthly', 'Set aside / month (RM)'], ['pct', 'Split % of each fee received']]],
     writeoff: ['Request write-off for ' + (f.vals.title || '') + '', [['amount', 'Amount to write off (RM)'], ['reason', 'Reason', 'e.g. client wound up, 14 months unpaid']]],
     // payslip: its own editor with auto EPF / SOCSO / EIS (PayslipFormModal.tsx).
@@ -243,6 +244,8 @@ export const FormModal = ({ F }: { F: FinanceCtrl }) => {
   const addProofs = (k: string, picked: FileList | null) => {
     if (!picked || !picked.length) return;
     if (proofUploadBlocked()) { F.toastMsg(DRIVE_REQUIRED_MSG); return; }
+    // A past quotation's PDF is kept here and saved to the file's folder (2 Client Files) on Save.
+    if (f.kind === 'pastQuote') { set(k, [...((f.vals[k] as FinanceProof[]) || []), ...Array.from(picked).map((file) => ({ name: file.name, size: file.size, type: file.type, uploadedAt: new Date().toISOString(), file }))]); return; }
     set(k, [...((f.vals[k] as FinanceProof[]) || []), ...filesToProofs('form', picked)]);
   };
   const listFor = (k: string) => (k === 'client' ? 'fin-clients' : k === 'matter' ? 'fin-cases' : k === 'forNo' && f.kind === 'transfer' ? 'fin-invoices' : k === 'forNo' ? 'fin-invoices' : undefined);

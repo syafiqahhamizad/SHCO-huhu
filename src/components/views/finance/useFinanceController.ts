@@ -6,7 +6,7 @@
 import type React from 'react';
 import { pickDate } from '../../ui/pickDate';
 import { applyFiled, nextFilingJob } from './financeFiling';
-import { fileFinanceEntry, hasFinanceDrive } from '../../../services/fileStorageService';
+import { fileFinanceEntry, hasFinanceDrive, prepareStorage, storeEngagementFile } from '../../../services/fileStorageService';
 import { grantReader } from '../../../services/googleDriveService';
 import { askForm } from '../../ui/askForm';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -492,6 +492,7 @@ export function useFinanceController(initialTab: FinTab) {
       return canVoid ? [...base, 'Void'] : base;
     }
     const q = rec as Quotation, S = qStatus(q);
+    if (q.historical) return ['View'];
     if (q.documentType === 'Proforma') {
       const invoiced = !!invoiceForQuote(rootQuoteId(q));
       const base = S === 'Draft' ? ['Send'] : S === 'Paid' ? ['View receipt'] : S === 'Declined' ? ['View'] : ['Record payment', 'Remind'];
@@ -1069,6 +1070,10 @@ export function useFinanceController(initialTab: FinTab) {
     }
     const onDate = on || todayIso();
     const docNo = rec.id;
+    if (a === 'View' && kind === 'quotation' && (rec as Quotation).historical) {
+      const pf = (rec as Quotation).pastFile;
+      if (pf?.webViewLink || pf?.driveFileId) { window.open(pf.webViewLink || 'https://drive.google.com/file/d/' + pf.driveFileId + '/view', '_blank', 'noopener'); return; }
+    }
     if (a === 'View') { if (kind === 'quotation') { const p = quotations.find((x) => x.documentType === 'Proforma' && x.sourceQuotationId === rec.id); setView({ kind: 'quotation', id: p ? p.id : rec.id }); } else setView({ kind, id: rec.id }); return; }
     if (rk === 'R') { toastMsg('Read-only access.'); return; }
     if (a === 'Send' || a === 'Resend') {
@@ -1285,6 +1290,34 @@ export function useFinanceController(initialTab: FinTab) {
     const dateIso = isoOf(parseDate(vals.date)) || todayIso();
     const proofs: FinanceProof[] = vals.proofs || [];
     if (rk === 'R' || rk === 'S') { toastMsg('Read-only access.'); return; }
+    if (kind === 'pastQuote') {
+      if (!canPrepare) { toastMsg('Quotations are recorded by Accounts.'); return; }
+      const no = String(vals.no || '').trim();
+      if (!no) { toastMsg('Enter the quotation number as printed.'); return; }
+      if (quotations.some((q) => q.id.toLowerCase() === no.toLowerCase())) { toastMsg(no + ' is already in the list.'); return; }
+      if (!String(vals.client || '').trim()) { toastMsg('Enter the client.'); return; }
+      if (amt <= 0) { toastMsg('Enter the total.'); return; }
+      const c = clientByName(vals.client || ''); const kase = vals.matter ? caseForRef(String(vals.matter)) : undefined;
+      const status = (['Accepted', 'Sent', 'Declined'].includes(vals.status) ? vals.status : 'Accepted') as Quotation['status'];
+      app.addQuotation({
+        id: no, historical: true, documentType: 'Quotation', partyType: 'Client', partyId: c?.id, date: dateIso, createdAt: new Date().toISOString(),
+        practiceArea: kase?.practiceArea || kase?.type || '', fileRef: kase?.ref || '', caseId: kase?.id, matter: kase?.title, leadId: '', clientName: c?.name || String(vals.client).trim(),
+        status, total: amt, billedSoFar: 0, remaining: amt, courtLevel: '', stage: '', feeMethod: 'Fixed', subtype: '',
+        approvalStatus: 'Approved', approvedBy: me, approvedDate: dateIso, lineItems: [{ description: 'Professional fees as per quotation ' + no, category: 'Fee - Fixed', amount: amt }],
+      });
+      const pdf = ((vals.pdf || []) as (FinanceProof & { file?: File })[]).find((p) => p.file)?.file;
+      if (pdf) {
+        void (async () => {
+          try {
+            await prepareStorage();
+            const up = await storeEngagementFile(kase ? { ref: kase.ref, title: kase.title } : { ref: '', title: 'Past quotations' }, pdf, me);
+            app.updateQuotation(no, { pastFile: { name: up.name, driveFileId: up.driveFileId, webViewLink: up.webViewLink } });
+          } catch (e) { toastMsg(no + ' saved, but its PDF was not uploaded: ' + (e instanceof Error ? e.message : String(e))); }
+        })();
+      }
+      setForm(null); toastMsg(no + ' recorded' + (pdf ? ' · PDF saving to Google Drive' : ''));
+      return;
+    }
     if (kind === 'moneyIn') {
       if (!canPrepare) { toastMsg('Receipts are recorded by Accounts.'); return; }
       if (amt <= 0) { toastMsg('Enter the amount received.'); return; }
