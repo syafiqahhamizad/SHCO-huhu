@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../../../context/AppContext';
 import type { MatterParty } from '../../../../types';
 import { css, S, Card, Field, Toggle } from '../caseUi';
+import { SearchSelect } from '../../../ui/SearchSelect';
 import { P, avatarOf, courtOf, daysFrom, fmt, isDeadline, isDone, legacyFromParties, practiceOf, short } from '../caseModel';
 import { newId, type WF } from '../wf';
 import { emailUpdate, whatsappUpdate } from '../clientComms';
@@ -12,12 +13,12 @@ const T: Record<MatterParty['side'], [string, string, string]> = {
   solicitor: ['Opposing solicitors', '+ Register firm', 'e.g. For 1st Defendant'],
 };
 
-/** Party roles offered by the file's practice area (pick from the list; "Other…" to type one). */
-const nth = (r: string) => ['', '1st ', '2nd ', '3rd ', '4th ', '5th '].map((o) => o + r);
+/** Party roles by the file's practice area: pick the No. (1st, 2nd…) and the role; "Other…" to type one. */
+const NUMBERS = ['', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th'];
 const ROLES: Record<string, string[]> = {
-  L: [...nth('Plaintiff'), ...nth('Defendant'), 'Appellant', 'Respondent', 'Applicant', 'Third Party', 'Intervener'],
-  CR: [...nth('Accused'), 'Complainant / victim', 'Public Prosecutor', 'Watching brief'],
-  SY: [...nth('Plaintif'), ...nth('Defendan'), 'Pemohon', 'Responden'],
+  L: ['Plaintiff', 'Defendant', 'Appellant', 'Respondent', 'Applicant', 'Petitioner', 'Claimant', 'Third Party', 'Intervener', 'Garnishee', 'Judgment Debtor', 'Judgment Creditor'],
+  CR: ['Accused', 'Complainant / victim', 'Public Prosecutor', 'Appellant', 'Respondent', 'Watching brief'],
+  SY: ['Plaintif', 'Defendan', 'Pemohon', 'Responden', 'Perayu'],
   EST: ['Executor', 'Administrator', 'Beneficiary', 'Caveator', 'Petitioner', 'Purchaser (Order for Sale)'],
   CONV: ['Purchaser', 'Vendor', 'Borrower', 'Chargee bank', 'Chargor', 'Proprietor', 'Developer', 'Landlord', 'Tenant'],
   CORP: ['Company', 'Buyer', 'Seller', 'Shareholder', 'Investor', 'Director', 'Counterparty'],
@@ -29,30 +30,35 @@ const rolesFor = (practice: string) => {
 const OTHER = 'Other…';
 
 const PartiesCard: React.FC<{ w: WF }> = ({ w }) => {
-  const { clients = [] } = useApp();
+  const { clients = [], lawFirmRegistry = [] } = useApp();
   const { c, parties, ro } = w;
   const [addP, setAddP] = useState<'' | MatterParty['side']>('');
-  const [f, setF] = useState({ name: '', role: '', idNo: '', contact: '' });
+  const blank = { name: '', clientId: '', num: '', role: '', typed: '', actsFor: '' };
+  const [f, setF] = useState(blank);
   const [otherRole, setOtherRole] = useState(false);
   const base = rolesFor(practiceOf(c));
-  const opposingRoles = parties.filter((p) => p.side === 'opposing' && p.role && p.role !== '—').map((p) => 'For ' + p.role);
-  const roleOpts = addP === 'solicitor' ? [...new Set([...opposingRoles, ...base.map((r) => 'For ' + r)])] : base;
+  // A firm acts for one of the opposing parties already on the file (or pick the role yourself).
+  const opposing = parties.filter((p) => p.side === 'opposing' && !p.dischargedOn && p.role && p.role !== '—');
+  const roleText = () => (otherRole ? f.typed.trim() : [f.num, f.role].filter(Boolean).join(' '));
+  const reset = (side: '' | MatterParty['side']) => { setAddP(side); setOtherRole(false); setF(blank); };
 
   const saveP = () => {
     if (!addP) return;
-    if (!f.name.trim()) { w.toast('Add the name'); return; }
-    const reg = addP === 'client' ? clients.find((x) => x.name.toLowerCase() === f.name.trim().toLowerCase()) : undefined;
+    const reg = addP === 'client' ? clients.find((x) => x.id === f.clientId) : undefined;
+    const name = addP === 'client' ? reg?.name || '' : f.name.trim();
+    if (!name) { w.toast(addP === 'client' ? 'Pick the client from the list' : 'Add the name'); return; }
+    const forRole = addP === 'solicitor' && f.actsFor && f.actsFor !== OTHER ? f.actsFor : '';
+    const role = forRole || roleText();
+    if (!role) { w.toast('Pick the role'); return; }
     const p: MatterParty = {
-      id: newId('PTY'), side: addP, name: f.name.trim(), role: f.role.trim() || (addP === 'solicitor' ? 'Counsel on record' : '—'),
-      idNo: f.idNo.trim() || reg?.icNo || reg?.registrationNo || '', contact: f.contact.trim() || [reg?.phone, reg?.email].filter(Boolean).join(' · '),
+      id: newId('PTY'), side: addP, name, role: addP === 'solicitor' ? 'For ' + role.replace(/^For\s+/i, '') : role,
+      idNo: reg?.icNo || reg?.icNumber || reg?.registrationNo || '', contact: [reg?.phone, reg?.email].filter(Boolean).join(' · '),
       phone: reg?.phone, email: reg?.email, clientId: reg?.id, since: new Date().toISOString().slice(0, 10),
-      actsFor: addP === 'solicitor' ? f.role.trim().replace(/^For\s+/i, '') || undefined : undefined,
+      actsFor: addP === 'solicitor' ? role.replace(/^For\s+/i, '') : undefined,
     };
     const next = [...parties, p];
     w.save(legacyFromParties(next, c), 'Party added: ' + p.name + ' (' + p.role + ')');
-    setF({ name: '', role: '', idNo: '', contact: '' });
-    setOtherRole(false);
-    setAddP('');
+    reset('');
     w.toast('Saved to parties');
   };
   const remove = (p: MatterParty) => {
@@ -66,16 +72,26 @@ const PartiesCard: React.FC<{ w: WF }> = ({ w }) => {
       {addP && (
         <div style={css(S.formGrid(200))}>
           <strong style={css('grid-column:1/-1;font-size:13px;color:#16223A')}>{T[addP][1].replace('+ ', '')}</strong>
-          <Field label="Name"><input list={addP === 'client' ? 'wf-client-names' : undefined} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} style={css(S.input)} /></Field>
-          <Field label="Role">{otherRole
-            ? <input autoFocus value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })} placeholder={T[addP][2]} style={css(S.input)} />
-            : <select value={f.role} onChange={(e) => { if (e.target.value === OTHER) { setOtherRole(true); setF({ ...f, role: '' }); } else setF({ ...f, role: e.target.value }); }} style={css(S.input)}>
-              <option value="">— pick —</option>{roleOpts.map((r) => <option key={r} value={r}>{r}</option>)}<option value={OTHER}>{OTHER}</option>
-            </select>}</Field>
-          {addP !== 'solicitor' && <Field label="IC / company no."><input value={f.idNo} onChange={(e) => setF({ ...f, idNo: e.target.value })} style={css(S.input)} /></Field>}
-          <Field label={addP === 'solicitor' ? 'Counsel & contact' : 'Contact'}><input value={f.contact} onChange={(e) => setF({ ...f, contact: e.target.value })} style={css(S.input)} /></Field>
-          <datalist id="wf-client-names">{clients.map((x) => <option key={x.id} value={x.name} />)}</datalist>
-          <div style={css('grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px')}><button type="button" onClick={() => { setAddP(''); setOtherRole(false); }} style={css(S.btnSec)}>Cancel</button><button type="button" onClick={saveP} style={css(S.btnPri)}>Save</button></div>
+          <Field label="Name">{addP === 'client'
+            ? <SearchSelect aria-label="Client" value={f.clientId} onChange={(v) => setF({ ...f, clientId: v })} placeholder="Search a registered client…" empty="Not found: register the client in Clients first" options={clients.map((x) => ({ value: x.id, label: x.name, hint: x.clientNo || x.id }))} />
+            : <input list={addP === 'solicitor' ? 'wf-firm-names' : undefined} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder={addP === 'solicitor' ? 'e.g. Messrs Y.E Pang' : 'Full name as in the papers'} style={css(S.input)} />}</Field>
+          {addP === 'solicitor' && opposing.length > 0 && (
+            <Field label="Acts for"><select value={f.actsFor} onChange={(e) => setF({ ...f, actsFor: e.target.value })} style={css(S.input)}>
+              <option value="">— pick —</option>{opposing.map((p) => <option key={p.id} value={p.role}>{p.role} · {p.name}</option>)}<option value={OTHER}>Another party…</option>
+            </select></Field>
+          )}
+          {(addP !== 'solicitor' || !opposing.length || f.actsFor === OTHER) && (
+            <Field label={addP === 'solicitor' ? 'Acts for (role)' : 'Role'}>{otherRole
+              ? <input autoFocus value={f.typed} onChange={(e) => setF({ ...f, typed: e.target.value })} placeholder={T[addP][2]} style={css(S.input)} />
+              : <span style={css('display:grid;grid-template-columns:84px minmax(0,1fr);gap:6px')}>
+                <select aria-label="No." value={f.num} onChange={(e) => setF({ ...f, num: e.target.value })} style={css(S.input)}>{NUMBERS.map((n) => <option key={n} value={n}>{n || 'No.'}</option>)}</select>
+                <select aria-label="Role" value={f.role} onChange={(e) => { if (e.target.value === OTHER) { setOtherRole(true); setF({ ...f, role: '' }); } else setF({ ...f, role: e.target.value }); }} style={css(S.input)}>
+                  <option value="">— role —</option>{base.map((r) => <option key={r} value={r}>{r}</option>)}<option value={OTHER}>{OTHER}</option>
+                </select>
+              </span>}</Field>
+          )}
+          <datalist id="wf-firm-names">{lawFirmRegistry.map((x) => <option key={x.id} value={x.name} />)}</datalist>
+          <div style={css('grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px')}><button type="button" onClick={() => reset('')} style={css(S.btnSec)}>Cancel</button><button type="button" onClick={saveP} style={css(S.btnPri)}>Save</button></div>
         </div>
       )}
       <div style={css('display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))')}>
@@ -88,7 +104,7 @@ const PartiesCard: React.FC<{ w: WF }> = ({ w }) => {
                 {!ro && (
                   <div style={css('margin-left:auto;display:flex;gap:6px')}>
                     {k === 'solicitor' && <button type="button" onClick={() => { w.setCourtChange('sol'); w.setTab('court'); }} style={css(S.btnSm)}>Notice of change</button>}
-                    <button type="button" onClick={() => { setAddP(k); setOtherRole(false); setF({ name: '', role: '', idNo: '', contact: '' }); }} style={css(S.btnSm)}>{T[k][1]}</button>
+                    <button type="button" onClick={() => reset(k)} style={css(S.btnSm)}>{T[k][1]}</button>
                   </div>
                 )}
               </div>
