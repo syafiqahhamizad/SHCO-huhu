@@ -1,7 +1,8 @@
 import React from 'react';
 import { useApp } from '../../../context/AppContext';
 import { DEFAULT_PRACTICE_SETTINGS, DOC_NUMBERING, type FirmBankAccount } from '../../../services/templateService';
-import { css, S, Txt, type SettingsCtx } from './settingsShared';
+import { css, S, SideMenu, Txt, type SettingsCtx } from './settingsShared';
+import { useRemembered } from '../../../lib/navHistory';
 
 const REF_RULES: [string, string, string, string][] = [['1', 'Firm', 'SHC', 'Always SHC.'], ['2', 'Partner(s) in charge', 'SH or SH/ZA', 'Partner codes. '], ['3', 'Lawyer(s) in charge', 'NM', 'Optional; skipped if none. A partner on the file cannot also be picked as lawyer.'], ['4', 'Matter code', 'L', 'Picked from the matter codes registered per practice area (Practice areas & codes tab), e.g. L, CONV · MOT · POC · DOC · LOAN, EST · OFS · VO · LA · PRB, CORP, CR · YBGK.'], ['5', 'Client initials', 'QA', 'First letter of the first two words of the client name, ignoring Sdn Bhd, Bhd, Datuk, Dato’, Dr., Encik, Puan, Tan Sri, Syarikat. Several clients are joined with /. Can be corrected at intake.'], ['6', 'Running no.', '001', 'Next firm-wide case number, given automatically.'], ['7', 'Month-year', '08-26', 'Month and year of the file opening date (MM-YY). Backdating allowed.']];
 
@@ -20,6 +21,7 @@ const fmtAmt = (n?: number) => (n == null ? '0' : Number(n).toLocaleString('en-M
 export const BanksTab = ({ C }: { C: SettingsCtx }) => {
   const { quotations = [], invoices = [], receipts = [], paymentVouchers = [], manualJournals = [] } = useApp();
   const s = C.settings;
+  const [sec, setSec] = useRemembered('settings.bank', 'Bank accounts');
   const banks: FirmBankAccount[] = (s.bankAccounts && s.bankAccounts.length ? s.bankAccounts : DEFAULT_PRACTICE_SETTINGS.bankAccounts || []);
   const shown = banks.filter((b) => b.isActive !== false);
   const ob = s.bankOpeningBalances || {};
@@ -62,15 +64,15 @@ export const BanksTab = ({ C }: { C: SettingsCtx }) => {
   };
 
   return (
-    <div style={css('display:flex;flex-direction:column;gap:16px')}>
-      <div style={css(S.card)}>
+    <SideMenu items={[['Bank accounts', shown.length], ['Document numbering'], ['SST'], ['File reference (Our Ref)']]} value={sec} onPick={setSec}>
+      {sec === 'File reference (Our Ref)' && <div style={css(S.card)}>
         <div style={css('display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>File reference (Our Ref)</strong><span style={css('font-size:10px;font-weight:700;padding:2px 8px;border-radius:9px;background:#F0F2F5;color:#5B6478')}>fixed rules · not editable here</span><span style={css('margin-left:auto;font-size:10.5px;color:#5B6478')}>built automatically when a new file is opened (New case form)</span></div>
         <div style={css('display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid #F0F2F5')}><span style={css(S.fieldLabel)}>Example</span><span style={css('font-family:ui-monospace, Menlo, monospace;font-size:15px;font-weight:700;color:#16223A')}>SHC/SH/NM/L/QA/0001/08-26</span><span style={css('font-size:10.5px;color:#5B6478')}>two partners and no lawyer: SHC/SH/ZA/SPA/AF/0002/09-26</span></div>
         {REF_RULES.map(([n, part, ex, rule]) => <div key={n} style={css('display:grid;grid-template-columns:28px 150px 110px minmax(0,1fr);gap:10px;align-items:start;padding:7px 14px;border-bottom:1px solid #F0F2F5')}><span style={css('font-size:10.5px;font-weight:800;color:#94A3B8')}>{n}</span><span style={css('font-size:11.5px;font-weight:700;color:#16223A')}>{part}</span><span style={css('font-family:ui-monospace, Menlo, monospace;font-size:11px;font-weight:700;color:#2F5680')}>{ex}</span><span style={css('font-size:10.5px;line-height:1.5;color:#5B6478')}>{rule}</span></div>)}
         <div style={css(S.foot)}>Empty parts are skipped. Matter codes come from the list registered per practice area. Screens must read the file’s saved practice area and matter code, never split the ref text.</div>
-      </div>
+      </div>}
 
-      <div style={css(S.card)}>
+      {sec === 'Bank accounts' && <div style={css(S.card)}>
         <div style={css('display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Bank accounts</strong><span style={css('margin-left:auto;font-size:10.5px;color:#5B6478')}>Opening balances as at</span><Txt value={s.bankOpeningBalancesAsAt ? s.bankOpeningBalancesAsAt.split('-').reverse().join('.') : ''} onCommit={(v) => { const m = String(v).trim().match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/) || null; const iso = m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : /^\d{4}-\d{2}-\d{2}$/.test(String(v).trim()) ? String(v).trim() : ''; if (String(v).trim() && !iso) { C.msg('Type the date as dd.mm.yyyy'); return; } C.save({ bankOpeningBalancesAsAt: iso || undefined }, 'Opening Balance Date Changed', iso || 'cleared'); }} style={'border:1px solid #DDE3EB;border-radius:6px;padding:5px 7px;font-size:11px;color:#16223A;width:100px;text-align:left'} /><button type="button" onClick={addBank} style={css('margin-left:8px;border:1px solid #DDE3EB;border-radius:6px;padding:5px 10px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>+ Add account</button></div>
         <div style={css('display:grid;grid-template-columns:170px minmax(0,1.3fr) minmax(0,1fr) 150px 120px 60px;gap:10px;padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>Type</span><span>Account name</span><span>Bank</span><span>Account no.</span><span style={css('text-align:right')}>Opening balance</span><span></span></div>
         {shown.length === 0 && <div style={css('padding:14px;font-size:11px;color:#5B6478')}>No bank accounts yet. Add the office and client accounts with “+ Add account”.</div>}
@@ -88,10 +90,9 @@ export const BanksTab = ({ C }: { C: SettingsCtx }) => {
             </div>
           );
         })}
-      </div>
+      </div>}
 
-      <div style={css('display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start')}>
-        <div style={css(S.card)}>
+      {sec === 'Document numbering' && <div style={css(S.card + ';max-width:760px')}>
           <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Document numbering</strong></div>
           {DOC_NUMBERING.map(([k, label, def]) => {
             const fmt = s.docNumbering?.[k] || def;
@@ -100,8 +101,8 @@ export const BanksTab = ({ C }: { C: SettingsCtx }) => {
             );
           })}
           <div style={css(S.foot)}>{'{YY} year · {0000} running number · office and client account are numbered separately (SAR 1990).'}</div>
-        </div>
-        <div style={css(S.card)}>
+        </div>}
+        {sec === 'SST' && <div style={css(S.card + ';max-width:760px')}>
           <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>SST</strong></div>
           <div style={css('padding:12px 14px;display:flex;flex-direction:column;gap:10px')}>
             <div style={css('display:flex;gap:4px')}>{['Not registered', 'SST 6%', 'SST 8%'].map((label, i) => { const on = sstIdx === i; return <button key={label} type="button" onClick={() => setSst(i)} style={css(`border-radius:14px;padding:4px 12px;font-size:10.5px;font-weight:700;cursor:pointer;font-family:inherit;border:1px solid ${on ? '#16223A' : '#DDE3EB'};background:${on ? '#16223A' : '#fff'};color:${on ? '#fff' : '#16223A'}`)}>{label}</button>; })}</div>
@@ -109,8 +110,7 @@ export const BanksTab = ({ C }: { C: SettingsCtx }) => {
             <label style={css('display:grid;grid-template-columns:150px minmax(0,1fr);gap:10px;align-items:center')}><span style={css(S.fieldLabel)}>Start date</span><Txt value={s.sstStartDate || ''} placeholder="dd.mm.yyyy" onCommit={(v) => { const t = v.trim(); if (t && !/^\d{1,2}[./-]\d{1,2}[./-]\d{4}$/.test(t)) return C.msg('Enter the start date as dd.mm.yyyy'); C.save({ sstStartDate: t }, 'SST Start Date Changed', (s.sstStartDate || '—') + ' → ' + (t || '—')); }} style="border:1px solid #DDE3EB;border-radius:6px;padding:6px 8px;font-size:11.5px;color:#16223A" /></label>
             <span style={css('font-size:10.5px;line-height:1.5;color:#5B6478')}>{sstIdx ? 'From the start date, new invoices become TAX INVOICE and charge SST on professional fees and reimbursements. Disbursements stay SST-free. Earlier documents are not changed.' : 'Documents show "SST: Not applicable". Switch on when the firm is registered.'}</span>
           </div>
-        </div>
-      </div>
-    </div>
+        </div>}
+    </SideMenu>
   );
 };

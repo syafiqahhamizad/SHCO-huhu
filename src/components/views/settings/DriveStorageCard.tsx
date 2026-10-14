@@ -5,7 +5,8 @@ import { getDriveConfig, isDriveConfigured, looksLikeClientId, parseDriveFolderI
 import { ensureFinanceFolders, hasFinanceDrive, prepareStorage, renameClientFolder } from '../../../services/fileStorageService';
 import { exportAllFirmData, SHARED_STATE_KEYS } from '../../../services/firmBackupService';
 import { financeSkeleton, type FinAccount } from '../../../lib/driveLayout';
-import { css, S, Txt, type SettingsCtx } from './settingsShared';
+import { css, S, SideMenu, Txt, type SettingsCtx } from './settingsShared';
+import { useRemembered } from '../../../lib/navHistory';
 import { GoogleWorkspaceCard } from './GoogleWorkspaceCard';
 import { EmailNotificationsCard } from './EmailNotificationsCard';
 
@@ -26,6 +27,7 @@ const when = (iso?: string) => {
 export const DriveStorageCard = ({ C }: { C: SettingsCtx }) => {
   const app = useApp();
   const s = C.settings;
+  const [sec, setSec] = useRemembered('settings.google', 'Google Drive storage');
   const cfg = getDriveConfig();
   const on = isDriveConfigured(cfg);
   const [testing, setTesting] = useState(false);
@@ -179,8 +181,8 @@ export const DriveStorageCard = ({ C }: { C: SettingsCtx }) => {
           : { color: '#8A6534', bg: '#FBF2E9', text: 'Set up · not tested yet · new uploads go to Google Drive. Click Test connection.' };
 
   return (
-    <>
-      <div style={css('grid-column:1 / -1;' + S.card)}>
+    <SideMenu items={[['Google Drive storage'], ['Calendar, Tasks & Gmail'], ['Notification e-mails'], ['Backup & tools']]} value={sec} onPick={setSec}>
+      {sec === 'Google Drive storage' && <div style={css(S.card)}>
         <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Google Drive storage</strong><span style={css('margin-left:8px;font-size:10.5px;color:#5B6478')}>every upload in the portal goes to one of three Shared Drives: SHCO Portal (matter files, client KYC), SHCO Finance (claims, payment vouchers, bank-in proofs, client account, engagement &amp; billing, backups) and SHCO HR (staff files)</span></div>
         <div style={css(`padding:8px 14px;font-size:11px;font-weight:700;color:${status.color};background:${status.bg};border-bottom:1px solid #EEF1F5`)}>{status.text}</div>
         <div style={css('display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;padding:12px 14px')}>
@@ -219,12 +221,12 @@ export const DriveStorageCard = ({ C }: { C: SettingsCtx }) => {
             <p style={css('margin:6px 0 0;color:#5B6478')}>No Cloud Functions, service accounts or public links are used; files are never shared outside the firm, so the Workspace’s Domain Restricted Sharing policy is not affected. Files uploaded before the switch to Drive stay in Firebase Storage (read-only) and still open; nothing new is written there.</p>
           </details>
         </div>
-      </div>
+      </div>}
 
-      <GoogleWorkspaceCard C={C} />
-      <EmailNotificationsCard />
+      {sec === 'Calendar, Tasks & Gmail' && <GoogleWorkspaceCard C={C} />}
+      {sec === 'Notification e-mails' && <EmailNotificationsCard />}
 
-      <div style={css('grid-column:1 / -1;' + S.card)}>
+      {sec === 'Backup & tools' && <div style={css(S.card)}>
         <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Backup</strong><span style={css('margin-left:8px;font-size:10.5px;color:#5B6478')}>one JSON file with every record, Firm Settings, the access list and an index of all attached files</span></div>
         <div style={css('display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px')}>
           <button type="button" disabled={exporting} onClick={() => void exportAll()} style={css(S.darkBtn + (exporting ? ';opacity:.6;cursor:wait' : ''))}>{exporting ? 'Exporting…' : 'Export all firm data'}</button>
@@ -238,7 +240,7 @@ export const DriveStorageCard = ({ C }: { C: SettingsCtx }) => {
         {exportMsg && <div style={css(`padding:8px 14px;font-size:11px;line-height:1.5;border-top:1px solid #EEF1F5;color:${exportMsg.ok ? '#2F6F4E' : '#B23A2E'};background:${exportMsg.ok ? '#E6EFE9' : '#FBEDE9'}`)}>{exportMsg.text}</div>}
         {isSuperAdmin && <div style={css('display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid #EEF1F5;background:#FBF4F2')}><button type="button" disabled={exporting} onClick={() => void resetData()} style={css('border:1px solid #B23A2E;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:#fff;color:#B23A2E;cursor:pointer;font-family:inherit')}>Reset test data…</button><button type="button" disabled={exporting || !!finBusy} onClick={() => void setupFinanceFolders()} style={css('border:1px solid #16223A;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>{finBusy || (C.settings.financeFiling ? 'Finance folders (from ' + C.settings.financeFiling.from + ')…' : 'Set up finance folders…')}</button><button type="button" disabled={exporting} onClick={() => void numberClientsNow()} style={css('border:1px solid #16223A;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>Client numbers…</button><span style={css('font-size:10.5px;color:#5B6478')}>Super Admin only. Backs everything up first, then clears test entries. Clients, cases, users, settings and running numbers stay.</span></div>}
         <div style={css(S.foot)}>Passwords are never included. Attached files themselves are not inside the JSON: Drive files stay in the Shared Drive, older ones in Firebase Storage. Keep backups private; they contain client and staff personal data.</div>
-      </div>
-    </>
+      </div>}
+    </SideMenu>
   );
 };

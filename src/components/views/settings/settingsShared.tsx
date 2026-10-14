@@ -95,3 +95,16 @@ export const Area = ({ value, onCommit, style, rows }: { value: string; onCommit
   );
 };
 
+
+/**
+ * Left menu + one section at a time (the Lists & sources layout), so a settings tab never
+ * turns into one long scroll. items: [label, optional count]. The section is remembered per tab.
+ */
+export const SideMenu = ({ items, value, onPick, children }: { items: [string, (string | number)?][]; value: string; onPick: (k: string) => void; children: React.ReactNode }) => (
+  <div style={css('display:grid;grid-template-columns:200px minmax(0,1fr);gap:16px;align-items:start')}>
+    <div style={css(S.card + ';padding:6px;position:sticky;top:12px')}>
+      {items.map(([t, n]) => { const on = value === t; return <button key={t} type="button" onClick={() => onPick(t)} style={css(`display:flex;width:100%;align-items:center;justify-content:space-between;gap:8px;border:0;border-radius:6px;padding:8px 10px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;text-align:left;background:${on ? '#16223A' : 'transparent'};color:${on ? '#fff' : '#16223A'}`)}><span>{t}</span>{n != null && n !== '' && <span style={css(`font-size:10px;font-weight:700;color:${on ? '#C9D3E0' : '#94A3B8'}`)}>{n}</span>}</button>; })}
+    </div>
+    <div style={css('min-width:0;display:flex;flex-direction:column;gap:16px')}>{children}</div>
+  </div>
+);

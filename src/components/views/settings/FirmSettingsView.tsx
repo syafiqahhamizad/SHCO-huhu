@@ -65,7 +65,7 @@ export const FirmSettingsView = () => {
       {tab === 'perms' && <PermissionsTab C={C} view={permView} setView={setPermView} />}
       {tab === 'apv' && <ApproversTab C={C} />}
       {tab === 'firm' && <FirmTab C={C} />}
-      {tab === 'google' && <div style={css('display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start')}><DriveStorageCard C={C} /></div>}
+      {tab === 'google' && <DriveStorageCard C={C} />}
       {tab === 'bank' && <BanksTab C={C} />}
       {tab === 'areas' && <AreasTab C={C} />}
       {tab === 'tpl' && <FeeTemplatesTab C={C} />}

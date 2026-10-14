@@ -1,6 +1,7 @@
 import React from 'react';
 import { DEFAULT_BRANCHES, DEFAULT_PURPOSE_EMAILS, type FirmBranch, type PracticeSettings } from '../../../services/templateService';
-import { css, S, Txt, type SettingsCtx } from './settingsShared';
+import { css, S, SideMenu, Txt, type SettingsCtx } from './settingsShared';
+import { useRemembered } from '../../../lib/navHistory';
 import { useApp } from '../../../context/AppContext';
 import { DEFAULT_LETTERHEAD_PARTNERS, type LetterheadPartner } from '../../../lib/engagementLetter';
 import { DRIVE_REQUIRED_MSG, isUploadReady, prepareStorage, storeLetterheadImage } from '../../../services/fileStorageService';
@@ -32,6 +33,7 @@ const shrinkImage = (file: File): Promise<string> => new Promise((res, rej) => {
 
 export const FirmTab = ({ C }: { C: SettingsCtx }) => {
   const { currentUser } = useApp();
+  const [sec, setSec] = useRemembered('settings.firm', 'Finance document details');
   const s = C.settings;
   const fields: [string, string, (v: string) => Partial<PracticeSettings>][] = [
     ['Firm name', s.firmName || '', (v) => ({ firmName: v })],
@@ -68,16 +70,16 @@ export const FirmTab = ({ C }: { C: SettingsCtx }) => {
   };
 
   return (
-    <div style={css('display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start')}>
-      <div style={css(S.card)}>
+    <SideMenu items={[['Finance document details'], ['Letterhead & branches', branches.length], ['Partners on letterhead', partners.length], ['Emails by purpose', emails.length]]} value={sec} onPick={setSec}>
+      {sec === 'Finance document details' && <div style={css(S.card + ';max-width:860px')}>
         <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Finance document details</strong><span style={css('display:block;font-size:10.5px;color:#5B6478')}>printed only on quotation, proforma, invoice, receipt, statement and payslip · letters and court papers use their own templates</span></div>
         <div style={css('padding:12px 14px;display:flex;flex-direction:column;gap:9px')}>
           {fields.map(([label, value, patch]) => (
             <label key={label} style={css('display:grid;grid-template-columns:150px minmax(0,1fr);gap:10px;align-items:center')}><span style={css(S.fieldLabel)}>{label}</span><Txt value={value} placeholder={label === 'Firm reg. no.' ? 'not set yet · documents show [to be set]' : undefined} onCommit={(v) => { C.save(patch(v), 'Firm Details Changed', label + ': ' + (value || '—') + ' → ' + (v || '—')); C.msg(label + ' saved'); }} style="border:1px solid #DDE3EB;border-radius:6px;padding:6px 8px;font-size:11.5px;color:#16223A" /></label>
           ))}
         </div>
-      </div>
-      <div style={css(S.card)}>
+      </div>}
+      {sec === 'Letterhead & branches' && <div style={css(S.card + ';max-width:860px')}>
         <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Letterhead</strong><span style={css('display:block;font-size:10.5px;color:#5B6478')}>one letterhead for every letter and Letter of Engagement · same as “Letterhead as at 2.7.2026”</span></div>
         {(() => { const h = branches.find((x) => x.hq) || branches[0]; return (
           <div style={css('display:grid;grid-template-columns:minmax(0,1fr) 170px;gap:12px;align-items:center;padding:10px 14px;border-bottom:1px solid #F0F2F5')}>
@@ -95,8 +97,8 @@ export const FirmTab = ({ C }: { C: SettingsCtx }) => {
             {!b.hq ? <button type="button" onClick={() => { if (window.confirm('Remove the ' + b.name + ' branch? People already set to it keep the name until you change them in Users & Roles.')) C.save({ branches: branches.filter((x) => x.id !== b.id) }, 'Branch Removed', b.name); }} style={css(S.remove)}>Remove</button> : <span />}
           </div>
         ))}
-      </div>
-      <div style={css('grid-column:1 / -1;overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
+      </div>}
+      {sec === 'Partners on letterhead' && <div style={css(S.card)}>
         <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Partners on letterhead</strong><span style={css('margin-left:8px;font-size:10.5px;color:#5B6478')}>the partners column on the Letter of Engagement · in this order</span></div>
         <div style={css('display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 120px 80px;gap:10px;padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>Name</span><span>Qualifications</span><span>Heading</span><span></span></div>
         {partners.map((p, i) => (
@@ -108,14 +110,14 @@ export const FirmTab = ({ C }: { C: SettingsCtx }) => {
           </div>
         ))}
         <div style={css('display:flex;align-items:center;padding:8px 14px')}><button type="button" onClick={() => savePartners([...partners, { name: '', quals: '' }], 'Added a partner line')} style={css(S.addLink)}>+ Add partner</button></div>
-      </div>
-      <div style={css('grid-column:1 / -1;overflow:hidden;border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
+      </div>}
+      {sec === 'Emails by purpose' && <div style={css(S.card)}>
         <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Emails by purpose</strong><span style={css('margin-left:8px;font-size:10.5px;color:#5B6478')}>each email is used only for its purpose · the system sends from and shows the right one automatically</span></div>
         <div style={css('display:grid;grid-template-columns:180px 260px minmax(0,1fr);gap:10px;padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>Purpose</span><span>Email</span><span>Used for</span></div>
         {emails.map((e, i) => (
           <div key={e.purpose} style={css('display:grid;grid-template-columns:180px 260px minmax(0,1fr);gap:10px;align-items:center;padding:6px 14px;border-bottom:1px solid #F0F2F5')}><span style={css('font-size:11.5px;font-weight:700;color:#16223A')}>{e.purpose}</span><Txt value={e.email} placeholder={PH[e.purpose] || 'name@shcolaw.com'} onCommit={(v) => { C.save({ purposeEmails: emails.map((x, j) => (j === i ? { ...x, email: v.trim() } : x)) }, 'Purpose Email Changed', e.purpose + ': ' + (e.email || '—') + ' → ' + (v.trim() || '—')); C.msg(e.purpose + ' email saved'); }} style="border:1px solid #DDE3EB;border-radius:6px;padding:5px 7px;font-size:11px;color:#16223A" /><span style={css('font-size:10.5px;color:#5B6478')}>{e.usedFor}</span></div>
         ))}
-      </div>
-    </div>
+      </div>}
+    </SideMenu>
   );
 };

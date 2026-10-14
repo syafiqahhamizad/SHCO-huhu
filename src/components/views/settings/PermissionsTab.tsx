@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { askForm } from '../../ui/askForm';
 import { useApp } from '../../../context/AppContext';
 import { DEFAULT_APPROVAL_LIMITS, type ApprovalLimits } from '../../../services/templateService';
-import { css, S, Txt, type SettingsCtx } from './settingsShared';
+import { css, S, SideMenu, Txt, type SettingsCtx } from './settingsShared';
+import { useRemembered } from '../../../lib/navHistory';
 import { PERM_ROWS, FIXED_ROLE_COLS, parentOf, roleOwnBits, personBits, personRoleBits, personChanges, isManagingPartner, isSuper, designRole, fromBits, flipBit } from './permissionModel';
 
 const BIT: [string, string, string, string][] = [['V', 'view', '#E6EFE9', '#2F6F4E'], ['A', 'add', '#E7EEF6', '#2F5680'], ['E', 'edit / approve', '#F7E9EE', '#8C2F4C']];
@@ -14,6 +15,7 @@ const RULES = ['Data is filtered on the server by role + assigned files', 'Every
 export const PermissionsTab = ({ C, view, setView }: { C: SettingsCtx; view: 'role' | 'person'; setView: (v: 'role' | 'person') => void }) => {
   const { rolesMatrix = {}, users = [], customRoles = [], setRoleModulePermissions, setUserNavOverride, resetUserNavOverrides, addCustomRole } = useApp();
   const [, force] = useState(0);
+  const [sec, setSec] = useRemembered('settings.perms', 'What each role can open');
   const cols: [string, string][] = [...FIXED_ROLE_COLS, ...customRoles.map((r) => [r, r] as [string, string])];
   const permCols = 'minmax(0,1fr) repeat(' + cols.length + ',88px)';
   const denied = () => { C.msg('Only the Super Admin can change permissions'); return false; };
@@ -35,8 +37,8 @@ export const PermissionsTab = ({ C, view, setView }: { C: SettingsCtx; view: 'ro
   const nChg = u ? personChanges(rolesMatrix, u) : 0;
 
   return (
-    <div style={css('display:flex;flex-direction:column;gap:16px')}>
-      <div style={css(S.card)}>
+    <SideMenu items={[['What each role can open'], ['Approval limits', LIMITS.length], ['Always on', RULES.length]]} value={sec} onPick={setSec}>
+      {sec === 'What each role can open' && <div style={css(S.card)}>
         <div style={css('display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>What each role can open</strong><span style={css(S.sub)}>every tab and sub-tab is one permission key · the sidebar, the sub-tabs and the server all read the same key, so switching it off here hides and blocks it everywhere</span><button type="button" onClick={addRole} style={css('margin-left:auto;flex:none;border:1px solid #DDE3EB;border-radius:6px;padding:5px 10px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>+ Add custom role</button></div>
         <div style={css('display:flex;align-items:center;gap:8px;padding:9px 14px;border-bottom:1px solid #EEF1F5;background:#fff')}>
           {([['role', 'By role'], ['person', 'By person']] as ['role' | 'person', string][]).map(([k, label]) => { const on = view === k; return <button key={k} type="button" onClick={() => setView(k)} style={css(`border-radius:14px;padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;border:1px solid ${on ? '#16223A' : '#DDE3EB'};background:${on ? '#16223A' : '#fff'};color:${on ? '#fff' : '#16223A'}`)}>{label}</button>; })}
@@ -106,10 +108,9 @@ export const PermissionsTab = ({ C, view, setView }: { C: SettingsCtx; view: 'ro
           ))}
         </>}
         <div style={css('display:flex;gap:14px;flex-wrap:wrap;padding:9px 14px;background:#F6F8FA;font-size:10.5px;color:#5B6478')}><span><strong style={css('color:#2F6F4E')}>V</strong> can see the tab</span><span><strong style={css('color:#2F5680')}>A</strong> can add / submit</span><span><strong style={css('color:#8C2F4C')}>E</strong> can edit / approve</span><span>A sub-tab can never have more than its tab (greyed = blocked by the tab).</span><span>Lawyers and Assistants only ever see files they are on.</span><span>The Super Admin always has everything.</span></div>
-      </div>
+      </div>}
 
-      <div style={css('display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start')}>
-        <div style={css(S.card)}>
+        {sec === 'Approval limits' && <div style={css(S.card + ';max-width:760px')}>
           <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Approval limits</strong></div>
           {LIMITS.map(([k, label]) => {
             const value = C.settings.approvalLimits?.[k] ?? DEFAULT_APPROVAL_LIMITS[k];
@@ -117,13 +118,12 @@ export const PermissionsTab = ({ C, view, setView }: { C: SettingsCtx; view: 'ro
               <div key={k} style={css('display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:10px;align-items:center;padding:8px 14px;border-bottom:1px solid #F0F2F5')}><span style={css('font-size:11.5px;color:#16223A')}>{label}</span><Txt value={value} onCommit={(v) => C.save({ approvalLimits: { ...(C.settings.approvalLimits || {}), [k]: v } }, 'Approval Limit Changed', label + ': ' + value + ' → ' + v)} style="border:1px solid #DDE3EB;border-radius:6px;padding:5px 7px;font-size:11px;color:#16223A" /></div>
             );
           })}
-        </div>
-        <div style={css('border-radius:12px;border:1px solid #DDE3EB;background:#fff;padding:12px 14px;display:flex;flex-direction:column;gap:6px')}>
+        </div>}
+        {sec === 'Always on' && <div style={css('max-width:760px;border-radius:12px;border:1px solid #DDE3EB;background:#fff;padding:12px 14px;display:flex;flex-direction:column;gap:6px')}>
           <strong style={css(S.h)}>Always on</strong>
           {RULES.map((r) => <span key={r} style={css('display:flex;gap:8px;font-size:11px;line-height:1.5;color:#16223A')}><span style={css('color:#2F6F4E;font-weight:800')}>✓</span>{r}</span>)}
-        </div>
-      </div>
-    </div>
+        </div>}
+    </SideMenu>
   );
 };
 
