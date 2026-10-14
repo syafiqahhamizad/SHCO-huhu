@@ -413,6 +413,10 @@ export interface LeadPlatformDef {
 }
 
 /** Default lead sources (Leads and Referrals.dc.html, exact colours and order). */
+/** The firm's source list (Settings › Lists & sources › Lead sources), also used for where clients came from. */
+export const getLeadSources = (): LeadSourceDef[] => { const l = getPracticeSettings().leadSources; return l && l.length ? l : DEFAULT_LEAD_SOURCES; };
+export const leadSourceLabel = (key?: string) => (key ? getLeadSources().find((x) => x.key === key)?.label || key : '');
+
 export const DEFAULT_LEAD_SOURCES: LeadSourceDef[] = [
   { key: 'Partner', label: 'Partner', color: '#3D6B9C', tint: '#E7EEF6', fg: '#2F5680' },
   { key: 'Staff', label: 'Staff', color: '#5E6F2F', tint: '#EEF1E3', fg: '#4E5C26' },

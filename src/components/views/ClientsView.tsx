@@ -15,6 +15,7 @@ import { canSeeClientBilling, finGrants, canSeeFinanceView, finRoleKey } from '.
 import { casesOfClient, isOpenFile, moneyForClient, moneyForFile, type MoneySources } from '../../lib/moneyByFile';
 import { parseDate } from '../../lib/financeCalc';
 import { exportToCsv } from '../../lib/exportUtils';
+import { getLeadSources, leadSourceLabel } from '../../services/templateService';
 import { whatsappLink } from '../../lib/whatsapp';
 import { personBits } from './settings/permissionModel';
 import {
@@ -587,6 +588,13 @@ const ProfileTab: React.FC<{ c: Client; ccPill: Pill; ccState: string; tier: Tie
           </div>
         </div>
         <div style={css('border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
+          <div style={css(CARD_HEAD)}><strong style={css(H)}>Came to us through</strong></div>
+          <div style={css('display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:14px 16px')}>
+            <label style={css('display:flex;flex-direction:column;gap:4px')}><span style={css(LABEL)}>Source</span><select value={c.source || ''} onChange={(e) => { const v = e.target.value; save({ source: v || undefined }, 'Came to us through: ' + (leadSourceLabel(c.source) || '—') + ' → ' + (leadSourceLabel(v) || '—')); }} style={css(INPUT)}><option value="">—</option>{getLeadSources().map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}{c.source && !getLeadSources().some((x) => x.key === c.source) && <option value={c.source}>{c.source}</option>}</select></label>
+            <label style={css('display:flex;flex-direction:column;gap:4px')}><span style={css(LABEL)}>Who / which</span><CommitField value={c.sourceDetail || ''} onCommit={(v) => { const t = v.trim(); if (t === (c.sourceDetail || '')) return; save({ sourceDetail: t || undefined }, 'Came to us through (who / which): ' + (t || '—')); }} placeholder="e.g. referred by Puan Aini" aria-label="Who referred them" style={css(INPUT)} /></label>
+          </div>
+        </div>
+        <div style={css('border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
           <div style={css(CARD_HEAD)}><strong style={css(H)}>Instructions &amp; notes</strong></div>
           <div style={css('padding:14px 16px')}><CommitField multiline value={c.notes || ''} onCommit={commit({ label: 'Instructions & notes', key: 'notes' })} placeholder="How the client likes to be contacted, billing instructions, board resolution conditions…" aria-label="Instructions and notes" style={css('width:100%;border:1px solid #DDE3EB;border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.5;color:#16223A;background:#fff;resize:vertical;outline-color:#3D6B9C;min-height:84px')} /></div>
         </div>
@@ -616,6 +624,7 @@ const ClientList: React.FC<{
   q: string; setQ: (v: string) => void; type: 'All' | 'Individual' | 'Corporate'; setType: (t: 'All' | 'Individual' | 'Corporate') => void;
   card: string; setCard: (c: string) => void; onOpen: (id: string) => void; onReg: () => void; showToast: (m: string) => void;
 }> = ({ clients, cases, src, seeBilling, q, setQ, type, setType, card, setCard, onOpen, onReg, showToast }) => {
+  const [from, setFrom] = useRemembered('clients.from', '');
   const info = useMemo(() => {
     const m = new Map<string, { files: Case[]; owes: number; kyc: ReturnType<typeof kycOverall> }>();
     clients.forEach((c) => {
@@ -633,7 +642,8 @@ const ClientList: React.FC<{
     po: (x) => portalOf(x).status === 'Not set up' && I(x).files.some(isOpenFile),
     owes: (x) => I(x).owes > 0,
   };
-  const pre = clients.filter((x) => byQ(x) && byT(x));
+  const byF = (x: Client) => !from || (from === '-' ? !x.source : x.source === from);
+  const pre = clients.filter((x) => byQ(x) && byT(x) && byF(x));
   const list = pre.filter((x) => !card || (CF[card] ? CF[card](x) : true));
   const mk = (label: string, key: string, color: string, count: number, note: string) => ({ label, key, color, count, note });
   const cards = [
@@ -645,10 +655,10 @@ const ClientList: React.FC<{
   ];
   const exportCsv = () => {
     if (!clients.length) { showToast('No clients to export yet.'); return; }
-    exportToCsv('SHCO_Clients', clients.map((x) => ({ 'Client ID': x.id, Name: x.name, Type: x.type, 'NRIC / SSM': idNoOf(x), Phone: x.phone, 'E-mail': x.email, KYC: I(x).kyc.t, Conflict: conflictOf(x), Portal: portalOf(x).status })));
+    exportToCsv('SHCO_Clients', clients.map((x) => ({ 'Client ID': x.id, Name: x.name, Type: x.type, 'NRIC / SSM': idNoOf(x), Phone: x.phone, 'E-mail': x.email, KYC: I(x).kyc.t, Conflict: conflictOf(x), Portal: portalOf(x).status, 'Came from': leadSourceLabel(x.source), 'Who / which': x.sourceDetail || '' })));
     showToast('SHCO_Clients.csv downloaded');
   };
-  const hasFilters = !!(q || type !== 'All' || card);
+  const hasFilters = !!(q || type !== 'All' || card || from);
   const COLS = 'display:grid;grid-template-columns:minmax(230px,1.6fr) 150px minmax(170px,1fr) 70px ' + (seeBilling ? '104px ' : '') + '88px 104px 88px;gap:12px;';
   return (
     <div style={css('display:flex;flex-direction:column;gap:16px;font-size:12px;color:#16223A;font-family:Inter,system-ui,-apple-system,sans-serif')}>
@@ -678,7 +688,12 @@ const ClientList: React.FC<{
         <div style={css('display:flex;gap:4px')}>
           {(['All', 'Individual', 'Corporate'] as const).map((t) => { const on = type === t; return <button key={t} type="button" onClick={() => setType(t)} style={css(`border-radius:14px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid ${on ? '#16223A' : '#DDE3EB'};background:${on ? '#16223A' : '#fff'};color:${on ? '#fff' : '#16223A'}`)}>{t === 'All' ? 'All types' : t}</button>; })}
         </div>
-        {hasFilters && <button type="button" onClick={() => { setQ(''); setType('All'); setCard(''); }} style={css('border:0;background:none;padding:0;font-size:11.5px;font-weight:700;color:#3D6B9C;cursor:pointer')}>Clear filters</button>}
+        <select value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Came from" style={css('border:1px solid #DDE3EB;border-radius:8px;padding:5px 8px;font-size:11px;font-weight:700;color:#16223A;background:#fff;font-family:inherit')}>
+          <option value="">Came from: all</option>
+          {getLeadSources().map((x) => { const n = clients.filter((c) => c.source === x.key).length; return <option key={x.key} value={x.key}>{x.label + ' (' + n + ')'}</option>; })}
+          <option value="-">{'Not recorded (' + clients.filter((c) => !c.source).length + ')'}</option>
+        </select>
+        {hasFilters && <button type="button" onClick={() => { setQ(''); setType('All'); setCard(''); setFrom(''); }} style={css('border:0;background:none;padding:0;font-size:11.5px;font-weight:700;color:#3D6B9C;cursor:pointer')}>Clear filters</button>}
         <span style={css('margin-left:auto;font-size:11px;color:#5B6478')}>Showing {list.length} of {clients.length} clients</span>
       </div>
 
@@ -697,7 +712,7 @@ const ClientList: React.FC<{
               <div key={x.id} onClick={() => onOpen(x.id)} className="bg-white hover:bg-[#F6F8FA]" style={css(COLS + 'align-items:center;padding:11px 14px;border-bottom:1px solid #F0F2F5;cursor:pointer')}>
                 <span style={css('display:flex;align-items:center;gap:10px;min-width:0')}>
                   <span style={css(`width:32px;height:32px;flex-shrink:0;border-radius:${isCo ? '8px' : '9999px'};display:grid;place-items:center;font-size:11px;font-weight:800;color:#fff;background:${isCo ? '#3D6B9C' : '#16223A'}`)}>{initials(x.name)}</span>
-                  <span style={css('display:flex;flex-direction:column;gap:2px;min-width:0')}><span style={css('font-size:12.5px;font-weight:700;color:#16223A;line-height:1.35')}>{x.name}</span><span style={css('font-size:10.5px;color:#5B6478')}>{clientRef(x) + ' · ' + (isCo ? x.entityCategory || 'Company' : 'Individual') + ((x.tags || []).length ? ' · ' + (x.tags || []).join(', ') : '')}</span></span>
+                  <span style={css('display:flex;flex-direction:column;gap:2px;min-width:0')}><span style={css('font-size:12.5px;font-weight:700;color:#16223A;line-height:1.35')}>{x.name}</span><span style={css('font-size:10.5px;color:#5B6478')}>{clientRef(x) + ' · ' + (isCo ? x.entityCategory || 'Company' : 'Individual') + (x.source ? ' · via ' + leadSourceLabel(x.source) : '') + ((x.tags || []).length ? ' · ' + (x.tags || []).join(', ') : '')}</span></span>
                 </span>
                 <span style={css('font-family:ui-monospace,monospace;font-size:11px;color:#1E293B')}>{idNoOf(x) || '—'}</span>
                 <span style={css('display:flex;flex-direction:column;gap:2px;min-width:0')}><span style={css('font-weight:600;color:#16223A')}>{x.phone || '—'}</span><span style={css('font-size:11px;color:#5B6478;overflow:hidden;text-overflow:ellipsis;white-space:nowrap')}>{x.email}</span></span>

@@ -214,6 +214,10 @@ export interface Client {
   id: string;
   /** Client number shown to people, CL-<year>-<NNN> (see lib/clientNumbers). */
   clientNo?: string;
+  /** Where the client came from: a key of the Lead sources list (Settings › Lists & sources). */
+  source?: string;
+  /** Who referred them / which platform or event (free text). */
+  sourceDetail?: string;
   name: string;
   type: 'Individual' | 'Corporate';
   entityCategory?: CorporateEntityCategory;

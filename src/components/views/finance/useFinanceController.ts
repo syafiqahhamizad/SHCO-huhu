@@ -509,14 +509,16 @@ export function useFinanceController(initialTab: FinTab) {
     if (q.historical) return ['View'];
     if (q.documentType === 'Proforma') {
       const invoiced = !!invoiceForQuote(rootQuoteId(q));
-      const base = S === 'Draft' ? ['Send'] : S === 'Paid' ? ['View receipt'] : S === 'Declined' ? ['View'] : ['Record payment', 'Remind'];
-      return S !== 'Draft' && S !== 'Declined' && !invoiced ? [...base, 'Convert to invoice'] : base;
+      // Sending is offered, never required: a draft proforma can be paid or invoiced straight away.
+      const base = S === 'Draft' ? ['Send', 'Record payment'] : S === 'Paid' ? ['View receipt'] : S === 'Declined' ? ['View'] : ['Record payment', 'Remind'];
+      return S !== 'Declined' && !invoiced ? [...base, 'Convert to invoice'] : base;
     }
     // Stages / instalments: one proforma per row ("Issue proforma: <stage / month>"), next row first.
     const next = (S === 'Accepted' || S === 'Proforma made') ? planStatus(q).find((r) => !r.proforma) : undefined;
     const planActs = next ? ['Issue proforma: ' + next.label] : [];
-    if (planStatus(q).length) return S === 'Accepted' || S === 'Proforma made' ? [...planActs, 'Convert to invoice'] : ['Draft', 'Pending Approval', 'Ready'].includes(S) ? ['Send'] : S === 'Sent' ? ['Mark accepted', 'Resend'] : S === 'Expired' ? ['Resend'] : ['View'];
-    return ['Draft', 'Pending Approval', 'Ready'].includes(S) ? ['Send'] : S === 'Sent' ? ['Mark accepted', 'Resend'] : S === 'Accepted' ? ['Make proforma', 'Convert to invoice'] : S === 'Proforma made' ? ['Convert to invoice', 'View'] : S === 'Expired' ? ['Resend'] : ['View'];
+    // Sending is offered, never required, and quotations need no approval: mark accepted directly.
+    if (planStatus(q).length) return S === 'Accepted' || S === 'Proforma made' ? [...planActs, 'Convert to invoice'] : ['Draft', 'Pending Approval', 'Ready'].includes(S) ? ['Send', 'Mark accepted'] : S === 'Sent' ? ['Mark accepted', 'Resend'] : S === 'Expired' ? ['Resend'] : ['View'];
+    return ['Draft', 'Pending Approval', 'Ready'].includes(S) ? ['Send', 'Mark accepted'] : S === 'Sent' ? ['Mark accepted', 'Resend'] : S === 'Accepted' ? ['Make proforma', 'Convert to invoice'] : S === 'Proforma made' ? ['Convert to invoice', 'View'] : S === 'Expired' ? ['Resend'] : ['View'];
   };
 
   /* ------------------------------ documents (FinanceDoc for docHtml) ------------------------------ */
@@ -1173,7 +1175,8 @@ export function useFinanceController(initialTab: FinTab) {
       const want = [t.fees > 0, t.disbursements > 0].filter(Boolean).length;
       const ids = seqIds('quotation', Math.max(1, want));
       const base = { documentType: 'Proforma' as const, sourceQuotationId: q.id, partyType: q.partyType || 'Client' as const, partyId: q.partyId, date: onDate, practiceArea: q.practiceArea, fileRef: q.fileRef, leadId: q.leadId || '', clientName: q.clientName, status: 'Draft' as const, billedSoFar: 0, courtLevel: '', stage: '', feeMethod: 'Template' as const, subtype: q.subtype || '', approvalStatus: 'Pending' as const, approvedBy: '', approvedDate: '', sstApplied: false, caseId: q.caseId, matter: q.matter, subject: q.subject, yourRef: q.yourRef, tin: q.tin, scope: '', terms: [] };
-      if (t.fees > 0) { const amt = round2(t.fees / 2); made.push({ ...base, id: ids[made.length], total: amt, remaining: amt, payInto: 'Office', lineItems: [{ description: `Retainer: 50% of quoted professional fees (${q.id})`, category: 'Fee - Fixed', amount: amt, quantity: 1, unitPrice: amt, chargeType: 'Fixed' }] }); }
+      // The office proforma copies the quotation's fee lines in full (no automatic percentage); change it with Edit before sending.
+      if (t.fees > 0) { const items = (q.lineItems || []).filter((i) => i.category !== 'Disbursement'); const amt = round2(items.reduce((a2, i) => a2 + Number(i.amount || 0), 0)); made.push({ ...base, id: ids[made.length], total: amt, remaining: amt, payInto: 'Office', lineItems: items }); }
       if (t.disbursements > 0) { const items = (q.lineItems || []).filter((i) => i.category === 'Disbursement'); made.push({ ...base, id: ids[made.length], total: t.disbursements, remaining: t.disbursements, payInto: 'Client account', lineItems: items }); }
       if (!made.length) { toastMsg('Nothing to ask for: the quotation has no fees or disbursements.'); return; }
       made.forEach((p) => app.addQuotation(p));

@@ -715,6 +715,8 @@ export const LeadsReferralsPage: React.FC = () => {
         address: '',
         emergencyContact: '',
         notes: `Converted from Lead ${l.id} (${l.source || CAT(lv.cat).label}). Interest Area: ${l.practiceArea || 'General'}.`,
+        source: lv.cat || undefined,
+        sourceDetail: l.referralDetail || undefined,
         kyc: [],
         conflictCheck: {
           status: autoConflicts.length > 0 ? 'Flagged' : 'Clear',
@@ -1281,6 +1283,39 @@ export const LeadsReferralsPage: React.FC = () => {
               </button>
             ))}
           </section>
+
+          {(() => {
+            // Every registered client by where they came from (set on the client, or carried over from their lead).
+            const all = clients || [];
+            const rows = cats.map((c) => ({ c, n: all.filter((x) => x.source === c.key).length })).filter((r) => r.n > 0).sort((a2, b2) => b2.n - a2.n);
+            const none = all.filter((x) => !x.source).length;
+            const max = Math.max(1, ...rows.map((r) => r.n), none);
+            return (
+              <section className="overflow-hidden rounded-[12px] border border-[#DDE3EB] bg-white">
+                <div className="flex flex-wrap items-center gap-[8px] border-b border-[#EEF1F5] px-[14px] py-[10px]">
+                  <strong className="text-[14.5px] text-[#16223A]" style={{ fontFamily: SERIF }}>Where our clients come from</strong>
+                  <span className="text-[10.5px] text-[#5B6478]">all {all.length} registered clients · set on each client’s profile (Clients › Came to us through)</span>
+                </div>
+                <div className="flex flex-col gap-[6px] px-[14px] py-[12px]">
+                  {rows.map(({ c, n }) => (
+                    <div key={c.key} className="grid items-center gap-[10px]" style={{ gridTemplateColumns: '150px minmax(0,1fr) 40px' }}>
+                      <span className="text-[12px] font-semibold text-[#16223A]">{c.label}</span>
+                      <span className="h-[10px] rounded-full bg-[#F0F2F5]"><span className="block h-full rounded-full" style={{ width: (n / max) * 100 + '%', background: c.color }} /></span>
+                      <strong className="text-right text-[12px] text-[#16223A]">{n}</strong>
+                    </div>
+                  ))}
+                  {none > 0 && (
+                    <div className="grid items-center gap-[10px]" style={{ gridTemplateColumns: '150px minmax(0,1fr) 40px' }}>
+                      <span className="text-[12px] font-semibold text-[#94A3B8]">Not recorded yet</span>
+                      <span className="h-[10px] rounded-full bg-[#F0F2F5]"><span className="block h-full rounded-full bg-[#C9D1DC]" style={{ width: (none / max) * 100 + '%' }} /></span>
+                      <strong className="text-right text-[12px] text-[#94A3B8]">{none}</strong>
+                    </div>
+                  )}
+                  {!all.length && <span className="text-[12px] text-[#5B6478]">No clients yet.</span>}
+                </div>
+              </section>
+            );
+          })()}
 
           <section className="grid items-start gap-[16px]" style={{ gridTemplateColumns: 'minmax(0,1fr) 360px' }}>
             <div className="overflow-hidden rounded-[12px] border border-[#DDE3EB] bg-white">
