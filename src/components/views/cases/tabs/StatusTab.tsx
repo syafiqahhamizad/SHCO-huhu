@@ -5,6 +5,7 @@ import { P, stamp, addDays, avatarOf, courtOf, daysFrom, fmt, isDeadline, isDone
 import { histEntry, prepUpdate, type WF } from '../wf';
 import { autoSend, emailUpdate, updateStatus } from '../clientComms';
 import { whatsappLink } from '../../../../lib/whatsapp';
+import { useApp } from '../../../../context/AppContext';
 
 export const HC: Record<string, string> = { 'On track': '#1F5A3B', 'At risk': '#B7791F', Stuck: '#8E2A20' };
 const OP: Record<string, { bg: string; fg: string }> = { Done: P.g, 'In progress': P.b, Slipped: P.r };
@@ -57,7 +58,22 @@ const WeekCard: React.FC<{ w?: MatterWeeklyStatus; head: string; emptyTxt: strin
 
 export const StatusTab: React.FC<{ w: WF }> = ({ w }) => {
   const { c, staff } = w;
+  const { currentUser } = useApp();
   const { wk, now, cur, prev, due } = weeklyInfo(c);
+  const isAdmin = Boolean(currentUser?.isAdmin || currentUser?.isSuperAdmin);
+  /** Remove one weekly entry (a test or a mistake). The file's stage goes back to the latest entry left, or to "not set". */
+  const removeWeek = (x: MatterWeeklyStatus) => {
+    if (!window.confirm('Delete the weekly status for w/c ' + short(x.week) + '? This cannot be undone.')) return;
+    const rest = (c.weeklyStatus || []).filter((y) => y.week !== x.week).sort((a, b) => (a.week < b.week ? 1 : -1));
+    const top = rest[0];
+    w.save({
+      weeklyStatus: rest,
+      ...(top
+        ? { statusStage: top.stage, statusStageName: top.stageName, stage: top.stageName, notes: top.progress, nextAction: top.next }
+        : { statusStage: undefined, statusStageName: undefined, stage: undefined, notes: c.notes === x.progress ? '' : c.notes, nextAction: c.nextAction === x.next ? '' : c.nextAction, caseStatusDetails: undefined }),
+      activityLogs: [histEntry('Weekly status w/c ' + short(x.week) + ' deleted', w.me), ...(c.activityLogs || [])],
+    });
+  };
   const stages = stagesFor(practiceOf(c));
   const key = stageKey(practiceOf(c));
   const kd = (c.tasks || []).filter((t) => isDeadline(t) && !isDone(t) && t.dueDate).map((t) => ({ title: t.title, due: isoOf(t.dueDate), kind: t.kind === 'Key date' ? 'Key date' : t.kind === 'Limitation' ? 'Limitation' : 'Deadline: ' + String(t.kind).toLowerCase(), who: avatarOf(staff, t.assignedTo).name.split(' ')[0], open: () => w.openTask(t) }));
@@ -70,7 +86,7 @@ export const StatusTab: React.FC<{ w: WF }> = ({ w }) => {
         <Card>
           <div style={css(S.head)}>
             <strong style={css('font-family:Georgia, serif;font-size:15px;color:#16223A')}>Weekly status</strong>
-            <span style={css(`padding:2px 9px;border-radius:10px;font-size:11.5px;font-weight:700;background:${due.bg};color:${due.fg}`)}>{due.label}</span>
+            {wk.length > 0 && <span style={css(`padding:2px 9px;border-radius:10px;font-size:11.5px;font-weight:700;background:${due.bg};color:${due.fg}`)}>{due.label}</span>}
             <span style={css(S.sub)}>Firm record, also in Case Status firm-wide</span>
             {!w.ro && <button type="button" onClick={w.openWeekly} style={css('margin-left:auto;' + S.btnPri)}>{cur ? 'Edit this week' : 'Weekly update'}</button>}
           </div>
@@ -85,7 +101,7 @@ export const StatusTab: React.FC<{ w: WF }> = ({ w }) => {
             <div key={x.week} style={css(`display:grid;grid-template-columns:100px minmax(0,1fr);gap:14px;padding:12px 14px;border-top:1px solid ${i ? '#F0F2F5' : 'transparent'}`)}>
               <div style={css('display:flex;flex-direction:column;gap:3px')}><strong style={css('font-size:12.5px;color:#16223A')}>w/c {short(x.week)}</strong><span style={css(`display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;color:${HC[x.health] || '#4A5468'}`)}><span style={css(`width:8px;height:8px;border-radius:9999px;background:${HC[x.health] || '#4A5468'}`)} />{x.health}</span><span style={css('font-size:11.5px;color:#4A5468')}>{x.by}</span></div>
               <div style={css('display:flex;flex-direction:column;gap:5px;min-width:0;font-size:12.5px;line-height:1.5;color:#16223A')}>
-                <div style={css('display:flex;gap:8px;flex-wrap:wrap;align-items:center')}><span style={css('font-weight:700')}>{x.stageName}</span>{x.flag && x.flag !== 'None' && <span style={css('padding:1px 8px;border-radius:10px;font-size:11px;font-weight:700;background:#F6EEDC;color:#8A6D3B')}>{x.flag}</span>}<span style={css('margin-left:auto;font-size:11.5px;color:#4A5468')}>{x.clientUpdatePrepared ? 'Client update recorded (see Client updates)' : 'Firm record only'}</span></div>
+                <div style={css('display:flex;gap:8px;flex-wrap:wrap;align-items:center')}><span style={css('font-weight:700')}>{x.stageName}</span>{x.flag && x.flag !== 'None' && <span style={css('padding:1px 8px;border-radius:10px;font-size:11px;font-weight:700;background:#F6EEDC;color:#8A6D3B')}>{x.flag}</span>}<span style={css('margin-left:auto;font-size:11.5px;color:#4A5468')}>{x.clientUpdatePrepared ? 'Client update recorded (see Client updates)' : 'Firm record only'}</span>{(isAdmin || x.by === w.me) && <button type="button" onClick={() => removeWeek(x)} style={css('border:0;background:none;padding:0;font-size:11.5px;font-weight:700;color:#B23A2E;cursor:pointer;font-family:inherit')}>Delete</button>}</div>
                 <span>{x.progress}</span>
                 {x.outcome && <span style={css('font-size:12px;color:#4A5468')}>Previous step: {x.prevNext} <span style={css(`padding:1px 8px;border-radius:10px;font-size:11px;font-weight:700;background:${(OP[x.outcome] || P.n).bg};color:${(OP[x.outcome] || P.n).fg}`)}>{x.outcome}</span> {x.why ? '· ' + x.why : ''}</span>}
                 <span style={css('font-size:12px;color:#4A5468')}>Next: <strong style={css('color:#16223A')}>{x.next}</strong> by {short(x.nextBy)}</span>
@@ -121,10 +137,10 @@ export const StatusTab: React.FC<{ w: WF }> = ({ w }) => {
             </div>
           )}
         </Card>
-        <Card>
+        {stageSet(c) && <Card>
           <div style={css(S.head)}><strong style={css('font-family:Georgia, serif;font-size:15px;color:#16223A')}>Stages</strong><span style={css(S.sub)}>{courtOf(c).name || practiceOf(c)}</span></div>
           {stages.map((s, i) => { const at = stageSet(c) ? stageIndexOf(c) : -1; return <div key={s} style={css(`display:flex;align-items:center;gap:10px;padding:8px 16px;border-top:1px solid #F0F2F5;font-size:12.5px;color:${i <= at ? '#16223A' : '#4A5468'};font-weight:${i === at ? 800 : 500}`)}><span style={css(`width:10px;height:10px;border-radius:3px;background:${i < at ? '#1F5A3B' : i === at ? '#16223A' : '#DDE3EB'}`)} />{s}</div>; })}
-        </Card>
+        </Card>}
       </div>
     </div>
   );

@@ -26,7 +26,7 @@ export const CaseStatusPage: React.FC = () => {
     const stages = stagesFor(practiceOf(c));
     // Nothing is shown as a stage until someone sets it in the file's Status tab.
     const si = stageSet(c) ? stageIndexOf(c) : -1;
-    return { c, last, due, stage: si >= 0 ? stages[si] || '—' : 'Not set yet', stageNo: si + 1, stages: stages.length, area: practiceOf(c) || 'Other' };
+    return { c, last, due, stage: si >= 0 ? stages[si] || '—' : '', set: si >= 0 || !!last, stageNo: si + 1, stages: stages.length, area: practiceOf(c) || 'Other' };
   }), [cases]);
   const areas = useMemo(() => ['All', ...[...new Set(rows.map((r) => r.area))].sort()], [rows]);
   const mineOf = (c: Case) => isMine(c.lawyerInCharge, me) || isMine(c.lawyers as unknown, me) || isMine(c.partners as unknown, me);
@@ -57,14 +57,14 @@ export const CaseStatusPage: React.FC = () => {
         <div className={G + ' min-w-[1050px] border-b border-[#EEF1F5] bg-[#F6F8FA] px-3.5 py-2 text-[9.5px] font-bold uppercase tracking-[.08em] text-[#5B6478]'}>
           <span>File</span><span>Stage</span><span>Health</span><span>This week</span><span>Next step</span><span>Weekly update</span>
         </div>
-        {shown.map(({ c, last, due, stage, stageNo, stages }) => (
+        {shown.map(({ c, last, due, stage, stageNo, stages, set }) => (
           <button key={c.id} type="button" onClick={() => open(c)} className={G + ' min-w-[1050px] w-full items-start border-b border-[#F0F2F5] px-3.5 py-2.5 text-left hover:bg-[#F6F8FA]'}>
             <span className="min-w-0"><span className="block truncate font-mono text-[11px] font-bold text-[#3D6B9C]">{c.ref}</span><span className="block truncate text-[12px] font-semibold text-[#16223A]">{c.title}</span><span className="block text-[10.5px] text-[#5B6478]">{lawyerOf(c) || '—'}</span></span>
-            <span><span className="block text-[11.5px] font-semibold text-[#16223A]">{stage}</span><span className="block text-[10px] text-[#5B6478]">{stageNo > 0 ? 'stage ' + stageNo + ' of ' + stages : 'set it in the file’s Status tab'}</span></span>
-            <span className="text-[11.5px] font-bold" style={{ color: last ? HC[last.health] : '#94A3B8' }}>{last ? last.health : '—'}{last?.flag && last.flag !== 'None' && <span className="block text-[10px] font-semibold text-[#8A6534]">{last.flag}</span>}</span>
-            <span className="text-[11.5px] leading-relaxed text-[#16223A]">{last?.progress || <span className="text-[#94A3B8]">No update yet</span>}</span>
-            <span className="text-[11.5px] text-[#16223A]">{last?.next ? <>{last.next}<span className="block text-[10px] text-[#5B6478]">by {short(last.nextBy)}</span></> : '—'}</span>
-            <span className="justify-self-start rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: due.bg, color: due.fg }}>{due.label}</span>
+            <span><span className="block text-[11.5px] font-semibold text-[#16223A]">{stage}</span>{stageNo > 0 && <span className="block text-[10px] text-[#5B6478]">{'stage ' + stageNo + ' of ' + stages}</span>}</span>
+            <span className="text-[11.5px] font-bold" style={{ color: last ? HC[last.health] : '#94A3B8' }}>{last ? last.health : ''}{last?.flag && last.flag !== 'None' && <span className="block text-[10px] font-semibold text-[#8A6534]">{last.flag}</span>}</span>
+            <span className="text-[11.5px] leading-relaxed text-[#16223A]">{last?.progress || ''}</span>
+            <span className="text-[11.5px] text-[#16223A]">{last?.next ? <>{last.next}<span className="block text-[10px] text-[#5B6478]">by {short(last.nextBy)}</span></> : ''}</span>
+            {!set ? <span /> : <span className="justify-self-start rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: due.bg, color: due.fg }}>{due.label}</span>}
           </button>
         ))}
         {!shown.length && <div className="px-3.5 py-6 text-center text-[12px] text-[#5B6478]">{rows.length ? 'No file matches.' : 'No open files.'}</div>}
