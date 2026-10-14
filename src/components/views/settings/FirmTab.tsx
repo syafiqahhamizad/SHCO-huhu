@@ -112,11 +112,25 @@ export const FirmTab = ({ C }: { C: SettingsCtx }) => {
         <div style={css('display:flex;align-items:center;padding:8px 14px')}><button type="button" onClick={() => savePartners([...partners, { name: '', quals: '' }], 'Added a partner line')} style={css(S.addLink)}>+ Add partner</button></div>
       </div>}
       {sec === 'Emails by purpose' && <div style={css(S.card)}>
-        <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Emails by purpose</strong><span style={css('margin-left:8px;font-size:10.5px;color:#5B6478')}>each email is used only for its purpose · the system sends from and shows the right one automatically</span></div>
-        <div style={css('display:grid;grid-template-columns:180px 260px minmax(0,1fr);gap:10px;padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>Purpose</span><span>Email</span><span>Used for</span></div>
-        {emails.map((e, i) => (
-          <div key={e.purpose} style={css('display:grid;grid-template-columns:180px 260px minmax(0,1fr);gap:10px;align-items:center;padding:6px 14px;border-bottom:1px solid #F0F2F5')}><span style={css('font-size:11.5px;font-weight:700;color:#16223A')}>{e.purpose}</span><Txt value={e.email} placeholder={PH[e.purpose] || 'name@shcolaw.com'} onCommit={(v) => { C.save({ purposeEmails: emails.map((x, j) => (j === i ? { ...x, email: v.trim() } : x)) }, 'Purpose Email Changed', e.purpose + ': ' + (e.email || '—') + ' → ' + (v.trim() || '—')); C.msg(e.purpose + ' email saved'); }} style="border:1px solid #DDE3EB;border-radius:6px;padding:5px 7px;font-size:11px;color:#16223A" /><span style={css('font-size:10.5px;color:#5B6478')}>{e.usedFor}</span></div>
-        ))}
+        <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Emails by purpose</strong><span style={css('margin-left:8px;font-size:10.5px;color:#5B6478')}>the firm’s e-mail addresses and what each one is for · add your own with “+ Add email”</span></div>
+        <div style={css('display:grid;grid-template-columns:180px 240px minmax(0,1fr) 64px;gap:10px;padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>Purpose</span><span>Email</span><span>Used for</span><span></span></div>
+        {emails.map((e, i) => {
+          const builtIn = DEFAULT_PURPOSE_EMAILS.some((d) => d.purpose === e.purpose);
+          const IN = 'border:1px solid #DDE3EB;border-radius:6px;padding:5px 7px;font-size:11px;color:#16223A';
+          const setRow = (patch: Partial<typeof e>, what: string) => { C.save({ purposeEmails: emails.map((x, j) => (j === i ? { ...x, ...patch } : x)) }, 'Purpose Email Changed', what); C.msg((patch.purpose || e.purpose || 'Email') + ' saved'); };
+          return (
+            <div key={i + '-' + emails.length} style={css('display:grid;grid-template-columns:180px 240px minmax(0,1fr) 64px;gap:10px;align-items:center;padding:6px 14px;border-bottom:1px solid #F0F2F5')}>
+              {builtIn ? <span style={css('font-size:11.5px;font-weight:700;color:#16223A')}>{e.purpose}</span> : <Txt value={e.purpose} placeholder="e.g. Careers" onCommit={(v) => setRow({ purpose: v.trim() }, 'Purpose: ' + (e.purpose || '—') + ' → ' + v.trim())} style={IN + ';font-weight:700'} />}
+              <Txt value={e.email} placeholder={PH[e.purpose] || 'name@shcolaw.com'} onCommit={(v) => { const t = v.trim(); if (t && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(t)) { C.msg('That is not an e-mail address.'); return; } setRow({ email: t }, (e.purpose || 'Email') + ': ' + (e.email || '—') + ' → ' + (t || '—')); }} style={IN} />
+              <Txt value={e.usedFor} placeholder="What it is for" onCommit={(v) => setRow({ usedFor: v.trim() }, (e.purpose || 'Email') + ' used for: ' + v.trim())} style={IN} />
+              {builtIn ? <span /> : <button type="button" onClick={() => { if (!window.confirm('Remove ' + (e.purpose || e.email || 'this email') + '?')) return; C.save({ purposeEmails: emails.filter((_, j) => j !== i) }, 'Purpose Email Removed', (e.purpose || '—') + ' ' + (e.email || '')); C.msg('Removed'); }} style={css(S.remove)}>Remove</button>}
+            </div>
+          );
+        })}
+        <div style={css('display:flex;align-items:center;gap:12px;padding:8px 14px')}>
+          <button type="button" onClick={() => C.save({ purposeEmails: [...emails, { purpose: '', email: '', usedFor: '' }] }, 'Purpose Email Added', 'New email row')} style={css(S.addLink)}>+ Add email</button>
+          <span style={css('font-size:10.5px;color:#5B6478')}>The five standard ones stay (the portal uses them); your own can be renamed or removed.</span>
+        </div>
       </div>}
     </SideMenu>
   );

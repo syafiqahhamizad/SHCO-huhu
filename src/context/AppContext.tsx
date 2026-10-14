@@ -3176,7 +3176,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateInvoice = (id: string, updates: Partial<Invoice>) => {
     const target = invoices.find((invoice) => invoice.id === id);
-    if (!target || target.status === 'Paid' || target.status === 'Voided') {
+    // Past papers (record only) can still get their PDF attached.
+    if (!target || (!target.recordOnly && (target.status === 'Paid' || target.status === 'Voided'))) {
       showToast('Paid or voided invoices cannot be edited.');
       return;
     }

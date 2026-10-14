@@ -89,7 +89,7 @@ export interface EditorState {
 }
 interface FormState { kind: string; vals: Record<string, any> }
 interface PaperState { title: string; sub: string; html: string; wide?: boolean; pdf?: () => void; xls?: () => void; toggles?: { label: string; on: boolean; go: () => void }[]; extra?: React.ReactNode }
-interface ImportState { src: 'Template' | 'Bank' | 'Software'; acc: 'Office' | 'Client account' | 'Petty cash'; raw: string[][] | null; fileName: string }
+interface ImportState { src: 'Template' | 'Bank' | 'Software'; acc: 'Office' | 'Client account' | 'Petty cash'; raw: string[][] | null; fileName: string; /** 'reference' (default) = kept to look back at, never counted; 'books' = posted to the cash book and ledgers. */ mode?: 'reference' | 'books' }
 
 export interface ApItem {
   key: string; kind: 'travel' | 'expense' | 'pv' | 'journal' | 'writeoff' | 'referral'; id: string;
@@ -1297,6 +1297,19 @@ export function useFinanceController(initialTab: FinTab) {
   };
 
   /* ------------------------------ forms ------------------------------ */
+  /** Attach the PDF to a past invoice / receipt keyed in without one (e.g. from a bulk import). */
+  const attachPastFile = (kind: 'invoice' | 'receipt', rec: { id: string; caseId?: string; pastNo?: string }, file: File) => {
+    const kase = rec.caseId ? lk.caseById.get(rec.caseId) : undefined;
+    void (async () => {
+      try {
+        await prepareStorage();
+        const up = await storeEngagementFile(kase ? { ref: kase.ref, title: kase.title } : { ref: '', title: kind === 'invoice' ? 'Past invoices' : 'Past receipts' }, file, me);
+        const pastFile = { name: up.name, driveFileId: up.driveFileId, webViewLink: up.webViewLink };
+        if (kind === 'invoice') app.updateInvoice(rec.id, { pastFile }); else app.updateReceipt(rec.id, { pastFile });
+        toastMsg('PDF saved for ' + (rec.pastNo || rec.id));
+      } catch (e) { toastMsg('PDF not uploaded: ' + (e instanceof Error ? e.message : String(e))); }
+    })();
+  };
   const openPastFile = (pf?: { driveFileId?: string; webViewLink?: string }) => {
     if (pf?.webViewLink || pf?.driveFileId) window.open(pf.webViewLink || 'https://drive.google.com/file/d/' + pf.driveFileId + '/view', '_blank', 'noopener');
     else toastMsg('No PDF attached yet.');
@@ -1565,8 +1578,9 @@ export function useFinanceController(initialTab: FinTab) {
       const type = /inv/i.test(tp) ? 'Invoice' : /rec|in\b|credit/i.test(tp) ? 'Receipt' : /pay|out|debit|pv/i.test(tp) ? 'Payment' : '';
       const av = g(r, c.acc); const acc2 = av ? (/client/i.test(av) ? 'Client account' : /petty/i.test(av) ? 'Petty cash' : 'Office') : I0.acc;
       const t = parseDate(g(r, c.date)); const client = g(r, c.client); const no = g(r, c.no);
-      const dup = !!no && (seen.has(no) || invoices.some((x) => x.id === no) || receipts.some((x) => x.id === no) || paymentVouchers.some((x) => x.id === no)); if (no) seen.add(no);
-      const issue = !t ? 'No date' : !amt ? 'No amount' : !type ? 'Type?' : dup ? 'Doc no. exists' : type === 'Receipt' && acc2 === 'Client account' && !clientByName(client) ? 'Client not found' : '';
+      const ref0 = I0.mode !== 'books';
+      const dup = !!no && (seen.has(no) || invoices.some((x) => x.id === no) || receipts.some((x) => x.id === no) || paymentVouchers.some((x) => x.id === no) || [...(app.pastInvoices || []), ...(app.pastReceipts || [])].some((x) => String(x.pastNo || '').toLowerCase() === no.toLowerCase())); if (no) seen.add(no);
+      const issue = !t ? 'No date' : !amt ? 'No amount' : !type ? 'Type?' : dup ? 'Doc no. exists' : ref0 && type === 'Payment' ? 'Payments: use Into the books' : ref0 && !no ? 'No doc no.' : type === 'Receipt' && acc2 === 'Client account' && !clientByName(client) ? 'Client not found' : '';
       const warn = !issue && !client ? 'Match client later' : !issue && !g(r, c.proof) ? 'No proof ref' : '';
       return { date: fd(t), t, type: type || '?', acc: acc2, client, ref: g(r, c.ref), no, desc: g(r, c.desc), amt, method: g(r, c.method), proof: g(r, c.proof), ok: !issue, status: issue || warn || 'Ready', sbg: issue ? '#FBEDE9' : warn ? '#FBF2E9' : '#E6EFE9', sfg: issue ? '#B23A2E' : warn ? '#8A6534' : '#2F6F4E' };
     });
@@ -1574,6 +1588,17 @@ export function useFinanceController(initialTab: FinTab) {
   const postImport = (list: ImpRow[]) => {
     if (!canPrepare) { toastMsg('Imports are posted by Accounts.'); return; }
     const ok = list.filter((r) => r.ok); if (!ok.length) return;
+    if (imp?.mode !== 'books') {
+      // For reference only: kept with their old numbers, never counted (same as + Past invoice / + Past receipt).
+      ok.forEach((r) => {
+        const dateIso = isoOf(r.t); const c = clientByName(r.client); const kase = r.ref ? caseForRef(r.ref) : undefined; const name = c?.name || r.client || '—';
+        if (r.type === 'Invoice') app.addInvoice({ id: 'PAST ' + r.no, recordOnly: true, pastNo: r.no, historical: true, clientId: c?.id || '', caseId: kase?.id || '', fileRef: kase?.ref || r.ref, partyType: 'Client', partyName: name, amount: r.amt, discount: 0, tax: 0, total: r.amt, date: dateIso, dueDate: dateIso, status: 'Paid', matter: r.desc || kase?.title, lineItems: [{ description: r.desc || 'Professional fees', category: 'Fee - Fixed', amount: r.amt, quantity: 1, unitPrice: r.amt, chargeType: 'Fixed' }] } as Invoice);
+        else app.addReceipt({ id: 'PAST ' + r.no, recordOnly: true, pastNo: r.no, historical: true, date: dateIso, accountSet: r.acc === 'Client account' ? 'CLIENT' : 'OFFICE', receivedFrom: name, description: r.desc || 'Past receipt', amount: r.amt, debit: '', credit: '', clientId: c?.id || '', fileRef: kase?.ref || r.ref, bankRef: '', receivedBy: me, paymentMethod: r.method || '—', forNo: r.desc, caseId: kase?.id } as unknown as Receipt);
+      });
+      setImp(null);
+      toastMsg(ok.length + ' past papers recorded for reference (not counted). Attach each PDF from Billing › Past invoices / Past receipts.');
+      return;
+    }
     const nR = ok.filter((r) => r.type === 'Receipt' && !r.no).length, nI = ok.filter((r) => r.type === 'Invoice' && !r.no).length, nP = ok.filter((r) => r.type === 'Payment' && !r.no).length;
     const rIds = nR ? seqIds('receipt', nR) : [], iIds = nI ? seqIds('invoice', nI) : [], pIds = nP ? seqIds('voucher', nP) : [];
     const gl: Omit<GeneralLedgerEntry, 'glNo' | 'reconciled'>[] = [];
@@ -1620,7 +1645,7 @@ export function useFinanceController(initialTab: FinTab) {
     ledgers, trustTotal, ledgerTotalAt, clientLedgerBalance, threeWayRec,
     unbilled, wipTotal, billMatter, billed: billed as Record<string, { inv: string; u: any }>,
     activeBanks, bankKind, banksOf, paidFromOptions, bankBal, lastRecon, officeCash,
-    filingLog, filingOff, retryFiling, openPastFile,
+    filingLog, filingOff, retryFiling, openPastFile, attachPastFile,
     apItems, pendingAp, approve, apId, apRule, canSignItem, ruleFor, signoffs, signOff, myCode,
     trSub, setTrSub, ofSub, setOfSub, apSub, setApSub, paySub, setPaySub, guide, setGuide, rem, setRem, paper, setPaper, decided: decided as Record<string, { d: 'ok' | 'no'; item: ApItem }>, referral, referralFor, refDecision, toPay, markPaid, paidNow: paidNow as Record<string, { item: PayItem; file: string }>,
     saveSlipPatch, feeShareFor, fsFilesFor, fsPeople, fsCostsFor, fsApproved, saveFs, setFsFile, applyFeeShareToSlips,
