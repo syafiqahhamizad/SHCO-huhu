@@ -236,9 +236,9 @@ export const Header: React.FC = () => {
     <header style={{ background: '#16223A' }} className="sticky top-0 z-20 box-border rounded-2xl border border-[#16223A] text-[#F6F8FA] px-4 sm:px-6 py-3 flex flex-row flex-wrap items-center justify-start gap-x-6 gap-y-2.5 shadow-[0_12px_24px_-16px_rgba(22,34,58,.8)] font-sans">
       <div className="min-w-0 flex-[1_1_280px]">
         {(navDepth > 0 || info.crumb) && (
-          <span className="inline-flex items-center gap-3 mb-0.5">
+          <span className="inline-flex items-center gap-2 mb-1.5">
             {navDepth > 0 && (
-              <button type="button" onClick={goBack} title="Back to the previous page" className="shco-nav-ink inline-block p-0 bg-transparent border-0 text-[11px] font-semibold tracking-[.02em] text-[#8FB3DE] hover:text-white cursor-pointer">
+              <button type="button" onClick={goBack} title="Back to the previous page" className="shco-nav-ink inline-flex items-center rounded-full border border-[#3D5478] bg-white/10 px-3 py-1 text-[12px] font-bold tracking-[.02em] text-white hover:bg-white/20 cursor-pointer">
                 ‹ Back
               </button>
             )}
@@ -246,7 +246,7 @@ export const Header: React.FC = () => {
               <button
                 type="button"
                 onClick={info.onCrumb}
-                className="shco-nav-ink inline-block p-0 bg-transparent border-0 text-[11px] font-semibold tracking-[.02em] text-[#8FB3DE] hover:text-white cursor-pointer"
+                className="shco-nav-ink inline-flex items-center rounded-full border border-[#3D5478] bg-white/10 px-3 py-1 text-[12px] font-bold tracking-[.02em] text-white hover:bg-white/20 cursor-pointer"
               >
                 {navDepth > 0 ? 'All ' + info.crumb.toLowerCase() : '‹ ' + info.crumb}
               </button>

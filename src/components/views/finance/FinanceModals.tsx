@@ -8,8 +8,9 @@ import type { QuotationPaymentStage } from '../../../types';
 import { PlanRowsPanel } from './PlanRowsPanel';
 import { PV_DRAWINGS, PV_SST, PV_STATUTORY } from '../../../lib/financeCalc';
 import type { FinanceProof, Invoice, Quotation } from '../../../types';
-import { getPracticeSettings, DEFAULT_EXPENSE_CATEGORIES } from '../../../services/templateService';
+import { getPracticeSettings, getPayees, getCostDetails, DEFAULT_EXPENSE_CATEGORIES } from '../../../services/templateService';
 import { SearchSelect } from '../../ui/SearchSelect';
+import { MoneyInput, money2 } from '../../ui/MoneyInput';
 
 /** Office expense categories from Firm & Practice Settings → Lists & sources. */
 const expenseCategories = (): string[] => {
@@ -27,6 +28,7 @@ const ClientList = ({ F }: { F: FinanceCtrl }) => (
   <>
     <datalist id="fin-clients">{F.app.clients.map((c) => <option key={c.id} value={c.name} />)}</datalist>
     <datalist id="fin-cases">{F.app.cases.filter((c) => F.ownCase(c)).map((c) => <option key={c.id} value={c.ref}>{c.title}</option>)}</datalist>
+    <datalist id="fin-costdetails">{getCostDetails().map((d) => <option key={d} value={d} />)}</datalist>
     <datalist id="fin-invoices">{F.openInvoices.map((i) => <option key={i.id} value={i.id}>{(i.partyName || '') + ' · ' + rm2(F.invBal(i))}</option>)}</datalist>
   </>
 );
@@ -196,7 +198,7 @@ export const DocEditModal = ({ F }: { F: FinanceCtrl }) => {
               <div style={css('display:flex;align-items:center;gap:8px;padding:7px 12px;background:#F6F8FA')}><strong style={css('font-size:11.5px')}>{title}</strong><span style={css('font-size:10px;color:#5B6478')}>{note}</span><strong style={css('margin-left:auto;font-size:11.5px')}>{SD.money(sum(e.lines[k]))}</strong></div>
               {k === 'prof' && <label style={css('display:flex;flex-direction:column;gap:4px;padding:8px 12px;border-top:1px solid #F0F2F5')}><span style={css(LBL)}>Scope of work</span><textarea value={e.desc} onChange={(ev) => setE({ desc: ev.target.value })} rows={4} placeholder="Being our professional charges for…" style={css(INPUT + ';resize:vertical;line-height:1.45;text-align:justify')} /></label>}
               {e.lines[k].map(([desc, a], i) => (
-                <div key={`${e.area}-${k}-${i}-${e.lines[k].length}`} style={css('display:grid;grid-template-columns:minmax(0,1fr) 130px 70px;gap:8px;align-items:center;padding:5px 12px;border-top:1px solid #F0F2F5')}><input value={desc} onChange={(ev) => { const v = ev.target.value; setLines((L) => { L[k][i][0] = v; }); }} placeholder="Description" style={css(INPUT)} /><input defaultValue={String(a)} onChange={(ev) => { const v = ev.target.value; setLines((L) => { L[k][i][1] = Number(v.replace(/[^0-9.]/g, '')) || 0; }); }} style={css(INPUT + ';text-align:right')} /><button type="button" onClick={() => setLines((L) => { L[k].splice(i, 1); })} style={css(BTN + ';color:#B23A2E;padding:5px 8px')}>Remove</button></div>
+                <div key={`${e.area}-${k}-${i}-${e.lines[k].length}`} style={css('display:grid;grid-template-columns:minmax(0,1fr) 130px 70px;gap:8px;align-items:center;padding:5px 12px;border-top:1px solid #F0F2F5')}><input value={desc} list={k === 'disb' ? 'fin-costdetails' : undefined} onChange={(ev) => { const v = ev.target.value; setLines((L) => { L[k][i][0] = v; }); }} placeholder="Description" style={css(INPUT)} /><input inputMode="decimal" defaultValue={Number(a || 0).toFixed(2)} onChange={(ev) => { const v = ev.target.value; setLines((L) => { L[k][i][1] = Number(v.replace(/[^0-9.]/g, '')) || 0; }); }} onBlur={(ev) => { ev.target.value = money2(ev.target.value) || '0.00'; }} style={css(INPUT + ';text-align:right')} /><button type="button" onClick={() => setLines((L) => { L[k].splice(i, 1); })} style={css(BTN + ';color:#B23A2E;padding:5px 8px')}>Remove</button></div>
               ))}
               <div style={css('padding:6px 12px;border-top:1px solid #F0F2F5')}><button type="button" onClick={() => setLines((L) => { L[k].push(['', 0]); })} style={css('border:0;background:none;font-size:11px;font-weight:700;color:#8A6D3B;cursor:pointer;font-family:inherit')}>+ Add line</button></div>
             </div>
@@ -213,6 +215,8 @@ export const DocEditModal = ({ F }: { F: FinanceCtrl }) => {
 
 /* ------------------------------ Small forms ------------------------------ */
 type FieldDef = [string, string, (string | string[] | 'file')?];
+/** Money boxes: typed as numbers, shown as 0.00 when you leave the box. */
+const MONEY_KEYS = ['amount', 'fees', 'reimb', 'disb', 'sst', 'target', 'saved', 'monthly'];
 export const FormModal = ({ F }: { F: FinanceCtrl }) => {
   const f = F.form!;
   const set = (k: string, v: unknown) => F.setForm({ ...f, vals: { ...f.vals, [k]: v } });
@@ -231,7 +235,7 @@ export const FormModal = ({ F }: { F: FinanceCtrl }) => {
     pay: ['Record payment for ' + (f.vals.title || ''), [['amount', 'Amount received (RM)'], ['date', 'Date received', 'dd.mm.yyyy'], ['method', 'Method', ['Online transfer', 'Cheque', 'Cash']], ['proofs', 'Proof of payment (bank-in slip, screenshot, cheque copy, WhatsApp)', 'file']]],
     journal: ['Manual journal (goes to Approvals)', [['date', 'Date', 'dd.mm.yyyy'], ['account', 'Account', ['Office', 'Client account', 'Disbursement', 'Petty cash']], ['dir', 'Direction', ['Money out', 'Money in']], ...(f.vals.account === 'Client account' ? [['client', 'Client ledger (required for the client account)'], ['matter', 'Matter (file ref.)', 'SHC/…']] as FieldDef[] : []), ['details', 'Details', 'e.g. bank charges Sep'], ['amount', 'Amount (RM)'], ['reason', 'Reason for adjustment']], f.vals.account === 'Client account' ? 'Client-account journals adjust one client ledger (client + matter), so the ledgers, cash book and bank stay equal. A ledger can never go below zero.' : undefined],
     payOut: ['Pay out of client money', [['client', 'From client ledger'], ['matter', 'Matter (file ref.) · paid from this matter’s ledger', 'SHC/…'], ['payee', 'Pay to', 'e.g. vendor\'s solicitors'], ['amount', 'Amount (RM)'], ['date', 'Date', 'dd.mm.yyyy'], ['purpose', 'Purpose', 'e.g. balance purchase price'], ['proofs', 'Supporting document (letter, redemption statement, invoice)', 'file']]],
-    disb: ['Paid for a client file', [['client', 'Client'], ['matter', 'File', 'SHC/…'], ['payee', 'Paid to', 'e.g. Pejabat Tanah, LHDN, Mahkamah'], ['what', 'Details', 'e.g. land search, stamp duty, filing fee'], ['amount', 'Amount (RM)'], ['date', 'Date paid', 'dd.mm.yyyy'], ['from', 'Paid from', F.paidFromOptions], ['proofs', 'Receipt', 'file']], 'Billed back to the client on the file\'s next invoice.'],
+    disb: ['Paid for a client file', [['matter', 'File', 'SHC/…'], ['client', 'Client (filled in from the file)'], ['payee', 'Paid to', 'e.g. Pejabat Tanah, LHDN, Mahkamah'], ['what', 'Details', 'e.g. land search, stamp duty, filing fee'], ['amount', 'Amount (RM)'], ['date', 'Date paid', 'dd.mm.yyyy'], ['from', 'Paid from', F.paidFromOptions], ['proofs', 'Receipt', 'file']], 'Billed back to the client on the file\'s next invoice.'],
     transfer: ['Transfer fees to office', [['client', 'From client ledger'], ['matter', 'Matter (file ref.)', 'SHC/…'], ['forNo', 'For invoice', 'INV-2026-…'], ['amount', 'Amount (RM)'], ['date', 'Date', 'dd.mm.yyyy']]],
     expense: ['Office cost', [['kind', 'What is it', ['Office expense', PV_STATUTORY, PV_SST, PV_DRAWINGS]], ...(!f.vals.kind || f.vals.kind === 'Office expense' ? [['cat', 'Category', expenseCategories()], ...(f.vals.cat === 'Other' ? [['catOther', 'Other: what is it?', 'e.g. parking at court, key cutting']] : [])] as FieldDef[] : []), ['payee', 'Paid to'], ['what', 'Details'], ['amount', 'Amount (RM)'], ['date', 'Date paid', 'dd.mm.yyyy'], ['from', 'Paid from', F.paidFromOptions], ['proofs', 'Bill or receipt', 'file']]],
     pastQuote: ['Record a past quotation (made before the portal)', [['no', 'Quotation no. (as printed)', 'e.g. QUO/2025/012'], ['client', 'Client'], ['matter', 'File (if any)', 'SHC/…'], ['date', 'Date of the quotation', 'dd.mm.yyyy'], ['fees', 'Professional fees (RM)', 'e.g. 1500'], ['reimb', 'Reimbursements (RM)', 'photocopy, courier, travel… (0 if none)'], ['disb', 'Disbursements (RM)', 'stamp duty, filing fees, searches… (0 if none)'], ['status', 'Status', ['Accepted', 'Sent', 'Declined']], ['pdf', 'The quotation (PDF)', 'file']]],
@@ -252,10 +256,30 @@ export const FormModal = ({ F }: { F: FinanceCtrl }) => {
   const pickedClient = F.app.clients.find((c) => c.name === f.vals.client);
   const filesOf = (cid?: string) => F.app.cases.filter((c) => F.ownCase(c) && (!cid || String(c.clientId || '').split(',').map((x) => x.trim()).includes(cid)));
   const matterOpts = filesOf(pickedClient?.id).map((c) => ({ value: c.ref, label: c.ref, hint: c.title }));
+  // A file picked first fills in its client; a file with several clients limits the client list to them.
+  const pickedFile = F.app.cases.find((c) => c.ref === f.vals.matter);
+  const fileClientIds = pickedFile ? String(pickedFile.clientId || '').split(',').map((x) => x.trim()).filter(Boolean) : [];
+  const clientChoices = fileClientIds.length > 1 ? clientOpts.filter((o) => fileClientIds.includes(F.app.clients.find((c) => c.name === o.value)?.id || '')) : clientOpts;
+  const pickMatter = (ref: string) => {
+    const k = F.app.cases.find((c) => c.ref === ref);
+    const ids = k ? String(k.clientId || '').split(',').map((x) => x.trim()).filter(Boolean) : [];
+    const cur = F.app.clients.find((c) => c.name === f.vals.client);
+    const keep = cur && ids.includes(cur.id);
+    const name = keep ? f.vals.client : ids.length ? F.app.clients.find((c) => c.id === ids[0])?.name || f.vals.client : f.vals.client;
+    F.setForm({ ...f, vals: { ...f.vals, matter: ref, client: name } });
+  };
+  // "Paid to": one list (Settings › Lists & sources) so the same payee is always spelt the same.
+  const payeeOpts = [...new Set([...getPayees(), ...(f.vals.payee ? [String(f.vals.payee)] : [])])].map((p) => ({ value: p, label: p }));
+  // "Details" on Paid for a client file: same idea, its own list.
+  const detailOpts = [...new Set([...getCostDetails(), ...(f.vals.what ? [String(f.vals.what)] : [])])].map((p) => ({ value: p, label: p }));
+  const addDetail = (name: string) => { if (!getCostDetails().some((p) => p.toLowerCase() === name.toLowerCase())) F.saveSettings({ costDetails: [...getCostDetails(), name] }); set('what', name); };
+  const detailsList = f.kind === 'disb';
+  const addPayee = (name: string) => { if (!getPayees().some((p) => p.toLowerCase() === name.toLowerCase())) F.saveSettings({ payees: [...getPayees(), name] }); set('payee', name); };
   const pickClient = (name: string) => {
     const c = F.app.clients.find((x) => x.name === name);
     const files = c ? filesOf(c.id).filter((k) => k.status !== 'Closed' && k.status !== 'Archive') : [];
-    F.setForm({ ...f, vals: { ...f.vals, client: name, matter: files.length === 1 ? files[0].ref : '' } });
+    const keepFile = !!c && !!f.vals.matter && filesOf(c.id).some((k) => k.ref === f.vals.matter);
+    F.setForm({ ...f, vals: { ...f.vals, client: name, matter: keepFile ? f.vals.matter : files.length === 1 ? files[0].ref : '' } });
   };
   const addProofs = (k: string, picked: FileList | null) => {
     if (!picked || !picked.length) return;
@@ -275,9 +299,13 @@ export const FormModal = ({ F }: { F: FinanceCtrl }) => {
           {def[1].map(([k, label, x]) => { const isOpts = Array.isArray(x), isFile = x === 'file'; const fl: FinanceProof[] = f.vals[k] || []; return (
             <div key={k} style={css('display:flex;flex-direction:column;gap:4px')}><span style={css(LBL)}>{label}</span>
               {k === 'date' && <input type="date" value={toIso(f.vals.date || todayDmy)} onChange={(ev) => set('date', fromIso(ev.target.value))} style={css(INPUT + ';width:170px')} />}
-              {k === 'client' && <SearchSelect aria-label={label} value={f.vals.client || ''} onChange={pickClient} placeholder="Search a client…" empty="No client by that name. Add them in Clients first." options={clientOpts} />}
-              {k === 'matter' && <SearchSelect aria-label={label} value={f.vals.matter || ''} onChange={(v) => set('matter', v)} clearable placeholder={pickedClient ? (matterOpts.length ? 'Choose the file…' : 'This client has no file yet') : 'Search a file ref…'} empty="No file matches." options={matterOpts} />}
-              {!isOpts && !isFile && !['date', 'client', 'matter'].includes(k) && <input list={listFor(k)} value={f.vals[k] || ''} onChange={(ev) => set(k, ev.target.value)} placeholder={typeof x === 'string' ? x : ''} style={css(INPUT)} />}
+              {k === 'client' && <SearchSelect aria-label={label} value={f.vals.client || ''} onChange={pickClient} placeholder="Search a client…" empty="No client by that name. Add them in Clients first." options={clientChoices} />}
+              {k === 'what' && detailsList && <SearchSelect aria-label={label} value={f.vals.what || ''} onChange={(v) => set('what', v)} onCreate={addDetail} clearable placeholder="Choose what it was for… (type a new one to add it)" options={detailOpts} />}
+              {k === 'payee' && <SearchSelect aria-label={label} value={f.vals.payee || ''} onChange={(v) => set('payee', v)} onCreate={addPayee} clearable placeholder="Choose who was paid… (type a new one to add it)" options={payeeOpts} />}
+              {k === 'matter' && <SearchSelect aria-label={label} value={f.vals.matter || ''} onChange={pickMatter} clearable placeholder={pickedClient ? (matterOpts.length ? 'Choose the file…' : 'This client has no file yet') : 'Search a file ref…'} empty="No file matches." options={matterOpts} />}
+              {!isOpts && !isFile && !['date', 'client', 'matter', 'payee'].includes(k) && !(k === 'what' && detailsList) && (MONEY_KEYS.includes(k)
+                ? <MoneyInput value={f.vals[k]} onChange={(v) => set(k, v)} style={css(INPUT)} />
+                : <input list={listFor(k)} value={f.vals[k] || ''} onChange={(ev) => set(k, ev.target.value)} placeholder={typeof x === 'string' ? x : ''} style={css(INPUT)} />)}
               {isFile && <div onDragOver={(ev) => ev.preventDefault()} onDrop={(ev) => { ev.preventDefault(); addProofs(k, ev.dataTransfer.files); }} style={css('display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1.5px dashed #C9D3E0;border-radius:8px;padding:8px 10px;background:#FAFBFC')}><span style={css('font-size:10.5px;font-weight:700;color:#16223A')}>Drop files here or</span><label style={css('border:1px solid #DDE3EB;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit;white-space:nowrap')}>Choose files<input type="file" multiple accept="image/*,.pdf" onChange={(ev) => { addProofs(k, ev.target.files); ev.target.value = ''; }} style={css('display:none')} /></label><span style={css(`font-size:10.5px;color:${fl.length ? '#2F6F4E' : '#B23A2E'}`)}>{fl.length ? fl.map((q) => q.name).join(', ') : 'Nothing attached yet'}</span><span style={css(`margin-left:auto;font-size:10px;color:${proofUploadBlocked() ? '#B23A2E' : '#5B6478'};white-space:nowrap`)}>{storageLabel()}</span></div>}
               {/* Up to 4 choices: buttons. More (e.g. expense categories): one drop-down. */}
               {isOpts && (x as string[]).length <= 4 && <div style={css('display:flex;flex-wrap:wrap;gap:4px')}>{seg(x as string[], f.vals[k] || (x as string[])[0], (v) => set(k, v))}</div>}

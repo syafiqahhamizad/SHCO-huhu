@@ -696,7 +696,7 @@ export function useFinanceController(initialTab: FinTab) {
   const ledgerTotalAt = (end: Date) => retainers.filter((r) => { const t = parseDate(r.date); return t && t <= end.getTime(); }).reduce((s, r) => s + (r.type === 'Deposit' ? Number(r.amount || 0) : -Number(r.amount || 0)), 0);
 
   /* ------------------------------ work not billed (WIP) ------------------------------ */
-  interface Unbilled { caseId: string; kase?: Case; client: string; ref: string; title: string; pic: string; time: number; disb: number; oldest: number; te: typeof timeEntries; ex: Expense[]; tc: TravelClaim[] }
+  interface Unbilled { key: string; caseId: string; kase?: Case; clientId: string; client: string; ref: string; title: string; pic: string; time: number; disb: number; oldest: number; te: typeof timeEntries; ex: Expense[]; tc: TravelClaim[] }
   /** Work already on a draft invoice (it is marked billed only when that invoice is issued). */
   const onDraft = useMemo(() => {
     const ids = new Set<string>();
@@ -706,10 +706,10 @@ export function useFinanceController(initialTab: FinTab) {
   const travelBillable = (t: TravelClaim) => Math.max(0, Number(t.billableClientTotal || 0));
   const unbilled: Unbilled[] = useMemo(() => {
     const m = new Map<string, Unbilled>();
-    const get = (caseId: string) => { const k = findCase(lk, caseId, caseId); const key = k?.id || caseId || '—'; let u = m.get(key); if (!u) { u = { caseId: key, kase: k, client: k ? (clientName(k.clientId.split(',')[0].trim()) || k.clientName || '—') : '—', ref: k?.ref || caseId || '—', title: k?.title || '', pic: k ? ((k.partners || [])[0] || initials(k.lawyerInCharge)) : '—', time: 0, disb: 0, oldest: 0, te: [], ex: [], tc: [] }; m.set(key, u); } return u; };
+    const get = (caseId: string, forClient?: string) => { const k = findCase(lk, caseId, caseId); const ids = k ? k.clientId.split(',').map((x) => x.trim()).filter(Boolean) : []; const cid = forClient && (!ids.length || ids.includes(forClient)) ? forClient : ids[0] || ''; const key = (k?.id || caseId || '—') + '|' + cid; let u = m.get(key); if (!u) { u = { key, caseId: k?.id || caseId || '—', kase: k, clientId: cid, client: (cid && clientName(cid)) || k?.clientName || '—', ref: k?.ref || caseId || '—', title: k?.title || '', pic: k ? ((k.partners || [])[0] || initials(k.lawyerInCharge)) : '—', time: 0, disb: 0, oldest: 0, te: [], ex: [], tc: [] }; m.set(key, u); } return u; };
     // Same rule as billingEngine: billable, not billed / written off, approved (not rejected / pending).
     timeEntries.filter((t) => t.billable && !t.billed && !t.writtenOff && isApprovedForBilling(t.approvalStatus) && !onDraft.has(t.id)).forEach((t) => { const u = get(t.caseId); u.time += Number(t.hours || 0) * Number(t.rate || 0); u.te.push(t); u.oldest = Math.max(u.oldest, daysSince(t.date)); });
-    expenses.filter((e) => e.billable && !e.billed && !e.writtenOff && isApprovedForBilling(e.approvalStatus) && !onDraft.has(e.id)).forEach((e) => { const u = get(e.caseId || e.fileRef || ''); u.disb += Number(e.amount || 0); u.ex.push(e); u.oldest = Math.max(u.oldest, daysSince(e.date)); });
+    expenses.filter((e) => e.billable && !e.billed && !e.writtenOff && isApprovedForBilling(e.approvalStatus) && !onDraft.has(e.id)).forEach((e) => { const u = get(e.caseId || e.fileRef || '', e.clientId); u.disb += Number(e.amount || 0); u.ex.push(e); u.oldest = Math.max(u.oldest, daysSince(e.date)); });
     // Billable travel (mileage at the client rate + toll + parking) from approved staff claims.
     travelClaims.filter((t) => travelBillable(t) > 0 && t.billed !== 'Y' && !!t.fileRef && t.fileRef !== 'FIRM_OPERATIONS' && isApprovedForBilling(t.approvalStatus) && !onDraft.has(t.id)).forEach((t) => { const u = get(t.fileRef); u.disb += travelBillable(t); u.tc.push(t); u.oldest = Math.max(u.oldest, daysSince(t.date)); });
     return [...m.values()].filter((u) => u.time + u.disb > 0 && (rk !== 'P' || ownCase(u.kase))).sort((a, b) => b.oldest - a.oldest);
@@ -1457,11 +1457,11 @@ export function useFinanceController(initialTab: FinTab) {
       reimb: [...u.ex.filter((x) => !expenseIsDisb(x)).map(exLine), ...u.tc.map((t) => [`Travelling: ${t.purpose || t.to || t.type} (${fd(t.date)})`, round2(travelBillable(t))] as SD.DocLine)],
     };
     const items = linesToItems(lines); const rate = SD.defaultSstRate(); const t = recordTotals(items, rate);
-    const cid = k ? k.clientId.split(',')[0].trim() : '';
+    const cid = u.clientId || (k ? k.clientId.split(',')[0].trim() : '');
     // The work is marked billed when this draft is ISSUED (until then it stays off "Work not
     // billed" because it is on the draft, and comes back if the draft is voided).
     app.addInvoice({ id, clientId: cid, caseId: k?.id || u.caseId, fileRef: k?.ref, partyType: 'Client', partyName: u.client, amount: round2(t.fees + t.disbursements + t.reimbursements), discount: 0, tax: t.sst, total: t.grandTotal, date: todayIso(), dueDate: todayIso(), status: 'Draft', lineItems: items, sstRate: rate || undefined, matter: k?.title, subject: String(k?.title || '').toUpperCase(), yourRef: 'Kindly Advised', tin: '-', scope: SD.AREAS[area]?.desc || '', payInto: 'Office', sourceItems: { time: u.te.map((x) => x.id), expenses: u.ex.map((x) => x.id), travel: u.tc.map((x) => x.id) } });
-    setBilled((b) => ({ ...b, [u.caseId]: { inv: id, u } }));
+    setBilled((b) => ({ ...b, [u.key]: { inv: id, u } }));
     setView({ kind: 'invoice', id });
     toastMsg('Draft ' + id + ' created from unbilled work');
   };
@@ -1745,7 +1745,7 @@ export function useFinanceController(initialTab: FinTab) {
       const kase = vals.matter ? caseForRef(String(vals.matter)) : cases.find((k) => c && k.clientId.split(',').map((x) => x.trim()).includes(c.id) && k.status !== 'Closed');
       const id = app.getNextSequenceId('expense');
       const fromBank = String(vals.from || paidFromOptions[0] || 'Disbursement');
-      app.addExpense({ id, caseId: kase?.id || '', fileRef: kase?.ref, date: dateIso, category: 'Disbursement', amount: amt, billable: true, description: vals.what || 'Disbursement', payee: vals.payee || '', accountSet: 'OFFICE', paidFrom: fromBank, approvalStatus: 'Posted to GL', postedToGl: true, paidProof: proofs[0], documents: proofs.map((p, i) => ({ id: `DOC-${id}-${i}`, name: p.name, url: '', type: p.type, size: p.size, uploadedAt: p.uploadedAt, category: 'Receipt Photo' as const })) });
+      app.addExpense({ id, caseId: kase?.id || '', clientId: c?.id || undefined, fileRef: kase?.ref, date: dateIso, category: 'Disbursement', amount: amt, billable: true, description: vals.what || 'Disbursement', payee: vals.payee || '', accountSet: 'OFFICE', paidFrom: fromBank, approvalStatus: 'Posted to GL', postedToGl: true, paidProof: proofs[0], documents: proofs.map((p, i) => ({ id: `DOC-${id}-${i}`, name: p.name, url: '', type: p.type, size: p.size, uploadedAt: p.uploadedAt, category: 'Receipt Photo' as const })) });
       rememberProofUrls('form', 'expense:' + id, proofs);
       postGL([{ date: dateIso, docType: 'PV', docNo: id, accountSet: 'OFFICE', debit: GLA.unbilledDisb, credit: /disb/i.test(fromBank) ? GLA.disb : /petty/i.test(fromBank) ? GLA.petty : GLA.office, amount: amt, clientId: c?.id || '', fileRef: kase?.ref || '', description: `Disbursement for ${vals.client}: ${vals.what || ''} · paid to ${vals.payee || '—'}` }]);
       setForm(null); toastMsg(`${id} recorded · billed back to ${vals.client} on the next invoice${kase ? '' : ' (link it to a file to bill it)'}`);

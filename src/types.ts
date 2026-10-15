@@ -937,6 +937,8 @@ export interface ClaimAttachment {
 export interface Expense {
   id: string;
   caseId: string;
+  /** The client this cost is for (a file can have several clients). */
+  clientId?: string;
   fileRef?: string;
   date: string;
   category: string;

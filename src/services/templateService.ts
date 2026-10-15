@@ -267,6 +267,10 @@ export interface PracticeSettings {
   /** Lists & sources: Office Account expense categories and My Claims claim types. */
   expenseCategories?: string[];
   claimTypes?: string[];
+  /** Lists & sources: who the firm usually pays ("Paid to" on money-out forms), so names stay the same. */
+  payees?: string[];
+  /** Lists & sources: what a cost for a client file usually is ("Details" on Paid for a client file). */
+  costDetails?: string[];
   /** Google Drive storage (Google, e-mail & backup tab). When a root folder and an OAuth client ID
    * are set, new uploads (claim receipts, HR documents, staff photos, finance proofs, backups)
    * go to this Shared Drive folder instead of Firebase Storage. */
@@ -389,6 +393,34 @@ export const DEFAULT_APPROVAL_LIMITS: Required<ApprovalLimits> = {
 
 /** Office expense categories used by Accounts & Finance → Record office expense. */
 /** Office expense categories = the accountant's (Bukku) expense accounts (see finance/financeModel BUKKU_EXPENSES). */
+export const DEFAULT_PAYEES = [
+  // Court filing
+  'E-Filing System',
+  // Land and property
+  'Pejabat Tanah', 'Pejabat Tanah dan Galian (PTG)', 'Jabatan Ketua Pengarah Tanah dan Galian (JKPTG)', 'Jabatan Penilaian dan Perkhidmatan Harta (JPPH)', 'Majlis Bandaraya / Majlis Perbandaran (cukai taksiran)', 'Pemaju (developer)', 'Badan Pengurusan Bersama (JMB / MC)', 'Bank (penebusan / redemption)',
+  // Tax, companies, insolvency, registration
+  'LHDN (duti setem)', 'LHDN (CKHT / RPGT)', 'LHDN', 'SSM', 'Jabatan Insolvensi Malaysia', 'JPN', 'Jabatan Imigresen', 'Jabatan Pendaftaran Pertubuhan (ROS)',
+  // Estates and Syariah
+  'Amanah Raya Berhad', 'Unit Pembahagian Pusaka', 'Majlis Agama Islam', 'Pejabat Agama Islam',
+  // Professional services
+  'Pesuruhjaya Sumpah (Commissioner for Oaths)', 'Notary Public', 'Peguam ejen (agent solicitors)', 'Jurunilai (valuer)', 'Juruukur (surveyor)', 'Jurubahasa / penterjemah (translator)', 'Juru transkrip (transcript)', 'Penghantar saman (process server)', 'Majlis Peguam Malaysia (Bar Council)',
+  // Notices, searches, delivery
+  'Percetakan Nasional (Warta)', 'Akhbar (iklan / advertisement)', 'CTOS / carian kredit', 'Pos Malaysia', 'Kurier / despatch',
+];
+export const DEFAULT_COST_DETAILS = [
+  // Searches
+  'Carian tanah (land search)', 'Carian persendirian (private search)', 'Carian SSM (company search)', 'Carian kebankrapan (bankruptcy search)', 'Carian CTOS',
+  // Stamp duty and land registration
+  'Duti setem (stamp duty)', 'Fi pendaftaran pindah milik (transfer)', 'Fi pendaftaran gadaian (charge)', 'Fi pelepasan gadaian (discharge of charge)', 'Kaveat persendirian (private caveat)', 'Tarik balik kaveat (withdrawal of caveat)', 'Kebenaran pindah milik / gadai (consent)', 'Cukai tanah (quit rent)', 'Cukai taksiran (assessment)',
+  // Court
+  'Fi pemfailan (filing fee)', 'Fi E-Filing', 'Fi penyerahan (service of documents)', 'Salinan diperakui (certified true copy)', 'Nota prosiding (notes of proceedings)',
+  // Oaths, notices, others
+  'Fi Pesuruhjaya Sumpah (affirmation)', 'Fi notari (notarisation)', 'Fi penilaian (valuation)', 'Iklan akhbar (advertisement)', 'Warta (gazette)', 'Fi terjemahan (translation)', 'Fi pendaftaran syarikat (SSM)', 'Fi pentadbiran pusaka (estate)', 'Penghantaran / kurier (despatch)',
+];
+/** "Details" choices for a cost paid for a client file: Settings › Lists & sources, or the built-in list. */
+export const getCostDetails = () => { const l = getPracticeSettings().costDetails; return l && l.length ? l.filter(Boolean) : DEFAULT_COST_DETAILS; };
+/** "Paid to" choices: Settings › Lists & sources, or the built-in list. */
+export const getPayees = () => { const l = getPracticeSettings().payees; return l && l.length ? l.filter(Boolean) : DEFAULT_PAYEES; };
 export const DEFAULT_EXPENSE_CATEGORIES = ['Advertising and marketing', 'Bank charges', 'Course and seminar', 'Entertainment', 'Professional legal fees', 'Runner fees / delivery fees', 'Statutory / regulatory fees', 'Consulting fees – marketing', 'Accounting fee', 'Gift, donation & sponsorship', 'Insurance', 'License and registration fee', 'Computer & software', 'Office supplies', 'Printing and stationeries', 'Rental of office', 'Upkeep of office', 'Water and electricity', 'Telephone and internet charges', 'Reimbursement Expenses', 'Mileage claims', 'Petrol, toll and parking', 'Accomodation', 'Other'];
 /** Claim types offered in My Claims (Staff Portal). */
 export const DEFAULT_CLAIM_TYPES = ['Travelling', 'Grab / taxi / train', 'Accommodation', 'Meals (client meeting)', 'Courier & postage', 'Printing & photocopy', 'Phone & internet', 'Training / CPD', 'Disbursement', 'Office'];

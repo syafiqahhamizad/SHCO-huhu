@@ -4,6 +4,7 @@ import { isApprovedForBilling } from '../../../../lib/billingEngine';
 import { css, S, Card, Field } from '../caseUi';
 import { P, isoOf, rm, short, todayIso } from '../caseModel';
 import { newId, type WF } from '../wf';
+import { MoneyInput } from '../../../ui/MoneyInput';
 
 /** Time is logged here (TimeEntry). Disbursements come in from approved claims / payment
  * requests (Expense / TravelClaim records on this file) — nothing is keyed in twice. */
@@ -63,7 +64,7 @@ export const TimeTab: React.FC<{ w: WF }> = ({ w }) => {
             <Field label="Work done" span="span 2"><input value={f.desc} onChange={(e) => setF({ ...f, desc: e.target.value })} placeholder="e.g. Drafting written submissions" style={css(S.input)} /></Field>
             <Field label="By"><select value={f.by} onChange={(e) => setF({ ...f, by: e.target.value, rate: String(lastRate(e.target.value) || '') })} style={css(S.input)}>{staff.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}{!staff.some((p) => p.name === f.by) && <option value={f.by}>{f.by}</option>}</select></Field>
             <Field label="Hours"><input type="number" step="0.25" min="0" value={f.hrs} onChange={(e) => setF({ ...f, hrs: e.target.value })} style={css(S.input)} /></Field>
-            <Field label="Rate (RM / h)"><input type="number" step="1" min="0" value={f.rate} onChange={(e) => setF({ ...f, rate: e.target.value })} placeholder="Last used rate" style={css(S.input)} /></Field>
+            <Field label="Rate (RM / h)"><MoneyInput value={f.rate} onChange={(v) => setF({ ...f, rate: v })} placeholder="Last used rate" style={css(S.input)} /></Field>
             <div style={css('grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px')}><button type="button" onClick={() => setOpen(false)} style={css(S.btnSecL)}>Cancel</button><button type="button" onClick={saveC} style={css(S.btnPriL)}>Save time</button></div>
           </div>
         )}

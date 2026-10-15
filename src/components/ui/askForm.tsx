@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { MoneyInput } from './MoneyInput';
 
 export interface AskField {
   key: string;
@@ -27,6 +28,7 @@ const FormBox: React.FC<{ title: string; note?: string; ok: string; fields: AskF
               <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#5B6478' }}>{f.label}{f.required ? ' *' : ''}</span>
               {f.type === 'textarea' ? <textarea autoFocus={i === 0} rows={4} value={v[f.key]} placeholder={f.placeholder} onChange={(e) => setV({ ...v, [f.key]: e.target.value })} style={{ ...inp, resize: 'vertical' }} />
                 : f.type === 'select' ? <select value={v[f.key]} onChange={(e) => setV({ ...v, [f.key]: e.target.value })} style={{ ...inp, cursor: 'pointer' }}>{(f.options || []).map((o) => <option key={o} value={o}>{o}</option>)}</select>
+                  : /\(RM\)/.test(f.label) ? <MoneyInput autoFocus={i === 0} value={v[f.key]} placeholder={f.placeholder} onChange={(x) => setV({ ...v, [f.key]: x })} allowNegative style={inp} />
                   : <input autoFocus={i === 0} type={f.type || 'text'} value={v[f.key]} placeholder={f.placeholder} onChange={(e) => setV({ ...v, [f.key]: e.target.value })} style={inp} />}
               {f.hint && <span style={{ fontSize: 10.5, color: '#5B6478' }}>{f.hint}</span>}
             </label>

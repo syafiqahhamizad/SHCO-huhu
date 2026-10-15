@@ -5,6 +5,7 @@ import { CashBookCard } from './CashBookCard';
 import { invoiceComposition, monthlyCommitments, splitReceipt } from '../../../lib/financeCalc';
 import { fundBalance, investmentSummary, moveAmount, splitFee } from '../../../lib/officeFunds';
 import type { FundMove, SinkingFund } from '../../../services/templateService';
+import { MoneyInput } from '../../ui/MoneyInput';
 
 const chip = (on: boolean) => `border:1px solid ${on ? '#16223A' : '#DDE3EB'};background:${on ? '#16223A' : '#fff'};color:${on ? '#fff' : '#16223A'}`;
 const IN = 'border:1px solid #DDE3EB;border-radius:6px;padding:7px 9px;font-size:11.5px;font-family:inherit;color:#16223A;background:#fff';
@@ -239,7 +240,7 @@ const EmergencyFund = ({ F, emBal, emT, emM, fix }: { F: FinanceCtrl; emBal: num
         <div style={css('display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(H)}>Add money to emergency fund</strong><span style={css('font-size:10.5px;color:#5B6478')}>record a transfer into the emergency account</span></div>
         <div style={css('display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;padding:14px')}>
           <label style={css(FLBL)}>Date<input type="date" value={ea.date} onChange={(e) => setEa({ ...ea, date: e.target.value })} style={css(IN)} /></label>
-          <label style={css(FLBL)}>Amount (RM)<input value={ea.amt} onChange={(e) => setEa({ ...ea, amt: e.target.value })} placeholder="0.00" style={css(IN)} /></label>
+          <label style={css(FLBL)}>Amount (RM)<MoneyInput value={ea.amt} onChange={(v) => setEa({ ...ea, amt: v })} style={css(IN)} /></label>
           <label style={css(FLBL)}>Money from<select value={ea.src} onChange={(e) => setEa({ ...ea, src: e.target.value })} style={css(IN)}>{['Transfer from office account', 'Opening balance', 'Interest / dividend', 'Partner capital', 'Repayment of earlier withdrawal'].map((o) => <option key={o}>{o}</option>)}</select></label>
           <label style={css(FLBL)}>Reference<input value={ea.ref} onChange={(e) => setEa({ ...ea, ref: e.target.value })} placeholder="e.g. PV no. / bank ref" style={css(IN)} /></label>
           <label style={css(FLBL + ';grid-column:1 / -1')}>Note<input value={ea.note} onChange={(e) => setEa({ ...ea, note: e.target.value })} placeholder="optional" style={css(IN)} /></label>
@@ -263,7 +264,7 @@ const EmergencyFund = ({ F, emBal, emT, emM, fix }: { F: FinanceCtrl; emBal: num
           <div style={css('display:flex;flex-direction:column;gap:2px')}><strong style={css('font-size:11px;color:#16223A')}>Withdrawals</strong><span style={css('font-size:10.5px;color:#5B6478')}>{rule.rule}</span></div>
           <div style={css('display:flex;flex-direction:column;gap:2px')}><strong style={css('font-size:11px;color:#16223A')}>After use</strong><span style={css('font-size:10.5px;color:#5B6478')}>refilled first, before other sinking funds</span></div>
         </div>
-        {form && <div style={css('display:grid;grid-template-columns:140px minmax(0,1fr) auto;gap:8px;align-items:center;padding:12px 14px;background:#FBEDE9;border-bottom:1px solid #EEF1F5')}><input value={amt} onChange={(e) => setAmt(e.target.value)} placeholder="Amount (RM)" style={css(IN)} /><input value={why} onChange={(e) => setWhy(e.target.value)} placeholder="What is the emergency?" style={css(IN)} /><button type="button" onClick={submit} style={css('border:0;border-radius:6px;padding:7px 14px;font-size:11px;font-weight:700;background:#16223A;color:#fff;cursor:pointer;font-family:inherit')}>Send for approval</button></div>}
+        {form && <div style={css('display:grid;grid-template-columns:140px minmax(0,1fr) auto;gap:8px;align-items:center;padding:12px 14px;background:#FBEDE9;border-bottom:1px solid #EEF1F5')}><MoneyInput value={amt} onChange={setAmt} placeholder="Amount (RM) 0.00" style={css(IN)} /><input value={why} onChange={(e) => setWhy(e.target.value)} placeholder="What is the emergency?" style={css(IN)} /><button type="button" onClick={submit} style={css('border:0;border-radius:6px;padding:7px 14px;font-size:11px;font-weight:700;background:#16223A;color:#fff;cursor:pointer;font-family:inherit')}>Send for approval</button></div>}
         {(cur.pending || []).map((p, k) => <div key={p.id} style={css('display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 14px;background:#FBF2E9;border-bottom:1px solid #EEF1F5')}><span style={css('font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8A6534')}>Waiting</span><span style={css('flex:1;min-width:0;font-size:11.5px;font-weight:700;color:#16223A')}>{p.note}</span><span style={css('font-size:12px;font-weight:700;color:#B23A2E')}>{mx2(p.amount)}</span>{signs(p, k)}</div>)}
       </div>}
       {tab === 'l' && <div style={css(CARD)}>
@@ -320,7 +321,7 @@ const Investment = ({ F, s }: { F: FinanceCtrl; s: ReturnType<typeof investmentS
           <div style={css('display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;padding:14px')}>
             <label style={css(FLBL)}>Date<input type="date" value={ia.date} onChange={(e) => setIa({ ...ia, date: e.target.value })} style={css(IN)} /></label>
             <label style={css(FLBL)}>Type<select value={ia.type} onChange={(e) => setIa({ ...ia, type: e.target.value as FundMove['kind'] })} style={css(IN)}>{['Deposit', 'Withdrawal', 'Dividend', 'Value change'].map((o) => <option key={o}>{o}</option>)}</select></label>
-            <label style={css(FLBL)}>Amount (RM)<input value={ia.amt} onChange={(e) => setIa({ ...ia, amt: e.target.value })} placeholder={ia.type === 'Value change' ? 'use − for a drop, e.g. -500' : '0.00'} style={css(IN)} /></label>
+            <label style={css(FLBL)}>Amount (RM)<MoneyInput value={ia.amt} onChange={(v) => setIa({ ...ia, amt: v })} allowNegative={ia.type === 'Value change'} placeholder={ia.type === 'Value change' ? 'use - for a drop, e.g. -500.00' : '0.00'} style={css(IN)} /></label>
             <label style={css(FLBL)}>Where<select value={ia.place} onChange={(e) => setIa({ ...ia, place: e.target.value })} style={css(IN)}>{['Fixed deposit', 'ASB / ASN', 'Unit trust', 'Gold', 'Shares', 'Property', 'Other'].map((o) => <option key={o}>{o}</option>)}</select></label>
             <label style={css(FLBL)}>Reference<input value={ia.ref} onChange={(e) => setIa({ ...ia, ref: e.target.value })} placeholder="e.g. PV no. / cert no." style={css(IN)} /></label>
             <label style={css(FLBL)}>Note<input value={ia.note} onChange={(e) => setIa({ ...ia, note: e.target.value })} placeholder="optional" style={css(IN)} /></label>

@@ -21,7 +21,9 @@ export const SearchSelect: React.FC<{
   className?: string;
   style?: React.CSSProperties;
   'aria-label'?: string;
-}> = ({ options, value, onChange, placeholder, empty, clearable, disabled, id, className, style, ...rest }) => {
+  /** Offer "+ Add …" for a typed name that is not in the list. */
+  onCreate?: (text: string) => void;
+}> = ({ options, value, onChange, placeholder, empty, clearable, disabled, id, className, style, onCreate, ...rest }) => {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(0);
@@ -61,7 +63,7 @@ export const SearchSelect: React.FC<{
             onKeyDown={(e) => {
               if (e.key === 'ArrowDown') { e.preventDefault(); setHi((h) => Math.min(h + 1, matches.length - 1)); }
               else if (e.key === 'ArrowUp') { e.preventDefault(); setHi((h) => Math.max(h - 1, 0)); }
-              else if (e.key === 'Enter') { e.preventDefault(); if (matches[hi]) pick(matches[hi].value); }
+              else if (e.key === 'Enter') { e.preventDefault(); if (matches[hi]) pick(matches[hi].value); else if (onCreate && q.trim()) { onCreate(q.trim()); setOpen(false); setQ(''); } }
               else if (e.key === 'Escape' || e.key === 'Tab') { setOpen(false); setQ(''); }
             }}
             className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[12.5px] outline-none"
@@ -94,7 +96,10 @@ export const SearchSelect: React.FC<{
               {(o.hint || o.group) && <span className="shrink-0 text-[11px] text-[#5B6478]">{o.hint || o.group}</span>}
             </button>
           ))}
-          {!matches.length && <div className="px-3 py-2.5 text-[12px] text-[#5B6478]">{empty || 'Nothing matches.'}</div>}
+          {onCreate && q.trim() && !options.some((o) => o.label.toLowerCase() === q.trim().toLowerCase()) && (
+            <button type="button" onMouseDown={(e) => { e.preventDefault(); onCreate(q.trim()); setOpen(false); setQ(''); }} className="flex w-full px-3 py-2 text-left text-[12.5px] font-bold text-[#2F6F4E]">+ Add “{q.trim()}” to the list</button>
+          )}
+          {!matches.length && !onCreate && <div className="px-3 py-2.5 text-[12px] text-[#5B6478]">{empty || 'Nothing matches.'}</div>}
         </div>
       )}
     </div>

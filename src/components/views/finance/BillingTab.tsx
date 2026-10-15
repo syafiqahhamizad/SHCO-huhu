@@ -24,6 +24,8 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
   const [menu, setMenu] = useState<MenuState>(null);
   // Sub-tabs: the documents, fees by file, and work not billed yet.
   const [part, setPart] = useState<'docs' | 'files' | 'wip'>('docs');
+  // Work not billed: which row is opened to show its items.
+  const [openWip, setOpenWip] = useState('');
   const openMenu = (kind: DocKind, id: string) => (e: React.MouseEvent<HTMLButtonElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
     const left = Math.max(8, Math.min(r.right - 190, window.innerWidth - 198)); const top = r.bottom + 4 + 260 > window.innerHeight ? Math.max(8, r.top - 264) : r.bottom + 4;
@@ -218,9 +220,9 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
         <div style={css('display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css('font-family:ui-serif, Georgia, serif;font-size:14.5px;color:#16223A')}>Work not billed yet</strong><span style={css('font-size:10.5px;color:#5B6478')}>time + disbursements recorded in Matters, oldest first</span><span style={css('margin-left:auto;font-size:12px;font-weight:700;color:#16223A')}>{rm(F.unbilled.reduce((s, u) => s + u.time + u.disb, 0))} still to bill</span></div>
         <div style={css('display:grid;grid-template-columns:minmax(0,1.5fr) 44px 90px 90px 90px 80px 110px;gap:10px;padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>Matter</span><span>PIC</span><span style={css('text-align:right')}>Time</span><span style={css('text-align:right')}>Disb.</span><span style={css('text-align:right')}>Total</span><span style={css('text-align:right')}>Oldest</span><span></span></div>
         {F.unbilled.length === 0 && Object.keys(F.billed).length === 0 && <div style={css('padding:12px 14px;font-size:11.5px;color:#5B6478')}>Nothing unbilled: no billable time or disbursements are waiting.</div>}
-        {[...F.unbilled, ...Object.values(F.billed).map((b) => b.u as (typeof F.unbilled)[number]).filter((b) => !F.unbilled.some((u) => u.caseId === b.caseId))].map((u) => { const inv = F.billed[u.caseId]?.inv; return (
-          <div key={u.caseId} style={css(`display:grid;grid-template-columns:minmax(0,1.5fr) 44px 90px 90px 90px 80px 110px;gap:10px;align-items:center;padding:8px 14px;border-bottom:1px solid #F0F2F5;opacity:${inv ? 0.6 : 1}`)}>
-            <span style={css('min-width:0')}><span style={css('display:block;font-size:11.5px;font-weight:700;color:#16223A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{u.client}</span><span style={css('display:block;font-size:10px;color:#5B6478')}>{u.ref}{u.title ? ' · ' + u.title : ''}</span></span>
+        {[...F.unbilled, ...Object.values(F.billed).map((b) => b.u as (typeof F.unbilled)[number]).filter((b) => !F.unbilled.some((u) => u.key === b.key))].map((u) => { const inv = F.billed[u.key]?.inv; return (
+          <React.Fragment key={u.key}><div style={css(`display:grid;grid-template-columns:minmax(0,1.5fr) 44px 90px 90px 90px 80px 110px;gap:10px;align-items:center;padding:8px 14px;border-bottom:1px solid #F0F2F5;opacity:${inv ? 0.6 : 1}`)}>
+            <button type="button" onClick={() => setOpenWip(openWip === u.key ? '' : u.key)} title="Show the items" style={css('min-width:0;border:0;background:none;padding:0;text-align:left;cursor:pointer;font-family:inherit')}><span style={css('display:block;font-size:11.5px;font-weight:700;color:#16223A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{openWip === u.key ? '▾ ' : '▸ '}{u.client}</span><span style={css('display:block;font-size:10px;color:#5B6478')}>{u.ref}{u.title ? ' · ' + u.title : ''}</span></button>
             <span style={css(`width:22px;height:22px;border-radius:9999px;display:grid;place-items:center;font-size:9px;font-weight:700;color:#fff;background:${picColor(u.pic)}`)}>{u.pic}</span>
             <span style={css('text-align:right;font-size:11.5px;color:#16223A')}>{rm(u.time)}</span>
             <span style={css('text-align:right;font-size:11.5px;color:#16223A')}>{rm(u.disb)}</span>
@@ -229,6 +231,34 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
             {!inv && <button type="button" onClick={() => F.billMatter(u)} style={css('justify-self:end;border:0;border-radius:6px;padding:5px 10px;font-size:10.5px;font-weight:700;background:#16223A;color:#fff;cursor:pointer;font-family:inherit')}>Create invoice</button>}
             {inv && <button type="button" onClick={() => F.setView({ kind: 'invoice', id: inv })} style={css('justify-self:end;border:0;background:none;font-size:10.5px;font-weight:700;color:#2F6F4E;cursor:pointer;font-family:inherit;text-decoration:underline')}>Draft {inv}</button>}
           </div>
+          {openWip === u.key && (() => {
+            // Each item: date, what, paid to, amount, its receipt (Drive), Edit, Delete.
+            const L = 'display:grid;grid-template-columns:80px minmax(0,1.4fr) minmax(0,1fr) 90px 150px 110px;gap:10px;align-items:center;padding:6px 14px 6px 30px;border-bottom:1px solid #F0F2F5;background:#FBFCFD;font-size:11px;color:#16223A';
+            const lnk = 'border:0;background:none;padding:0;font-size:10.5px;font-weight:700;cursor:pointer;font-family:inherit;';
+            const receipt = (e: (typeof u.ex)[number]) => e.driveFiling?.folderId
+              ? <a href={'https://drive.google.com/drive/folders/' + e.driveFiling.folderId} target="_blank" rel="noopener noreferrer" style={css(lnk + 'color:#3D6B9C')}>View receipt ↗</a>
+              : e.paidProof || (e.documents || []).length ? <span title="Filed into Google Drive: Finance › Books › the bank it was paid from › year › month › Money Out, and a link in the file's Client Files › Costs paid. Filing runs while Accounts has a finance page open." style={css('font-size:10.5px;color:#8A6534')}>Receipt saving to Drive…</span>
+              : F.canPrepare ? <label style={css(lnk + 'color:#8A6D3B')}>Attach receipt<input type="file" accept=".pdf,image/*" onChange={(ev) => { F.attachTo('expense', e.id)(ev.target.files); ev.target.value = ''; }} style={css('display:none')} /></label> : <span style={css('font-size:10.5px;color:#94A3B8')}>No receipt</span>;
+            return <>
+              {u.ex.map((e) => (
+                <div key={e.id} style={css(L)}>
+                  <span style={css('color:#5B6478')}>{F.dShort(e.date)}</span>
+                  <span style={css('overflow:hidden;text-overflow:ellipsis;white-space:nowrap')} title={e.description}>{e.description || e.category}</span>
+                  <span style={css('overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#5B6478')}>{e.payee || '—'}</span>
+                  <span style={css('text-align:right;font-weight:700')}>{rm(Number(e.amount || 0))}</span>
+                  <span>{receipt(e)}</span>
+                  <span style={css('display:flex;gap:10px;justify-content:flex-end')}>{F.canPrepare && <button type="button" onClick={() => F.editEntry('expense', e.id)} style={css(lnk + 'color:#3D6B9C')}>Edit</button>}{F.canDeleteBills && <button type="button" onClick={() => F.deleteEntry('expense', e.id)} style={css(lnk + 'color:#B23A2E')}>Delete</button>}</span>
+                </div>
+              ))}
+              {u.tc.map((t) => (
+                <div key={t.id} style={css(L)}><span style={css('color:#5B6478')}>{F.dShort(t.date)}</span><span>Travel: {t.purpose || t.to || '—'}</span><span style={css('color:#5B6478')}>{t.claimant || '—'}</span><span style={css('text-align:right;font-weight:700')}>—</span><span style={css('font-size:10.5px;color:#5B6478')}>staff claim</span><span style={css('font-size:10.5px;color:#5B6478;text-align:right')}>change in My Claims</span></div>
+              ))}
+              {u.te.map((t) => (
+                <div key={t.id} style={css(L)}><span style={css('color:#5B6478')}>{F.dShort(t.date)}</span><span>{t.description || 'Time'}</span><span style={css('color:#5B6478')}>{t.hours}h</span><span style={css('text-align:right;font-weight:700')}>{rm(Number(t.hours || 0) * Number(t.rate || 0))}</span><span></span><span style={css('font-size:10.5px;color:#5B6478;text-align:right')}>change in the file's Time & costs</span></div>
+              ))}
+            </>;
+          })()}
+          </React.Fragment>
         ); })}
       </div>
       )}

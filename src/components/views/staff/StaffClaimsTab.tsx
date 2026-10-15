@@ -12,7 +12,9 @@ import { resolveApproval } from '../../../lib/approvers';
 import { usePracticeSettings } from '../settings/settingsShared';
 import { DOC_TYPE_COLORS, FINANCE_DOC_TYPES, matchesYearType, yearOptions } from '../../../lib/claimFilters';
 import { folderUrl } from '../../../lib/driveLayout';
-import { DEFAULT_CLAIM_TYPES } from '../../../services/templateService';
+import { DEFAULT_CLAIM_TYPES, getCostDetails, getPayees } from '../../../services/templateService';
+import { SearchSelect } from '../../ui/SearchSelect';
+import { MoneyInput } from '../../ui/MoneyInput';
 
 const SEL: React.CSSProperties = { border: '1px solid #C9D3E0', borderRadius: 6, padding: '4px 6px', fontSize: 11, color: '#16223A', background: '#fff', fontFamily: 'inherit' };
 
@@ -521,7 +523,7 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
                   <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'flex-end', gap: 8, flexWrap: 'wrap', padding: '8px 10px', borderRadius: 8, background: '#F6F8FA' }}>
                     <label style={labelWrap}><span style={LBL}>Date</span><input type="date" value={edit.date} onChange={(e) => setEdit({ ...edit, date: e.target.value })} style={{ ...INP, width: 140 }} /></label>
                     <label style={{ ...labelWrap, flex: 1, minWidth: 200 }}><span style={LBL}>Description</span><input value={edit.what} onChange={(e) => setEdit({ ...edit, what: e.target.value })} style={INP} /></label>
-                    {c.source !== 'travel' && <label style={labelWrap}><span style={LBL}>Amount (RM)</span><input value={edit.amt} onChange={(e) => setEdit({ ...edit, amt: e.target.value })} style={{ ...INP, width: 110, textAlign: 'right' }} /></label>}
+                    {c.source !== 'travel' && <label style={labelWrap}><span style={LBL}>Amount (RM)</span><MoneyInput value={edit.amt} onChange={(v) => setEdit({ ...edit, amt: v })} style={{ ...INP, width: 110 }} /></label>}
                     <button type="button" onClick={() => setEdit(null)} style={{ border: '1px solid #C9D3E0', borderRadius: 4, padding: '7px 12px', fontSize: 11, fontWeight: 700, background: '#fff', color: '#16223A', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
                     <button type="button" onClick={() => saveEdit(c)} style={{ border: 0, borderRadius: 4, padding: '7px 12px', fontSize: 11, fontWeight: 700, background: '#16223A', color: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>Save{c.status === 'Rejected' ? ' & send again' : ''}</button>
                     {c.source === 'travel' && <span style={{ flexBasis: '100%', fontSize: 10, color: '#5B6478' }}>To change the km, parking or toll, withdraw it and add it again.</span>}
@@ -626,7 +628,7 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
                     <span style={{ fontSize: 10.5, lineHeight: 1.45, color: '#5B6478' }}>{fromNote}</span>
                     {PM === 'Bank transfer' && (
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                        <label style={labelWrap}><span style={LBL}>Pay to (vendor) *</span><input value={f.vendor} onChange={(e) => setF({ vendor: e.target.value })} placeholder="e.g. Ali Despatch Services" style={INP} /></label>
+                        <div style={labelWrap}><span style={LBL}>Pay to (vendor) *</span><SearchSelect aria-label="Pay to" value={f.vendor} onChange={(v) => setF({ vendor: v })} onCreate={(v) => setF({ vendor: v })} clearable placeholder="Choose who to pay… (or type a new name)" options={[...new Set([...getPayees(), ...(f.vendor ? [f.vendor] : [])])].map((p) => ({ value: p, label: p }))} /></div>
                         <label style={labelWrap}><span style={LBL}>Their bank · account no. *</span><input value={f.vbank} onChange={(e) => setF({ vbank: e.target.value })} placeholder="e.g. Maybank 5140 1234 5678" style={INP} /></label>
                       </div>
                     )}
@@ -640,7 +642,7 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
                       </>
                     )}
                     {PM === 'Cheque' && (
-                      <label style={{ ...labelWrap, maxWidth: 420 }}><span style={LBL}>Cheque payable to *</span><input value={f.vendor} onChange={(e) => setF({ vendor: e.target.value })} placeholder="e.g. Pentadbir Tanah Hulu Langat" style={INP} /></label>
+                      <div style={{ ...labelWrap, maxWidth: 420 }}><span style={LBL}>Cheque payable to *</span><SearchSelect aria-label="Cheque payable to" value={f.vendor} onChange={(v) => setF({ vendor: v })} onCreate={(v) => setF({ vendor: v })} clearable placeholder="Choose who the cheque is for… (or type a new name)" options={[...new Set([...getPayees(), ...(f.vendor ? [f.vendor] : [])])].map((p) => ({ value: p, label: p }))} /></div>
                     )}
                   </>
                 )}
@@ -725,7 +727,7 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
                     </div>
                   </div>
                   <span style={{ fontSize: 10.5, lineHeight: 1.45, color: '#5B6478' }}>{NOTE[f.kind]}</span>
-                  {!T && <label style={labelWrap}><span style={LBL}>Description *</span><input value={f.what} onChange={(e) => setF({ what: e.target.value })} placeholder={whatPh} style={INP} /></label>}
+                  {!T && <label style={labelWrap}><span style={LBL}>Description *</span><input value={f.what} list="claim-costdetails" onChange={(e) => setF({ what: e.target.value })} placeholder={whatPh} style={INP} /><datalist id="claim-costdetails">{getCostDetails().map((d) => <option key={d} value={d} />)}</datalist></label>}
                   {T && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       <div style={{ display: 'grid', gridTemplateColumns: '70px minmax(0,1fr) minmax(0,1fr) 110px', gap: 10, alignItems: 'end' }}>
@@ -748,8 +750,8 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
                   )}
                   {T && (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr)) minmax(0,2fr)', gap: 12, alignItems: 'end' }}>
-                      <label style={labelWrap}><span style={LBL}>Parking (RM)</span><input value={f.parking} onChange={(e) => setF({ parking: e.target.value })} style={{ ...INP, textAlign: 'right' }} /></label>
-                      <label style={labelWrap}><span style={LBL}>Toll (RM)</span><input value={f.toll} onChange={(e) => setF({ toll: e.target.value })} style={{ ...INP, textAlign: 'right' }} /></label>
+                      <label style={labelWrap}><span style={LBL}>Parking (RM)</span><MoneyInput value={f.parking} onChange={(v) => setF({ parking: v })} style={INP} /></label>
+                      <label style={labelWrap}><span style={LBL}>Toll (RM)</span><MoneyInput value={f.toll} onChange={(v) => setF({ toll: v })} style={INP} /></label>
                       <div style={{ fontSize: 11, lineHeight: 1.5, color: '#16223A', background: '#F0F2F5', borderRadius: 4, padding: '5px 9px' }}>
                         {km + ' km × RM 1.00 + parking + toll = ' + rm(toYou) + ' to you'}<br />
                         {billable && <strong>{'Billed to client: ' + rm(bill)}</strong>}
@@ -757,7 +759,7 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
                     </div>
                   )}
                   {!T && (
-                    <label style={{ ...labelWrap, width: 200 }}><span style={LBL}>Amount (RM) *</span><input value={f.amt} onChange={(e) => setF({ amt: e.target.value })} style={{ ...INP, textAlign: 'right' }} /></label>
+                    <label style={{ ...labelWrap, width: 200 }}><span style={LBL}>Amount (RM) *</span><MoneyInput value={f.amt} onChange={(v) => setF({ amt: v })} style={INP} /></label>
                   )}
                   <div
                     onDragOver={(e) => { e.preventDefault(); if (!drag) setDrag(true); }}
