@@ -150,13 +150,13 @@ export const DriveStorageCard = ({ C }: { C: SettingsCtx }) => {
     setFinBusy('');
   };
 
-  // Super Admin: one client number style for everyone (CL-<year of first file>-<NNN>), after a backup.
+  // Super Admin: one client number style for everyone (CL + 2-digit year of first file + running no., e.g. CL26833), after a backup.
   const numberClientsNow = async () => {
     const list = app.assignClientNumbers(false);
-    if (!list.length) { C.msg('Every client already has its CL-year-number.'); return; }
+    if (!list.length) { C.msg('Every client already has its client number (e.g. CL26833).'); return; }
     const v = await askForm('Client numbers', [{ key: 'word', label: 'Type NUMBER to confirm', placeholder: 'NUMBER', required: true }], {
       ok: 'Back up, then renumber',
-      note: list.length + ' clients get the one style CL-<year the first file was opened>-<running no.>. Files, bills and receipts stay linked (only the number people see changes). Each client\'s Google Drive folder is renamed to match. ' + list.map((x) => x.from + ' → ' + x.to + ' (' + x.name + ')').join(' · '),
+      note: list.length + ' clients get the one style CL + year (2 digits) + running no., e.g. CL26833 (no dashes). Old numbers like CL-2026-833 still work for signing in. Files, bills and receipts stay linked (only the number people see changes). Each client\'s Google Drive folder is renamed to match. ' + list.map((x) => x.from + ' → ' + x.to + ' (' + x.name + ')').join(' · '),
     });
     if (!v) return;
     if (v.word.trim().toUpperCase() !== 'NUMBER') { C.msg('Not changed: type NUMBER exactly.'); return; }

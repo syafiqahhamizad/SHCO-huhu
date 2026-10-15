@@ -7,7 +7,7 @@ import { findSplitUserByEmail, migrateToCollections, readSplitState } from '../s
 import { useFirmDataSync } from './useFirmDataSync';
 import type { ConfigKey } from '../services/firmData';
 import { applyCloudPracticeSettings, getPracticeSettings, savePracticeSettings, type PracticeSettings } from '../services/templateService';
-import { nextDocNo, validFormat } from '../lib/docNumbers';
+import { formatDocNo, maxNumAnyYear, nextDocNo, validFormat } from '../lib/docNumbers';
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
 import {
   ACCESS_OWNER_EMAIL,
@@ -24,7 +24,7 @@ import {
   type AccessUsers,
 } from '../services/accessListService';
 import { normalizeClientName } from '../lib/stringUtils';
-import { clientRef, nextClientNo, numberClients } from '../lib/clientNumbers';
+import { clientRef, nextClientNo, numberClients, sameClientNo } from '../lib/clientNumbers';
 import { partnerCode } from '../lib/identity';
 import { generateNextMatterSequenceNumber, syncClientMatterLinks } from '../services/matterService';
 import {
@@ -346,8 +346,11 @@ interface AppContextType {
   updateQuotation: (id: string, updates: Partial<Quotation>) => void;
   deleteQuotation: (id: string) => void;
   resetTestData: () => boolean;
-  /** Super Admin: gives every client its CL-<year>-<NNN> number; returns old → new for each client changed. */
+  /** Super Admin: gives every client its CL<YY><NNN> (e.g. CL26833) number; returns old → new for each client changed. */
   assignClientNumbers: (apply: boolean) => { id: string; name: string; from: string; to: string }[];
+  /** Edit or remove a referral partner (Leads & Referrals › Referral partners & fee rates). */
+  updateReferralPartner: (id: string, updates: Partial<ReferralPartner>) => void;
+  deleteReferralPartner: (id: string) => void;
   addReferralPartner: (rp: ReferralPartner) => void;
   addTravelClaim: (tc: TravelClaim) => void;
   updateTravelClaim: (id: string, updates: Partial<TravelClaim>) => void;
@@ -821,7 +824,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // A Client ID is accepted as a convenience when this device already knows the client.
     const email = term.includes('@')
       ? term
-      : (clients.find((c) => c.id.toLowerCase() === term || (c.clientNo || '').toLowerCase() === term)?.email || '').trim().toLowerCase();
+      : (clients.find((c) => c.id.toLowerCase() === term || sameClientNo(c.clientNo, term))?.email || '').trim().toLowerCase();
 
     if (!email) {
       const errorMsg = 'Use a registered client email address or Client ID for portal access.';
@@ -1745,6 +1748,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return `${prefix}${String(nextNum).padStart(4, '0')}`;
   };
 
+  /** The year a document is dated (for numbers like IV-25xxxx when keying in past months). */
+  const yearOfDate = (date?: string) => { const m = String(date || '').match(/(\d{4})-\d{1,2}-\d{1,2}/) || String(date || '').match(/\d{1,2}[./-]\d{1,2}[./-](\d{4})/); return m ? Number(m[1]) : new Date().getFullYear(); };
   const getNextSequenceId = (
     type: 'invoice' | 'quotation' | 'proforma' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense' | 'journal',
     date?: string
@@ -1768,7 +1773,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         case 'voucher': return highestNumericSuffix(paymentVouchers.map((v) => v.id), 'HQ-PV-');
         case 'claim': return highestNumericSuffix(travelClaims.map((t) => t.id), 'TC-');
         case 'client': return highestNumericSuffix(clients.map((c) => c.id), 'HQ-C');
-        case 'lead': return highestNumericSuffix(leads.map((l) => l.id), 'LD-');
+        // Leads: LD<YY><NNN> (e.g. LD26004), carrying on from the older LD-004 style.
+        case 'lead': return leads.reduce((mx, l) => { const v = String(l.id); const a2 = v.match(/^LD-(\d+)$/); const b2 = v.match(/^LD\d{2}(\d{3,})$/); const n = a2 ? Number(a2[1]) : b2 ? Number(b2[1]) : 0; return n > mx ? n : mx; }, 0);
         case 'expense': return highestNumericSuffix(expenses.map((e) => e.id), 'EX-');
         default: return 0;
       }
@@ -1785,12 +1791,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       case 'receipt': {
         const f = getPracticeSettings().docNumbering?.receipt;
-        if (f && validFormat(f)) return nextDocNo('receipt', f, receipts.map((r) => r.id), new Date().getFullYear(), nextNum - 1);
+        if (f && validFormat(f)) return nextDocNo('receipt', f, receipts.map((r) => r.id), yearOfDate(date), nextNum - 1);
         return `HQ-OR-${String(nextNum).padStart(4, '0')}`;
       }
       case 'voucher': {
         const f = getPracticeSettings().docNumbering?.voucher;
-        if (f && validFormat(f)) return nextDocNo('voucher', f, paymentVouchers.map((v) => v.id), new Date().getFullYear(), nextNum - 1);
+        if (f && validFormat(f)) return nextDocNo('voucher', f, paymentVouchers.map((v) => v.id), yearOfDate(date), nextNum - 1);
         return `HQ-PV-${String(nextNum).padStart(4, '0')}`;
       }
       case 'claim':
@@ -1798,7 +1804,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       case 'client':
         return `HQ-C${String(nextNum).padStart(3, '0')}`;
       case 'lead':
-        return `LD-${String(nextNum).padStart(3, '0')}`;
+        { const f = getPracticeSettings().docNumbering?.lead; const lf = f && validFormat(f) ? f : 'LD{YY}{000}'; return formatDocNo(lf, new Date().getFullYear(), Math.max(nextNum, maxNumAnyYear(leads.map((l) => l.id), lf) + 1)); }
       case 'expense':
         return `EX-${String(nextNum).padStart(4, '0')}`;
       default:
@@ -2769,7 +2775,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const normalizedClient: Client = {
       ...client,
-      clientNo: client.clientNo || nextClientNo(clients.map((c) => c.clientNo)),
+      clientNo: client.clientNo || nextClientNo(clients.map((c) => c.clientNo), new Date().getFullYear(), getPracticeSettings().docNumbering?.client),
       createdAt: client.createdAt || new Date().toISOString(),
       name: normalizeClientName(client.name),
       contactPerson: client.contactPerson ? normalizeClientName(client.contactPerson) : client.contactPerson,
@@ -3074,13 +3080,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
    * filing & service, weekly status, close request and history.
    */
   const assignClientNumbers = (apply: boolean) => {
-    const nums = numberClients(clients, cases.map((k) => ({ clientIds: String(k.clientId || '').split(',').map((x) => x.trim()).filter(Boolean), opened: String(k.fileOpenedDate || k.createdDate || '').slice(0, 10) })));
+    const nums = numberClients(clients, cases.map((k) => ({ clientIds: String(k.clientId || '').split(',').map((x) => x.trim()).filter(Boolean), opened: String(k.fileOpenedDate || k.createdDate || '').slice(0, 10) })), new Date().getFullYear(), getPracticeSettings().docNumbering?.client);
     const changes = clients.filter((c) => nums.get(c.id) && nums.get(c.id) !== c.clientNo).map((c) => ({ id: c.id, name: c.name, from: clientRef(c), to: nums.get(c.id)! }));
     if (!apply || !changes.length) return changes;
     if (!currentUser?.isSuperAdmin && String(currentUser?.email || '').toLowerCase() !== 'syafiqahhamizad@shcolaw.com') { showToast('Only the Super Admin can renumber clients.'); return []; }
     const by = new Map(changes.map((x) => [x.id, x.to]));
     setClients((prev) => prev.map((c) => (by.has(c.id) ? { ...c, clientNo: by.get(c.id) } : c)));
-    logAuditEvent('UPDATE', 'CLIENTS', 'numbers', 'Client numbers', changes.length + ' clients numbered CL-<year>-<NNN>: ' + changes.map((x) => x.from + ' → ' + x.to).join(', '));
+    logAuditEvent('UPDATE', 'CLIENTS', 'numbers', 'Client numbers', changes.length + ' clients numbered CL<YY><NNN> (e.g. CL26833): ' + changes.map((x) => x.from + ' → ' + x.to).join(', '));
     return changes;
   };
 
@@ -3125,6 +3131,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setQuotations((prev) => prev.map((quotation) => (quotation.id === id ? { ...quotation, ...editedUpdates } : quotation)));
     addActivityLog('Quotation Updated', `${id} — ${updates.documentType || 'Quotation'} status changed`);
     showToast(`Quotation ${id} updated.`);
+  };
+
+  const updateReferralPartner = (id: string, updates: Partial<ReferralPartner>) => {
+    setReferralPartners((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)));
+    addActivityLog('Referral Partner Updated', id + ': ' + Object.keys(updates).join(', '));
+  };
+  const deleteReferralPartner = (id: string) => {
+    const p = referralPartners.find((x) => x.id === id);
+    setReferralPartners((prev) => prev.filter((x) => x.id !== id));
+    addActivityLog('Referral Partner Deleted', (p?.name || id) + ' (' + (p?.type || '') + ')');
+    showToast((p?.name || 'Referral partner') + ' removed');
   };
 
   const addReferralPartner = (input: ReferralPartner) => {
@@ -3305,7 +3322,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const i = PAYSLIP_FLOW.indexOf(p.status);
       if (i < 0 || i >= PAYSLIP_FLOW.length - 1) return p;
       const next = PAYSLIP_FLOW[i + 1];
-      return next === 'Paid' ? { ...p, status: next, paidAt: now } : { ...p, status: next };
+      // A past month's payroll is paid on that month's last day (keying in old months); this month: now.
+      const [py, pm] = String(p.period || '').split('-').map(Number);
+      const monthEnd = py && pm ? new Date(Date.UTC(py, pm, 0, 12)).toISOString() : now;
+      return next === 'Paid' ? { ...p, status: next, paidAt: monthEnd < now ? monthEnd : now } : { ...p, status: next };
     }));
     addActivityLog('Payroll Status Changed', `${ids.length} payslip(s) moved to the next step`);
   };
@@ -3419,6 +3439,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         pastInvoices,
         pastReceipts,
         setDriveCopy,
+        updateReferralPartner,
+        deleteReferralPartner,
         payments,
         retainers,
         users,

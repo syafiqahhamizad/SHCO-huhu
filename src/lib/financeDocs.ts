@@ -243,16 +243,6 @@ ${terms.map((x, i) => { const m2 = x.match(/^([^:]{3,40}):\s*(.*)$/); return `<p
 };
 const wrap = (title: string, body: string) => `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>@page{size:A4;margin:14mm 16mm}body{margin:0}</style></head><body>${body}</body></html>`;
 const dl = (blob: Blob, name: string) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500); };
-/** Word (.doc) download of the same HTML. */
-/** Word: the letter footer (class lh-foot) becomes a real page footer, so it shows on every page. */
-const WORD_FOOT_CSS = '@page WordSection1{size:21cm 29.7cm;margin:1.4cm 1.6cm 2.6cm;mso-footer:f1;mso-footer-margin:.8cm}div.WordSection1{page:WordSection1}';
-const wordBody = (body: string) => {
-  const m = body.match(/<div class="lh-foot"[\s\S]*?<!--\/lh-foot-->/);
-  if (!m) return body;
-  const rest = body.replace(m[0], '').replace(/<style>@media print[^<]*<\/style>/, '');
-  return `<div class="WordSection1">${rest}<table style="margin-left:50in"><tr><td><div style="mso-element:footer" id="f1">${m[0].replace(' class="lh-foot"', '').replace(/margin-top:24pt;/, '')}</div></td></tr></table></div>`;
-};
-export const word = (title: string, body: string) => dl(new Blob(['﻿', `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>${esc(title)}</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]--><style>@page{size:21cm 29.7cm;margin:1.4cm 1.6cm}${WORD_FOOT_CSS}</style></head><body>${wordBody(body)}</body></html>`], { type: 'application/msword' }), title + '.doc');
 /** PDF via the browser print dialog of the same HTML (server-side PDF recommended in production). */
 export const pdf = (title: string, body: string) => { const f = document.createElement('iframe'); f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'; document.body.appendChild(f); const w = f.contentWindow; if (!w) return; w.document.open(); w.document.write(wrap(title, body)); w.document.close(); setTimeout(() => { try { w.focus(); w.print(); } catch (e) { /* print blocked */ } setTimeout(() => f.remove(), 60000); }, 500); };
 /** html2pdf (jsPDF + html2canvas), loaded once on demand from the CDN — the same way as SheetJS. */

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { DEFAULT_CLAIM_TYPES, DEFAULT_EXPENSE_CATEGORIES, DEFAULT_LEAD_SOCIAL_PLATFORMS, DEFAULT_LEAD_SOURCES, WHICH_KINDS, whichOf, type LeadSourceDef, type WhichKind } from '../../../services/templateService';
 import { DEFAULT_PUBLIC_HOLIDAYS, getLeaveTypes } from '../staff/staffPortalShared';
 import { css, S, Txt, type SettingsCtx } from './settingsShared';
+import { CLIENT_FILES_PARTS } from '../../../lib/driveLayout';
 
 interface ListDef {
   title: string;
@@ -65,13 +66,27 @@ export const ListsTab = ({ C }: { C: SettingsCtx }) => {
   const setLeave = (i: number, p: Partial<(typeof leaveTypes)[number]>) => saveLeave(leaveTypes.map((t, k) => (k === i ? { ...t, ...p } : t)), (leaveTypes[i]?.name || 'Leave type') + ' changed');
   const fmtD = (iso: string) => { const d = new Date(iso + 'T00:00:00'); return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }); };
 
-  const PICKS = [...lists.map((g) => [g.title, g.items.length] as [string, number]), ['Leave types', leaveTypes.length] as [string, number], ['Public holidays', Object.keys(holidays).length] as [string, number]];
+  const PICKS = [...lists.map((g) => [g.title, g.items.length] as [string, number]), ['Client Files folders', CLIENT_FILES_PARTS.length] as [string, number], ['Leave types', leaveTypes.length] as [string, number], ['Public holidays', Object.keys(holidays).length] as [string, number]];
   return (
     <div style={css('display:grid;grid-template-columns:200px minmax(0,1fr);gap:16px;align-items:start')}>
       <div style={css(S.card + ';padding:6px')}>
         {PICKS.map(([t, n]) => { const on = pick === t; return <button key={t} type="button" onClick={() => setPick(t)} style={css(`display:flex;width:100%;align-items:center;justify-content:space-between;border:0;border-radius:6px;padding:8px 10px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;text-align:left;background:${on ? '#16223A' : 'transparent'};color:${on ? '#fff' : '#16223A'}`)}><span>{t}</span><span style={css(`font-size:10px;font-weight:700;color:${on ? '#C9D3E0' : '#94A3B8'}`)}>{n}</span></button>; })}
       </div>
       <div style={css('max-width:760px')}>
+      {pick === 'Client Files folders' && (
+        <div style={css(S.card)}>
+          <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Client Files folders</strong><span style={css('display:block;font-size:10.5px;color:#5B6478')}>the sub-folders inside each file’s folder in Finance › Client Files · rename them as you like · new papers go to the new name (rename existing folders in Drive yourself, once)</span></div>
+          {CLIENT_FILES_PARTS.map((k) => {
+            const cur = (s.clientFilesFolders?.[k] || '').trim() || k;
+            return (
+              <div key={k} style={css('display:grid;grid-template-columns:150px minmax(0,1fr);gap:8px;align-items:center;padding:6px 14px;border-bottom:1px solid #F0F2F5')}>
+                <span style={css('font-size:10.5px;color:#5B6478')}>{({ Quotation: 'Accepted quotations', Proforma: 'Proformas', Invoices: 'Invoices', Receipts: 'Receipts', 'Payments received': 'Bank-in slips (shortcuts)', 'Costs paid': 'Costs paid for the file (shortcuts)' } as Record<string, string>)[k]}</span>
+                <Txt value={cur} onCommit={(v) => { const t = v.trim().replace(/[\\/]/g, '-'); if (!t || t === cur) return; C.save({ clientFilesFolders: { ...(s.clientFilesFolders || {}), [k]: t } }, 'Client Files Folder Renamed', cur + ' → ' + t); C.msg('Folder name saved'); }} style="border:1px solid #DDE3EB;border-radius:6px;padding:5px 7px;font-size:11px;color:#16223A" />
+              </div>
+            );
+          })}
+        </div>
+      )}
       {pick === 'Lead sources' && (() => {
         const saveSrc = (next: LeadSourceDef[], what: string) => C.save({ leadSources: next }, 'Lead Sources Changed', what);
         const setSrc = (i: number, p: Partial<LeadSourceDef>, what: string) => saveSrc(sources.map((x, k) => (k === i ? { ...x, ...p } : x)), what);

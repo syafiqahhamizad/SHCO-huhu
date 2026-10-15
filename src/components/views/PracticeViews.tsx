@@ -1,3 +1,4 @@
+import { askForm } from '../ui/askForm';
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
@@ -422,7 +423,18 @@ export const DeadlinesView: React.FC = () => {
 
 /* ================= 8. REFERRAL VIEW ================= */
 export const ReferralView: React.FC = () => {
-  const { referralPartners = [], cases = [], addReferralPartner } = useApp();
+  const { referralPartners = [], cases = [], addReferralPartner, updateReferralPartner, deleteReferralPartner, isAdmin, currentUser } = useApp();
+  const canManage = Boolean(isAdmin || currentUser?.isAdmin || currentUser?.isSuperAdmin);
+  const editRef = (r: (typeof referralPartners)[number]) => {
+    void askForm('Edit ' + r.name, [
+      { key: 'name', label: 'Name', value: r.name, required: true },
+      { key: 'contact', label: 'Contact', value: r.contact || '' },
+      { key: 'type', label: 'Commission type (Percentage / Flat / None)', value: r.commissionType },
+      { key: 'value', label: 'Commission (% or RM per file)', value: String(r.commissionValue || 0) },
+      { key: 'owed', label: 'Amount owed (RM)', value: String(r.amountOwed || 0) },
+      { key: 'notes', label: 'Notes', value: r.notes || '' },
+    ]).then((f) => { if (!f) return; const t = /flat/i.test(f.type) ? 'Flat' : /none/i.test(f.type) ? 'None' : 'Percentage'; updateReferralPartner(r.id, { name: f.name.trim(), contact: f.contact.trim(), commissionType: t, commissionValue: Number(f.value) || 0, amountOwed: Number(f.owed) || 0, notes: f.notes.trim() }); });
+  };
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [refName, setRefName] = useState('');
@@ -495,6 +507,7 @@ export const ReferralView: React.FC = () => {
               <th className="p-3 font-bold text-right">Matters Brought In</th>
               <th className="p-3 font-bold text-right">Amount Owed (RM)</th>
               <th className="p-3 font-bold">Payment Status</th>
+              {canManage && <th className="p-3"></th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -528,6 +541,10 @@ export const ReferralView: React.FC = () => {
                     {r.paymentStatus}
                   </span>
                 </td>
+                {canManage && <td className="p-3 whitespace-nowrap text-right">
+                  <button type="button" onClick={() => editRef(r)} className="mr-3 cursor-pointer border-0 bg-transparent p-0 text-[11px] font-bold text-[#3D6B9C]">Edit</button>
+                  <button type="button" onClick={() => { if (window.confirm('Delete referral partner ' + r.name + '? Leads and clients that name them keep the name.')) deleteReferralPartner(r.id); }} className="cursor-pointer border-0 bg-transparent p-0 text-[11px] font-bold text-[#B23A2E]">Delete</button>
+                </td>}
               </tr>
             ))}
           </tbody>

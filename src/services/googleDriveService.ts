@@ -320,6 +320,24 @@ async function trashDriveFile(id: string): Promise<void> {
 }
 
 /** Downloads a file's bytes with the user's token (used for staff photos). */
+/** Replaces a file's content (and name) in place: same file, same link, latest version. */
+export async function replaceDriveFile(id: string, file: Blob, name: string, contentType?: string): Promise<DriveFile> {
+  const type = contentType || file.type || 'application/octet-stream';
+  const boundary = 'shco' + Math.random().toString(36).slice(2);
+  const body = new Blob([
+    '--' + boundary + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify({ name: driveSafeName(name) }) + '\r\n',
+    '--' + boundary + '\r\nContent-Type: ' + type + '\r\n\r\n',
+    file,
+    '\r\n--' + boundary + '--',
+  ]);
+  const res = await driveFetch(UPLOAD_API + '/files/' + encodeURIComponent(id) + q({ uploadType: 'multipart', fields: FILE_FIELDS, supportsAllDrives: 'true' }), {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'multipart/related; boundary=' + boundary },
+    body,
+  });
+  return res.json();
+}
+
 export async function downloadDriveFile(id: string): Promise<Blob> {
   const res = await driveFetch(API + '/files/' + encodeURIComponent(id) + q({ alt: 'media' }));
   return res.blob();

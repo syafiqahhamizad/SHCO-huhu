@@ -77,7 +77,7 @@ export const QUICK_TABS: QuickTab[] = [
     steps: [
       'New client: fill in the name, IC / SSM no., contact and address.',
       'Upload the KYC documents on the client. They are saved in Google Drive › *Clients KYC*.',
-      'Each client gets a client number (CL-year-number) used for the client login.',
+      'Each client gets a client number (e.g. CL26833) used for the client login.',
     ] },
   { id: 'cases', group: 'Practice', label: 'Cases', roles: ['partner', 'lawyer', 'assistant'],
     what: 'All the files. Open one to work on it.',

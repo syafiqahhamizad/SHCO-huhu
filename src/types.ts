@@ -212,7 +212,7 @@ export type CorporateEntityCategory =
 export interface Client {
   /** Internal key (never changes; files, bills and receipts point to it). */
   id: string;
-  /** Client number shown to people, CL-<year>-<NNN> (see lib/clientNumbers). */
+  /** Client number shown to people, CL<YY><NNN> (e.g. CL26833) (see lib/clientNumbers). */
   clientNo?: string;
   /** Where the client came from: a key of the Lead sources list (Settings › Lists & sources). */
   source?: string;
@@ -851,6 +851,8 @@ export interface Quotation {
   /** A quotation made before the portal: recorded with its own number and the original PDF (View opens it). */
   historical?: boolean;
   pastFile?: { name: string; driveFileId?: string; webViewLink?: string };
+  /** The firm's own short name for this bill (e.g. "Balance after trial"), used for the Drive file name. */
+  label?: string;
   /** PDF copy of a document made in the portal, saved to the file's Client Files folder (see useFinanceController). */
   driveCopy?: { name: string; driveFileId?: string; webViewLink?: string; savedAt: string; /** What the saved copy was made from; a change saves a new copy. */ sig?: string };
 }
@@ -976,6 +978,8 @@ export interface Invoice {
   /** Its number as printed (the id is "PAST …" so it never clashes with the portal's numbers). */
   pastNo?: string;
   pastFile?: { name: string; driveFileId?: string; webViewLink?: string };
+  /** The firm's own short name for this bill (e.g. "Balance after trial"), used for the Drive file name. */
+  label?: string;
   /** PDF copy of a document made in the portal, saved to the file's Client Files folder (see useFinanceController). */
   driveCopy?: { name: string; driveFileId?: string; webViewLink?: string; savedAt: string; /** What the saved copy was made from; a change saves a new copy. */ sig?: string };
   clientId: string;
@@ -1043,6 +1047,8 @@ export interface Receipt {
   recordOnly?: boolean;
   pastNo?: string;
   pastFile?: { name: string; driveFileId?: string; webViewLink?: string };
+  /** The firm's own short name for this bill (e.g. "Balance after trial"), used for the Drive file name. */
+  label?: string;
   /** PDF copy of a document made in the portal, saved to the file's Client Files folder (see useFinanceController). */
   driveCopy?: { name: string; driveFileId?: string; webViewLink?: string; savedAt: string; /** What the saved copy was made from; a change saves a new copy. */ sig?: string };
   date: string;
@@ -1666,6 +1672,8 @@ export interface Payslip {
   userId: string;
   period: string; // 'YYYY-MM'
   status: 'Draft' | 'Checked' | 'Approved' | 'Paid';
+  /** PDF of the released payslip in Finance › Payroll › year › month › Payslips. */
+  driveCopy?: { name: string; driveFileId?: string; webViewLink?: string; savedAt: string };
   basic: number;
   allowances: { name: string; amount: number }[];
   referralFee: number;

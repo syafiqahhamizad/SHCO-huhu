@@ -240,6 +240,8 @@ export interface PracticeSettings {
   branches?: FirmBranch[];
   /** "Emails by purpose" (Firm & Letterhead tab). */
   purposeEmails?: PurposeEmail[];
+  /** Names for the sub-folders inside each file's Client Files folder (keys: Quotation, Proforma, Invoices, Receipts, Payments received, Costs paid). */
+  clientFilesFolders?: Record<string, string>;
   /** Opening balances per bank account id (Banks, Numbering & SST tab). */
   bankOpeningBalances?: Record<string, number>;
   /** Date (ISO yyyy-mm-dd) the opening balances are as at. Cash-book entries on or before it are
@@ -363,8 +365,6 @@ export const DEFAULT_PURPOSE_EMAILS: PurposeEmail[] = [
 ];
 /** The purposes the portal itself sends from (fixed names; their e-mail can be changed). */
 export const PURPOSE_BUILTIN = ['General enquiries', 'Billing & receipts', 'Payroll & HR', 'Client portal', 'New leads'];
-/** The e-mail set for a purpose (blank = the firm default above). */
-export const purposeEmail = (purpose: string) => (getPracticeSettings().purposeEmails || []).find((x) => x.purpose === purpose)?.email?.trim() || DEFAULT_PURPOSE_EMAILS.find((x) => x.purpose === purpose)?.email || '';
 
 /** [key, label, default format] — Banks, Numbering & SST → Document numbering. */
 /** [key, label, built-in format]: the formats the portal uses unless changed in Settings. */
@@ -375,6 +375,8 @@ export const DOC_NUMBERING: [string, string, string][] = [
   ['receipt', 'Official receipt', 'HQ-OR-{0000}'],
   ['voucher', 'Payment voucher', 'HQ-PV-{0000}'],
   ['journal', 'Journal', 'JV-{YYYY}-{0000}'],
+  ['client', 'Client number', 'CL{YY}{000}'],
+  ['lead', 'Lead', 'LD{YY}{000}'],
 ];
 
 export const DEFAULT_APPROVAL_LIMITS: Required<ApprovalLimits> = {

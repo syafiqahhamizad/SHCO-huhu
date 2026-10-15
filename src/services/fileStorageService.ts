@@ -7,10 +7,10 @@ import {
   validateClaimFile,
 } from './firebaseStorageService';
 import {
-  DRIVE_TOKEN_EVENT, downloadDriveFile, driveViewUrl, ensureFolderPath, getDriveAccessToken, getDriveConfig, grantReader, hasValidDriveToken, isDriveAccessError, isDriveConfigured, ensureShortcut, moveDriveItem, renameChildFolder, clearFolderCache, uploadToDrive,
+  DRIVE_TOKEN_EVENT, downloadDriveFile, driveViewUrl, ensureFolderPath, getDriveAccessToken, getDriveConfig, grantReader, hasValidDriveToken, isDriveAccessError, isDriveConfigured, ensureShortcut, moveDriveItem, renameChildFolder, clearFolderCache, replaceDriveFile, uploadToDrive,
 } from './googleDriveService';
 import {
-  CLIENTS_ROOT, FIN, OLD_FIN_NAMES, type ClientFilesPart, booksMonthPath, clientFilesPath, matterSubfolders, clientFolderName as layoutClientFolderName, financeFolderPath, folderUrl, matterFolderDescription, matterFolderPath,
+  CLIENTS_ROOT, FIN, OLD_FIN_NAMES, type ClientFilesPart, payrollMonthPath, booksMonthPath, clientFilesPath, matterSubfolders, clientFolderName as layoutClientFolderName, financeFolderPath, folderUrl, matterFolderDescription, matterFolderPath,
   staffFolderName, type FinanceKind, type MatterLike, type MatterSub,
 } from '../lib/driveLayout';
 
@@ -162,7 +162,7 @@ export async function fileFinanceEntry(o: { path: string[]; name: string; folder
   const papers: { id: string; webViewLink?: string }[] = [];
   for (const p of o.papers) papers.push(await moveDriveItem(p.id, folderId, p.name));
   for (const m of o.matters || (o.matter ? [o.matter] : [])) {
-    const cf = await ensureFolderPath(b.baseId, [...b.prefix, ...clientFilesPath(m, o.part)]);
+    const cf = await ensureFolderPath(b.baseId, [...b.prefix, ...clientFilesPath(m, partName(o.part))]);
     await ensureShortcut(cf, folderId, o.name);
   }
   return { folderId, papers };
@@ -333,9 +333,24 @@ export async function storeMatterFile(opts: MatterLike & { folderId?: string; su
  * Engagement & billing papers of a matter (signed Letter of Engagement, quotations, invoices,
  * receipts). Drive: SHCO Finance `Files/<NNN> - <title>/`.
  */
+/** The sub-folder name the firm chose for a part of Client Files (Settings › Lists & sources). */
+const partName = (part?: ClientFilesPart) => (part ? (getPracticeSettings().clientFilesFolders?.[part] || '').trim() || part : undefined);
+
+/** A released payslip PDF: Finance › Payroll › <year> › <YYYY-MM Month> › Payslips (partners / Accounts only). */
+export async function storePayslipPdf(period: string, file: File, uploadedBy: string): Promise<StoredFileMeta> {
+  return storeFinance(payrollMonthPath(period + '-01', 'Payslips'), file, uploadedBy, { description: 'Payslip ' + period + ' saved by ' + uploadedBy });
+}
+
+/** Replaces a saved PDF copy in Drive with the latest version (same file, same link). */
+export async function replaceStoredFile(fileId: string, file: File): Promise<{ driveFileId: string; webViewLink?: string; name: string }> {
+  await prepareStorage();
+  const f = await replaceDriveFile(fileId, file, file.name, file.type);
+  return { driveFileId: f.id || fileId, webViewLink: f.webViewLink, name: f.name || file.name };
+}
+
 export async function storeEngagementFile(m: MatterLike, file: File, uploadedBy: string, part?: ClientFilesPart): Promise<StoredMatterFile> {
   try {
-    return await storeFinance(clientFilesPath(m, part), file, uploadedBy, { description: 'Engagement & billing for ' + m.ref + ' uploaded by ' + uploadedBy });
+    return await storeFinance(clientFilesPath(m, partName(part)), file, uploadedBy, { description: 'Engagement & billing for ' + m.ref + ' uploaded by ' + uploadedBy });
   } catch (err) {
     const cause = err instanceof Error ? (err as Error & { cause?: unknown }).cause : undefined;
     if (financeBase().separate && isDriveAccessError(cause)) throw new Error(file.name + ': engagement & billing papers go to the SHCO Finance Shared Drive, and your Google account cannot add files there. Ask a partner or Accounts to upload it.');

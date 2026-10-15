@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { FileText, Printer, Eye, FileDown, X } from 'lucide-react';
+import { Printer, Eye, FileDown, X } from 'lucide-react';
 import type { Case, Client, Quotation, User } from '../../../types';
 import { engagementLetterHtml, longDate, type DocLang, type EngagementInput, type FeeLine } from '../../../lib/engagementLetter';
-import { AREAS, BANK, areaFromName, letterheadFor, loadLogos, pdf, word } from '../../../lib/financeDocs';
+import { AREAS, BANK, areaFromName, letterheadFor, loadLogos, pdf } from '../../../lib/financeDocs';
 import { itemAmount, recordSstRate } from '../finance/financeModel';
 import { courtOf, lawyersOf, staffOf } from './caseModel';
 import { css } from './caseUi';
@@ -71,7 +71,7 @@ export const LangToggle: React.FC<{ value: DocLang; onChange: (l: DocLang) => vo
   </span>
 );
 
-/** View on screen, PDF, Print and Word for one client document (same HTML for all four). */
+/** View on screen, PDF and Print for one client document (same HTML for all three). */
 const DocActions: React.FC<{ title: string; label: string; html: string; onDone?: (what: string) => void }> = ({ title, label, html, onDone }) => {
   const [open, setOpen] = useState(false);
   const file = title.replace(/[\\/:*?"<>|]+/g, '-');
@@ -81,7 +81,6 @@ const DocActions: React.FC<{ title: string; label: string; html: string; onDone?
         <button type="button" onClick={() => { setOpen(true); onDone?.('viewed'); }} style={css(BTN)}><Eye size={14} />View</button>
         <button type="button" onClick={() => { pdf(file, html); onDone?.('PDF'); }} title="Opens the print window; choose “Save as PDF”" style={css(BTN)}><FileDown size={14} />PDF</button>
         <button type="button" onClick={() => { pdf(file, html); onDone?.('printed'); }} style={css(BTN)}><Printer size={14} />Print</button>
-        <button type="button" onClick={() => { word(file, html); onDone?.('Word'); }} style={css(BTN)}><FileText size={14} />Word</button>
       </div>
       {open && (
         <div role="dialog" aria-label={label} onClick={() => setOpen(false)} style={css('position:fixed;inset:0;z-index:80;background:rgba(22,34,58,.55);display:flex;flex-direction:column;align-items:center;padding:24px 16px;overflow:auto')}>
@@ -90,7 +89,6 @@ const DocActions: React.FC<{ title: string; label: string; html: string; onDone?
               <strong style={css('color:#fff;font-size:14px;margin-right:auto')}>{label}</strong>
               <button type="button" onClick={() => pdf(file, html)} style={css(BTN)}><FileDown size={14} />PDF</button>
               <button type="button" onClick={() => pdf(file, html)} style={css(BTN)}><Printer size={14} />Print</button>
-              <button type="button" onClick={() => word(file, html)} style={css(BTN)}><FileText size={14} />Word</button>
               <button type="button" onClick={() => setOpen(false)} aria-label="Close" style={css(BTN)}><X size={14} /></button>
             </div>
             <div style={css('background:#fff;box-shadow:0 12px 32px rgba(0,0,0,.3);padding:48px 56px;min-height:1000px;box-sizing:border-box;overflow-x:auto')} dangerouslySetInnerHTML={{ __html: html }} />
@@ -101,7 +99,7 @@ const DocActions: React.FC<{ title: string; label: string; html: string; onDone?
   );
 };
 
-/** View, PDF, Print and Word for the Letter of Engagement. */
+/** View, PDF and Print for the Letter of Engagement. */
 export const EngagementLetterActions: React.FC<{ input: EngagementInput; onDone?: (what: string) => void }> = ({ input, onDone }) => {
   const name = input.lang === 'BM' ? 'Surat Perlantikan' : 'Letter of Engagement';
   return <DocActions title={name + ' ' + (input.ourRef || '')} label={name + (input.ourRef ? ' · ' + input.ourRef : '')} html={engagementLetterHtml(input)} onDone={onDone} />;

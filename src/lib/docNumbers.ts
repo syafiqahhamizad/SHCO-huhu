@@ -10,10 +10,10 @@ export const DEFAULT_DOC_FORMATS: Record<string, string> = {
   receipt: 'HQ-OR-{0000}',
   voucher: 'HQ-PV-{0000}',
   journal: 'JV-{YYYY}-{0000}',
+  client: 'CL{YY}{000}',
+  lead: 'LD{YY}{000}',
 };
 
-/** Does the format reset its running number every year? */
-export const isYearly = (fmt: string) => /\{YYYY\}|\{YY\}/.test(fmt);
 export const validFormat = (fmt: string) => /\{0+\}/.test(fmt) && fmt.trim().length <= 40;
 
 export const formatDocNo = (fmt: string, year: number, n: number) =>
@@ -25,6 +25,13 @@ export const maxNumIn = (ids: string[], fmt: string, year: number) => {
   const pattern = esc(fmt)
     .replace(/\\\{YYYY\\\}/g, String(year)).replace(/\\\{YY\\\}/g, String(year).slice(-2))
     .replace(/\\\{0+\\\}/, '(\\d+)');
+  const re = new RegExp('^' + pattern + '$', 'i');
+  return ids.reduce((mx, id) => { const m = String(id).match(re); const n = m ? Number(m[1]) : 0; return n > mx ? n : mx; }, 0);
+};
+
+/** Highest running number in ids of this format, any year (firm-wide running numbers: clients, leads). */
+export const maxNumAnyYear = (ids: string[], fmt: string) => {
+  const pattern = esc(fmt).replace(/\\\{YYYY\\\}/g, '\\d{4}').replace(/\\\{YY\\\}/g, '\\d{2}').replace(/\\\{0+\\\}/, '(\\d+)');
   const re = new RegExp('^' + pattern + '$', 'i');
   return ids.reduce((mx, id) => { const m = String(id).match(re); const n = m ? Number(m[1]) : 0; return n > mx ? n : mx; }, 0);
 };

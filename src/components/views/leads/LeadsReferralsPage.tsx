@@ -17,6 +17,8 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import { clientsNav } from '../clients/clientModel';
+import { clientRef } from '../../../lib/clientNumbers';
 import { useApp } from '../../../context/AppContext';
 import type { Case, Client, ConflictMatch, Lead, Programme, ProgrammeAttendee, User } from '../../../types';
 import {
@@ -233,6 +235,7 @@ export const LeadsReferralsPage: React.FC = () => {
     setCurrentCaseId,
     setCaseSubTab,
     setCurrentView,
+    updateClient,
     showToast,
     logAuditEvent,
     referralPartners,
@@ -1682,9 +1685,9 @@ export const LeadsReferralsPage: React.FC = () => {
                   <p className="m-0 overflow-hidden text-[12px] font-bold text-ellipsis whitespace-nowrap text-[#16223A]">{l.name}</p>
                   <p className="mt-[1px] mb-0 text-[10.5px] text-[#5B6478]">
                     <span className="font-semibold text-[#3D6B9C]" style={{ fontFamily: MONO }}>
-                      {l.id}
-                    </span>{' '}
-                    · received {fmtDM(l.date)}
+                      {l.id.startsWith('client:') ? clientRef((clients || []).find((x) => x.id === l.clientId) || { id: l.clientId || '' }) : l.id}
+                    </span>
+                    {l.date ? ' · received ' + fmtDM(l.date) : ''}
                   </p>
                 </div>
                 <span className="text-[11px] text-[#16223A]">{l.area}</span>
@@ -1742,6 +1745,17 @@ export const LeadsReferralsPage: React.FC = () => {
                       Convert
                     </button>
                   )}
+                  {l.id.startsWith('client:') && (
+                    <button
+                      type="button"
+                      onClick={() => { clientsNav.set(l.clientId || null); setCurrentView('clients'); }}
+                      title="Change where this client came from"
+                      className="mr-[8px] cursor-pointer border-0 bg-transparent text-[10.5px] font-bold text-[#3D6B9C]"
+                      style={{ fontFamily: 'inherit' }}
+                    >
+                      Edit
+                    </button>
+                  )}
                   {isClient && (
                     <button
                       type="button"
@@ -1754,6 +1768,17 @@ export const LeadsReferralsPage: React.FC = () => {
                   )}
                 </span>
                 <span className="flex justify-center">
+                  {l.id.startsWith('client:') && (
+                    <button
+                      type="button"
+                      onClick={() => { const cl = (clients || []).find((x) => x.id === l.clientId); if (!cl || !window.confirm('Remove ' + cl.name + ' from Leads & Referrals? Only their "Came to us through" is cleared; the client stays in Clients.')) return; updateClient(cl.id, { source: undefined, sourceDetail: undefined }); showToast(cl.name + ' removed from Leads & Referrals'); }}
+                      title="Remove from Leads & Referrals (the client stays)"
+                      className="grid h-[24px] w-[24px] cursor-pointer place-items-center rounded-[6px] bg-transparent p-0 text-[#B23A2E] hover:border-[#F0C9C2]! hover:bg-[#FBEDE9]!"
+                      style={{ border: '1px solid transparent', fontFamily: 'inherit' }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /></svg>
+                    </button>
+                  )}
                   {canAdmin && !l.id.startsWith('client:') && (
                     <button
                       type="button"

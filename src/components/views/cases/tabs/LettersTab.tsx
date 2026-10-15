@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { escapeHtml } from '../../../../lib/html';
 import type { CaseDocument } from '../../../../types';
 import { EngagementLetterActions, LangToggle, branchOfCase, engagementInputFor } from '../EngagementLetter';
-import { letterheadFor, loadLogos, word } from '../../../../lib/financeDocs';
+import { letterheadFor, loadLogos, pdf } from '../../../../lib/financeDocs';
 import { letterFooterHtml, letterheadHtml, quotationForFile, type DocLang } from '../../../../lib/engagementLetter';
 import { useApp } from '../../../../context/AppContext';
 import { prepareStorage, storeEngagementFile, storeMatterFile, openLegacyDataUrl, openStoredFile, useStorageLabel } from '../../../../services/fileStorageService';
@@ -58,9 +58,9 @@ export const LettersTab: React.FC<{ w: WF }> = ({ w }) => {
       'Notice of change of solicitors': `${intit}<p style="text-align:center"><strong>NOTICE OF CHANGE OF SOLICITORS</strong></p><p>TAKE NOTICE that Messrs. Syafiqah Hamizad &amp; Co have been appointed to act for ${esc(client?.name || '[party]')} in place of [previous solicitors].</p><p>Dated: ${esc(today)}</p>`,
       'Closing letter to client': `${head}<p>${esc(client?.name || '[Client]')}</p>${re}<p>We are pleased to inform you that the above matter has been concluded and we are closing our file. Original documents held by us have been / will be returned to you. Our file will be kept for 7 years from the date of closing.</p><p>Thank you for your instructions.</p>${sign}`,
     };
-    word(tpl.replace(/[^\w]+/g, '_') + '_' + c.ref.replace(/\//g, '-'), `<div style="font-family:Arial,Helvetica,sans-serif;font-size:10.5pt;line-height:1.45;text-align:justify;color:#000">${body[tpl]}${body[tpl].startsWith(head) ? letterFooterHtml(letterheadFor()) : ''}</div>`);
+    pdf(tpl.replace(/[^\w]+/g, '_') + '_' + c.ref.replace(/\//g, '-'), `<div style="font-family:Arial,Helvetica,sans-serif;font-size:10.5pt;line-height:1.45;text-align:justify;color:#000">${body[tpl]}${body[tpl].startsWith(head) ? letterFooterHtml(letterheadFor()) : ''}</div>`);
     w.save({}, 'Draft generated: ' + tpl, 'Document Upload');
-    w.toast('Draft "' + tpl + '" downloaded as a Word file. Check and finalise before sending');
+    w.toast('"' + tpl + '" opened to print or save as PDF. Check it before sending');
   };
 
   const upload = async (file: File) => {
@@ -110,7 +110,7 @@ export const LettersTab: React.FC<{ w: WF }> = ({ w }) => {
               <span style={css('font-size:11.5px;color:#4A5468')}>{quote ? 'Fees and payment plan from quotation ' + quote.id + ' in Billing (' + quote.status + ').' : 'No quotation on this file that you can see, so the letter says the fees are as per our quotation (no figures are made up).'}</span>
             </div>
           )}
-          {tpl !== LOE && <div style={css('display:flex;gap:8px;justify-content:flex-end;align-items:center')}><span style={css('font-size:11.5px;color:#4A5468')}>Downloads a Word draft</span><button type="button" onClick={gen} style={css(S.btnPriL)}>Generate draft</button></div>}
+          {tpl !== LOE && <div style={css('display:flex;gap:8px;justify-content:flex-end;align-items:center')}><span style={css('font-size:11.5px;color:#4A5468')}>Opens it to print or save as PDF</span><button type="button" onClick={gen} style={css(S.btnPriL)}>Generate draft</button></div>}
         </div>
       </Card>
       <Card>
