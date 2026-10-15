@@ -37,7 +37,10 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
     const run = (fn: () => void) => () => { setMenu(null); fn(); };
     const canEdit = kind !== 'receipt' && F.rk !== 'R' && ['Draft', 'Sent', 'Accepted', 'Unpaid', 'Ready', 'Pending Approval', 'Overdue', 'Part-paid'].includes(st);
     const doc = () => F.buildDoc({ kind, id: menuRec.id });
-    const more: [string, () => void][] = [['View', () => F.setView({ kind, id: menuRec.id })], ...(canEdit ? [['Edit', () => F.editDoc(kind, menuRec as Quotation)] as [string, () => void]] : []), ['Download PDF', () => { const d = doc(); if (d) SD.pdf(d.no, SD.docHtml(d)); }], ...(kind !== 'receipt' && F.rk !== 'R' ? [['Duplicate', () => F.duplicateDoc(kind, menuRec as Quotation)] as [string, () => void]] : [])];
+    // Send to client is always offered (never required), except for papers from before the portal.
+    const past = !!((menuRec as Quotation).historical || (menuRec as { recordOnly?: boolean }).recordOnly);
+    const canSend = !past && F.rk !== 'R' && !acts.includes('Send') && !acts.includes('Resend');
+    const more: [string, () => void][] = [...(canSend ? [['Send to client', () => F.act(kind, menuRec as Quotation, 'Send')] as [string, () => void]] : []), ['View', () => F.setView({ kind, id: menuRec.id })], ...(canEdit ? [['Edit', () => F.editDoc(kind, menuRec as Quotation)] as [string, () => void]] : []), ['Download PDF', () => { const d = doc(); if (d) SD.pdf(d.no, SD.docHtml(d)); }], ...(kind !== 'receipt' && F.rk !== 'R' ? [['Duplicate', () => F.duplicateDoc(kind, menuRec as Quotation)] as [string, () => void]] : [])];
     const del = (fn: () => void) => ({ label: 'Delete', go: run(fn), fw: 600, fg: '#B23A2E', sep: true });
     const danger = [
       ...(F.actionsFor(kind, menuRec as Quotation).includes('Void') ? [{ label: 'Void (credit note)', go: run(() => F.act(kind, menuRec as Quotation, 'Void')), fw: 600, fg: '#B23A2E', sep: true }] : []),

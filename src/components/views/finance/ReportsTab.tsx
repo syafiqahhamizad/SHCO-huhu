@@ -68,6 +68,17 @@ export const ReportsTab = ({ F }: { F: FinanceCtrl }) => {
       payslips.filter((p) => p.period.startsWith(String(year)) && p.status === 'Paid').forEach((p) => { const c = F.slipCalc(p)!; const x = g.get(p.userId) || [0, 0, 0, 0, 0]; x[0] += c.gross; x[1] += Number(p.epfEmployee || 0); x[2] += Number(p.socsoEis || 0); x[3] += Number(p.pcb || 0); x[4] += Number(p.zakat || 0); g.set(p.userId, x); });
       return { period: String(year), cols: ['Staff', 'Gross pay', 'EPF', 'SOCSO + EIS', 'PCB', 'Zakat'], rows: [...g.entries()].map(([u, x]) => [F.staffUser(u)?.name || u, ...x.map(rm2)]) };
     }
+    if (name === 'Referral fees by month') {
+      // Each referrer's fee month by month (what to pay: voucher for outsiders, payslip for staff, drawings for partners).
+      const months = Array.from({ length: 12 }, (_, m) => m);
+      const per = months.map((m) => F.referralFor((d) => { const t = parseDate(d); return !!t && new Date(t).getFullYear() === year && new Date(t).getMonth() === m; }));
+      const names = [...new Set(per.flatMap((r) => r.rows.map((x) => x.name)))].sort();
+      const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const feeOf = (n: string, m: number) => per[m].rows.find((x) => x.name === n)?.fee || 0;
+      const rows = names.map((n) => { const via = per.flatMap((r) => r.rows).find((x) => x.name === n)?.via || ''; const tot = months.reduce((a2, m) => a2 + feeOf(n, m), 0); return [n, via, ...months.map((m) => (feeOf(n, m) ? rm(feeOf(n, m)) : '—')), rm(tot)]; });
+      if (rows.length) rows.push(['Total', '', ...months.map((m) => { const t = per[m].total; return t ? rm(t) : '—'; }), rm(per.reduce((a2, r) => a2 + r.total, 0))]);
+      return { period: String(year), cols: ['Referrer', 'Paid through', ...MON, 'Total'], rows };
+    }
     if (name === 'Referral fees paid') { const r = F.referralFor(inYear); return { period: 'YTD ' + year, cols: ['Referrer', 'Type', 'Files', 'Fees received', 'Rate', 'Referral fee', 'Paid through'], rows: r.rows.map((x) => [x.name, x.type, x.files, rm(x.base), x.flat ? 'flat' : x.rate + '%', rm(x.fee), x.via]) }; }
     return { period: '', cols: ['Item'], rows: [] };
   };
@@ -164,6 +175,7 @@ export const ReportsTab = ({ F }: { F: FinanceCtrl }) => {
     ['Books · for tax accountant', '#5B6478', 'Bank reconciliation · Office account', 'Statement balance against the portal’s office cash book.', `${F.monShort} ${year}`],
     ['Books · for tax accountant', '#5B6478', 'Bank reconciliation · Client account', 'Statement balance, deposits not credited and unpresented cheques, against the client cash book.', `${F.monShort} ${year}`],
     ['Books · for tax accountant', '#5B6478', 'Referral fees paid', 'Every referral fee by referrer and file.', 'YTD'],
+    ['Books · for tax accountant', '#5B6478', 'Referral fees by month', 'Each referrer’s fee month by month, to pay by voucher, payslip or drawings.', String(year)],
   ];
   return (
     <div style={css('display:flex;flex-direction:column;gap:16px')}>

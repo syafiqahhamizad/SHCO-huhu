@@ -656,7 +656,14 @@ export function useFinanceController(initialTab: FinTab) {
   const pvIsClient = (v: PaymentVoucher) => v.accountSet === 'CLIENT';
   const referralFor = (inRange: (date: string) => boolean) => {
     const rows = referralPartners.filter((p) => p.active !== false && p.commissionType !== 'None').map((p) => {
-      const cs = cases.filter((c) => c.referredBy && (norm(c.referredBy) === norm(p.name) || norm(c.referredBy) === norm(p.id)));
+      // Referred files: "Referred by" on the file, or the client's "Came to us through › Who / which",
+      // or a lead from this referrer that became the client (Leads & Referrals).
+      const isP = (x?: string) => !!x && (norm(x) === norm(p.name) || norm(x) === norm(p.id));
+      const viaClients = new Set([
+        ...(app.clients || []).filter((cl) => isP(cl.sourceDetail)).map((cl) => cl.id),
+        ...(app.leads || []).filter((l) => l.clientId && isP(l.referralDetail)).map((l) => l.clientId!),
+      ]);
+      const cs = cases.filter((c) => isP(c.referredBy) || String(c.clientId || '').split(',').map((x) => x.trim()).some((id) => viaClients.has(id)));
       const csIds = new Set(cs.flatMap((c) => [c.id, c.ref]));
       const invs = invoices.filter((i) => i.status !== 'Voided' && invIssued(i) && (csIds.has(i.caseId) || csIds.has(i.fileRef || '')));
       // Money received for the referred matters: invoice payments + proforma deposits applied
@@ -677,7 +684,7 @@ export function useFinanceController(initialTab: FinTab) {
     }).filter((r) => r.base > 0 || r.fee > 0);
     return { rows, total: rows.reduce((s, r) => s + r.fee, 0) };
   };
-  const referral = useMemo(() => referralFor((d) => inPeriod(d, period)), [referralPartners, cases, invoices, payments, period]);
+  const referral = useMemo(() => referralFor((d) => inPeriod(d, period)), [referralPartners, cases, invoices, payments, period, app.clients, app.leads]);
   const refDecision = (settings.referralFeeApprovals || {})[period];
 
   /** The approval limit applies to the whole claim / PV FORM: total of every live item on it. */
@@ -1106,6 +1113,21 @@ export function useFinanceController(initialTab: FinTab) {
     }
     if (a === 'View') { if (kind === 'quotation') { const p = quotations.find((x) => x.documentType === 'Proforma' && x.sourceQuotationId === rec.id); setView({ kind: 'quotation', id: p ? p.id : rec.id }); } else setView({ kind, id: rec.id }); return; }
     if (rk === 'R') { toastMsg('Read-only access.'); return; }
+    if ((a === 'Send' || a === 'Resend') && kind !== 'quotation') {
+      // Invoice or receipt to the client (optional, any time): e-mail and / or WhatsApp with the document.
+      const inv = kind === 'invoice' ? (rec as Invoice) : undefined; const rc = kind === 'receipt' ? (rec as Receipt) : undefined;
+      const ct = inv ? contactFor(inv.clientId, inv.partyName) : contactFor(rc?.clientId, rc?.receivedFrom);
+      const who = ct.c?.contactPerson || ct.c?.name || inv?.partyName || rc?.receivedFrom || 'Sir/Madam';
+      const bank = `${SD.BANK.Office[0]} · ${SD.BANK.Office[1]} · ${SD.BANK.Office[2]}`;
+      const amt = rm2(inv ? Number(inv.total || 0) : Number(rc?.amount || 0));
+      const subj = (inv ? 'Invoice ' : 'Official receipt ') + docNo + (inv?.matter ? ' · ' + inv.matter : '');
+      const body = inv
+        ? `Dear ${who},\n\nPlease find our invoice ${docNo}${inv.matter ? ' for ' + inv.matter : ''} of ${amt}.\n\nKindly make payment to our office account:\n${bank}\nPlease quote ${docNo} as the payment reference.\n\nThank you.\n\nSyafiqah Hamizad & Co`
+        : `Dear ${who},\n\nThank you for your payment of ${amt}. Please find our official receipt ${docNo}.\n\nSyafiqah Hamizad & Co`;
+      const wa = inv ? `Salam / Hi ${who}, our invoice ${docNo} (${amt}) has been sent to your e-mail. Payment to ${bank}, quoting ${docNo}. Thank you.` : `Salam / Hi ${who}, thank you for your payment of ${amt}. Our official receipt ${docNo} has been sent to your e-mail. Thank you.`;
+      setRem({ kind, id: rec.id, send: true, to: ct.email, subj, body, attach: true, viaE: !!ct.email || !ct.phone, viaW: !!ct.phone, phone: ct.phone, wa });
+      return;
+    }
     if (a === 'Send' || a === 'Resend') {
       // Opens the e-mail / WhatsApp window with the message ready; marked Sent once it goes.
       const q = rec as Quotation; const c = clientByName(q.clientName); const lead = (app.leads || []).find((l) => l.id === q.leadId || l.name === q.clientName);
@@ -1242,7 +1264,13 @@ export function useFinanceController(initialTab: FinTab) {
     if (r.viaW && !link) { toastMsg("Enter the client's mobile number, e.g. 012-345 6789"); return; }
     if (link) window.open(link, '_blank', 'noopener');
     const done = (via: string) => {
-      if (r.send) app.updateQuotation(r.id, { status: 'Sent', documentSentDate: todayIso(), documentSentBy: me });
+      if (r.send && r.kind === 'quotation') app.updateQuotation(r.id, { status: 'Sent', documentSentDate: todayIso(), documentSentBy: me });
+      else if (r.send && r.kind === 'invoice') {
+        // Sending a draft issues it today first; a sent invoice shows "Sent".
+        const inv = invoices.find((i) => i.id === r.id);
+        if (inv && invStatus(inv) === 'Draft') act('invoice', inv, 'Issue', todayIso());
+        if (inv && ['Draft', 'Unpaid', 'Ready'].includes(inv.status)) app.updateInvoice(inv.id, { status: 'Sent' });
+      }
       else if (r.kind === 'invoice') { const inv = invoices.find((i) => i.id === r.id); if (inv) app.updateInvoice(inv.id, { reminders: [...(inv.reminders || []), fd(Date.now()) + ' · ' + via] }); }
     };
     setRem(null);

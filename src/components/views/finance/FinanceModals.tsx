@@ -73,6 +73,8 @@ export const DocViewModal = ({ F }: { F: FinanceCtrl }) => {
   if (!d || !rec) return null;
   const html = SD.docHtml(d);
   const acts = F.actionsFor(ref.kind, rec).filter((a) => a !== 'View');
+  // Send to client is always available here (never required), except for papers from before the portal.
+  if (F.rk !== 'R' && !acts.includes('Send') && !acts.includes('Resend') && !(rec as Quotation).historical && !(rec as { recordOnly?: boolean }).recordOnly) acts.unshift('Send');
   if (ref.kind !== 'receipt' && ['Draft', 'Sent', 'Accepted', 'Unpaid', 'Ready', 'Pending Approval'].includes(d.status || '') && F.rk !== 'R') acts.push('Edit');
   if (ref.kind === 'invoice' && d.status === 'Overdue' && (rec as Invoice).writeOffRequest?.status !== 'Pending' && (F.canPrepare || F.canApprove)) acts.push('Request write-off');
   const proofs = (d.proofs || []);

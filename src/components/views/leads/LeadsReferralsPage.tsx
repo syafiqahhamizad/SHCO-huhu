@@ -365,15 +365,15 @@ export const LeadsReferralsPage: React.FC = () => {
       const detailRaw = c.source === 'Social Media' ? plats.find((p) => norm(p.label) === norm(d))?.key || d : c.source === 'Event / Seminar' ? ((programmes || []).find((p) => norm(p.title) === norm(d))?.id || d) : d;
       const picName = c.source === 'BNI' ? SH_NAME : '';
       return {
-        raw: { id: 'client:' + c.id, name: c.name, referralDetail: d, stage: 'Converted', clientId: c.id } as unknown as Lead,
+        raw: { id: 'client:' + c.id, name: c.name, phone: c.phone || '', email: c.email || '', referralDetail: d, stage: 'Converted', clientId: c.id } as unknown as Lead,
         id: 'client:' + c.id, name: c.name, area: '—', cat: c.source!, detailRaw, detail: d || (c.source === 'BNI' ? 'BNI' : '—'), ch: '',
-        picName, picCode: picName ? codeOf(picName) : '—', picColor: '#2E7D7A', stage: 'Converted', quote: 0, clientId: c.id,
+        picName, picCode: picName ? codeOf(picName) : '—', picColor: '#2E7D7A', stage: 'Converted', quote: 0, clientId: c.id, fileRef: (cases || []).find((k) => String(k.clientId || '').split(',').map((x) => x.trim()).includes(c.id))?.ref,
         date: validIso(c.createdAt) ? c.createdAt!.slice(0, 10) : '', warmth: 'Warm',
       };
     });
     return [...L, ...extra];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [L, clients, plats, programmes]);
+  }, [L, clients, cases, plats, programmes]);
   const conv = (l: LV) => l.stage === 'Converted';
   const isOpenL = (l: LV) => l.stage !== 'Converted' && l.stage !== 'Lost';
   const byDateDesc = (a: LV, b: LV) => (b.date || '').localeCompare(a.date || '');
@@ -451,7 +451,7 @@ export const LeadsReferralsPage: React.FC = () => {
 
   // --- Programmes view model ------------------------------------------------------------------
   const progLeads = (p: Programme) =>
-    L.filter(
+    LA.filter(
       (l) => l.cat === 'Event / Seminar' && (l.raw.programmeId ? l.raw.programmeId === p.id : norm(l.raw.referralDetail) === norm(p.title))
     );
   const progs = useMemo(() => [...(programmes || [])].sort((a, b) => b.date.localeCompare(a.date)), [programmes]);
@@ -539,7 +539,7 @@ export const LeadsReferralsPage: React.FC = () => {
         fee: feeOf(name),
       }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [L, referralPartners]);
+  }, [LA, referralPartners]);
   const allPeople = [...refPeople, ...outsiders];
   const teamReferred =
     refPeople.reduce((s, p) => s + p.mine.length, 0) + bniOrphans.length;
@@ -657,7 +657,7 @@ export const LeadsReferralsPage: React.FC = () => {
 
   // --- All leads (list) -----------------------------------------------------------------------
   const q = lq.trim().toLowerCase();
-  const base = L.filter((l) => ls === 'All' || l.cat === ls)
+  const base = LA.filter((l) => ls === 'All' || l.cat === ls)
     .filter((l) => ls !== 'Social Media' || lp === 'All' || l.detailRaw === lp)
     .filter((l) => !q || [l.name, l.id, l.detail, l.area, l.picCode, l.picName].some((v) => (v || '').toLowerCase().includes(q)));
   let rows = base;
@@ -775,6 +775,7 @@ export const LeadsReferralsPage: React.FC = () => {
     const n = Math.max(0, Math.min(STAGES.length - 1, i + d));
     const ns = STAGES[n][0];
     if (ns === lv.stage) return;
+    if (lv.id.startsWith('client:')) { showToast(lv.name + ' is a registered client (not a lead), so it stays under Client.'); return; }
     if (ns === 'Converted') {
       void convertLead(lv);
       return;
@@ -1083,7 +1084,7 @@ export const LeadsReferralsPage: React.FC = () => {
   // --- Tabs -----------------------------------------------------------------------------------
   const tabsD: [Tab, string, React.ElementType, number | ''][] = [
     ['overview', 'Overview', ChartPie, ''],
-    ['leads', 'All leads', List, L.length],
+    ['leads', 'All leads', List, LA.length],
     ['programmes', 'Programmes', CalendarDays, progList.length],
     ['referrers', 'Referrers', Share2, allPeople.length],
   ];
@@ -1753,7 +1754,7 @@ export const LeadsReferralsPage: React.FC = () => {
                   )}
                 </span>
                 <span className="flex justify-center">
-                  {canAdmin && (
+                  {canAdmin && !l.id.startsWith('client:') && (
                     <button
                       type="button"
                       onClick={() => setDelId(l.id)}
@@ -1809,7 +1810,7 @@ export const LeadsReferralsPage: React.FC = () => {
           )}
           <div className="flex gap-[6px] bg-[#F6F8FA] px-[14px] py-[9px] text-[10.5px] text-[#5B6478]">
             <span>
-              Showing <strong className="text-[#16223A]">{rows.length}</strong> of {L.length} leads
+              Showing <strong className="text-[#16223A]">{rows.length}</strong> of {LA.length} leads &amp; clients
             </span>
             <span>·</span>
             <span>
@@ -1841,7 +1842,7 @@ export const LeadsReferralsPage: React.FC = () => {
           </div>
           <div className="grid items-start gap-[10px]" style={{ gridTemplateColumns: 'repeat(6,minmax(0,1fr))' }}>
             {STAGES.map(([label, color], si) => {
-              const cards = L.filter((l) => (srcF === 'All' || l.cat === srcF) && l.stage === label);
+              const cards = LA.filter((l) => (srcF === 'All' || l.cat === srcF) && l.stage === label);
               const sum = cards.reduce((s, l) => s + l.quote, 0);
               return (
                 <div key={label} className="flex min-h-[420px] flex-col gap-[8px] rounded-[12px] bg-[#EEF1F5] p-[8px]">
