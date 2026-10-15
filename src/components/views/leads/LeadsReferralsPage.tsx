@@ -17,7 +17,6 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { clientsNav } from '../clients/clientModel';
 import { clientRef } from '../../../lib/clientNumbers';
 import { useApp } from '../../../context/AppContext';
 import type { Case, Client, ConflictMatch, Lead, Programme, ProgrammeAttendee, User } from '../../../types';
@@ -435,7 +434,14 @@ export const LeadsReferralsPage: React.FC = () => {
   });
   const [leadModal, setLeadModal] = useState(false);
   const [N, setNState] = useState<LeadDraft>(blankLead);
-  useQuickCreate(['lead'], () => { setNState(blankLead()); setLeadModal(true); });
+  /** The lead being edited (null = a new lead). */
+  const [editId, setEditId] = useState<string | null>(null);
+  useQuickCreate(['lead'], () => { setEditId(null); setNState(blankLead()); setLeadModal(true); });
+  const openEditLead = (lv: LV) => {
+    const l = lv.raw;
+    setNState({ name: l.name || '', phone: l.phone || '', email: l.email || '', area: l.practiceArea || '', warmth: lv.warmth, cat: lv.cat, detail: lv.cat === 'Social Media' ? l.socialMediaPlatform || '' : lv.cat === 'Event / Seminar' ? l.programmeId || '' : l.referralDetail || '', ch: l.channel, pic: l.assignedTo || '' });
+    setEditId(lv.id); setLeadModal(true);
+  };
   const setN = (p: Partial<LeadDraft>) => setNState((s) => ({ ...s, ...p }));
   const [modal, setModal] = useState(false);
   const [F, setFState] = useState<ProgDraft>(blankProg);
@@ -852,6 +858,28 @@ export const LeadsReferralsPage: React.FC = () => {
       : N.detail.trim() || (cat === 'Walk-In' ? 'Walk-in' : cat === 'Website' ? 'Website enquiry' : '');
     const shown = isSocial ? platLabel(N.detail) : referralDetail;
     const matches = conflictMatches(name, N.email);
+    const fields: Partial<Lead> = {
+      name,
+      phone: N.phone,
+      email: N.email,
+      practiceArea: N.area,
+      source: `${CAT(cat).label}${shown && shown !== CAT(cat).label ? ` — ${shown}` : ''}`,
+      referralSourceCategory: cat,
+      socialMediaPlatform: isSocial ? N.detail : undefined,
+      referralDetail,
+      programmeId: isProg ? prog?.id : undefined,
+      channel: cat === 'BNI' ? 'BNI' : REFC.includes(cat) ? N.ch || CHS[0] : undefined,
+      warmth: N.warmth,
+      warmthLevel: N.warmth === 'Hot' ? 3 : N.warmth === 'Warm' ? 2 : 1,
+      assignedTo: cat === 'BNI' ? SH_NAME : N.pic,
+    };
+    if (editId) {
+      // Editing keeps the lead's number, stage, conflict check and dates.
+      updateLead(editId, fields);
+      setEditId(null); setLeadModal(false); setNState(blankLead());
+      showToast(name + ' updated');
+      return;
+    }
     const lead: Lead = {
       id: getNextSequenceId('lead'),
       name,
@@ -1279,6 +1307,7 @@ export const LeadsReferralsPage: React.FC = () => {
               type="button"
               onClick={() => {
                 setNState(blankLead());
+                setEditId(null);
                 setLeadModal(true);
               }}
               className="flex cursor-pointer items-center gap-[5px] rounded-[6px] border-0 bg-[#16223A] px-[12px] py-[7px] text-[11.5px] font-bold whitespace-nowrap text-white"
@@ -1745,11 +1774,11 @@ export const LeadsReferralsPage: React.FC = () => {
                       Convert
                     </button>
                   )}
-                  {l.id.startsWith('client:') && (
+                  {!l.id.startsWith('client:') && (
                     <button
                       type="button"
-                      onClick={() => { clientsNav.set(l.clientId || null); setCurrentView('clients'); }}
-                      title="Change where this client came from"
+                      onClick={() => openEditLead(l)}
+                      title="Edit this lead"
                       className="mr-[8px] cursor-pointer border-0 bg-transparent text-[10.5px] font-bold text-[#3D6B9C]"
                       style={{ fontFamily: 'inherit' }}
                     >
@@ -2586,9 +2615,9 @@ export const LeadsReferralsPage: React.FC = () => {
         <div className={modalShell}>
           <div className="w-[760px] overflow-hidden rounded-[14px] bg-white" style={{ boxShadow: '0 30px 60px -20px rgba(22,34,58,.5)' }}>
             <div className="flex items-center gap-[10px] border-b border-[#DDE3EB] px-[20px] py-[14px]">
-              <span className="rounded-[6px] bg-[#E7EEF6] px-[8px] py-[4px] text-[11px] font-bold text-[#2F5680]">New lead</span>
+              <span className="rounded-[6px] bg-[#E7EEF6] px-[8px] py-[4px] text-[11px] font-bold text-[#2F5680]">{editId ? 'Edit lead' : 'New lead'}</span>
               <span className="text-[11px] text-[#5B6478]">Conflict check runs as you type</span>
-              <button type="button" onClick={() => setLeadModal(false)} className="ml-auto flex cursor-pointer border-0 bg-transparent p-[4px]">
+              <button type="button" onClick={() => { setLeadModal(false); setEditId(null); }} className="ml-auto flex cursor-pointer border-0 bg-transparent p-[4px]">
                 <X className="h-[18px] w-[18px]" color="#5B6478" />
               </button>
             </div>
@@ -2713,7 +2742,7 @@ export const LeadsReferralsPage: React.FC = () => {
               </span>
               <button
                 type="button"
-                onClick={() => setLeadModal(false)}
+                onClick={() => { setLeadModal(false); setEditId(null); }}
                 className="ml-auto cursor-pointer rounded-[8px] border border-[#DDE3EB] bg-white px-[14px] py-[8px] text-[12px] font-semibold text-[#5B6478]"
                 style={{ fontFamily: 'inherit' }}
               >
@@ -2725,7 +2754,7 @@ export const LeadsReferralsPage: React.FC = () => {
                 className="cursor-pointer rounded-[8px] border-0 bg-[#16223A] px-[18px] py-[8px] text-[12px] font-bold text-white"
                 style={{ opacity: N.name.trim() ? 1 : 0.4, fontFamily: 'inherit' }}
               >
-                Save lead
+                {editId ? 'Save changes' : 'Save lead'}
               </button>
             </div>
           </div>
