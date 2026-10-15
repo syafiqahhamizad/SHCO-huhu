@@ -5,6 +5,7 @@ import type { Quotation, Receipt } from '../../../types';
 import * as SD from '../../../lib/financeDocs';
 import { useApp } from '../../../context/AppContext';
 import { useListFilter } from '../../ui/ListFilters';
+import { DEFAULT_DOC_FORMATS } from '../../../lib/docNumbers';
 import { FEES_FILTERS, billedPct, feesFilter, isOpenFile, moneyForFile, sumMoney, type FeesFilter } from '../../../lib/moneyByFile';
 
 type DocKind = 'quotation' | 'invoice' | 'receipt';
@@ -59,11 +60,13 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
   /* ---- document flow cards ---- */
   const qS = quotes.map((q) => F.qStatus(q));
   const pUnpaid = proformas.filter((q) => F.qStatus(q) === 'Unpaid');
+  // The number prefix shown on each box follows Settings › Document numbering.
+  const pre = (k: string) => (F.settings.docNumbering?.[k] || DEFAULT_DOC_FORMATS[k] || '').split('{')[0];
   const DT: [typeof docT, string, string, string, string][] = [
-    ['Quotation', 'QUOT-', 'fee estimate before we start', `${qS.filter((s) => ['Draft', 'Pending Approval', 'Ready', 'Sent'].includes(s)).length} open · ${qS.filter((s) => s === 'Accepted').length} accepted`, '#8A6D3B'],
-    ['Proforma', 'PF-', 'ask for deposit or retainer', `${pUnpaid.length} unpaid · ${rm(pUnpaid.reduce((s, q) => s + Math.max(0, Number(q.total || 0) - F.proformaPaid(q)), 0))}`, '#3D6B9C'],
-    ['Invoice', 'INV-', 'bill for work done (e-Invoice)', `${F.openInvoices.length} open · ${rm(F.owedTotal)}`, '#16223A'],
-    ['Receipt', 'HQ-OR-', 'proof we received money', `${F.scopedReceipts.filter((r) => inPeriod(r.date, F.period)).length} issued in ${F.monthName}`, '#2F6F4E'],
+    ['Quotation', pre('quotation'), 'fee estimate before we start', `${qS.filter((s) => ['Draft', 'Pending Approval', 'Ready', 'Sent'].includes(s)).length} open · ${qS.filter((s) => s === 'Accepted').length} accepted`, '#8A6D3B'],
+    ['Proforma', pre('proforma'), 'ask for deposit or retainer', `${pUnpaid.length} unpaid · ${rm(pUnpaid.reduce((s, q) => s + Math.max(0, Number(q.total || 0) - F.proformaPaid(q)), 0))}`, '#3D6B9C'],
+    ['Invoice', pre('invoice'), 'bill for work done (e-Invoice)', `${F.openInvoices.length} open · ${rm(F.owedTotal)}`, '#16223A'],
+    ['Receipt', pre('receipt'), 'proof we received money', `${F.scopedReceipts.filter((r) => inPeriod(r.date, F.period)).length} issued in ${F.monthName}`, '#2F6F4E'],
   ];
 
   /* ---- invoices ---- */

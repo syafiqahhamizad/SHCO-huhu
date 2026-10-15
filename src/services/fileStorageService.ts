@@ -10,7 +10,7 @@ import {
   DRIVE_TOKEN_EVENT, downloadDriveFile, driveViewUrl, ensureFolderPath, getDriveAccessToken, getDriveConfig, grantReader, hasValidDriveToken, isDriveAccessError, isDriveConfigured, ensureShortcut, moveDriveItem, renameChildFolder, clearFolderCache, uploadToDrive,
 } from './googleDriveService';
 import {
-  CLIENTS_ROOT, FIN, OLD_FIN_NAMES, booksMonthPath, clientFilesPath, matterSubfolders, clientFolderName as layoutClientFolderName, financeFolderPath, folderUrl, matterFolderDescription, matterFolderPath,
+  CLIENTS_ROOT, FIN, OLD_FIN_NAMES, type ClientFilesPart, booksMonthPath, clientFilesPath, matterSubfolders, clientFolderName as layoutClientFolderName, financeFolderPath, folderUrl, matterFolderDescription, matterFolderPath,
   staffFolderName, type FinanceKind, type MatterLike, type MatterSub,
 } from '../lib/driveLayout';
 
@@ -151,7 +151,7 @@ const renameOldFinanceRoots = (b: { baseId: string; prefix: string[] }) => {
   return oldNamesDone;
 };
 
-export async function fileFinanceEntry(o: { path: string[]; name: string; folderId?: string; papers: { id: string; name: string }[]; matter?: MatterLike; matters?: MatterLike[] }): Promise<{ folderId: string; papers: { id: string; webViewLink?: string }[] }> {
+export async function fileFinanceEntry(o: { path: string[]; name: string; folderId?: string; papers: { id: string; name: string }[]; matter?: MatterLike; matters?: MatterLike[]; part?: ClientFilesPart }): Promise<{ folderId: string; papers: { id: string; webViewLink?: string }[] }> {
   requireDrive();
   const b = financeBase();
   await renameOldFinanceRoots(b);
@@ -162,7 +162,7 @@ export async function fileFinanceEntry(o: { path: string[]; name: string; folder
   const papers: { id: string; webViewLink?: string }[] = [];
   for (const p of o.papers) papers.push(await moveDriveItem(p.id, folderId, p.name));
   for (const m of o.matters || (o.matter ? [o.matter] : [])) {
-    const cf = await ensureFolderPath(b.baseId, [...b.prefix, ...clientFilesPath(m)]);
+    const cf = await ensureFolderPath(b.baseId, [...b.prefix, ...clientFilesPath(m, o.part)]);
     await ensureShortcut(cf, folderId, o.name);
   }
   return { folderId, papers };
@@ -333,9 +333,9 @@ export async function storeMatterFile(opts: MatterLike & { folderId?: string; su
  * Engagement & billing papers of a matter (signed Letter of Engagement, quotations, invoices,
  * receipts). Drive: SHCO Finance `Files/<NNN> - <title>/`.
  */
-export async function storeEngagementFile(m: MatterLike, file: File, uploadedBy: string): Promise<StoredMatterFile> {
+export async function storeEngagementFile(m: MatterLike, file: File, uploadedBy: string, part?: ClientFilesPart): Promise<StoredMatterFile> {
   try {
-    return await storeFinance(clientFilesPath(m), file, uploadedBy, { description: 'Engagement & billing for ' + m.ref + ' uploaded by ' + uploadedBy });
+    return await storeFinance(clientFilesPath(m, part), file, uploadedBy, { description: 'Engagement & billing for ' + m.ref + ' uploaded by ' + uploadedBy });
   } catch (err) {
     const cause = err instanceof Error ? (err as Error & { cause?: unknown }).cause : undefined;
     if (financeBase().separate && isDriveAccessError(cause)) throw new Error(file.name + ': engagement & billing papers go to the SHCO Finance Shared Drive, and your Google account cannot add files there. Ask a partner or Accounts to upload it.');

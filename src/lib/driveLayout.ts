@@ -170,7 +170,9 @@ export type OutType = 'Claims' | 'Payment Vouchers' | 'Office Costs' | 'Disburse
 /** Payroll/<YYYY>/<YYYY-MM Month>/<Payslips | Statutory | Partner Drawings>. */
 export const payrollMonthPath = (iso: string, part: PayrollPart) => [FIN.payroll, yearOf(iso), monthFolderName(iso), part];
 /** Client Files/<NNN - title>: a file's quotations / invoices, and links to its money entries. */
-export const clientFilesPath = (m: MatterLike) => [FIN.clientFiles, matterFolderName(m.ref, m.title)];
+export const clientFilesPath = (m: MatterLike, part?: ClientFilesPart) => [FIN.clientFiles, matterFolderName(m.ref, m.title), ...(part ? [part] : [])];
+/** Inside each file's Client Files folder, papers are kept by type (so 10 instalments stay tidy). */
+export type ClientFilesPart = 'Quotation' | 'Proforma' | 'Invoices' | 'Receipts' | 'Payments received' | 'Costs paid';
 
 /** "SHC/SH/CORP/SZ/002/04-25" → "SZ-002" (client code - running number); '' when the ref has neither. */
 export const fileCodeOf = (ref?: string): string => {

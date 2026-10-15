@@ -255,6 +255,28 @@ const wordBody = (body: string) => {
 export const word = (title: string, body: string) => dl(new Blob(['﻿', `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>${esc(title)}</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]--><style>@page{size:21cm 29.7cm;margin:1.4cm 1.6cm}${WORD_FOOT_CSS}</style></head><body>${wordBody(body)}</body></html>`], { type: 'application/msword' }), title + '.doc');
 /** PDF via the browser print dialog of the same HTML (server-side PDF recommended in production). */
 export const pdf = (title: string, body: string) => { const f = document.createElement('iframe'); f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'; document.body.appendChild(f); const w = f.contentWindow; if (!w) return; w.document.open(); w.document.write(wrap(title, body)); w.document.close(); setTimeout(() => { try { w.focus(); w.print(); } catch (e) { /* print blocked */ } setTimeout(() => f.remove(), 60000); }, 500); };
+/** html2pdf (jsPDF + html2canvas), loaded once on demand from the CDN — the same way as SheetJS. */
+const H2P_URL = 'https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.2/dist/html2pdf.bundle.min.js';
+let h2p: Promise<unknown> | null = null;
+const loadH2p = () => (h2p ||= new Promise((resolve, reject) => {
+  const w = window as unknown as { html2pdf?: unknown };
+  if (w.html2pdf) { resolve(w.html2pdf); return; }
+  const sc = document.createElement('script'); sc.src = H2P_URL; sc.async = true;
+  sc.onload = () => resolve((window as unknown as { html2pdf?: unknown }).html2pdf);
+  sc.onerror = () => { h2p = null; reject(new Error('Could not load the PDF maker.')); };
+  document.head.appendChild(sc);
+}));
+/** A real PDF file (A4) of a document, made in the browser, for saving to Google Drive. */
+export const pdfBlob = async (body: string): Promise<Blob> => {
+  const make = (await loadH2p()) as () => { set: (o: unknown) => { from: (el: HTMLElement) => { outputPdf: (t: string) => Promise<Blob> } } };
+  const box = document.createElement('div');
+  box.style.cssText = 'position:fixed;left:-10000px;top:0;width:178mm;background:#fff';
+  box.innerHTML = body;
+  document.body.appendChild(box);
+  try {
+    return await make().set({ margin: [14, 16, 14, 16], image: { type: 'jpeg', quality: 0.95 }, html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }, pagebreak: { mode: ['css', 'legacy'] } }).from(box).outputPdf('blob');
+  } finally { box.remove(); }
+};
 export const csv = (title: string, rows: unknown[][]) => dl(new Blob(['﻿' + rows.map((r) => r.map((c) => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n')], { type: 'text/csv' }), title + '.csv');
 const parseCsv = (text: string): string[][] => { const rows: string[][] = []; let row: string[] = [], cell = '', q = false; for (let i = 0; i < text.length; i++) { const c = text[i]; if (q) { if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; } else if (c === '"') q = false; else cell += c; } else if (c === '"') q = true; else if (c === ',') { row.push(cell); cell = ''; } else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; } else cell += c; } if (cell || row.length) { row.push(cell); rows.push(row); } return rows.filter((r) => r.some((x) => String(x).trim())); };
 const XLSX_URL = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm';

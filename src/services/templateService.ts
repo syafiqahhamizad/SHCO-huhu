@@ -367,16 +367,14 @@ export const PURPOSE_BUILTIN = ['General enquiries', 'Billing & receipts', 'Payr
 export const purposeEmail = (purpose: string) => (getPracticeSettings().purposeEmails || []).find((x) => x.purpose === purpose)?.email?.trim() || DEFAULT_PURPOSE_EMAILS.find((x) => x.purpose === purpose)?.email || '';
 
 /** [key, label, default format] — Banks, Numbering & SST → Document numbering. */
+/** [key, label, built-in format]: the formats the portal uses unless changed in Settings. */
 export const DOC_NUMBERING: [string, string, string][] = [
-  ['quotation', 'Quotation', 'QT-{YY}-{0000}'],
-  ['proforma', 'Proforma invoice', 'PF-{YY}-{0000}'],
-  ['invoice', 'Invoice', 'INV-{YY}-{0000}'],
-  ['receiptOffice', 'Receipt (office)', 'OR-O-{YY}-{0000}'],
-  ['receiptClient', 'Receipt (client a/c)', 'OR-C-{YY}-{0000}'],
-  ['pvOffice', 'Payment voucher (office)', 'PV-O-{YY}-{0000}'],
-  ['pvClient', 'Payment voucher (client a/c)', 'PV-C-{YY}-{0000}'],
-  ['pvDisb', 'Payment voucher (disbursement)', 'PV-D-{YY}-{0000}'],
-  ['journal', 'Journal', 'JV-{YY}-{0000}'],
+  ['quotation', 'Quotation', 'QUOT-{YYYY}-{0000}'],
+  ['proforma', 'Proforma invoice', 'PF-{YYYY}-{0000}'],
+  ['invoice', 'Invoice', 'INV-{YYYY}-{0000}'],
+  ['receipt', 'Official receipt', 'HQ-OR-{0000}'],
+  ['voucher', 'Payment voucher', 'HQ-PV-{0000}'],
+  ['journal', 'Journal', 'JV-{YYYY}-{0000}'],
 ];
 
 export const DEFAULT_APPROVAL_LIMITS: Required<ApprovalLimits> = {

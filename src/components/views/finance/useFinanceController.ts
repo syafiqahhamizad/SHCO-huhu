@@ -271,7 +271,7 @@ export function useFinanceController(initialTab: FinTab) {
     setFilingLog((x) => ({ ...x, working: job.name }));
     void (async () => {
       try {
-        const res = await fileFinanceEntry({ path: job.path, name: job.name, folderId: job.folderId, papers: job.papers, matter: job.matter, matters: job.matters });
+        const res = await fileFinanceEntry({ path: job.path, name: job.name, folderId: job.folderId, papers: job.papers, matter: job.matter, matters: job.matters, part: job.kind === 'receipt' ? 'Payments received' : 'Costs paid' });
         // Every record of the unit (one record, or all items of a claim / payment-request form).
         for (const r of job.recs || [{ kind: job.kind, recId: job.recId }]) {
           if (r.kind === 'travel') {
@@ -296,6 +296,54 @@ export function useFinanceController(initialTab: FinTab) {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings, canPrepare, travelClaims, expenses, paymentVouchers, receipts, lk, filingTick]);
+
+  /* ------------------------------ PDF copies in Google Drive ------------------------------ */
+  // The FINAL version of each document made in the portal is saved ONCE as a PDF in its file's Client
+  // Files folder (Finance drive), like the past papers: a quotation when accepted, a proforma once it
+  // leaves draft, an invoice when issued, a receipt when made. No correction copies.
+  const copyBusy = useRef(false);
+  const copySkip = useRef(new Set<string>());
+  const [copyTick, setCopyTick] = useState(0);
+  useEffect(() => {
+    if (!canPrepare || copyBusy.current || new URLSearchParams(window.location.search).get('preview') === '1') return;
+    const sigOf = (x: { status?: string; total?: number; amount?: number; lineItems?: unknown[]; scope?: string; date?: string }) => [x.status, x.total ?? x.amount, JSON.stringify(x.lineItems || []).length, (x.scope || '').length, x.date].join('|');
+    type Job = { kind: 'quotation' | 'invoice' | 'receipt'; id: string; caseId?: string; fileRef?: string; sig: string };
+    const want: Job[] = [
+      ...quotations.filter((q) => !q.historical && (q.documentType === 'Proforma' ? q.status !== 'Draft' && q.status !== 'Pending Approval' && q.status !== 'Declined' : q.status === 'Accepted'))
+        .map((q) => ({ kind: 'quotation' as const, id: q.id, caseId: q.caseId, fileRef: q.fileRef, sig: sigOf(q), cur: q.driveCopy?.sig })),
+      ...invoices.filter((i) => i.status !== 'Voided' && invIssued(i)).map((i) => ({ kind: 'invoice' as const, id: i.id, caseId: i.caseId, fileRef: i.fileRef, sig: sigOf(i), cur: i.driveCopy?.sig })),
+      ...receipts.filter((r) => !r.historical).map((r) => ({ kind: 'receipt' as const, id: r.id, caseId: r.caseId, fileRef: r.fileRef, sig: sigOf(r), cur: r.driveCopy?.sig })),
+    ].filter((j) => !j.cur && !copySkip.current.has(j.kind + ':' + j.id + ':' + j.sig));
+    const job = want[0];
+    if (!job) return;
+    copyBusy.current = true;
+    void (async () => {
+      try {
+        const d = buildDoc({ kind: job.kind, id: job.id });
+        if (!d) throw new Error('no document');
+        await prepareStorage();
+        const blob = await SD.pdfBlob(SD.docHtml(d));
+        const k = findCase(lk, job.caseId, job.fileRef);
+        const q = job.kind === 'quotation' ? quotations.find((x) => x.id === job.id) : undefined;
+        const part = job.kind === 'invoice' ? 'Invoices' : job.kind === 'receipt' ? 'Receipts' : q?.documentType === 'Proforma' ? 'Proforma' : 'Quotation';
+        // What the paper is for: a stage, a month, work done, or the full fee (so the folder reads clearly).
+        const forPlan = (p?: Quotation) => !p ? '' : p.planRowKey?.startsWith('stage:') ? 'Stage ' + (Number(p.planRowKey.slice(6)) + 1) + ' · ' + (p.planRowLabel || '') : p.planRowKey?.startsWith('month:') ? (p.planRowLabel || 'Instalment') : p.documentType === 'Proforma' ? 'Full payment' : '';
+        const inv = job.kind === 'invoice' ? invoices.find((x) => x.id === job.id) : undefined;
+        const rc = job.kind === 'receipt' ? receipts.find((x) => x.id === job.id) : undefined;
+        const forInvoice = (i?: Invoice) => !i ? '' : (() => { const src = i.quotationId ? quotations.find((x) => x.id === i.quotationId) : undefined; return src?.documentType === 'Proforma' ? forPlan(src) : (i.sourceItems && Object.values(i.sourceItems).some((v) => (v || []).length)) ? 'Work done to ' + fd(i.date) : src ? 'As per ' + src.id : (i.subject || i.matter || ''); })();
+        const what = q ? forPlan(q) : inv ? forInvoice(inv) : rc ? 'for ' + (rc.invoiceId || rc.quotationId || rc.forNo || rc.description || '') + (() => { const i2 = invoices.find((x) => x.id === rc.invoiceId); const p2 = quotations.find((x) => x.id === rc.quotationId); return i2 ? (forInvoice(i2) ? ' · ' + forInvoice(i2) : '') : p2 ? (forPlan(p2) ? ' · ' + forPlan(p2) : '') : ''; })() : '';
+        const label = what ? ' · ' + what.replace(/[\\/:*?"<>|]/g, '-').slice(0, 80) : '';
+        const up = await storeEngagementFile(k ? { ref: k.ref, title: k.title } : { ref: '', title: 'No file' }, new File([blob], d.no + label + '.pdf', { type: 'application/pdf' }), me, part);
+        app.setDriveCopy(job.kind, job.id, { name: up.name, driveFileId: up.driveFileId, webViewLink: up.webViewLink, savedAt: new Date().toISOString(), sig: job.sig });
+      } catch {
+        copySkip.current.add(job.kind + ':' + job.id + ':' + job.sig);
+      } finally {
+        copyBusy.current = false;
+        setCopyTick((x) => x + 1);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canPrepare, quotations, invoices, receipts, copyTick]);
 
   /* ------------------------------ invoices & payments ------------------------------ */
   const paidByInvoice = useMemo(() => { const m = new Map<string, number>(); payments.forEach((p) => m.set(p.invoiceId, (m.get(p.invoiceId) || 0) + Number(p.amount || 0))); return m; }, [payments]);
@@ -1380,7 +1428,7 @@ export function useFinanceController(initialTab: FinTab) {
     void (async () => {
       try {
         await prepareStorage();
-        const up = await storeEngagementFile(kase ? { ref: kase.ref, title: kase.title } : { ref: '', title: kind === 'invoice' ? 'Past invoices' : 'Past receipts' }, file, me);
+        const up = await storeEngagementFile(kase ? { ref: kase.ref, title: kase.title } : { ref: '', title: kind === 'invoice' ? 'Past invoices' : 'Past receipts' }, file, me, kind === 'invoice' ? 'Invoices' : kind === 'receipt' ? 'Receipts' : (quotations.find((x) => x.id === rec.id)?.documentType === 'Proforma' ? 'Proforma' : 'Quotation'));
         const pastFile = { name: up.name, driveFileId: up.driveFileId, webViewLink: up.webViewLink };
         if (kind === 'invoice') app.updateInvoice(rec.id, { pastFile }); else if (kind === 'quotation') app.updateQuotation(rec.id, { pastFile }); else app.updateReceipt(rec.id, { pastFile });
         toastMsg('PDF saved for ' + (rec.pastNo || rec.id));
@@ -1428,7 +1476,7 @@ export function useFinanceController(initialTab: FinTab) {
         void (async () => {
           try {
             await prepareStorage();
-            const up = await storeEngagementFile(kase ? { ref: kase.ref, title: kase.title } : { ref: '', title: 'Past proformas' }, pdf, me);
+            const up = await storeEngagementFile(kase ? { ref: kase.ref, title: kase.title } : { ref: '', title: 'Past proformas' }, pdf, me, 'Proforma');
             app.updateQuotation(no, { pastFile: { name: up.name, driveFileId: up.driveFileId, webViewLink: up.webViewLink } });
           } catch (e) { toastMsg(no + ' saved, but its PDF was not uploaded: ' + (e instanceof Error ? e.message : String(e))); }
         })();
@@ -1456,7 +1504,7 @@ export function useFinanceController(initialTab: FinTab) {
         void (async () => {
           try {
             await prepareStorage();
-            const up = await storeEngagementFile(kase ? { ref: kase.ref, title: kase.title } : { ref: '', title: 'Past quotations' }, pdf, me);
+            const up = await storeEngagementFile(kase ? { ref: kase.ref, title: kase.title } : { ref: '', title: 'Past quotations' }, pdf, me, 'Quotation');
             app.updateQuotation(no, { pastFile: { name: up.name, driveFileId: up.driveFileId, webViewLink: up.webViewLink } });
           } catch (e) { toastMsg(no + ' saved, but its PDF was not uploaded: ' + (e instanceof Error ? e.message : String(e))); }
         })();
@@ -1487,7 +1535,7 @@ export function useFinanceController(initialTab: FinTab) {
         void (async () => {
           try {
             await prepareStorage();
-            const up = await storeEngagementFile(kase ? { ref: kase.ref, title: kase.title } : { ref: '', title: inv ? 'Past invoices' : 'Past receipts' }, pdf, me);
+            const up = await storeEngagementFile(kase ? { ref: kase.ref, title: kase.title } : { ref: '', title: inv ? 'Past invoices' : 'Past receipts' }, pdf, me, inv ? 'Invoices' : 'Receipts');
             save({ name: up.name, driveFileId: up.driveFileId, webViewLink: up.webViewLink });
           } catch (e) { save(); toastMsg(no + ' saved, but its PDF was not uploaded: ' + (e instanceof Error ? e.message : String(e))); }
         })();

@@ -851,6 +851,8 @@ export interface Quotation {
   /** A quotation made before the portal: recorded with its own number and the original PDF (View opens it). */
   historical?: boolean;
   pastFile?: { name: string; driveFileId?: string; webViewLink?: string };
+  /** PDF copy of a document made in the portal, saved to the file's Client Files folder (see useFinanceController). */
+  driveCopy?: { name: string; driveFileId?: string; webViewLink?: string; savedAt: string; /** What the saved copy was made from; a change saves a new copy. */ sig?: string };
 }
 
 export interface ReferralPartner {
@@ -974,6 +976,8 @@ export interface Invoice {
   /** Its number as printed (the id is "PAST …" so it never clashes with the portal's numbers). */
   pastNo?: string;
   pastFile?: { name: string; driveFileId?: string; webViewLink?: string };
+  /** PDF copy of a document made in the portal, saved to the file's Client Files folder (see useFinanceController). */
+  driveCopy?: { name: string; driveFileId?: string; webViewLink?: string; savedAt: string; /** What the saved copy was made from; a change saves a new copy. */ sig?: string };
   clientId: string;
   caseId: string;
   fileRef?: string;
@@ -1039,6 +1043,8 @@ export interface Receipt {
   recordOnly?: boolean;
   pastNo?: string;
   pastFile?: { name: string; driveFileId?: string; webViewLink?: string };
+  /** PDF copy of a document made in the portal, saved to the file's Client Files folder (see useFinanceController). */
+  driveCopy?: { name: string; driveFileId?: string; webViewLink?: string; savedAt: string; /** What the saved copy was made from; a change saves a new copy. */ sig?: string };
   date: string;
   accountSet: 'OFFICE' | 'CLIENT';
   receivedFrom: string;

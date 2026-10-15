@@ -7,6 +7,7 @@ import { findSplitUserByEmail, migrateToCollections, readSplitState } from '../s
 import { useFirmDataSync } from './useFirmDataSync';
 import type { ConfigKey } from '../services/firmData';
 import { applyCloudPracticeSettings, getPracticeSettings, savePracticeSettings, type PracticeSettings } from '../services/templateService';
+import { nextDocNo, validFormat } from '../lib/docNumbers';
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
 import {
   ACCESS_OWNER_EMAIL,
@@ -359,6 +360,8 @@ interface AppContextType {
   addRetainer: (r: Retainer) => void;
   addInvoice: (inv: Invoice) => void;
   updateInvoice: (id: string, updates: Partial<Invoice>) => void;
+  /** Quietly records where a document's PDF copy was saved in Google Drive (no toast, no lock). */
+  setDriveCopy: (kind: 'quotation' | 'invoice' | 'receipt', id: string, copy: NonNullable<Invoice['driveCopy']>) => void;
   addPayment: (p: Payment) => void;
   addTimeEntry: (te: TimeEntry) => void;
   updateTimeEntry: (id: string, updates: Partial<TimeEntry>) => void;
@@ -1736,6 +1739,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const nextNum = Math.max(1, highestReal + 1, Number(store[k] || 0), legacy);
     store[k] = nextNum + 1;
     try { localStorage.setItem(yearSeqKey, JSON.stringify(store)); } catch { /* storage unavailable */ }
+    // A format set in Settings › Document numbering is used for new documents (the count carries on).
+    const fmt = getPracticeSettings().docNumbering?.[type];
+    if (fmt && validFormat(fmt)) return nextDocNo(type, fmt, ids, year, nextNum - 1);
     return `${prefix}${String(nextNum).padStart(4, '0')}`;
   };
 
@@ -1777,10 +1783,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // repeat; 4 digits to match the firm's refs (…/0001/08-2026).
         return generateNextMatterSequenceNumber(cases, 1).padStart(3, '0'); // 3-digit running number (001); grows past 999
       }
-      case 'receipt':
+      case 'receipt': {
+        const f = getPracticeSettings().docNumbering?.receipt;
+        if (f && validFormat(f)) return nextDocNo('receipt', f, receipts.map((r) => r.id), new Date().getFullYear(), nextNum - 1);
         return `HQ-OR-${String(nextNum).padStart(4, '0')}`;
-      case 'voucher':
+      }
+      case 'voucher': {
+        const f = getPracticeSettings().docNumbering?.voucher;
+        if (f && validFormat(f)) return nextDocNo('voucher', f, paymentVouchers.map((v) => v.id), new Date().getFullYear(), nextNum - 1);
         return `HQ-PV-${String(nextNum).padStart(4, '0')}`;
+      }
       case 'claim':
         return `TC-${String(nextNum).padStart(4, '0')}`;
       case 'client':
@@ -3098,6 +3110,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(id + ' deleted. It is in the Recycle Bin if you need it back.');
   };
 
+  const setDriveCopy = (kind: 'quotation' | 'invoice' | 'receipt', id: string, copy: NonNullable<Invoice['driveCopy']>) => {
+    if (kind === 'quotation') setQuotations((prev) => prev.map((x) => (x.id === id ? { ...x, driveCopy: copy } : x)));
+    else if (kind === 'invoice') setInvoices((prev) => prev.map((x) => (x.id === id ? { ...x, driveCopy: copy } : x)));
+    else setReceipts((prev) => prev.map((x) => (x.id === id ? { ...x, driveCopy: copy } : x)));
+  };
+
   const updateQuotation = (id: string, updates: Partial<Quotation>) => {
     const editedUpdates: Partial<Quotation> = {
       ...updates,
@@ -3400,6 +3418,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         invoices: liveInvoices,
         pastInvoices,
         pastReceipts,
+        setDriveCopy,
         payments,
         retainers,
         users,

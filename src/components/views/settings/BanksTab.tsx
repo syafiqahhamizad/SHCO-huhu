@@ -3,6 +3,7 @@ import { useApp } from '../../../context/AppContext';
 import { DEFAULT_PRACTICE_SETTINGS, DOC_NUMBERING, type FirmBankAccount } from '../../../services/templateService';
 import { css, S, SideMenu, Txt, type SettingsCtx } from './settingsShared';
 import { useRemembered } from '../../../lib/navHistory';
+import { nextDocNo, validFormat } from '../../../lib/docNumbers';
 
 const REF_RULES: [string, string, string, string][] = [['1', 'Firm', 'SHC', 'Always SHC.'], ['2', 'Partner(s) in charge', 'SH or SH/ZA', 'Partner codes. '], ['3', 'Lawyer(s) in charge', 'NM', 'Optional; skipped if none. A partner on the file cannot also be picked as lawyer.'], ['4', 'Matter code', 'L', 'Picked from the matter codes registered per practice area (Practice areas & codes tab), e.g. L, CONV · MOT · POC · DOC · LOAN, EST · OFS · VO · LA · PRB, CORP, CR · YBGK.'], ['5', 'Client initials', 'QA', 'First letter of the first two words of the client name, ignoring Sdn Bhd, Bhd, Datuk, Dato’, Dr., Encik, Puan, Tan Sri, Syarikat. Several clients are joined with /. Can be corrected at intake.'], ['6', 'Running no.', '001', 'Next firm-wide case number, given automatically.'], ['7', 'Month-year', '08-26', 'Month and year of the file opening date (MM-YY). Backdating allowed.']];
 
@@ -41,20 +42,22 @@ export const BanksTab = ({ C }: { C: SettingsCtx }) => {
   };
 
   // "next" running number per document kind, counted from the real records.
-  const yy = String(new Date().getFullYear()).slice(-2);
-  const pvKind = (v: { formNo?: string; accountSet: string }, k: 'O' | 'C' | 'D') => (v.formNo ? v.formNo.startsWith('PV-' + k) : k === 'C' ? v.accountSet === 'CLIENT' : k === 'O' && v.accountSet === 'OFFICE');
-  const counts: Record<string, number> = {
-    quotation: quotations.filter((q) => q.documentType !== 'Proforma').length,
-    proforma: quotations.filter((q) => q.documentType === 'Proforma').length,
-    invoice: invoices.length,
-    receiptOffice: receipts.filter((r) => r.accountSet === 'OFFICE').length,
-    receiptClient: receipts.filter((r) => r.accountSet === 'CLIENT').length,
-    pvOffice: paymentVouchers.filter((v) => pvKind(v, 'O')).length,
-    pvClient: paymentVouchers.filter((v) => pvKind(v, 'C')).length,
-    pvDisb: paymentVouchers.filter((v) => pvKind(v, 'D')).length,
-    journal: manualJournals.length,
+  // The real next number for each document, from its format and the numbers already used.
+  const year = new Date().getFullYear();
+  const idsOf: Record<string, string[]> = {
+    quotation: quotations.filter((q) => q.documentType !== 'Proforma').map((q) => q.id),
+    proforma: quotations.filter((q) => q.documentType === 'Proforma').map((q) => q.id),
+    invoice: invoices.map((x) => x.id),
+    receipt: receipts.map((x) => x.id),
+    voucher: paymentVouchers.map((x) => x.id),
+    journal: manualJournals.map((x) => x.id),
   };
-  const fmtNext = (f: string, n: number) => f.replace('{YYYY}', String(new Date().getFullYear())).replace('{YY}', yy).replace('{0000}', String(n).padStart(4, '0'));
+  const BUKKU: Record<string, string> = { quotation: 'QT-{YY}{0000}', proforma: 'PF-{YY}{0000}', invoice: 'IV-{YY}{0000}', receipt: 'OR-{YY}{0000}', voucher: 'PV-{YY}{0000}', journal: 'JV-{YY}{0000}' };
+  const useBukku = () => {
+    if (!window.confirm('Use Bukku-style numbers for NEW documents (e.g. IV-' + String(year).slice(-2) + '0013)? Old numbers stay as they are; the count carries on.')) return;
+    C.save({ docNumbering: { ...(s.docNumbering || {}), ...BUKKU } }, 'Numbering Format Changed', 'Bukku style for all documents');
+    C.msg('Bukku-style numbering set for new documents');
+  };
 
   const sstIdx = !s.sstRegistered ? 0 : Math.abs((Number(s.sstRate) || 0) - 0.06) < 0.001 ? 1 : 2;
   const setSst = (i: number) => {
@@ -97,10 +100,11 @@ export const BanksTab = ({ C }: { C: SettingsCtx }) => {
           {DOC_NUMBERING.map(([k, label, def]) => {
             const fmt = s.docNumbering?.[k] || def;
             return (
-              <div key={k} style={css('display:grid;grid-template-columns:110px minmax(0,1fr);gap:4px 10px;align-items:center;padding:7px 14px;border-bottom:1px solid #F0F2F5')}><span style={css('font-size:11.5px;font-weight:600;color:#16223A')}>{label}</span><Txt value={fmt} onCommit={(v) => { if (!v.trim()) return; C.save({ docNumbering: { ...(s.docNumbering || {}), [k]: v.trim() } }, 'Numbering Format Changed', label + ': ' + fmt + ' → ' + v.trim()); C.msg(label + ' numbering saved'); }} style="border:1px solid #DDE3EB;border-radius:6px;padding:5px 7px;font-size:11px;color:#16223A;font-family:ui-monospace, Menlo, monospace" /><span></span><span style={css('font-size:10.5px;color:#5B6478')}>next: <strong style={css('color:#16223A;font-family:ui-monospace, Menlo, monospace')}>{fmtNext(fmt, (counts[k] || 0) + 1)}</strong></span></div>
+              <div key={k} style={css('display:grid;grid-template-columns:110px minmax(0,1fr);gap:4px 10px;align-items:center;padding:7px 14px;border-bottom:1px solid #F0F2F5')}><span style={css('font-size:11.5px;font-weight:600;color:#16223A')}>{label}</span><Txt value={fmt} onCommit={(v) => { const t = v.trim(); if (!t) return; if (!validFormat(t)) { C.msg('Put {0000} where the running number goes, e.g. IV-{YY}{0000}'); return; } C.save({ docNumbering: { ...(s.docNumbering || {}), [k]: t } }, 'Numbering Format Changed', label + ': ' + fmt + ' → ' + t); C.msg(label + ' numbering saved · new documents only'); }} style="border:1px solid #DDE3EB;border-radius:6px;padding:5px 7px;font-size:11px;color:#16223A;font-family:ui-monospace, Menlo, monospace" /><span></span><span style={css('font-size:10.5px;color:#5B6478')}>next: <strong style={css('color:#16223A;font-family:ui-monospace, Menlo, monospace')}>{nextDocNo(k, fmt, idsOf[k] || [], year)}</strong></span></div>
             );
           })}
-          <div style={css(S.foot)}>{'{YY} year · {0000} running number · office and client account are numbered separately (SAR 1990).'}</div>
+          <div style={css('display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid #F0F2F5')}><button type="button" onClick={useBukku} style={css(S.lightBtn)}>Use Bukku style (IV-{String(year).slice(-2)}0013)</button><span style={css('font-size:10.5px;color:#5B6478')}>or type your own above</span></div>
+          <div style={css(S.foot)}>{'{YYYY} or {YY} = year · {0000} = running number (one 0 per digit). Changing a format only affects new documents; old numbers never change and the count carries on.'}</div>
         </div>}
         {sec === 'SST' && <div style={css(S.card + ';max-width:760px')}>
           <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>SST</strong></div>
