@@ -1346,11 +1346,12 @@ export const LeadsReferralsPage: React.FC = () => {
                 <div className="min-w-0">
                   <div
                     className="grid gap-[14px] border-b border-[#EEF1F5] bg-[#F6F8FA] px-[14px] py-[7px] text-[9.5px] font-bold tracking-[.08em] text-[#5B6478] uppercase"
-                    style={{ gridTemplateColumns: 'minmax(0,1fr) 60px 100px 130px' }}
+                    style={{ gridTemplateColumns: 'minmax(0,1fr) 60px 100px 90px 130px' }}
                   >
                     <span>Where they came from</span>
                     <span className="text-right">Leads</span>
                     <span className="text-right">Became clients</span>
+                    <span className="text-right" title="Every registered client with this source (Clients › Came to us through), including clients who never were a lead">All clients</span>
                     <span className="text-right">CONVERSION RATE</span>
                   </div>
                   {sources.map((s) => (
@@ -1359,7 +1360,7 @@ export const LeadsReferralsPage: React.FC = () => {
                         type="button"
                         onClick={() => setSrc(s.open ? null : s.key)}
                         className="grid w-full cursor-pointer items-center gap-[14px] border-0 border-b border-[#F0F2F5] px-[14px] py-[9px] text-left hover:bg-[#F6F8FA]!"
-                        style={{ gridTemplateColumns: 'minmax(0,1fr) 60px 100px 130px', background: s.open ? '#F6F8FA' : '#fff', borderBottom: '1px solid #F0F2F5', fontFamily: 'inherit' }}
+                        style={{ gridTemplateColumns: 'minmax(0,1fr) 60px 100px 90px 130px', background: s.open ? '#F6F8FA' : '#fff', borderBottom: '1px solid #F0F2F5', fontFamily: 'inherit' }}
                       >
                         <span className="flex items-center gap-[8px] text-[12px] font-bold text-[#16223A]">
                           <span className="w-[8px] text-[9px] text-[#5B6478]">{s.open ? '▼' : '▶'}</span>
@@ -1368,6 +1369,7 @@ export const LeadsReferralsPage: React.FC = () => {
                         </span>
                         <span className="text-right text-[13px] font-bold text-[#16223A]">{s.total}</span>
                         <span className="text-right text-[13px] font-bold text-[#2F6F4E]">{s.conv}</span>
+                        <span className="text-right text-[13px] font-bold text-[#2F5680]">{(clients || []).filter((x) => x.source === s.key).length}</span>
                         <span className="flex justify-end">
                           <span className="rounded-[20px] px-[8px] py-[2px] text-[11px] font-bold whitespace-nowrap" style={{ background: s.pbg, color: s.pc }}>
                             {s.pct}% · {s.grade}
