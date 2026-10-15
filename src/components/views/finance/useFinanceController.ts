@@ -461,6 +461,8 @@ export function useFinanceController(initialTab: FinTab) {
     if (q.documentType === 'Proforma') {
       if (q.historical) return 'Past';
       if (['Draft', 'Pending Approval'].includes(q.status)) return 'Draft';
+      // Ready = finished, not paid yet (can be sent or paid); Draft = still being worked on.
+      if (q.status === 'Ready' && proformaPaid(q) < 0.005) return 'Ready';
       if (q.status === 'Declined') return 'Declined';
       return proformaPaid(q) >= Number(q.total || 0) - 0.005 && q.total > 0 ? 'Paid' : 'Unpaid';
     }
@@ -603,7 +605,7 @@ export function useFinanceController(initialTab: FinTab) {
     if (q.documentType === 'Proforma') {
       const invoiced = !!invoiceForDoc(q.id);
       // Sending is offered, never required: a draft proforma can be paid or invoiced straight away.
-      const base = S === 'Draft' ? ['Send', 'Record payment'] : S === 'Paid' ? ['View receipt'] : S === 'Declined' ? ['View'] : ['Record payment', 'Remind'];
+      const base = S === 'Draft' ? ['Mark ready', 'Send', 'Record payment'] : S === 'Ready' ? ['Send', 'Record payment'] : S === 'Paid' ? ['View receipt'] : S === 'Declined' ? ['View'] : ['Record payment', 'Remind'];
       return S !== 'Declined' && !invoiced ? [...base, 'Convert to invoice'] : base;
     }
     // Stages / instalments: one proforma per row ("Issue proforma: <stage / month>"), next row first.
@@ -611,7 +613,7 @@ export function useFinanceController(initialTab: FinTab) {
     const planActs = next ? ['Issue proforma: ' + next.label] : [];
     // Sending is offered, never required, and quotations need no approval: mark accepted directly.
     if (planStatus(q).length) return S === 'Accepted' || S === 'Proforma made' ? [...planActs, 'Convert to invoice'] : ['Draft', 'Pending Approval', 'Ready'].includes(S) ? ['Send', 'Mark accepted'] : S === 'Sent' ? ['Mark accepted', 'Resend'] : S === 'Expired' ? ['Resend'] : ['View'];
-    return ['Draft', 'Pending Approval', 'Ready'].includes(S) ? ['Send', 'Mark accepted'] : S === 'Sent' ? ['Mark accepted', 'Resend'] : S === 'Accepted' ? ['Make proforma', 'Convert to invoice'] : S === 'Proforma made' ? ['Convert to invoice', 'View'] : S === 'Expired' ? ['Resend'] : ['View'];
+    return ['Draft', 'Pending Approval'].includes(S) ? ['Send', 'Mark accepted', 'Mark ready'] : S === 'Ready' ? ['Send', 'Mark accepted'] : S === 'Sent' ? ['Mark accepted', 'Resend'] : S === 'Accepted' ? ['Make proforma', 'Convert to invoice'] : S === 'Proforma made' ? ['Convert to invoice', 'View'] : S === 'Expired' ? ['Resend'] : ['View'];
   };
 
   /* ------------------------------ documents (FinanceDoc for docHtml) ------------------------------ */
@@ -1227,6 +1229,7 @@ export function useFinanceController(initialTab: FinTab) {
       setRem({ kind, id: q.id, send: true, to: email, subj: (q.documentType === 'Proforma' ? 'Proforma invoice ' : 'Quotation ') + docNo + (q.matter ? ' · ' + q.matter : ''), body: `Dear ${who},\n\nThank you for your enquiry. Please find attached our ${what} ${docNo}${q.matter ? ' for ' + q.matter : ''} amounting to ${rm2(Number(q.total || 0))}.\n\nDo let us know if you have any questions, or reply to confirm and we will proceed.\n\nYours faithfully,\n${SD.FIRM.name}`, attach: true, viaE: true, viaW: !!phone && !email, phone, wa: `Salam / Hi ${who}, ${SD.FIRM.name} here. Our ${what} ${docNo} (${rm2(Number(q.total || 0))}) has been e-mailed to you. Please let us know if you have any questions. Thank you.` });
       return;
     }
+    if (a === 'Mark ready') { app.updateQuotation(rec.id, { status: 'Ready' }); toastMsg(docNo + ' is ready'); return; }
     if (a === 'Mark accepted') { app.updateQuotation(rec.id, { status: 'Accepted' }); toastMsg(docNo + ' accepted'); return; }
     if (a === 'Remind') {
       // Design: a reminder window (email and / or WhatsApp) with the message ready to edit.
@@ -1307,7 +1310,7 @@ export function useFinanceController(initialTab: FinTab) {
       const linesFor = (amt: number, into: string, desc: string): Quotation['lineItems'] => (into === 'Client account'
         ? [{ description: desc, category: 'Disbursement', amount: amt, quantity: 1, unitPrice: amt, chargeType: 'Fixed' }]
         : [{ description: desc, category: 'Fee - Fixed', amount: round2(amt - rPart), quantity: 1, unitPrice: round2(amt - rPart), chargeType: 'Fixed' }, ...(rPart > 0.005 ? [{ description: 'Reimbursements · ' + what, category: 'Reimbursement', amount: rPart, quantity: 1, unitPrice: rPart, chargeType: 'Fixed' }] : [])]) as Quotation['lineItems'];
-      parts.forEach(([amt, into, desc], n) => app.addQuotation({ id: ids[n], documentType: 'Proforma', sourceQuotationId: q.id, planRowKey: row.key, planRowLabel: row.label, partyType: q.partyType || 'Client', partyId: q.partyId, date: onDate, practiceArea: q.practiceArea, fileRef: q.fileRef, leadId: q.leadId || '', clientName: q.clientName, status: 'Draft', total: amt, billedSoFar: 0, remaining: amt, courtLevel: '', stage: row.label, feeMethod: 'Template', subtype: q.subtype || '', approvalStatus: 'Pending', approvedBy: '', approvedDate: '', sstApplied: false, caseId: q.caseId, matter: q.matter, subject: q.subject, yourRef: q.yourRef, tin: q.tin, scope: q.scope || '', terms: [], payInto: into, language: q.language, lineItems: linesFor(amt, into, desc) }));
+      parts.forEach(([amt, into, desc], n) => app.addQuotation({ id: ids[n], documentType: 'Proforma', sourceQuotationId: q.id, planRowKey: row.key, planRowLabel: row.label, partyType: q.partyType || 'Client', partyId: q.partyId, date: onDate, practiceArea: q.practiceArea, fileRef: q.fileRef, leadId: q.leadId || '', clientName: q.clientName, status: 'Ready', total: amt, billedSoFar: 0, remaining: amt, courtLevel: '', stage: row.label, feeMethod: 'Template', subtype: q.subtype || '', approvalStatus: 'Pending', approvedBy: '', approvedDate: '', sstApplied: false, caseId: q.caseId, matter: q.matter, subject: q.subject, yourRef: q.yourRef, tin: q.tin, scope: q.scope || '', terms: [], payInto: into, language: q.language, lineItems: linesFor(amt, into, desc) }));
       setView({ kind: 'quotation', id: ids[0] }); setDocT('Proforma');
       toastMsg(ids.join(' + ') + ' created for ' + row.label + ' · ' + rm2(row.amount) + (parts.length > 1 ? ' (fees → office, disbursements → client account)' : ''));
       return;
@@ -1317,7 +1320,7 @@ export function useFinanceController(initialTab: FinTab) {
       const made: Quotation[] = [];
       const want = [t.fees > 0, t.disbursements > 0].filter(Boolean).length;
       const ids = seqIds('proforma', Math.max(1, want), onDate);
-      const base = { documentType: 'Proforma' as const, sourceQuotationId: q.id, partyType: q.partyType || 'Client' as const, partyId: q.partyId, date: onDate, practiceArea: q.practiceArea, fileRef: q.fileRef, leadId: q.leadId || '', clientName: q.clientName, status: 'Draft' as const, billedSoFar: 0, courtLevel: '', stage: '', feeMethod: 'Template' as const, subtype: q.subtype || '', approvalStatus: 'Pending' as const, approvedBy: '', approvedDate: '', sstApplied: false, caseId: q.caseId, matter: q.matter, subject: q.subject, yourRef: q.yourRef, tin: q.tin, scope: q.scope || '', terms: [] };
+      const base = { documentType: 'Proforma' as const, sourceQuotationId: q.id, partyType: q.partyType || 'Client' as const, partyId: q.partyId, date: onDate, practiceArea: q.practiceArea, fileRef: q.fileRef, leadId: q.leadId || '', clientName: q.clientName, status: 'Ready' as const, billedSoFar: 0, courtLevel: '', stage: '', feeMethod: 'Template' as const, subtype: q.subtype || '', approvalStatus: 'Pending' as const, approvedBy: '', approvedDate: '', sstApplied: false, caseId: q.caseId, matter: q.matter, subject: q.subject, yourRef: q.yourRef, tin: q.tin, scope: q.scope || '', terms: [] };
       // The office proforma copies the quotation's fee lines in full (no automatic percentage); change it with Edit before sending.
       if (t.fees > 0) { const items = (q.lineItems || []).filter((i) => i.category !== 'Disbursement'); const amt = round2(items.reduce((a2, i) => a2 + Number(i.amount || 0), 0)); made.push({ ...base, id: ids[made.length], total: amt, remaining: amt, payInto: 'Office', lineItems: items }); }
       if (t.disbursements > 0) { const items = (q.lineItems || []).filter((i) => i.category === 'Disbursement'); made.push({ ...base, id: ids[made.length], total: t.disbursements, remaining: t.disbursements, payInto: 'Client account', lineItems: items }); }

@@ -59,7 +59,7 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
 
   /* ---- document flow cards ---- */
   const qS = quotes.map((q) => F.qStatus(q));
-  const pUnpaid = proformas.filter((q) => F.qStatus(q) === 'Unpaid');
+  const pUnpaid = proformas.filter((q) => ['Unpaid', 'Ready'].includes(F.qStatus(q)));
   // The number prefix shown on each box follows Settings › Document numbering.
   const pre = (k: string) => (F.settings.docNumbering?.[k] || DEFAULT_DOC_FORMATS[k] || '').split('{')[0];
   const DT: [typeof docT, string, string, string, string][] = [
