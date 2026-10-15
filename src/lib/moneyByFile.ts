@@ -167,7 +167,7 @@ export const moneyForFile = (c: Pick<Case, 'id' | 'ref'>, m: MoneySources): File
   const quoteIds = new Set(quotes.map((q) => q.id));
   const recs = m.receipts || [];
   const proformas: FileProforma[] = m.quotations
-      .filter((p) => p.documentType === 'Proforma' && !p.historical && (onFile(c, p.caseId, p.fileRef) || (!!p.sourceQuotationId && quoteIds.has(p.sourceQuotationId))))
+      .filter((p) => p.documentType === 'Proforma' && (onFile(c, p.caseId, p.fileRef) || (!!p.sourceQuotationId && quoteIds.has(p.sourceQuotationId))))
     .map((p) => {
       const paid = round2(recs.filter((r) => r.quotationId === p.id || r.forNo === p.id).reduce((a, r) => a + Number(r.amount || 0), 0));
       const total = Number(p.total || 0);

@@ -133,7 +133,7 @@ export const QUICK_TABS: QuickTab[] = [
     steps: [
       'Click the box you need at the top: 1 Quotation, 2 Proforma, 3 Invoice, 4 Receipt.',
       'Money came in? [[+ Record money in]], pick the client and which bill.',
-      'Old papers from before the portal: [[+ Past quotation]], [[+ Past invoice]] or [[+ Past receipt]], with the PDF. These are for reference only and don’t change any totals.',
+      'Old papers from before the portal: [[+ Past quotation]], [[+ Past proforma]] or [[+ Past invoice]], with its own number and the PDF. They show a *PAST* tag but work like any other: make the proforma or invoice from them, and [[Record payment]] makes the receipt. They sit in the same lists as everything else and count in the totals. Old receipts: [[+ Past receipt]] in Receipts.',
       '*Fees by file*: what was agreed, billed and paid per file.',
     ],
     byRole: {

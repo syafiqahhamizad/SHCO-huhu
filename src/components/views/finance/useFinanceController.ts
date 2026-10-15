@@ -315,7 +315,7 @@ export function useFinanceController(initialTab: FinTab) {
     const want: Job[] = [
       ...quotations.filter((q) => !q.historical && (q.documentType === 'Proforma' ? q.status !== 'Draft' && q.status !== 'Pending Approval' && q.status !== 'Declined' : q.status === 'Accepted'))
         .map((q) => ({ kind: 'quotation' as const, id: q.id, caseId: q.caseId, fileRef: q.fileRef, sig: sigOf(q), cur: q.driveCopy?.sig })),
-      ...invoices.filter((i) => i.status !== 'Voided' && invIssued(i)).map((i) => ({ kind: 'invoice' as const, id: i.id, caseId: i.caseId, fileRef: i.fileRef, sig: sigOf(i), cur: i.driveCopy?.sig })),
+      ...invoices.filter((i) => i.status !== 'Voided' && !i.historical && invIssued(i)).map((i) => ({ kind: 'invoice' as const, id: i.id, caseId: i.caseId, fileRef: i.fileRef, sig: sigOf(i), cur: i.driveCopy?.sig })),
       ...receipts.filter((r) => !r.historical).map((r) => ({ kind: 'receipt' as const, id: r.id, caseId: r.caseId, fileRef: r.fileRef, sig: sigOf(r), cur: r.driveCopy?.sig })),
     ].filter((j) => j.cur !== j.sig && !copySkip.current.has(j.kind + ':' + j.id + ':' + j.sig));
     const job = want[0];
@@ -406,7 +406,7 @@ export function useFinanceController(initialTab: FinTab) {
     const due = parseDate(inv.dueDate);
     if (due && due < Date.now() - 86400000) return 'Overdue';
     if (invPaid(inv) > 0) return 'Part-paid';
-    return inv.historical ? 'Historical' : 'Sent';
+    return 'Sent';
   };
   const invCase = (inv: Invoice) => findCase(lk, inv.caseId, inv.fileRef);
   /** Money received against invoices, split into fee income / SST / disbursements recovered:
@@ -459,7 +459,6 @@ export function useFinanceController(initialTab: FinTab) {
   const proformaPaid = (q: Quotation) => receiptsFor(q.id).reduce((s, r) => s + Number(r.amount || 0), 0);
   const qStatus = (q: Quotation): string => {
     if (q.documentType === 'Proforma') {
-      if (q.historical) return 'Past';
       if (['Draft', 'Pending Approval'].includes(q.status)) return 'Draft';
       // Ready = finished, not paid yet (can be sent or paid); Draft = still being worked on.
       if (q.status === 'Ready' && proformaPaid(q) < 0.005) return 'Ready';
@@ -601,7 +600,6 @@ export function useFinanceController(initialTab: FinTab) {
       return canVoid ? [...base, 'Void'] : base;
     }
     const q = rec as Quotation, S = qStatus(q);
-    if (q.historical) return ['View'];
     if (q.documentType === 'Proforma') {
       const invoiced = !!invoiceForDoc(q.id);
       // Sending is offered, never required: a draft proforma can be paid or invoiced straight away.
@@ -1196,6 +1194,7 @@ export function useFinanceController(initialTab: FinTab) {
     }
     const onDate = on || todayIso();
     const docNo = rec.id;
+    if (a === 'View' && kind === 'invoice' && (rec as Invoice).historical && ((rec as Invoice).pastFile?.webViewLink || (rec as Invoice).pastFile?.driveFileId)) { const pf = (rec as Invoice).pastFile!; window.open(pf.webViewLink || 'https://drive.google.com/file/d/' + pf.driveFileId + '/view', '_blank', 'noopener'); return; }
     if (a === 'View' && kind === 'quotation' && (rec as Quotation).historical) {
       const pf = (rec as Quotation).pastFile;
       if (pf?.webViewLink || pf?.driveFileId) { window.open(pf.webViewLink || 'https://drive.google.com/file/d/' + pf.driveFileId + '/view', '_blank', 'noopener'); return; }
@@ -1481,6 +1480,39 @@ export function useFinanceController(initialTab: FinTab) {
       } catch (e) { toastMsg('PDF not uploaded: ' + (e instanceof Error ? e.message : String(e))); }
     })();
   };
+  /** Old "for reference only" past invoices → real invoices (own printed number, PAST tag, counted).
+   *  Paid / part paid ones then need Record payment, which makes the receipt. */
+  const movePastInvoices = (list: Invoice[], auto = false) => {
+    if (!canPrepare) { toastMsg('Invoices are recorded by Accounts.'); return; }
+    const taken = new Set(invoices.map((x) => x.id.toLowerCase()));
+    const moved: Invoice[] = []; const skipped: string[] = [];
+    const terms = Number(settings.paymentTermDays) || 30;
+    list.forEach((old) => {
+      const no = String(old.pastNo || old.id.replace(/^PAST\s*/i, '')).trim();
+      let id = no || old.id;
+      // Same number already used by another invoice: keep both, marked so they don't clash.
+      if (taken.has(id.toLowerCase())) { skipped.push(id); const base = id; let n = 1; id = base + ' (past)'; while (taken.has(id.toLowerCase())) id = base + ' (past ' + ++n + ')'; }
+      taken.add(id.toLowerCase());
+      const { recordOnly: _ro, status: oldSt, ...rest } = old;
+      const rec = { ...rest, id, historical: true, pastNo: no || id, issuedAt: old.date, dueDate: old.dueDate || isoOf((parseDate(old.date) || Date.now()) + terms * 86400000), status: 'Unpaid' } as Invoice;
+      app.addInvoice(rec); postGL(issueGL(rec, old.date));
+      moved.push({ ...rec, status: oldSt });
+    });
+    if (moved.length) app.removeFinanceRecords({ invoices: list.map((o) => o.id) }, 'Past invoice moved to Invoices');
+    const toPay = moved.filter((m) => m.status === 'Paid' || m.status === 'Partial');
+    if (!auto && moved.length === 1 && toPay.length === 1) { const m = toPay[0]; setForm({ kind: 'pay', vals: { docKind: 'invoice', docId: m.id, title: m.id, amount: m.status === 'Paid' ? String(m.total) : '', date: fd(parseDate(m.date) || Date.now()) } }); }
+    toastMsg(moved.length + ' moved to Invoices' + (toPay.length && (auto || moved.length > 1) ? ' · ' + toPay.length + ' were paid: use Record payment on them for the receipt' : '') + (skipped.length ? ' · number already used, marked (past): ' + skipped.join(', ') : ''));
+  };
+  // Past invoices keyed in as "reference only" earlier (or by Import many) join the Invoices list by themselves.
+  const movedPast = useRef(new Set<string>());
+  useEffect(() => {
+    if (!canPrepare || new URLSearchParams(window.location.search).get('preview') === '1') return;
+    const todo = (app.pastInvoices || []).filter((o) => !movedPast.current.has(o.id));
+    if (!todo.length) return;
+    todo.forEach((o) => movedPast.current.add(o.id));
+    movePastInvoices(todo, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [app.pastInvoices, canPrepare]);
   const openPastFile = (pf?: { driveFileId?: string; webViewLink?: string }) => {
     if (pf?.webViewLink || pf?.driveFileId) window.open(pf.webViewLink || 'https://drive.google.com/file/d/' + pf.driveFileId + '/view', '_blank', 'noopener');
     else toastMsg('No PDF attached yet.');
@@ -1556,6 +1588,36 @@ export function useFinanceController(initialTab: FinTab) {
         })();
       }
       setForm(null); toastMsg(no + ' recorded' + (pdf ? ' · PDF saving to Google Drive' : ''));
+      return;
+    }
+    if (kind === 'pastInvoice') {
+      // A past invoice is a REAL invoice in the books (counts in what clients owe, by category),
+      // keeps its printed number, shows a PAST tag and opens its PDF. Paid / part paid → Record payment
+      // opens next, which makes the receipt (proof) as usual.
+      if (!canPrepare) { toastMsg('Invoices are recorded by Accounts.'); return; }
+      const no = String(vals.no || '').trim();
+      if (!no) { toastMsg('Enter the invoice number as printed.'); return; }
+      if ([...invoices.map((x) => x.id), ...(app.pastInvoices || []).map((x) => x.pastNo || '')].some((x) => x.toLowerCase() === no.toLowerCase())) { toastMsg(no + ' is already in the list.'); return; }
+      if (!String(vals.client || '').trim()) { toastMsg('Enter the client.'); return; }
+      if (amt <= 0) { toastMsg('Enter the amounts (at least one).'); return; }
+      const c = clientByName(vals.client || ''); const kase = vals.matter ? caseForRef(String(vals.matter)) : undefined;
+      const desc = String(vals.what || '').trim(); const st = String(vals.status || 'Not paid');
+      const terms = Number(settings.paymentTermDays) || 30;
+      const make = (pastFile?: { name: string; driveFileId?: string; webViewLink?: string }) => {
+        const rec = { id: no, historical: true, pastNo: no, pastFile, clientId: c?.id || '', caseId: kase?.id || '', fileRef: kase?.ref || '', partyType: 'Client', partyName: c?.name || String(vals.client).trim(), amount: round2(amt - pSst), discount: 0, tax: pSst, total: amt, date: dateIso, issuedAt: dateIso, dueDate: isoOf((parseDate(dateIso) || Date.now()) + terms * 86400000), status: 'Unpaid', matter: desc || kase?.title, subject: desc || undefined, lineItems: pastLines(desc || 'Professional fees') } as Invoice;
+        app.addInvoice(rec);
+        postGL(issueGL(rec, dateIso));
+        if (st !== 'Not paid') setForm({ kind: 'pay', vals: { docKind: 'invoice', docId: no, title: no, amount: st === 'Paid' ? String(amt) : '', date: fd(parseDate(dateIso) || Date.now()) } });
+      };
+      const pdf = ((vals.pdf || []) as (FinanceProof & { file?: File })[]).find((p) => p.file)?.file;
+      setForm(null);
+      if (pdf) {
+        toastMsg(no + ' · saving its PDF to Google Drive…');
+        void (async () => {
+          try { await prepareStorage(); const up = await storeEngagementFile(kase ? { ref: kase.ref, title: kase.title } : { ref: '', title: 'No file' }, pdf, me, 'Invoices'); make({ name: up.name, driveFileId: up.driveFileId, webViewLink: up.webViewLink }); toastMsg(no + ' added to Invoices' + (st !== 'Not paid' ? ' · now record the payment' : '')); }
+          catch (e) { make(); toastMsg(no + ' added, but its PDF was not uploaded: ' + (e instanceof Error ? e.message : String(e))); }
+        })();
+      } else { make(); toastMsg(no + ' added to Invoices' + (st !== 'Not paid' ? ' · now record the payment' : '')); }
       return;
     }
     if (kind === 'pastInvoice' || kind === 'pastReceipt') {
@@ -1850,7 +1912,7 @@ export function useFinanceController(initialTab: FinTab) {
     lk, ownCase, clientName, staffUser,
     invBal, invPaid, invDeposit, invCredit, invStatus, invIssued, invCase, scopedInvoices, openInvoices, owedTotal, aging, ageDays,
     pnl, moneyReceived, openingAsAt, firmBanksOf, statementFor, setStatement, reconFor,
-    qStatus, qCase, proformaPaid, scopedQuotations, scopedReceipts, actionsFor, canDeleteQuote, canDeleteBills, entryOf, editEntry, deleteEntry, deleteQuote, deleteInvoice, deleteReceipt, editReceipt, editApItem, deleteApItem, isAdminUser, act, buildDoc, recordOf, receiptProofList,
+    qStatus, qCase, proformaPaid, scopedQuotations, scopedReceipts, actionsFor, movePastInvoices, canDeleteQuote, canDeleteBills, entryOf, editEntry, deleteEntry, deleteQuote, deleteInvoice, deleteReceipt, editReceipt, editApItem, deleteApItem, isAdminUser, act, buildDoc, recordOf, receiptProofList,
     ledgers, trustTotal, ledgerTotalAt, clientLedgerBalance, threeWayRec,
     unbilled, wipTotal, billMatter, billed: billed as Record<string, { inv: string; u: any }>,
     activeBanks, bankKind, banksOf, paidFromOptions, bankBal, lastRecon, officeCash,
