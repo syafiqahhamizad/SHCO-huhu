@@ -1099,6 +1099,10 @@ export function useFinanceController(initialTab: FinTab) {
     if (a === 'View' && kind === 'quotation' && (rec as Quotation).historical) {
       const pf = (rec as Quotation).pastFile;
       if (pf?.webViewLink || pf?.driveFileId) { window.open(pf.webViewLink || 'https://drive.google.com/file/d/' + pf.driveFileId + '/view', '_blank', 'noopener'); return; }
+      // No PDF yet: pick it now; it is saved to the file's folder and opens from then on.
+      const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.pdf,image/*';
+      inp.onchange = () => { const fl = inp.files?.[0]; if (fl) attachPastFile('quotation', rec as Quotation, fl); };
+      toastMsg(rec.id + ' has no PDF yet · choose it now'); inp.click(); return;
     }
     if (a === 'View') { if (kind === 'quotation') { const p = quotations.find((x) => x.documentType === 'Proforma' && x.sourceQuotationId === rec.id); setView({ kind: 'quotation', id: p ? p.id : rec.id }); } else setView({ kind, id: rec.id }); return; }
     if (rk === 'R') { toastMsg('Read-only access.'); return; }
@@ -1343,14 +1347,14 @@ export function useFinanceController(initialTab: FinTab) {
 
   /* ------------------------------ forms ------------------------------ */
   /** Attach the PDF to a past invoice / receipt keyed in without one (e.g. from a bulk import). */
-  const attachPastFile = (kind: 'invoice' | 'receipt', rec: { id: string; caseId?: string; pastNo?: string }, file: File) => {
+  const attachPastFile = (kind: 'invoice' | 'receipt' | 'quotation', rec: { id: string; caseId?: string; pastNo?: string }, file: File) => {
     const kase = rec.caseId ? lk.caseById.get(rec.caseId) : undefined;
     void (async () => {
       try {
         await prepareStorage();
         const up = await storeEngagementFile(kase ? { ref: kase.ref, title: kase.title } : { ref: '', title: kind === 'invoice' ? 'Past invoices' : 'Past receipts' }, file, me);
         const pastFile = { name: up.name, driveFileId: up.driveFileId, webViewLink: up.webViewLink };
-        if (kind === 'invoice') app.updateInvoice(rec.id, { pastFile }); else app.updateReceipt(rec.id, { pastFile });
+        if (kind === 'invoice') app.updateInvoice(rec.id, { pastFile }); else if (kind === 'quotation') app.updateQuotation(rec.id, { pastFile }); else app.updateReceipt(rec.id, { pastFile });
         toastMsg('PDF saved for ' + (rec.pastNo || rec.id));
       } catch (e) { toastMsg('PDF not uploaded: ' + (e instanceof Error ? e.message : String(e))); }
     })();
@@ -1362,7 +1366,16 @@ export function useFinanceController(initialTab: FinTab) {
   const openForm = (kind: string, vals: Record<string, any> = {}) => setForm({ kind, vals });
   const saveForm = () => {
     if (!form) return;
-    const { kind, vals } = form; const amt = num0(vals.amount);
+    const { kind, vals } = form;
+    // Past papers are keyed in by part (fees, reimbursements, disbursements, SST) so each file shows them by category.
+    const isPast = ['pastQuote', 'pastProforma', 'pastInvoice'].includes(kind);
+    const pFees = num0(vals.fees), pReimb = num0(vals.reimb), pDisb = num0(vals.disb), pSst = num0(vals.sst);
+    const amt = isPast ? round2(pFees + pReimb + pDisb + pSst) : num0(vals.amount);
+    const pastLines = (feeDesc: string): Quotation['lineItems'] => [
+      ...(pFees > 0 ? [{ description: feeDesc, category: 'Fee - Fixed', amount: pFees, quantity: 1, unitPrice: pFees, chargeType: 'Fixed' }] : []),
+      ...(pReimb > 0 ? [{ description: 'Reimbursements', category: 'Reimbursement', amount: pReimb, quantity: 1, unitPrice: pReimb, chargeType: 'Fixed' }] : []),
+      ...(pDisb > 0 ? [{ description: 'Disbursements', category: 'Disbursement', amount: pDisb, quantity: 1, unitPrice: pDisb, chargeType: 'Fixed' }] : []),
+    ] as Quotation['lineItems'];
     const dateIso = isoOf(parseDate(vals.date)) || todayIso();
     const proofs: FinanceProof[] = vals.proofs || [];
     if (rk === 'R' || rk === 'S') { toastMsg('Read-only access.'); return; }
@@ -1373,14 +1386,14 @@ export function useFinanceController(initialTab: FinTab) {
       if (!no) { toastMsg('Enter the proforma number as printed.'); return; }
       if (quotations.some((q) => q.id.toLowerCase() === no.toLowerCase())) { toastMsg(no + ' is already in the list.'); return; }
       if (!String(vals.client || '').trim()) { toastMsg('Enter the client.'); return; }
-      if (amt <= 0) { toastMsg('Enter the total.'); return; }
+      if (amt <= 0) { toastMsg('Enter the amounts (at least one).'); return; }
       const c = clientByName(vals.client || ''); const kase = vals.matter ? caseForRef(String(vals.matter)) : undefined;
       const into = vals.payInto === 'Client account' ? 'Client account' : 'Office';
       app.addQuotation({
         id: no, historical: true, documentType: 'Proforma', partyType: 'Client', partyId: c?.id, date: dateIso, createdAt: new Date().toISOString(),
         practiceArea: kase?.practiceArea || kase?.type || '', fileRef: kase?.ref || '', caseId: kase?.id, matter: kase?.title, leadId: '', clientName: c?.name || String(vals.client).trim(),
         status: 'Sent', total: amt, billedSoFar: 0, remaining: amt, courtLevel: '', stage: '', feeMethod: 'Fixed', subtype: '', payInto: into,
-        approvalStatus: 'Approved', approvedBy: me, approvedDate: dateIso, lineItems: [{ description: String(vals.what || '').trim() || 'As per proforma ' + no, category: into === 'Client account' ? 'Disbursement' : 'Fee - Fixed', amount: amt }],
+        approvalStatus: 'Approved', approvedBy: me, approvedDate: dateIso, lineItems: pastLines(String(vals.what || '').trim() || 'As per proforma ' + no),
       } as Quotation);
       const pdf = ((vals.pdf || []) as (FinanceProof & { file?: File })[]).find((p) => p.file)?.file;
       if (pdf) {
@@ -1401,14 +1414,14 @@ export function useFinanceController(initialTab: FinTab) {
       if (!no) { toastMsg('Enter the quotation number as printed.'); return; }
       if (quotations.some((q) => q.id.toLowerCase() === no.toLowerCase())) { toastMsg(no + ' is already in the list.'); return; }
       if (!String(vals.client || '').trim()) { toastMsg('Enter the client.'); return; }
-      if (amt <= 0) { toastMsg('Enter the total.'); return; }
+      if (amt <= 0) { toastMsg('Enter the amounts (at least one).'); return; }
       const c = clientByName(vals.client || ''); const kase = vals.matter ? caseForRef(String(vals.matter)) : undefined;
       const status = (['Accepted', 'Sent', 'Declined'].includes(vals.status) ? vals.status : 'Accepted') as Quotation['status'];
       app.addQuotation({
         id: no, historical: true, documentType: 'Quotation', partyType: 'Client', partyId: c?.id, date: dateIso, createdAt: new Date().toISOString(),
         practiceArea: kase?.practiceArea || kase?.type || '', fileRef: kase?.ref || '', caseId: kase?.id, matter: kase?.title, leadId: '', clientName: c?.name || String(vals.client).trim(),
         status, total: amt, billedSoFar: 0, remaining: amt, courtLevel: '', stage: '', feeMethod: 'Fixed', subtype: '',
-        approvalStatus: 'Approved', approvedBy: me, approvedDate: dateIso, lineItems: [{ description: 'Professional fees as per quotation ' + no, category: 'Fee - Fixed', amount: amt }],
+        approvalStatus: 'Approved', approvedBy: me, approvedDate: dateIso, lineItems: pastLines('Professional fees as per quotation ' + no),
       });
       const pdf = ((vals.pdf || []) as (FinanceProof & { file?: File })[]).find((p) => p.file)?.file;
       if (pdf) {
@@ -1437,7 +1450,7 @@ export function useFinanceController(initialTab: FinTab) {
       const id = 'PAST ' + no; const name = c?.name || String(vals.client).trim(); const desc = String(vals.what || '').trim();
       type PastFile = { name: string; driveFileId?: string; webViewLink?: string };
       const save = (pastFile?: PastFile) => {
-        if (inv) app.addInvoice({ id, recordOnly: true, pastNo: no, pastFile, historical: true, clientId: c?.id || '', caseId: kase?.id || '', fileRef: kase?.ref || '', partyType: 'Client', partyName: name, amount: amt, discount: 0, tax: 0, total: amt, date: dateIso, dueDate: dateIso, status: 'Paid', matter: desc || kase?.title, lineItems: [{ description: desc || 'Professional fees', category: 'Fee - Fixed', amount: amt, quantity: 1, unitPrice: amt, chargeType: 'Fixed' }] } as Invoice);
+        if (inv) app.addInvoice({ id, recordOnly: true, pastNo: no, pastFile, historical: true, clientId: c?.id || '', caseId: kase?.id || '', fileRef: kase?.ref || '', partyType: 'Client', partyName: name, amount: round2(amt - pSst), discount: 0, tax: pSst, total: amt, date: dateIso, dueDate: dateIso, status: vals.status === 'Paid' ? 'Paid' : vals.status === 'Part paid' ? 'Partial' : 'Unpaid', matter: desc || kase?.title, lineItems: pastLines(desc || 'Professional fees') } as Invoice);
         else app.addReceipt({ id, recordOnly: true, pastNo: no, pastFile, historical: true, date: dateIso, accountSet: vals.account === 'Client account' ? 'CLIENT' : 'OFFICE', receivedFrom: name, description: desc || 'Past receipt', amount: amt, debit: '', credit: '', clientId: c?.id || '', fileRef: kase?.ref || '', bankRef: '', receivedBy: me, paymentMethod: vals.method || '—', forNo: desc, caseId: kase?.id } as unknown as Receipt);
       };
       // The PDF goes to the file's folder in Client Files first, then the record is saved with its link.
@@ -1639,11 +1652,11 @@ export function useFinanceController(initialTab: FinTab) {
 
   /* ------------------------------ import past transactions ------------------------------ */
   const importFile = async (file: File) => { try { const rows = await SD.readSheet(file); setImp((s) => (s ? { ...s, fileName: file.name, raw: rows } : s)); } catch { toastMsg('Could not read ' + file.name); } };
-  interface ImpRow { date: string; t: number; type: string; acc: string; client: string; ref: string; no: string; desc: string; amt: number; method: string; proof: string; ok: boolean; status: string; sbg: string; sfg: string }
+  interface ImpRow { date: string; t: number; type: string; acc: string; client: string; ref: string; no: string; desc: string; amt: number; method: string; proof: string; ok: boolean; status: string; sbg: string; sfg: string; /** Past invoice paid status from the file (Paid / Part paid / Not paid). */ pst: string }
   const importRows = (I0: ImportState): ImpRow[] => {
     if (!I0.raw || I0.raw.length < 2) return [];
     const hdr = I0.raw[0].map((x) => String(x).toLowerCase()); const col = (...k: string[]) => hdr.findIndex((x) => k.some((y) => x.includes(y)));
-    const c = { date: col('date', 'tarikh'), type: col('type'), acc: col('account'), client: col('client', 'name', 'payer'), ref: col('our ref'), no: col('document', 'doc', 'receipt no', 'invoice no'), desc: col('desc', 'particular', 'details', 'narration'), amt: col('amount'), method: col('method'), proof: col('proof'), cr: col('credit', 'deposit'), dr: col('debit', 'withdraw') };
+    const c = { date: col('date', 'tarikh'), type: col('type'), acc: col('account'), client: col('client', 'name', 'payer'), ref: col('our ref'), no: col('document', 'doc', 'receipt no', 'invoice no'), desc: col('desc', 'particular', 'details', 'narration'), amt: col('amount'), method: col('method'), proof: col('proof'), cr: col('credit', 'deposit'), dr: col('debit', 'withdraw'), pst: col('payment status', 'paid') };
     const g = (r: string[], i: number) => (i >= 0 ? String(r[i] == null ? '' : r[i]).trim() : ''); const nm = (v: string) => Number(String(v || '').replace(/[^0-9.-]/g, '')) || 0;
     const seen = new Set<string>();
     return I0.raw.slice(1).map((r) => {
@@ -1656,7 +1669,7 @@ export function useFinanceController(initialTab: FinTab) {
       const dup = !!no && (seen.has(no) || invoices.some((x) => x.id === no) || receipts.some((x) => x.id === no) || paymentVouchers.some((x) => x.id === no) || [...(app.pastInvoices || []), ...(app.pastReceipts || [])].some((x) => String(x.pastNo || '').toLowerCase() === no.toLowerCase())); if (no) seen.add(no);
       const issue = !t ? 'No date' : !amt ? 'No amount' : !type ? 'Type?' : dup ? 'Doc no. exists' : ref0 && type === 'Payment' ? 'Payments: use Into the books' : ref0 && !no ? 'No doc no.' : type === 'Receipt' && acc2 === 'Client account' && !clientByName(client) ? 'Client not found' : '';
       const warn = !issue && !client ? 'Match client later' : !issue && !g(r, c.proof) ? 'No proof ref' : '';
-      return { date: fd(t), t, type: type || '?', acc: acc2, client, ref: g(r, c.ref), no, desc: g(r, c.desc), amt, method: g(r, c.method), proof: g(r, c.proof), ok: !issue, status: issue || warn || 'Ready', sbg: issue ? '#FBEDE9' : warn ? '#FBF2E9' : '#E6EFE9', sfg: issue ? '#B23A2E' : warn ? '#8A6534' : '#2F6F4E' };
+      return { pst: g(r, c.pst), date: fd(t), t, type: type || '?', acc: acc2, client, ref: g(r, c.ref), no, desc: g(r, c.desc), amt, method: g(r, c.method), proof: g(r, c.proof), ok: !issue, status: issue || warn || 'Ready', sbg: issue ? '#FBEDE9' : warn ? '#FBF2E9' : '#E6EFE9', sfg: issue ? '#B23A2E' : warn ? '#8A6534' : '#2F6F4E' };
     });
   };
   const postImport = (list: ImpRow[]) => {
@@ -1666,7 +1679,7 @@ export function useFinanceController(initialTab: FinTab) {
       // For reference only: kept with their old numbers, never counted (same as + Past invoice / + Past receipt).
       ok.forEach((r) => {
         const dateIso = isoOf(r.t); const c = clientByName(r.client); const kase = r.ref ? caseForRef(r.ref) : undefined; const name = c?.name || r.client || '—';
-        if (r.type === 'Invoice') app.addInvoice({ id: 'PAST ' + r.no, recordOnly: true, pastNo: r.no, historical: true, clientId: c?.id || '', caseId: kase?.id || '', fileRef: kase?.ref || r.ref, partyType: 'Client', partyName: name, amount: r.amt, discount: 0, tax: 0, total: r.amt, date: dateIso, dueDate: dateIso, status: 'Paid', matter: r.desc || kase?.title, lineItems: [{ description: r.desc || 'Professional fees', category: 'Fee - Fixed', amount: r.amt, quantity: 1, unitPrice: r.amt, chargeType: 'Fixed' }] } as Invoice);
+        if (r.type === 'Invoice') app.addInvoice({ id: 'PAST ' + r.no, recordOnly: true, pastNo: r.no, historical: true, clientId: c?.id || '', caseId: kase?.id || '', fileRef: kase?.ref || r.ref, partyType: 'Client', partyName: name, amount: r.amt, discount: 0, tax: 0, total: r.amt, date: dateIso, dueDate: dateIso, status: /part/i.test(r.pst) ? 'Partial' : /paid/i.test(r.pst) && !/not|un/i.test(r.pst) ? 'Paid' : 'Unpaid', matter: r.desc || kase?.title, lineItems: [{ description: r.desc || 'Professional fees', category: 'Fee - Fixed', amount: r.amt, quantity: 1, unitPrice: r.amt, chargeType: 'Fixed' }] } as Invoice);
         else app.addReceipt({ id: 'PAST ' + r.no, recordOnly: true, pastNo: r.no, historical: true, date: dateIso, accountSet: r.acc === 'Client account' ? 'CLIENT' : 'OFFICE', receivedFrom: name, description: r.desc || 'Past receipt', amount: r.amt, debit: '', credit: '', clientId: c?.id || '', fileRef: kase?.ref || r.ref, bankRef: '', receivedBy: me, paymentMethod: r.method || '—', forNo: r.desc, caseId: kase?.id } as unknown as Receipt);
       });
       setImp(null);

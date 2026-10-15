@@ -8,7 +8,7 @@ import type { WF } from '../wf';
 /** Money for this file — read-only, from real invoices / payments / retainers / quotations
  * using the finance module's rules. Actions open Accounts & Finance; nothing is created here. */
 export const MoneyTab: React.FC<{ w: WF }> = ({ w }) => {
-  const { setCurrentView, currentRole, currentUser, isAdmin } = useApp();
+  const { setCurrentView, currentRole, currentUser, isAdmin, quotations = [], pastInvoices = [], pastReceipts = [] } = useApp();
   const { c, money } = w;
   const [led, setLed] = useState<'client' | 'office' | 'disb'>('client');
   const rk = finRoleKey(currentRole, currentUser, isAdmin);
@@ -29,6 +29,16 @@ export const MoneyTab: React.FC<{ w: WF }> = ({ w }) => {
   const rows = led === 'client' ? money.clientLedger : led === 'disb' ? money.disbLedger : money.officeLedger;
   const bc = 'display:grid;grid-template-columns:110px 90px 100px 90px 90px 80px 110px 100px 100px 90px;min-width:1050px;';
   const pc = 'display:grid;grid-template-columns:120px 90px minmax(0,1fr) 110px 100px 100px 90px;gap:12px;min-width:720px;';
+  // Papers from before the portal on this file, by category (for reference; past invoices / receipts are not counted above).
+  const onThis = (caseId?: string, ref?: string) => (!!caseId && (caseId === c.id || caseId === c.ref)) || (!!ref && ref === c.ref);
+  type PI = { category?: string; amount?: number; quantity?: number; unitPrice?: number };
+  const split = (items: PI[] = []) => { const amt = (i: PI) => Number(i.amount ?? (Number(i.quantity || 1) * Number(i.unitPrice || 0))) || 0; const d = items.filter((i) => i.category === 'Disbursement').reduce((a, i) => a + amt(i), 0); const r = items.filter((i) => i.category === 'Reimbursement').reduce((a, i) => a + amt(i), 0); const f = items.filter((i) => !['Disbursement', 'Reimbursement', 'Tax'].includes(String(i.category))).reduce((a, i) => a + amt(i), 0); return { f, r, d }; };
+  const past = [
+    ...quotations.filter((q) => q.historical && onThis(q.caseId, q.fileRef)).map((q) => ({ type: q.documentType === 'Proforma' ? 'Proforma' : 'Quotation', no: q.id, date: q.date, ...split(q.lineItems as PI[]), sst: 0, total: Number(q.total || 0), file: q.pastFile })),
+    ...pastInvoices.filter((i) => onThis(i.caseId, i.fileRef)).map((i) => ({ type: 'Invoice', no: i.pastNo || i.id, date: i.date, ...split(i.lineItems as PI[]), sst: Number(i.tax || 0), total: Number(i.total || 0), file: i.pastFile })),
+    ...pastReceipts.filter((r) => onThis(r.caseId, r.fileRef)).map((r) => ({ type: 'Receipt', no: r.pastNo || r.id, date: r.date, f: 0, r: 0, d: 0, sst: 0, total: Number(r.amount || 0), file: r.pastFile })),
+  ].sort((a, b) => (a.date < b.date ? 1 : -1));
+  const pc2 = 'display:grid;grid-template-columns:90px 130px 90px 90px 80px 90px 70px 100px 70px;gap:10px;min-width:900px;';
   const lc = 'display:grid;grid-template-columns:90px 120px minmax(0,1fr) 100px 100px 110px;min-width:720px;';
   return (
     <>
@@ -65,6 +75,16 @@ export const MoneyTab: React.FC<{ w: WF }> = ({ w }) => {
             </div>
           );
         })}
+      </Card>}
+      {past.length > 0 && <Card style="overflow-x:auto">
+        <div style={css(S.head + ';min-width:900px')}><strong style={css('font-family:Georgia, serif;font-size:15px;color:#16223A')}>Before the portal</strong><span style={css(S.sub)}>past quotations, proformas, invoices and receipts on this file, by category · for reference</span></div>
+        <div style={css(pc2 + S.th)}><span>Type</span><span>No.</span><span>Date</span><span>Prof. fees</span><span>Reimb.</span><span>Disb.</span><span>SST</span><span>Total</span><span>PDF</span></div>
+        {past.map((x) => (
+          <div key={x.type + x.no} style={css(pc2 + 'align-items:center;' + S.row + ';color:#16223A')}>
+            <span><span style={css('padding:1px 7px;border-radius:8px;background:#F1EBF6;color:#6B3D8C;font-size:10px;font-weight:800')}>PAST</span> {x.type}</span><span style={css('font-family:ui-monospace, monospace')}>{x.no}</span><span>{fmt(x.date)}</span><span>{num2(x.f) || '—'}</span><span>{num2(x.r) || '—'}</span><span>{num2(x.d) || '—'}</span><span>{num2(x.sst) || '—'}</span><strong>{num2(x.total) || '0.00'}</strong>
+            <span>{x.file && (x.file.webViewLink || x.file.driveFileId) ? <a href={x.file.webViewLink || 'https://drive.google.com/file/d/' + x.file.driveFileId + '/view'} target="_blank" rel="noopener noreferrer" style={css('font-weight:700;color:#3D6B9C')}>View</a> : '—'}</span>
+          </div>
+        ))}
       </Card>}
       <Card style="overflow-x:auto">
         <div style={css(S.head + ';min-width:720px')}><strong style={css('font-family:Georgia, serif;font-size:15px;color:#16223A')}>Matter ledger</strong><Seg items={[['client', 'Client account'], ['office', 'Office account'], ['disb', 'Disbursement account']]} value={led} onChange={(k) => setLed(k as 'client' | 'office' | 'disb')} /><span style={css('margin-left:auto;font-size:12px;color:#4A5468')}>{led === 'client' ? 'Client money in and out. Can never go below zero.' : led === 'disb' ? 'Paid out for the client, and paid back by them. Balance = still to recover.' : 'Fees and SST billed, and payments received.'}</span></div>

@@ -274,7 +274,7 @@ export const xlsx = async (title: string, rows: unknown[][]) => {
 };
 /** Reads a CSV natively, or an Excel file via SheetJS loaded on demand from jsdelivr. */
 export const readSheet = async (file: File): Promise<string[][]> => { if (/\.csv$/i.test(file.name)) return parseCsv((await file.text()).replace(/^﻿/, '')); const X: any = await import(/* @vite-ignore */ XLSX_URL); const wb = X.read(await file.arrayBuffer()); return X.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' }); };
-const IMPORT_COLS = ['Date (dd.mm.yyyy)', 'Type (Receipt / Payment / Invoice)', 'Account (Office / Client)', 'Client', 'Our Ref', 'Document No.', 'Description', 'Amount (RM)', 'Method', 'Proof reference'];
+const IMPORT_COLS = ['Date (dd.mm.yyyy)', 'Type (Receipt / Payment / Invoice)', 'Account (Office / Client)', 'Client', 'Our Ref', 'Document No.', 'Description', 'Amount (RM)', 'Method', 'Proof reference', 'Payment status (invoices: Paid / Part paid / Not paid)'];
 export const importTemplate = () => csv('SHCO import template', [IMPORT_COLS, ['15.01.2025', 'Invoice', 'Office', 'FB Fastaqim Buildings', 'SHC/LIT/FB/SH/005/2025', 'INV-25-0012', 'Professional fees – defence', '10000', '', ''], ['20.01.2025', 'Receipt', 'Office', 'FB Fastaqim Buildings', 'SHC/LIT/FB/SH/005/2025', 'OR-25-0031', 'Payment for INV-25-0012', '2000', 'Online transfer', 'IBG screenshot 20.01'], ['22.01.2025', 'Payment', 'Client', 'FB Fastaqim Buildings', 'SHC/LIT/FB/SH/005/2025', 'PV-25-0008', 'Court filing fees', '16', 'Online transfer', 'e-Filing receipt']]);
 /* ---------- Firm & Practice Settings → documents ----------
  * Firm details, bank accounts, the HQ letterhead image and edited fee templates live in Firm &
