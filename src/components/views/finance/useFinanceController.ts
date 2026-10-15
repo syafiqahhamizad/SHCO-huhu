@@ -1372,11 +1372,11 @@ export function useFinanceController(initialTab: FinTab) {
     // E-mail is really sent from the portal mailbox (not a draft). The document goes inside the e-mail.
     const esc2 = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const d = r.attach ? buildDoc({ kind: r.kind, id: r.id }) : null;
-    let docPart = d ? SD.docHtml(d) : '';
-    if (docPart.length > 280000) docPart = '';
-    const html = `<div style="font-family:Arial,sans-serif;font-size:14px;color:#16223A;white-space:pre-wrap">${esc2(r.body)}</div>${docPart ? '<hr style="margin:24px 0;border:0;border-top:1px solid #DDE3EB">' + docPart : ''}`;
+    const html = `<div style="font-family:Arial,sans-serif;font-size:14px;color:#16223A;white-space:pre-wrap">${esc2(r.body)}</div>`;
     toastMsg('Sending email to ' + r.to + '…');
-    void queueClientEmail({ to: r.to, subject: r.subj, text: r.body, html, docId: r.id, kind: r.send ? 'send' : 'reminder', createdBy: currentUser?.email || '' }).then((id) => {
+    // The document is attached as a PDF (not pasted into the e-mail).
+    void (d ? SD.pdfBlob(SD.docHtml(d), 1.5).then((pdf) => ({ name: d.no + '.pdf', pdf })) : Promise.resolve(undefined)).then((attachment) =>
+      queueClientEmail({ to: r.to, subject: r.subj, text: r.body, html, docId: r.id, kind: r.send ? 'send' : 'reminder', createdBy: currentUser?.email || '', attachment })).then((id) => {
       const stop = watchClientEmail(id, (st, err) => {
         if (st === 'SUCCESS') { stop(); done(r.viaW ? 'email & WhatsApp' : 'email'); toastMsg('Email sent to ' + r.to + (r.send ? ' · ' + r.id + ' marked sent' : ' · reminder recorded')); }
         if (st === 'ERROR') { stop(); toastMsg('Email NOT sent: ' + (err || 'unknown error') + (r.viaW ? ' (WhatsApp was opened)' : '')); }

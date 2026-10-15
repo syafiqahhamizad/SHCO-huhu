@@ -18,6 +18,7 @@ export const EmailNotificationsCard: React.FC = () => {
   const [cfg, setCfg] = useState<MailSettings | null>(null);
   const [form, setForm] = useState<MailSettings>(blank);
   const [pw, setPw] = useState('');
+  const sender = (cfg?.smtpUser || form.smtpUser || '').trim();
   const [saving, setSaving] = useState(false);
   useEffect(() => {
     if (!isOwner) return;
@@ -90,6 +91,10 @@ export const EmailNotificationsCard: React.FC = () => {
           <button type="button" onClick={() => void send()} disabled={state?.state === 'PENDING' || state?.state === 'PROCESSING'} style={css(S.darkBtn + ';align-self:flex-start')}>Send test e-mail to me</button>
           {shown && <div style={css(`padding:8px 10px;border-radius:8px;font-size:11.5px;font-weight:700;line-height:1.45;color:${shown.c};background:${shown.bg}`)}>{shown.t}</div>}
           <span style={css('font-size:10.5px;color:#5B6478;line-height:1.5')}>Goes to {currentUser.email || 'your e-mail'}. Only @shcolaw.com addresses ever receive portal e-mails.</span>
+          <div style={css('display:flex;flex-direction:column;gap:5px;padding:10px;border-radius:8px;border:1px solid #DDE3EB;background:#F6F8FA')}>
+            <strong style={css('font-size:12px;color:#16223A')}>Client e-mails</strong>
+            <span style={css('font-size:11px;line-height:1.55;color:#4A5468')}>Quotations, invoices and reminders go out from <b>billing@shcolaw.com</b>, file updates from <b>portal@shcolaw.com</b>, with the document as a PDF. Gmail shows those addresses only when they are <b>“Send mail as”</b> on <b>{sender || 'the sending account'}</b> (Gmail › Settings › Accounts › Send mail as); otherwise it shows {sender || 'that account'}.</span>
+          </div>
         </div>
         <details style={css('font-size:11px;line-height:1.55;color:#16223A;min-width:0')}>
           <summary style={css('cursor:pointer;font-weight:700')}>One-time setup</summary>

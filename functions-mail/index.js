@@ -250,7 +250,8 @@ exports.sendClientMail = onDocumentCreated(
       // The sending account must have that address as a Gmail "Send mail as" alias, else Gmail
       // shows the sending account as From (Reply-To still goes to billing).
       const p = (await fromFor(m.purpose ? String(m.purpose) : 'Billing & receipts')) || (await fromFor('Billing & receipts'));
-      const info = await transport.sendMail({ from: p ? p.from : undefined, replyTo: p ? p.replyTo : undefined, to, subject: String(m.subject || '').slice(0, 200), text: String(m.text || ''), html: m.html ? String(m.html) : undefined });
+      const attachments = m.attachB64 ? [{ filename: String(m.attachName || 'document.pdf').slice(0, 120), content: String(m.attachB64), encoding: 'base64', contentType: 'application/pdf' }] : undefined;
+      const info = await transport.sendMail({ from: p ? p.from : undefined, replyTo: p ? p.replyTo : undefined, to, subject: String(m.subject || '').slice(0, 200), text: String(m.text || ''), html: m.html ? String(m.html) : undefined, attachments });
       await ref.update({ 'delivery.state': 'SUCCESS', 'delivery.endTime': FieldValue.serverTimestamp(), 'delivery.info': { messageId: info.messageId || '' } });
     } catch (err) {
       console.error('Client mail not sent', ref.id, err);

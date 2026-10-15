@@ -257,14 +257,14 @@ const loadH2p = () => (h2p ||= new Promise((resolve, reject) => {
   document.head.appendChild(sc);
 }));
 /** A real PDF file (A4) of a document, made in the browser, for saving to Google Drive. */
-export const pdfBlob = async (body: string): Promise<Blob> => {
+export const pdfBlob = async (body: string, scale = 2): Promise<Blob> => {
   const make = (await loadH2p()) as () => { set: (o: unknown) => { from: (el: HTMLElement) => { outputPdf: (t: string) => Promise<Blob> } } };
   const box = document.createElement('div');
   box.style.cssText = 'position:fixed;left:-10000px;top:0;width:178mm;background:#fff';
   box.innerHTML = body;
   document.body.appendChild(box);
   try {
-    return await make().set({ margin: [14, 16, 14, 16], image: { type: 'jpeg', quality: 0.95 }, html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }, pagebreak: { mode: ['css', 'legacy'] } }).from(box).outputPdf('blob');
+    return await make().set({ margin: [14, 16, 14, 16], image: { type: 'jpeg', quality: 0.95 }, html2canvas: { scale, useCORS: true, backgroundColor: '#ffffff' }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }, pagebreak: { mode: ['css', 'legacy'] } }).from(box).outputPdf('blob');
   } finally { box.remove(); }
 };
 export const csv = (title: string, rows: unknown[][]) => dl(new Blob(['﻿' + rows.map((r) => r.map((c) => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n')], { type: 'text/csv' }), title + '.csv');

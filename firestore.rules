@@ -278,7 +278,9 @@ service cloud.firestore {
     // themselves and may follow their own; nobody changes the queue.
     match /clientMail/{id} {
       allow create: if (booksWriter() || (isFirmUser() && request.resource.data.get('kind', '') == 'update')) &&
-        request.resource.data.keys().hasOnly(['to', 'subject', 'text', 'html', 'docId', 'kind', 'purpose', 'createdBy', 'createdAt']) &&
+        request.resource.data.keys().hasOnly(['to', 'subject', 'text', 'html', 'docId', 'kind', 'purpose', 'attachName', 'attachB64', 'createdBy', 'createdAt']) &&
+        request.resource.data.get('attachName', '') is string && request.resource.data.get('attachName', '').size() <= 120 &&
+        request.resource.data.get('attachB64', '') is string && request.resource.data.get('attachB64', '').size() <= 900000 &&
         request.resource.data.get('purpose', '') is string && request.resource.data.get('purpose', '').size() <= 40 &&
         request.resource.data.to is string && request.resource.data.to.size() <= 200 &&
         request.resource.data.to.matches('^[^@ ]+@[^@ ]+[.][^@ ]+$') &&
