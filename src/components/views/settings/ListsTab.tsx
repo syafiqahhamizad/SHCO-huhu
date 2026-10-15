@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DEFAULT_CLAIM_TYPES, DEFAULT_EXPENSE_CATEGORIES, DEFAULT_LEAD_SOURCES, type LeadSourceDef } from '../../../services/templateService';
+import { DEFAULT_CLAIM_TYPES, DEFAULT_EXPENSE_CATEGORIES, DEFAULT_LEAD_SOCIAL_PLATFORMS, DEFAULT_LEAD_SOURCES, WHICH_KINDS, whichOf, type LeadSourceDef, type WhichKind } from '../../../services/templateService';
 import { DEFAULT_PUBLIC_HOLIDAYS, getLeaveTypes } from '../staff/staffPortalShared';
 import { css, S, Txt, type SettingsCtx } from './settingsShared';
 
@@ -10,6 +10,8 @@ interface ListDef {
   rename: (i: number, v: string) => void;
   remove: (i: number) => void;
   add: () => void;
+  /** Small note under an item (e.g. where a lead source's "which" list comes from). */
+  hint?: (i: number) => string;
 }
 
 export const ListsTab = ({ C }: { C: SettingsCtx }) => {
@@ -20,6 +22,7 @@ export const ListsTab = ({ C }: { C: SettingsCtx }) => {
   const sources: LeadSourceDef[] = s.leadSources && s.leadSources.length ? s.leadSources : DEFAULT_LEAD_SOURCES;
   const exp = s.expenseCategories && s.expenseCategories.length ? s.expenseCategories : DEFAULT_EXPENSE_CATEGORIES;
   const claims = s.claimTypes && s.claimTypes.length ? s.claimTypes : DEFAULT_CLAIM_TYPES;
+  const plats = s.leadSocialPlatforms && s.leadSocialPlatforms.length ? s.leadSocialPlatforms : DEFAULT_LEAD_SOCIAL_PLATFORMS;
 
   const strList = (title: string, note: string, items: string[], field: 'expenseCategories' | 'claimTypes'): ListDef => ({
     title, note, items,
@@ -30,11 +33,19 @@ export const ListsTab = ({ C }: { C: SettingsCtx }) => {
 
   const lists: ListDef[] = [
     {
-      title: 'Lead sources', note: 'shown when logging a lead', items: sources.map((x) => x.label),
+      title: 'Lead sources', note: 'where leads and clients came from · each one’s “which” list is shown under it', items: sources.map((x) => x.label),
+      hint: (i) => ({ 'Social Media': 'Which platform → Social media platforms (next list)', Partner: 'Which partner → Users & Roles (partners)', Staff: 'Which staff → Users & Roles', 'Event / Seminar': 'Which programme → Leads & Referrals › Programmes', 'Existing Client': 'Which client → Clients', 'Outside Referrer': 'Which referrer → Leads & Referrals › Referrers', BNI: 'Which BNI member → Leads & Referrals › Referrers' } as Record<string, string>)[sources[i]?.key] || 'Typed in (no list)',
       // The key saved on each lead never changes, so renaming keeps old leads linked.
       rename: (i, v) => C.save({ leadSources: sources.map((x, k) => (k === i ? { ...x, label: v.trim() } : x)) }, 'Lead Sources Changed', (sources[i]?.label || '—') + ' → ' + (v.trim() || '—')),
       remove: (i) => { C.save({ leadSources: sources.filter((_, k) => k !== i) }, 'Lead Sources Changed', 'Removed ' + (sources[i]?.label || '(blank)') + ' (existing leads keep it)'); C.msg('Removed ' + (sources[i]?.label || 'item')); },
       add: () => C.save({ leadSources: [...sources, { key: `src_${Date.now()}`, label: '', color: '#5B6478', tint: '#F0F2F5', fg: '#5B6478' }] }, 'Lead Sources Changed', 'Added a new source'),
+    },
+    {
+      title: 'Social media platforms', note: 'picked when a lead or client came through social media', items: plats.map((x) => x.label),
+      // The key saved on each lead never changes, so renaming keeps old leads linked.
+      rename: (i, v) => C.save({ leadSocialPlatforms: plats.map((x, k) => (k === i ? { ...x, label: v.trim() } : x)) }, 'Social Media Platforms Changed', (plats[i]?.label || '—') + ' → ' + (v.trim() || '—')),
+      remove: (i) => { C.save({ leadSocialPlatforms: plats.filter((_, k) => k !== i) }, 'Social Media Platforms Changed', 'Removed ' + (plats[i]?.label || '(blank)')); C.msg('Removed ' + (plats[i]?.label || 'item')); },
+      add: () => C.save({ leadSocialPlatforms: [...plats, { key: `plat_${Date.now()}`, label: '' }] }, 'Social Media Platforms Changed', 'Added a new platform'),
     },
     strList('Expense categories', 'Office Account & cash book', exp, 'expenseCategories'),
     strList('Claim types', 'My Claims', claims, 'claimTypes'),
@@ -61,11 +72,36 @@ export const ListsTab = ({ C }: { C: SettingsCtx }) => {
         {PICKS.map(([t, n]) => { const on = pick === t; return <button key={t} type="button" onClick={() => setPick(t)} style={css(`display:flex;width:100%;align-items:center;justify-content:space-between;border:0;border-radius:6px;padding:8px 10px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;text-align:left;background:${on ? '#16223A' : 'transparent'};color:${on ? '#fff' : '#16223A'}`)}><span>{t}</span><span style={css(`font-size:10px;font-weight:700;color:${on ? '#C9D3E0' : '#94A3B8'}`)}>{n}</span></button>; })}
       </div>
       <div style={css('max-width:760px')}>
-      {lists.filter((g) => g.title === pick).map((g) => (
+      {pick === 'Lead sources' && (() => {
+        const saveSrc = (next: LeadSourceDef[], what: string) => C.save({ leadSources: next }, 'Lead Sources Changed', what);
+        const setSrc = (i: number, p: Partial<LeadSourceDef>, what: string) => saveSrc(sources.map((x, k) => (k === i ? { ...x, ...p } : x)), what);
+        const IN = 'border:1px solid #DDE3EB;border-radius:6px;padding:5px 7px;font-size:11px;color:#16223A;min-width:0';
+        return (
+          <div style={css(S.card)}>
+            <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Lead sources</strong><span style={css('display:block;font-size:10.5px;color:#5B6478')}>where leads and clients came from · for each, choose what “Who / which” offers · add, rename or remove any</span></div>
+            <div style={css('display:grid;grid-template-columns:minmax(0,1fr) 210px 60px;gap:8px;padding:6px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>Source</span><span>“Who / which” list</span><span></span></div>
+            {sources.map((x, i) => {
+              const w = whichOf(x);
+              return (
+                <div key={x.key} style={css('display:grid;grid-template-columns:minmax(0,1fr) 210px 60px;gap:8px;align-items:start;padding:6px 14px;border-bottom:1px solid #F0F2F5')}>
+                  <Txt value={x.label} onCommit={(v) => setSrc(i, { label: v.trim() }, (x.label || '—') + ' → ' + (v.trim() || '—'))} style={IN} />
+                  <span style={css('display:flex;flex-direction:column;gap:4px;min-width:0')}>
+                    <select value={w} onChange={(e) => setSrc(i, { which: e.target.value as WhichKind }, (x.label || 'Source') + ': which list → ' + (WHICH_KINDS.find(([k]) => k === e.target.value)?.[1] || ''))} style={css(IN + ';background:#fff;font-family:inherit')}>{WHICH_KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
+                    {w === 'own' && <Txt value={(x.options || []).join(', ')} placeholder="Options, separated by commas" onCommit={(v) => setSrc(i, { options: v.split(',').map((t) => t.trim()).filter(Boolean) }, (x.label || 'Source') + ' options: ' + v)} style={IN} />}
+                  </span>
+                  <button type="button" onClick={() => { if (!window.confirm('Remove ' + (x.label || 'this source') + '? Leads and clients already set to it keep it.')) return; saveSrc(sources.filter((_, k) => k !== i), 'Removed ' + (x.label || '(blank)')); C.msg('Removed ' + (x.label || 'source')); }} style={css(S.remove)}>Remove</button>
+                </div>
+              );
+            })}
+            <div style={css('padding:7px 14px')}><button type="button" onClick={() => saveSrc([...sources, { key: `src_${Date.now()}`, label: '', color: '#5B6478', tint: '#F0F2F5', fg: '#5B6478', which: 'typed' }], 'Added a new source')} style={css(S.addLink)}>+ Add source</button></div>
+          </div>
+        );
+      })()}
+      {lists.filter((g) => g.title === pick && g.title !== 'Lead sources').map((g) => (
         <div key={g.title} style={css(S.card)}>
           <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>{g.title}</strong><span style={css('display:block;font-size:10.5px;color:#5B6478')}>{g.note}</span></div>
           {g.items.map((v, ii) => (
-            <div key={g.title + ii} style={css('display:grid;grid-template-columns:minmax(0,1fr) 60px;gap:8px;align-items:center;padding:5px 14px;border-bottom:1px solid #F0F2F5')}><Txt value={v} onCommit={(x) => g.rename(ii, x)} style="border:1px solid #DDE3EB;border-radius:6px;padding:5px 7px;font-size:11px;color:#16223A" /><button type="button" onClick={() => g.remove(ii)} style={css(S.remove)}>Remove</button></div>
+            <div key={g.title + ii} style={css('display:grid;grid-template-columns:minmax(0,1fr) 60px;gap:8px;align-items:center;padding:5px 14px;border-bottom:1px solid #F0F2F5')}><span style={css('display:flex;flex-direction:column;gap:3px;min-width:0')}><Txt value={v} onCommit={(x) => g.rename(ii, x)} style="border:1px solid #DDE3EB;border-radius:6px;padding:5px 7px;font-size:11px;color:#16223A" />{g.hint && <span style={css('font-size:10px;color:#5B6478;padding-left:2px')}>{g.hint(ii)}</span>}</span><button type="button" onClick={() => g.remove(ii)} style={css(S.remove)}>Remove</button></div>
           ))}
           <div style={css('padding:7px 14px')}><button type="button" onClick={g.add} style={css(S.addLink)}>+ Add</button></div>
         </div>

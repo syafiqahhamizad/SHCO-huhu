@@ -22,6 +22,7 @@ import type { Case, Client, ConflictMatch, Lead, Programme, ProgrammeAttendee, U
 import {
   DEFAULT_LEAD_SOCIAL_PLATFORMS,
   DEFAULT_LEAD_SOURCES,
+  whichOf,
   getPracticeSettings,
   savePracticeSettings,
   type LeadPlatformDef,
@@ -355,6 +356,24 @@ export const LeadsReferralsPage: React.FC = () => {
     [leads, progById, plats, firmUsers, shUser, clients, cases]
   );
 
+  // Clients are leads that converted. A client with a source (Clients › Came to us through) that no
+  // lead points to is counted here as a converted lead, so Overview and Referrers show everyone.
+  const LA: LV[] = useMemo(() => {
+    const linked = new Set(L.map((l) => l.clientId).filter(Boolean));
+    const extra = (clients || []).filter((c) => c.source && !linked.has(c.id)).map((c): LV => {
+      const d = (c.sourceDetail || '').trim();
+      const detailRaw = c.source === 'Social Media' ? plats.find((p) => norm(p.label) === norm(d))?.key || d : c.source === 'Event / Seminar' ? ((programmes || []).find((p) => norm(p.title) === norm(d))?.id || d) : d;
+      const picName = c.source === 'BNI' ? SH_NAME : '';
+      return {
+        raw: { id: 'client:' + c.id, name: c.name, referralDetail: d, stage: 'Converted', clientId: c.id } as unknown as Lead,
+        id: 'client:' + c.id, name: c.name, area: '—', cat: c.source!, detailRaw, detail: d || (c.source === 'BNI' ? 'BNI' : '—'), ch: '',
+        picName, picCode: picName ? codeOf(picName) : '—', picColor: '#2E7D7A', stage: 'Converted', quote: 0, clientId: c.id,
+        date: validIso(c.createdAt) ? c.createdAt!.slice(0, 10) : '', warmth: 'Warm',
+      };
+    });
+    return [...L, ...extra];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [L, clients, plats, programmes]);
   const conv = (l: LV) => l.stage === 'Converted';
   const isOpenL = (l: LV) => l.stage !== 'Converted' && l.stage !== 'Lost';
   const byDateDesc = (a: LV, b: LV) => (b.date || '').localeCompare(a.date || '');
@@ -484,17 +503,17 @@ export const LeadsReferralsPage: React.FC = () => {
   const refPeople: Person[] = useMemo(() => {
     const mk = (u: User, grp: 'Partner' | 'Staff'): Person => {
       const isSH = grp === 'Partner' && u === shUser;
-      const mine = L.filter((l) => (l.cat === grp && norm(l.detailRaw) === norm(u.name)) || (isSH && l.cat === 'BNI')).sort(byDateDesc);
+      const mine = LA.filter((l) => (l.cat === grp && norm(l.detailRaw) === norm(u.name)) || (isSH && l.cat === 'BNI')).sort(byDateDesc);
       return { code: codeOf(u.name), name: u.name, role: roleLabel(u), color: grp === 'Partner' ? PC[codeOf(u.name)] || '#2E7D7A' : '#5E6F2F', grp, mine };
     };
     return [...partners.map((u) => mk(u, 'Partner')), ...staff.map((u) => mk(u, 'Staff'))];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [partners, staff, L, shUser]);
+  }, [partners, staff, LA, shUser]);
   // BNI still counts under SH's referrals even if SH isn't a registered user yet.
-  const bniOrphans = !shUser ? L.filter((l) => l.cat === 'BNI') : [];
+  const bniOrphans = !shUser ? LA.filter((l) => l.cat === 'BNI') : [];
   const outsiders: Person[] = useMemo(() => {
     const m = new Map<string, { name: string; arr: LV[] }>();
-    L.filter((l) => OUTC.includes(l.cat) && l.raw.referralDetail?.trim()).forEach((l) => {
+    LA.filter((l) => OUTC.includes(l.cat) && l.raw.referralDetail?.trim()).forEach((l) => {
       const k = norm(l.raw.referralDetail);
       if (!m.has(k)) m.set(k, { name: l.raw.referralDetail!.trim(), arr: [] });
       m.get(k)!.arr.push(l);
@@ -526,11 +545,11 @@ export const LeadsReferralsPage: React.FC = () => {
     refPeople.reduce((s, p) => s + p.mine.length, 0) + bniOrphans.length;
 
   // --- Overview -------------------------------------------------------------------------------
-  const convL = L.filter(conv);
+  const convL = LA.filter(conv);
   const regTotal = progList.reduce((s, p) => s + p.reg, 0);
   const sources = allCats
     .map((c) => {
-      const lsx = L.filter((l) => l.cat === c.key);
+      const lsx = LA.filter((l) => l.cat === c.key);
       const cv = lsx.filter(conv);
       const open = src === c.key;
       const groups = new Map<string, LV[]>();
@@ -573,9 +592,10 @@ export const LeadsReferralsPage: React.FC = () => {
       };
     })
     .sort((a, b) => b.total - a.total);
+  // The donut can show leads, or every registered client by where they came from.
   const dSrc = conicDonut(sources.map((s) => ({ label: s.name, n: s.total, color: s.color })));
 
-  const soc = L.filter((l) => l.cat === 'Social Media');
+  const soc = LA.filter((l) => l.cat === 'Social Media');
   const platKeys = [...plats.map((p) => p.key), ...Array.from(new Set(soc.map((l) => l.detailRaw).filter((k) => k && !plats.some((p) => p.key === k))))];
   const pMax = Math.max(1, ...platKeys.map((k) => soc.filter((l) => l.detailRaw === k).length));
   const platforms = platKeys
@@ -589,8 +609,8 @@ export const LeadsReferralsPage: React.FC = () => {
   // with no enquiry date can't be placed in a year: they are reported as "undated", not
   // silently counted as this year's.
   const ytdYear = todayStr.slice(0, 4);
-  const ytdLeads = L.filter((l) => l.date && l.date.slice(0, 4) === ytdYear && l.date <= todayStr);
-  const undatedLeads = L.filter((l) => !l.date).length;
+  const ytdLeads = LA.filter((l) => l.date && l.date.slice(0, 4) === ytdYear && l.date <= todayStr);
+  const undatedLeads = LA.filter((l) => !l.date).length;
   const kpis: { label: string; value: number; note: string; Icon: React.ElementType; color: string; onClick: () => void }[] = [
     {
       label: 'Leads · YTD',
@@ -603,7 +623,7 @@ export const LeadsReferralsPage: React.FC = () => {
     {
       label: 'Converted to files',
       value: convL.length,
-      note: `${L.length ? Math.round((convL.length / L.length) * 100) : 0}% conversion`,
+      note: `${LA.length ? Math.round((convL.length / LA.length) * 100) : 0}% conversion`,
       Icon: CircleCheck,
       color: '#2F6F4E',
       onClick: () => goLeads({ lf: 'client' }),
@@ -716,7 +736,7 @@ export const LeadsReferralsPage: React.FC = () => {
         emergencyContact: '',
         notes: `Converted from Lead ${l.id} (${l.source || CAT(lv.cat).label}). Interest Area: ${l.practiceArea || 'General'}.`,
         source: lv.cat || undefined,
-        sourceDetail: l.referralDetail || undefined,
+        sourceDetail: lv.detail || l.referralDetail || undefined,
         kyc: [],
         conflictCheck: {
           status: autoConflicts.length > 0 ? 'Flagged' : 'Clear',
@@ -788,12 +808,21 @@ export const LeadsReferralsPage: React.FC = () => {
   };
 
   // --- New lead -------------------------------------------------------------------------------
-  const DOPT: Record<string, [string, { v: string; l: string }[]]> = {
-    'Social Media': ['Which platform?', plats.map((p) => ({ v: p.key, l: p.label }))],
-    Partner: ['Which partner?', partners.map((u) => ({ v: u.name, l: u.name }))],
-    Staff: ['Which staff member?', staff.map((u) => ({ v: u.name, l: u.name }))],
-    'Event / Seminar': ['Which programme?', progs.map((p) => ({ v: p.id, l: p.title }))],
-  };
+  // Each source's "which" list is set in Settings › Lists & sources (whichOf): nothing is fixed here.
+  const DOPT: Record<string, [string, { v: string; l: string }[]]> = Object.fromEntries(cats.flatMap((c) => {
+    const nm = (xs: string[]) => xs.filter(Boolean).map((x) => ({ v: x, l: x }));
+    const w = whichOf(c);
+    const v: [string, { v: string; l: string }[]] | null =
+      w === 'platforms' ? ['Which platform?', plats.map((p) => ({ v: p.key, l: p.label }))]
+      : w === 'partners' ? ['Which partner?', partners.map((u) => ({ v: u.name, l: u.name }))]
+      : w === 'staff' ? ['Which staff member?', staff.map((u) => ({ v: u.name, l: u.name }))]
+      : w === 'programmes' ? ['Which programme?', progs.map((p) => ({ v: p.id, l: p.title }))]
+      : w === 'clients' ? ['Which client?', nm((clients || []).map((x) => x.name).sort())]
+      : w === 'referrers' ? ['Which referrer?', nm((referralPartners || []).map((r) => r.name))]
+      : w === 'own' ? ['Which?', nm(c.options || [])]
+      : null;
+    return v ? [[c.key, v]] : [];
+  }));
   const dopt = DOPT[N.cat];
   const ccHits = conflictHits(N.name);
   const cc = !N.name.trim()
@@ -1284,39 +1313,6 @@ export const LeadsReferralsPage: React.FC = () => {
             ))}
           </section>
 
-          {(() => {
-            // Every registered client by where they came from (set on the client, or carried over from their lead).
-            const all = clients || [];
-            const rows = cats.map((c) => ({ c, n: all.filter((x) => x.source === c.key).length })).filter((r) => r.n > 0).sort((a2, b2) => b2.n - a2.n);
-            const none = all.filter((x) => !x.source).length;
-            const max = Math.max(1, ...rows.map((r) => r.n), none);
-            return (
-              <section className="overflow-hidden rounded-[12px] border border-[#DDE3EB] bg-white">
-                <div className="flex flex-wrap items-center gap-[8px] border-b border-[#EEF1F5] px-[14px] py-[10px]">
-                  <strong className="text-[14.5px] text-[#16223A]" style={{ fontFamily: SERIF }}>Where our clients come from</strong>
-                  <span className="text-[10.5px] text-[#5B6478]">all {all.length} registered clients · set on each client’s profile (Clients › Came to us through)</span>
-                </div>
-                <div className="flex flex-col gap-[6px] px-[14px] py-[12px]">
-                  {rows.map(({ c, n }) => (
-                    <div key={c.key} className="grid items-center gap-[10px]" style={{ gridTemplateColumns: '150px minmax(0,1fr) 40px' }}>
-                      <span className="text-[12px] font-semibold text-[#16223A]">{c.label}</span>
-                      <span className="h-[10px] rounded-full bg-[#F0F2F5]"><span className="block h-full rounded-full" style={{ width: (n / max) * 100 + '%', background: c.color }} /></span>
-                      <strong className="text-right text-[12px] text-[#16223A]">{n}</strong>
-                    </div>
-                  ))}
-                  {none > 0 && (
-                    <div className="grid items-center gap-[10px]" style={{ gridTemplateColumns: '150px minmax(0,1fr) 40px' }}>
-                      <span className="text-[12px] font-semibold text-[#94A3B8]">Not recorded yet</span>
-                      <span className="h-[10px] rounded-full bg-[#F0F2F5]"><span className="block h-full rounded-full bg-[#C9D1DC]" style={{ width: (none / max) * 100 + '%' }} /></span>
-                      <strong className="text-right text-[12px] text-[#94A3B8]">{none}</strong>
-                    </div>
-                  )}
-                  {!all.length && <span className="text-[12px] text-[#5B6478]">No clients yet.</span>}
-                </div>
-              </section>
-            );
-          })()}
-
           <section className="grid items-start gap-[16px]" style={{ gridTemplateColumns: 'minmax(0,1fr) 360px' }}>
             <div className="overflow-hidden rounded-[12px] border border-[#DDE3EB] bg-white">
               <div className="flex items-center gap-[8px] bg-[#16223A] px-[14px] py-[10px] text-white">
@@ -1335,9 +1331,9 @@ export const LeadsReferralsPage: React.FC = () => {
                     <div className="grid h-[82px] w-[82px] place-items-center rounded-full bg-white text-center">
                       <div>
                         <div className="text-[24px] leading-none font-bold text-[#16223A]" style={{ fontFamily: SERIF }}>
-                          {L.length}
+                          {LA.length}
                         </div>
-                        <div className="text-[9.5px] text-[#5B6478]">leads</div>
+                        <div className="text-[9.5px] text-[#5B6478]">leads &amp; clients</div>
                       </div>
                     </div>
                   </div>
@@ -1346,12 +1342,11 @@ export const LeadsReferralsPage: React.FC = () => {
                 <div className="min-w-0">
                   <div
                     className="grid gap-[14px] border-b border-[#EEF1F5] bg-[#F6F8FA] px-[14px] py-[7px] text-[9.5px] font-bold tracking-[.08em] text-[#5B6478] uppercase"
-                    style={{ gridTemplateColumns: 'minmax(0,1fr) 60px 100px 90px 130px' }}
+                    style={{ gridTemplateColumns: 'minmax(0,1fr) 60px 100px 130px' }}
                   >
                     <span>Where they came from</span>
                     <span className="text-right">Leads</span>
                     <span className="text-right">Became clients</span>
-                    <span className="text-right" title="Every registered client with this source (Clients › Came to us through), including clients who never were a lead">All clients</span>
                     <span className="text-right">CONVERSION RATE</span>
                   </div>
                   {sources.map((s) => (
@@ -1360,7 +1355,7 @@ export const LeadsReferralsPage: React.FC = () => {
                         type="button"
                         onClick={() => setSrc(s.open ? null : s.key)}
                         className="grid w-full cursor-pointer items-center gap-[14px] border-0 border-b border-[#F0F2F5] px-[14px] py-[9px] text-left hover:bg-[#F6F8FA]!"
-                        style={{ gridTemplateColumns: 'minmax(0,1fr) 60px 100px 90px 130px', background: s.open ? '#F6F8FA' : '#fff', borderBottom: '1px solid #F0F2F5', fontFamily: 'inherit' }}
+                        style={{ gridTemplateColumns: 'minmax(0,1fr) 60px 100px 130px', background: s.open ? '#F6F8FA' : '#fff', borderBottom: '1px solid #F0F2F5', fontFamily: 'inherit' }}
                       >
                         <span className="flex items-center gap-[8px] text-[12px] font-bold text-[#16223A]">
                           <span className="w-[8px] text-[9px] text-[#5B6478]">{s.open ? '▼' : '▶'}</span>
@@ -1369,7 +1364,6 @@ export const LeadsReferralsPage: React.FC = () => {
                         </span>
                         <span className="text-right text-[13px] font-bold text-[#16223A]">{s.total}</span>
                         <span className="text-right text-[13px] font-bold text-[#2F6F4E]">{s.conv}</span>
-                        <span className="text-right text-[13px] font-bold text-[#2F5680]">{(clients || []).filter((x) => x.source === s.key).length}</span>
                         <span className="flex justify-end">
                           <span className="rounded-[20px] px-[8px] py-[2px] text-[11px] font-bold whitespace-nowrap" style={{ background: s.pbg, color: s.pc }}>
                             {s.pct}% · {s.grade}
@@ -2665,6 +2659,14 @@ export const LeadsReferralsPage: React.FC = () => {
                     })}
                     {dopt[1].length === 0 && <span className="text-[11px] text-[#94A3B8]">None yet.</span>}
                   </div>
+                )}
+                {dopt && !['platforms', 'programmes'].includes(whichOf(cats.find((c) => c.key === N.cat))) && (
+                  <input
+                    value={dopt[1].some((o) => o.v === N.detail) ? '' : N.detail}
+                    onChange={(e) => setN({ detail: e.target.value })}
+                    placeholder="Not in the list? Type the name"
+                    style={{ ...inputSt, width: '100%', marginTop: 6 }}
+                  />
                 )}
                 {!dopt && N.cat !== 'BNI' && (
                   <input

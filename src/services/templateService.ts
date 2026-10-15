@@ -405,7 +405,17 @@ export interface LeadSourceDef {
   tint: string;
   /** Pill text colour. */
   fg: string;
+  /** What "Who / which" offers for this source (set in Settings › Lists & sources). Unset = the
+   * built-in choice for the source (see whichOf). */
+  which?: WhichKind;
+  /** The firm's own options when which = 'own'. */
+  options?: string[];
 }
+/** Where a source's "Who / which" choices come from. */
+export type WhichKind = 'platforms' | 'partners' | 'staff' | 'programmes' | 'clients' | 'referrers' | 'own' | 'typed';
+export const WHICH_KINDS: [WhichKind, string][] = [['platforms', 'Social media platforms'], ['partners', 'Partners (Users & Roles)'], ['staff', 'Staff (Users & Roles)'], ['programmes', 'Programmes (Leads › Programmes)'], ['clients', 'Clients'], ['referrers', 'Referrers (Leads › Referrers)'], ['own', 'Its own list (type the options)'], ['typed', 'Typed in (no list)']];
+/** The list a source uses: what was set in Settings, else the built-in choice for that source. */
+export const whichOf = (d?: Pick<LeadSourceDef, 'key' | 'which'>): WhichKind => d?.which || ({ 'Social Media': 'platforms', Partner: 'partners', Staff: 'staff', 'Event / Seminar': 'programmes', 'Existing Client': 'clients', 'Outside Referrer': 'referrers' } as Record<string, WhichKind>)[d?.key || ''] || 'typed';
 
 export interface LeadPlatformDef {
   key: string;

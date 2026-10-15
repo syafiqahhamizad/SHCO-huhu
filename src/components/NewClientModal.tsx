@@ -5,7 +5,7 @@ import { useApp } from '../context/AppContext';
 import type { Client } from '../types';
 import { registrationConflicts } from '../lib/conflictUtils';
 import { css } from './views/finance/financeModel';
-import { getLeadSources } from '../services/templateService';
+import { SourceFields } from './ui/SourceFields';
 
 interface NewClientModalProps {
   isOpen: boolean;
@@ -26,8 +26,7 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({ isOpen, onClose,
   const [idNo, setIdNo] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [source, setSource] = useState('');
-  const [sourceDetail, setSourceDetail] = useState('');
+  const [src, setSrc] = useState<Pick<Client, 'source' | 'sourceDetail'>>({});
   const hits = useMemo(() => registrationConflicts({ name, idNo }, clients, cases), [name, idNo, clients, cases]);
   if (!isOpen) return null;
   const isCo = type === 'Corporate';
@@ -46,8 +45,8 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({ isOpen, onClose,
       contactPerson: isCo ? '' : stripSalutation(name),
       phone: phone.trim(),
       email: email.trim(),
-      ...(source ? { source } : {}),
-      ...(sourceDetail.trim() ? { sourceDetail: sourceDetail.trim() } : {}),
+      ...(src.source ? { source: src.source } : {}),
+      ...(src.sourceDetail ? { sourceDetail: src.sourceDetail } : {}),
       address: '',
       emergencyContact: '',
       notes: '',
@@ -86,8 +85,7 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({ isOpen, onClose,
             ))}
           </div>
           <div style={css('display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px')}>
-            <label style={css('display:flex;flex-direction:column;gap:4px')}><span style={css('font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#5B6478')}>Came to us through</span><select value={source} onChange={(e) => setSource(e.target.value)} style={css('width:100%;border:1px solid #DDE3EB;border-radius:6px;padding:8px 10px;font-size:12px;color:#16223A;background:#fff')}><option value="">—</option>{getLeadSources().map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</select></label>
-            <label style={css('display:flex;flex-direction:column;gap:4px')}><span style={css('font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#5B6478')}>Who / which</span><input value={sourceDetail} onChange={(e) => setSourceDetail(e.target.value)} placeholder="e.g. referred by Puan Aini, Instagram, BNI Bangi" style={css('width:100%;border:1px solid #DDE3EB;border-radius:6px;padding:8px 10px;font-size:12px;color:#16223A')} /></label>
+            <SourceFields value={src} onChange={(p) => setSrc((x) => ({ ...x, ...p }))} labelStyle={css('font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#5B6478')} inputStyle={css('width:100%;border:1px solid #DDE3EB;border-radius:6px;padding:8px 10px;font-size:12px;color:#16223A;background:#fff')} />
           </div>
           {hits.length > 0 && <div style={css('display:flex;gap:10px;padding:10px 12px;border-radius:8px;background:#F6E4E1;border:1px solid #E8BDB5')}><AlertTriangle size={16} color="#8E2A20" style={css('flex-shrink:0;margin-top:1px')} /><span style={css('font-size:11.5px;line-height:1.5;color:#8E2A20')}><strong>Possible conflict.</strong> {hits.join(' ')} The client will be saved as "Needs review".</span></div>}
           {!hits.length && name.trim().length >= 4 && <div style={css('display:flex;gap:10px;padding:10px 12px;border-radius:8px;background:#E6EFE9')}><CheckCircle2 size={16} color="#1F5A3B" style={css('flex-shrink:0')} /><span style={css('font-size:11.5px;color:#1F5A3B')}>No match against existing clients or opposing parties.</span></div>}

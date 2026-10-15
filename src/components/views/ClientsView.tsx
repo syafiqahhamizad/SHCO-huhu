@@ -16,6 +16,7 @@ import { casesOfClient, isOpenFile, moneyForClient, moneyForFile, type MoneySour
 import { parseDate } from '../../lib/financeCalc';
 import { exportToCsv } from '../../lib/exportUtils';
 import { getLeadSources, leadSourceLabel } from '../../services/templateService';
+import { SourceFields } from '../ui/SourceFields';
 import { whatsappLink } from '../../lib/whatsapp';
 import { personBits } from './settings/permissionModel';
 import {
@@ -590,8 +591,7 @@ const ProfileTab: React.FC<{ c: Client; ccPill: Pill; ccState: string; tier: Tie
         <div style={css('border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
           <div style={css(CARD_HEAD)}><strong style={css(H)}>Came to us through</strong></div>
           <div style={css('display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:14px 16px')}>
-            <label style={css('display:flex;flex-direction:column;gap:4px')}><span style={css(LABEL)}>Source</span><select value={c.source || ''} onChange={(e) => { const v = e.target.value; save({ source: v || undefined }, 'Came to us through: ' + (leadSourceLabel(c.source) || '—') + ' → ' + (leadSourceLabel(v) || '—')); }} style={css(INPUT)}><option value="">—</option>{getLeadSources().map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}{c.source && !getLeadSources().some((x) => x.key === c.source) && <option value={c.source}>{c.source}</option>}</select></label>
-            <label style={css('display:flex;flex-direction:column;gap:4px')}><span style={css(LABEL)}>Who / which</span><CommitField value={c.sourceDetail || ''} onCommit={(v) => { const t = v.trim(); if (t === (c.sourceDetail || '')) return; save({ sourceDetail: t || undefined }, 'Came to us through (who / which): ' + (t || '—')); }} placeholder="e.g. referred by Puan Aini" aria-label="Who referred them" style={css(INPUT)} /></label>
+            <SourceFields key={c.id} value={c} labelStyle={css(LABEL)} inputStyle={css(INPUT)} onChange={(p) => { const what = Object.entries(p).map(([k2, v2]) => (k2 === 'source' ? 'Source' : 'Who / which') + ': ' + (k2 === 'source' ? leadSourceLabel(v2 as string) : v2 || '—')).join(' · '); save(p, 'Came to us through · ' + what); }} />
           </div>
         </div>
         <div style={css('border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
@@ -647,7 +647,8 @@ const ClientList: React.FC<{
   };
   const byF = (x: Client) => !from || (from === '-' ? !x.source : x.source === from);
   const pre = clients.filter((x) => byQ(x) && byT(x) && byF(x));
-  const list = pre.filter((x) => !card || (CF[card] ? CF[card](x) : true));
+  // Newest client first (registration date, then client number).
+  const list = pre.filter((x) => !card || (CF[card] ? CF[card](x) : true)).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')) || String(b.clientNo || b.id).localeCompare(String(a.clientNo || a.id), undefined, { numeric: true }));
   const mk = (label: string, key: string, color: string, count: number, note: string) => ({ label, key, color, count, note });
   const cards = [
     mk('All clients', '', '#16223A', pre.length, clients.filter((x) => I(x).files.some((f) => f.status === 'Active')).length + ' with an active file'),
@@ -662,7 +663,7 @@ const ClientList: React.FC<{
     showToast('SHCO_Clients.csv downloaded');
   };
   const hasFilters = !!(q || type !== 'All' || card || from);
-  const COLS = 'display:grid;grid-template-columns:minmax(230px,1.6fr) 150px minmax(170px,1fr) 70px ' + (seeBilling ? '104px ' : '') + '88px 104px 88px 150px;gap:12px;';
+  const COLS = 'display:grid;grid-template-columns:minmax(150px,1.5fr) minmax(110px,1fr) 52px ' + (seeBilling ? '70px ' : '') + '118px 112px;gap:10px;';
   return (
     <div style={css('display:flex;flex-direction:column;gap:16px;font-size:12px;color:#16223A;font-family:Inter,system-ui,-apple-system,sans-serif')}>
       <div style={css('display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;background:#fff;border:1px solid #DDE3EB;padding:16px;border-radius:12px')}>
@@ -701,9 +702,9 @@ const ClientList: React.FC<{
       </div>
 
       <div style={css('background:#fff;border:1px solid #DDE3EB;border-radius:12px;overflow-x:auto')}>
-        <div style={css('min-width:1180px')}>
+        <div style={css('min-width:640px')}>
           <div style={css(COLS + 'padding:11px 14px;background:#16223A;color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em')}>
-            <span>Client</span><span>NRIC / SSM no.</span><span>Contact</span><span>Files</span>{seeBilling && <span style={css('text-align:right')}>Owes us</span>}<span>KYC</span><span>Conflict</span><span>Portal</span>
+            <span>Client · NRIC / SSM</span><span>Contact</span><span>Files</span>{seeBilling && <span style={css('text-align:right')}>Owes us</span>}<span>KYC · Conflict · Portal</span>
           <span>Came from</span></div>
           {list.map((x) => {
             const inf = I(x);
@@ -715,15 +716,16 @@ const ClientList: React.FC<{
               <div key={x.id} onClick={() => onOpen(x.id)} className="bg-white hover:bg-[#F6F8FA]" style={css(COLS + 'align-items:center;padding:11px 14px;border-bottom:1px solid #F0F2F5;cursor:pointer')}>
                 <span style={css('display:flex;align-items:center;gap:10px;min-width:0')}>
                   <span style={css(`width:32px;height:32px;flex-shrink:0;border-radius:${isCo ? '8px' : '9999px'};display:grid;place-items:center;font-size:11px;font-weight:800;color:#fff;background:${isCo ? '#3D6B9C' : '#16223A'}`)}>{initials(x.name)}</span>
-                  <span style={css('display:flex;flex-direction:column;gap:2px;min-width:0')}><span style={css('font-size:12.5px;font-weight:700;color:#16223A;line-height:1.35')}>{x.name}</span><span style={css('font-size:10.5px;color:#5B6478')}>{clientRef(x) + ' · ' + (isCo ? x.entityCategory || 'Company' : 'Individual') + (x.source ? ' · via ' + leadSourceLabel(x.source) : '') + ((x.tags || []).length ? ' · ' + (x.tags || []).join(', ') : '')}</span></span>
+                  <span style={css('display:flex;flex-direction:column;gap:2px;min-width:0')}><span style={css('font-size:12.5px;font-weight:700;color:#16223A;line-height:1.35')}>{x.name}</span><span style={css('font-size:10.5px;color:#5B6478')}>{clientRef(x) + ' · ' + (isCo ? x.entityCategory || 'Company' : 'Individual') + ((x.tags || []).length ? ' · ' + (x.tags || []).join(', ') : '')}</span><span style={css('font-family:ui-monospace,monospace;font-size:10.5px;color:#1E293B')}>{idNoOf(x) || '—'}</span></span>
                 </span>
-                <span style={css('font-family:ui-monospace,monospace;font-size:11px;color:#1E293B')}>{idNoOf(x) || '—'}</span>
                 <span style={css('display:flex;flex-direction:column;gap:2px;min-width:0')}><span style={css('font-weight:600;color:#16223A')}>{x.phone || '—'}</span><span style={css('font-size:11px;color:#5B6478;overflow:hidden;text-overflow:ellipsis;white-space:nowrap')}>{x.email}</span></span>
                 <span style={css('font-weight:700;color:#16223A')}>{act ? act + ' open' : inf.files.length ? inf.files.length + ' closed' : '—'}</span>
                 {seeBilling && <span style={css(`text-align:right;font-weight:700;color:${o > 0 ? '#8E2A20' : '#5B6478'}`)}>{o > 0 ? rm(o) : '—'}</span>}
-                <span style={pillCss(kp)}>{kp.t}</span>
-                <span style={pillCss(cp)}>{cp.t}</span>
-                <span style={pillCss(pp)}>{pp.t}</span>
+                <span style={css('display:flex;flex-direction:column;gap:3px;align-items:flex-start')}>
+                  <span style={pillCss(kp)}>KYC: {kp.t}</span>
+                  <span style={pillCss(cp)}>Conflict: {cp.t}</span>
+                  <span style={pillCss(pp)}>Portal: {pp.t}</span>
+                </span>
                 <select value={x.source || ''} onClick={(e) => e.stopPropagation()} onChange={(e) => setSource(x, e.target.value)} aria-label={'Came from: ' + x.name} style={css(`border:1px solid ${x.source ? '#DDE3EB' : '#E8C9A0'};border-radius:6px;padding:4px 6px;font-size:11px;color:#16223A;background:${x.source ? '#fff' : '#FDF8EE'};font-family:inherit;min-width:0`)}><option value="">— set —</option>{getLeadSources().map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}{x.source && !getLeadSources().some((o) => o.key === x.source) && <option value={x.source}>{x.source}</option>}</select>
               </div>
             );

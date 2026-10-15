@@ -216,7 +216,7 @@ export interface Client {
   clientNo?: string;
   /** Where the client came from: a key of the Lead sources list (Settings › Lists & sources). */
   source?: string;
-  /** Who referred them / which platform or event (free text). */
+  /** Who referred them / which platform or event (from the registered lists). */
   sourceDetail?: string;
   name: string;
   type: 'Individual' | 'Corporate';
