@@ -218,6 +218,8 @@ export interface Client {
   source?: string;
   /** Who referred them / which platform or event (from the registered lists). */
   sourceDetail?: string;
+  /** The person who brought the client in and earns the referral fee (firm staff / partner or an outside referrer). */
+  referrer?: string;
   name: string;
   type: 'Individual' | 'Corporate';
   entityCategory?: CorporateEntityCategory;

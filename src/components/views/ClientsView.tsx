@@ -591,7 +591,7 @@ const ProfileTab: React.FC<{ c: Client; ccPill: Pill; ccState: string; tier: Tie
         <div style={css('border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>
           <div style={css(CARD_HEAD)}><strong style={css(H)}>Came to us through</strong></div>
           <div style={css('display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:14px 16px')}>
-            <SourceFields key={c.id} value={c} labelStyle={css(LABEL)} inputStyle={css(INPUT)} onChange={(p) => { const what = Object.entries(p).map(([k2, v2]) => (k2 === 'source' ? 'Source' : 'Who / which') + ': ' + (k2 === 'source' ? leadSourceLabel(v2 as string) : v2 || '—')).join(' · '); save(p, 'Came to us through · ' + what); }} />
+            <SourceFields key={c.id} value={c} labelStyle={css(LABEL)} inputStyle={css(INPUT)} onChange={(p) => { const what = Object.entries(p).map(([k2, v2]) => (k2 === 'source' ? 'Source' : k2 === 'referrer' ? 'Referrer' : 'Who / which') + ': ' + (k2 === 'source' ? leadSourceLabel(v2 as string) : v2 || '—')).join(' · '); save(p, 'Came to us through · ' + what); }} />
           </div>
         </div>
         <div style={css('border-radius:12px;border:1px solid #DDE3EB;background:#fff')}>

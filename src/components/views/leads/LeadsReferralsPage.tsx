@@ -365,7 +365,8 @@ export const LeadsReferralsPage: React.FC = () => {
     const extra = (clients || []).filter((c) => c.source && !linked.has(c.id)).map((c): LV => {
       const d = (c.sourceDetail || '').trim();
       const detailRaw = c.source === 'Social Media' ? plats.find((p) => norm(p.label) === norm(d))?.key || d : c.source === 'Event / Seminar' ? ((programmes || []).find((p) => norm(p.title) === norm(d))?.id || d) : d;
-      const picName = c.source === 'BNI' ? SH_NAME : '';
+      // The client's referrer (earns the fee); BNI clients are SH's by firm rule unless another referrer is set.
+      const picName = (c.referrer || '').trim() || (c.source === 'BNI' ? SH_NAME : '');
       return {
         raw: { id: 'client:' + c.id, name: c.name, phone: c.phone || '', email: c.email || '', referralDetail: d, stage: 'Converted', clientId: c.id } as unknown as Lead,
         id: 'client:' + c.id, name: c.name, area: '—', cat: c.source!, detailRaw, detail: d || (c.source === 'BNI' ? 'BNI' : '—'), ch: '',
@@ -512,7 +513,8 @@ export const LeadsReferralsPage: React.FC = () => {
   const refPeople: Person[] = useMemo(() => {
     const mk = (u: User, grp: 'Partner' | 'Staff'): Person => {
       const isSH = grp === 'Partner' && u === shUser;
-      const mine = LA.filter((l) => (l.cat === grp && norm(l.detailRaw) === norm(u.name)) || (isSH && l.cat === 'BNI')).sort(byDateDesc);
+      // Theirs: named as the source (Partner / Staff → them), their BNI (SH), or set as the referrer.
+      const mine = LA.filter((l) => (l.cat === grp && norm(l.detailRaw) === norm(u.name)) || (isSH && l.cat === 'BNI') || (!!l.picName && norm(l.picName) === norm(u.name))).sort(byDateDesc);
       return { code: codeOf(u.name), name: u.name, role: roleLabel(u), color: grp === 'Partner' ? PC[codeOf(u.name)] || '#2E7D7A' : '#5E6F2F', grp, mine };
     };
     return [...partners.map((u) => mk(u, 'Partner')), ...staff.map((u) => mk(u, 'Staff'))];
@@ -526,6 +528,13 @@ export const LeadsReferralsPage: React.FC = () => {
       const k = norm(l.raw.referralDetail);
       if (!m.has(k)) m.set(k, { name: l.raw.referralDetail!.trim(), arr: [] });
       m.get(k)!.arr.push(l);
+    });
+    // Clients whose referrer is someone outside the firm (e.g. a social-media client brought in by an agent).
+    const firm = new Set(firmUsers.map((u) => norm(u.name)));
+    LA.filter((l) => l.id.startsWith('client:') && l.picName && !firm.has(norm(l.picName))).forEach((l) => {
+      const k = norm(l.picName);
+      if (!m.has(k)) m.set(k, { name: l.picName, arr: [] });
+      if (!m.get(k)!.arr.includes(l)) m.get(k)!.arr.push(l);
     });
     // Outside referral partners registered in Referral partners & fee rates show even with no lead yet.
     const ext = (referralPartners || []).filter((p) => p.type === 'External' && p.active !== false);
@@ -548,7 +557,7 @@ export const LeadsReferralsPage: React.FC = () => {
         fee: feeOf(name),
       }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [LA, referralPartners]);
+  }, [LA, referralPartners, firmUsers]);
   const allPeople = [...refPeople, ...outsiders];
   const teamReferred =
     refPeople.reduce((s, p) => s + p.mine.length, 0) + bniOrphans.length;
@@ -746,6 +755,7 @@ export const LeadsReferralsPage: React.FC = () => {
         notes: `Converted from Lead ${l.id} (${l.source || CAT(lv.cat).label}). Interest Area: ${l.practiceArea || 'General'}.`,
         source: lv.cat || undefined,
         sourceDetail: lv.detail || l.referralDetail || undefined,
+        referrer: lv.picName || undefined,
         kyc: [],
         conflictCheck: {
           status: autoConflicts.length > 0 ? 'Flagged' : 'Clear',
@@ -1686,12 +1696,12 @@ export const LeadsReferralsPage: React.FC = () => {
           </div>
           <div
             className="grid gap-[12px] border-b border-[#EEF1F5] bg-[#F6F8FA] px-[14px] py-[7px] text-[9.5px] font-bold tracking-[.08em] text-[#5B6478] uppercase"
-            style={{ gridTemplateColumns: 'minmax(0,1.3fr) 110px minmax(0,1.2fr) 44px 104px minmax(0,1.4fr) 76px 28px' }}
+            style={{ gridTemplateColumns: 'minmax(0,1.3fr) 110px minmax(0,1.2fr) 60px 104px minmax(0,1.4fr) 130px 28px' }}
           >
             <span>Lead</span>
             <span>Interested in</span>
             <span>Came from</span>
-            <span>PIC</span>
+            <span title="The person who brought them in (earns the referral fee)">Referrer</span>
             <span>Stage</span>
             <span>Became a client?</span>
             <span />
@@ -1708,7 +1718,7 @@ export const LeadsReferralsPage: React.FC = () => {
               <div
                 key={l.id}
                 className="grid items-center gap-[12px] border-b border-[#F0F2F5] px-[14px] py-[9px]"
-                style={{ gridTemplateColumns: 'minmax(0,1.3fr) 110px minmax(0,1.2fr) 44px 104px minmax(0,1.4fr) 76px 28px' }}
+                style={{ gridTemplateColumns: 'minmax(0,1.3fr) 110px minmax(0,1.2fr) 60px 104px minmax(0,1.4fr) 130px 28px' }}
               >
                 <div className="min-w-0">
                   <p className="m-0 overflow-hidden text-[12px] font-bold text-ellipsis whitespace-nowrap text-[#16223A]">{l.name}</p>
@@ -1763,7 +1773,7 @@ export const LeadsReferralsPage: React.FC = () => {
                     </div>
                   )}
                 </div>
-                <span className="flex justify-end">
+                <span className="flex items-center justify-end gap-[10px]">
                   {isOpen && (
                     <button
                       type="button"

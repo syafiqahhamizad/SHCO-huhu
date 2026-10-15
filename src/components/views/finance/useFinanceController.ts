@@ -749,7 +749,7 @@ export function useFinanceController(initialTab: FinTab) {
       // or a lead from this referrer that became the client (Leads & Referrals).
       const isP = (x?: string) => !!x && (norm(x) === norm(p.name) || norm(x) === norm(p.id));
       const viaClients = new Set([
-        ...(app.clients || []).filter((cl) => isP(cl.sourceDetail)).map((cl) => cl.id),
+        ...(app.clients || []).filter((cl) => isP(cl.referrer) || isP(cl.sourceDetail)).map((cl) => cl.id),
         ...(app.leads || []).filter((l) => l.clientId && isP(l.referralDetail)).map((l) => l.clientId!),
       ]);
       const cs = cases.filter((c) => isP(c.referredBy) || String(c.clientId || '').split(',').map((x) => x.trim()).some((id) => viaClients.has(id)));

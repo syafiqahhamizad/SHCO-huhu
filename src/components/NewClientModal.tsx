@@ -26,7 +26,7 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({ isOpen, onClose,
   const [idNo, setIdNo] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [src, setSrc] = useState<Pick<Client, 'source' | 'sourceDetail'>>({});
+  const [src, setSrc] = useState<Pick<Client, 'source' | 'sourceDetail' | 'referrer'>>({});
   const hits = useMemo(() => registrationConflicts({ name, idNo }, clients, cases), [name, idNo, clients, cases]);
   if (!isOpen) return null;
   const isCo = type === 'Corporate';
@@ -47,6 +47,7 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({ isOpen, onClose,
       email: email.trim(),
       ...(src.source ? { source: src.source } : {}),
       ...(src.sourceDetail ? { sourceDetail: src.sourceDetail } : {}),
+      ...(src.referrer ? { referrer: src.referrer } : {}),
       address: '',
       emergencyContact: '',
       notes: '',
