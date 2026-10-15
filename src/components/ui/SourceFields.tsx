@@ -47,13 +47,15 @@ export const SourceFields: React.FC<{
   const [draft, setDraft] = useState(value.sourceDetail || '');
   const firmNames = (app.users || []).filter((u) => u.role !== 'Client' && u.status !== 'Inactive').map((u) => u.name).sort();
   const outside = [...new Set((app.referralPartners || []).filter((r) => r.active !== false && r.type === 'External').map((r) => r.name))].sort();
-  // Picking a person as "Who / which" (a partner, staff, referrer or client) also fills the referrer.
-  const pick = (detail?: string) => onChange({ sourceDetail: detail, ...(!value.referrer && detail && [...firmNames, ...outside].includes(detail) ? { referrer: detail } : {}) });
+  // Source is a person (partner, staff, client, outside referrer): that person IS the referrer, no second field.
+  const def = getLeadSources().find((x) => x.key === value.source);
+  const byPerson = !!value.source && ['referrers', 'partners', 'staff', 'clients'].includes(whichOf(def || { key: value.source }));
+  const pick = (detail?: string) => onChange({ sourceDetail: detail, ...(byPerson ? { referrer: detail } : {}) });
   const field = (label: string, el: React.ReactNode) => <label style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}><span style={labelStyle}>{label}</span>{el}</label>;
   return (
     <>
       {field('Source', (
-        <select value={value.source || ''} onChange={(e) => { setTyping(false); setDraft(''); onChange({ source: e.target.value || undefined, sourceDetail: undefined }); }} style={inputStyle}>
+        <select value={value.source || ''} onChange={(e) => { setTyping(false); setDraft(''); onChange({ source: e.target.value || undefined, sourceDetail: undefined, ...(byPerson ? { referrer: undefined } : {}) }); }} style={inputStyle}>
           <option value="">—</option>
           {getLeadSources().map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}
           {value.source && !getLeadSources().some((x) => x.key === value.source) && <option value={value.source}>{value.source}</option>}
@@ -66,9 +68,9 @@ export const SourceFields: React.FC<{
           <option value={OTHER}>Other… (type a name)</option>
         </select>
       ) : (
-        <input value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => { const t = draft.trim(); if (t !== (value.sourceDetail || '')) onChange({ sourceDetail: t || undefined }); }} placeholder={opts ? 'Type the name' : 'e.g. found us on Google'} style={inputStyle} />
+        <input value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => { const t = draft.trim(); if (t !== (value.sourceDetail || '')) pick(t || undefined); }} placeholder={opts ? 'Type the name' : 'e.g. found us on Google'} style={inputStyle} />
       ))}
-      {field('Referrer (gets commission)', (
+      {!byPerson && field('Referrer', (
         <select value={value.referrer || ''} onChange={(e) => onChange({ referrer: e.target.value || undefined })} style={inputStyle}>
           <option value="">—</option>
           <optgroup label="Firm">{firmNames.map((p) => <option key={'f' + p} value={p}>{p}</option>)}</optgroup>
