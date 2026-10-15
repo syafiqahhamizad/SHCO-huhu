@@ -22,6 +22,7 @@ import { identityTokens, isMine } from '../../../lib/identity';
 import { firstDriveFolderId } from '../../../lib/claimFilters';
 import * as SD from '../../../lib/financeDocs';
 import { whatsappLink } from '../../../lib/whatsapp';
+import { queueClientEmail, watchClientEmail } from '../../../services/clientMailService';
 import { statutoryForPayslip, STATUTORY_VERSION } from '../../../lib/statutory';
 import { finRoleKey, finGrants, finTabsFor, FIN_TABS, type FinTab } from '../../../lib/financeAccess';
 import { approverCode } from '../../../lib/approvers';
@@ -1078,7 +1079,13 @@ export function useFinanceController(initialTab: FinTab) {
   /* ------------------------------ document actions ------------------------------ */
   const clientByName = (name: string) => lk.clientByName.get(norm(name));
   const caseForRef = (ref: string) => lk.caseByRef.get(ref.trim()) || lk.caseById.get(ref.trim());
-  const mailto = (email: string | undefined, subject: string, body: string) => { try { window.location.href = `mailto:${email || ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`; } catch { /* no mail client */ } };
+  /** A client's e-mail and phone: from the client record, else from their lead (already registered there). */
+  const contactFor = (clientId?: string, name?: string, leadId?: string) => {
+    const nmx = (x?: string) => String(x || '').trim().toLowerCase();
+    const c = (clientId && lk.clientById.get(clientId)) || clientByName(name || '');
+    const lead = (app.leads || []).find((l) => (!!leadId && l.id === leadId) || (!!c && l.clientId === c.id) || (!!name && nmx(l.name) === nmx(name)) || (!!c && nmx(l.name) === nmx(c.name)));
+    return { c, email: (c?.email || '').trim() || (lead?.email || '').trim(), phone: (c?.phone || '').trim() || (lead?.phone || '').trim() };
+  };
 
   /** Actions that used to stamp today ask for the date first (past entries can be keyed in). */
   const DATED_ACTS = ['Issue', 'Make proforma'];
@@ -1099,7 +1106,7 @@ export function useFinanceController(initialTab: FinTab) {
       // Opens the e-mail / WhatsApp window with the message ready; marked Sent once it goes.
       const q = rec as Quotation; const c = clientByName(q.clientName); const lead = (app.leads || []).find((l) => l.id === q.leadId || l.name === q.clientName);
       const who = c?.contactPerson || c?.name || q.clientName || 'Sir/Madam'; const what = q.documentType === 'Proforma' ? 'proforma invoice' : 'quotation';
-      const email = c?.email || lead?.email || ''; const phone = c?.phone || lead?.phone || '';
+      const ct = contactFor(q.partyId, q.clientName, q.leadId || lead?.id); const email = ct.email; const phone = ct.phone;
       setRem({ kind, id: q.id, send: true, to: email, subj: (q.documentType === 'Proforma' ? 'Proforma invoice ' : 'Quotation ') + docNo + (q.matter ? ' · ' + q.matter : ''), body: `Dear ${who},\n\nThank you for your enquiry. Please find attached our ${what} ${docNo}${q.matter ? ' for ' + q.matter : ''} amounting to ${rm2(Number(q.total || 0))}.\n\nDo let us know if you have any questions, or reply to confirm and we will proceed.\n\nYours faithfully,\n${SD.FIRM.name}`, attach: true, viaE: true, viaW: !!phone && !email, phone, wa: `Salam / Hi ${who}, ${SD.FIRM.name} here. Our ${what} ${docNo} (${rm2(Number(q.total || 0))}) has been e-mailed to you. Please let us know if you have any questions. Thank you.` });
       return;
     }
@@ -1107,12 +1114,13 @@ export function useFinanceController(initialTab: FinTab) {
     if (a === 'Remind') {
       // Design: a reminder window (email and / or WhatsApp) with the message ready to edit.
       const inv = kind === 'invoice' ? (rec as Invoice) : undefined;
-      const c = inv ? lk.clientById.get(inv.clientId) || clientByName(inv.partyName || '') : clientByName((rec as Quotation).clientName);
+      const ct = inv ? contactFor(inv.clientId, inv.partyName) : contactFor((rec as Quotation).partyId, (rec as Quotation).clientName, (rec as Quotation).leadId);
+      const c = ct.c;
       const bal = inv ? invBal(inv) : Number((rec as Quotation).total || 0) - proformaPaid(rec as Quotation);
       const n = (inv?.reminders || []).length; const amt = rm2(bal); const days = inv ? ageDays(inv) : 0;
       const who = c?.contactPerson || c?.name || (inv ? inv.partyName : (rec as Quotation).clientName) || 'Sir/Madam';
       const bank = `${SD.BANK.Office[0]} · ${SD.BANK.Office[1]} · ${SD.BANK.Office[2]}`;
-      setRem({ kind, id: rec.id, to: c?.email || '', subj: (n ? 'Second reminder' : 'Payment reminder') + ': ' + docNo + ' · ' + amt + ' outstanding', body: `Dear ${who},\n\nRe: ${(inv?.matter || (rec as Quotation).matter || '')}\n\nOur records show that ${docNo} dated ${fd(rec.date)} has an outstanding balance of ${amt}${inv ? ', now ' + days + ' days past due' : ''}.\n\nWe would be grateful if payment could be made to our office account:\n${bank}\nPlease quote ${docNo} as the payment reference.\n\nIf payment has already been made, kindly send us the bank-in slip and disregard this reminder.\n\nThank you.\n\nYours faithfully,\n${SD.FIRM.name}`, attach: true, viaE: true, viaW: !!c?.phone, phone: c?.phone || '', wa: `Salam / Hi ${who}, a reminder from ${SD.FIRM.name}: ${docNo} has ${amt} outstanding${inv ? ' (' + days + ' days overdue)' : ''}. Please pay to ${SD.BANK.Office[0]} ${SD.BANK.Office[2]} (${SD.BANK.Office[1]}) quoting ${docNo}. If already paid, kindly send us the bank-in slip. Thank you.` });
+      setRem({ kind, id: rec.id, to: ct.email, subj: (n ? 'Second reminder' : 'Payment reminder') + ': ' + docNo + ' · ' + amt + ' outstanding', body: `Dear ${who},\n\nRe: ${(inv?.matter || (rec as Quotation).matter || '')}\n\nOur records show that ${docNo} dated ${fd(rec.date)} has an outstanding balance of ${amt}${inv ? ', now ' + days + ' days past due' : ''}.\n\nWe would be grateful if payment could be made to our office account:\n${bank}\nPlease quote ${docNo} as the payment reference.\n\nIf payment has already been made, kindly send us the bank-in slip and disregard this reminder.\n\nThank you.\n\nYours faithfully,\n${SD.FIRM.name}`, attach: true, viaE: !!ct.email || !ct.phone, viaW: !!ct.phone, phone: ct.phone, wa: `Salam / Hi ${who}, a reminder from ${SD.FIRM.name}: ${docNo} has ${amt} outstanding${inv ? ' (' + days + ' days overdue)' : ''}. Please pay to ${SD.BANK.Office[0]} ${SD.BANK.Office[2]} (${SD.BANK.Office[1]}) quoting ${docNo}. If already paid, kindly send us the bank-in slip. Thank you.` });
       return;
     }
     if (a === 'Record paid' && kind === 'invoice' && invStatus(rec as Invoice) === 'Draft') act(kind, rec, 'Issue', todayIso()); // paying a draft issues it today
@@ -1225,16 +1233,30 @@ export function useFinanceController(initialTab: FinTab) {
   const sendReminder = () => {
     const r = rem; if (!r) return;
     if (!r.viaE && !r.viaW) { toastMsg('Choose email, WhatsApp or both'); return; }
-    if (r.viaE && !/.+@.+\..+/.test(r.to || '')) { toastMsg("Enter the client's email address"); return; }
+    if (r.viaE && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test((r.to || '').trim())) { toastMsg("Enter the client's email address"); return; }
     const link = r.viaW ? whatsappLink(r.phone, r.wa) : null;
     if (r.viaW && !link) { toastMsg("Enter the client's mobile number, e.g. 012-345 6789"); return; }
     if (link) window.open(link, '_blank', 'noopener');
-    if (r.viaE) { const d = buildDoc({ kind: r.kind, id: r.id }); if (r.attach && d) SD.pdf(d.no, SD.docHtml(d)); mailto(r.to, r.subj, r.body); }
-    const via = [r.viaE && 'email', r.viaW && 'WhatsApp'].filter(Boolean).join(' & ');
-    if (r.send) { app.updateQuotation(r.id, { status: 'Sent', documentSentDate: todayIso(), documentSentBy: me }); setRem(null); toastMsg(r.id + ' sent by ' + via + (r.viaE ? ' · e-mail draft opened, attach ' + r.id + '.pdf' : '')); return; }
-    if (r.kind === 'invoice') { const inv = invoices.find((i) => i.id === r.id); if (inv) app.updateInvoice(inv.id, { reminders: [...(inv.reminders || []), fd(Date.now()) + ' · ' + via] }); }
+    const done = (via: string) => {
+      if (r.send) app.updateQuotation(r.id, { status: 'Sent', documentSentDate: todayIso(), documentSentBy: me });
+      else if (r.kind === 'invoice') { const inv = invoices.find((i) => i.id === r.id); if (inv) app.updateInvoice(inv.id, { reminders: [...(inv.reminders || []), fd(Date.now()) + ' · ' + via] }); }
+    };
     setRem(null);
-    toastMsg('Reminder ready by ' + via + (r.viaE ? ' · email draft opened' + (r.attach ? ', ' + r.id + '.pdf to attach' : '') : '') + (r.viaW ? ' · press Send in WhatsApp' : ''));
+    if (!r.viaE) { done('WhatsApp'); toastMsg('WhatsApp opened with the message · press Send there'); return; }
+    // E-mail is really sent from the portal mailbox (not a draft). The document goes inside the e-mail.
+    const esc2 = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const d = r.attach ? buildDoc({ kind: r.kind, id: r.id }) : null;
+    let docPart = d ? SD.docHtml(d) : '';
+    if (docPart.length > 280000) docPart = '';
+    const html = `<div style="font-family:Arial,sans-serif;font-size:14px;color:#16223A;white-space:pre-wrap">${esc2(r.body)}</div>${docPart ? '<hr style="margin:24px 0;border:0;border-top:1px solid #DDE3EB">' + docPart : ''}`;
+    toastMsg('Sending email to ' + r.to + '…');
+    void queueClientEmail({ to: r.to, subject: r.subj, text: r.body, html, docId: r.id, kind: r.send ? 'send' : 'reminder', createdBy: currentUser?.email || '' }).then((id) => {
+      const stop = watchClientEmail(id, (st, err) => {
+        if (st === 'SUCCESS') { stop(); done(r.viaW ? 'email & WhatsApp' : 'email'); toastMsg('Email sent to ' + r.to + (r.send ? ' · ' + r.id + ' marked sent' : ' · reminder recorded')); }
+        if (st === 'ERROR') { stop(); toastMsg('Email NOT sent: ' + (err || 'unknown error') + (r.viaW ? ' (WhatsApp was opened)' : '')); }
+      });
+      setTimeout(stop, 120000);
+    }).catch((e) => toastMsg('Email NOT sent: ' + (e instanceof Error ? e.message : String(e)) + '. Only people who may edit billing can email clients.'));
   };
 
   const openNew = (type: 'Quotation' | 'Proforma' | 'Invoice' | 'Receipt') => {

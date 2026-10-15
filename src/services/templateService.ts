@@ -351,13 +351,20 @@ export const DEFAULT_BRANCHES: FirmBranch[] = [
   { id: 'br-terengganu', name: 'Terengganu', address: 'Lot 7076, Taman Safiah Murni, Bukit Payong, 21400 Marang' },
 ];
 
+/** The firm's group addresses (Google Groups). The portal sends each kind of e-mail from its own. */
 export const DEFAULT_PURPOSE_EMAILS: PurposeEmail[] = [
-  { purpose: 'General enquiries', email: '', usedFor: 'Website, Google profile, general letters' },
-  { purpose: 'Billing & receipts', email: '', usedFor: 'Printed on finance documents; sends invoices, receipts and payment reminders' },
-  { purpose: 'Payroll & HR', email: '', usedFor: 'Sends payslips and EA forms to staff' },
-  { purpose: 'Client portal', email: '', usedFor: 'Portal invites and file updates to clients (no replies)' },
-  { purpose: 'New leads', email: '', usedFor: 'Website form and new-lead alerts to the person in charge' },
+  { purpose: 'General enquiries', email: 'office.shco@shcolaw.com', usedFor: 'Website, Google profile, general letters; staff alerts from the portal' },
+  { purpose: 'Billing & receipts', email: 'billing@shcolaw.com', usedFor: 'Sends quotations, proformas, invoices, receipts and payment reminders' },
+  { purpose: 'Payroll & HR', email: 'account@shcolaw.com', usedFor: 'Sends payslips, leave and claim alerts to staff' },
+  { purpose: 'Client portal', email: 'portal@shcolaw.com', usedFor: 'Portal sign-in e-mails and file updates to clients' },
+  { purpose: 'New leads', email: 'consultation@shcolaw.com', usedFor: 'New-lead alerts to the person in charge' },
+  { purpose: 'Careers', email: 'career@shcolaw.com', usedFor: 'Job applications' },
+  { purpose: 'Call centre', email: 'callcentre@shcolaw.com', usedFor: 'Call notifications' },
 ];
+/** The purposes the portal itself sends from (fixed names; their e-mail can be changed). */
+export const PURPOSE_BUILTIN = ['General enquiries', 'Billing & receipts', 'Payroll & HR', 'Client portal', 'New leads'];
+/** The e-mail set for a purpose (blank = the firm default above). */
+export const purposeEmail = (purpose: string) => (getPracticeSettings().purposeEmails || []).find((x) => x.purpose === purpose)?.email?.trim() || DEFAULT_PURPOSE_EMAILS.find((x) => x.purpose === purpose)?.email || '';
 
 /** [key, label, default format] — Banks, Numbering & SST → Document numbering. */
 export const DOC_NUMBERING: [string, string, string][] = [

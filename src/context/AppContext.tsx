@@ -1587,9 +1587,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setNotifications((prev) => [newNotif, ...prev].slice(0, 400));
     if (SAFE_PREVIEW_MODE || anonymous) return;
     const mail = notificationEmail(newNotif, window.location.origin);
+    // Sent from the firm's group address for the topic: HR (leave, claims, payslips), new leads, billing, else general.
+    const lt = newNotif.linkTab || '';
+    const purpose = ['staffPortal', 'reimbursements', 'payroll'].includes(lt) ? 'Payroll & HR' : lt === 'leadsReferrals' ? 'New leads' : ['billing', 'approvals'].includes(lt) ? 'Billing & receipts' : 'General enquiries';
     recipients.forEach((u) => {
       if (/@shcolaw\.com$/i.test(u.email || '')) {
-        queueEmail(u.email.toLowerCase(), mail, currentUser.email || currentUser.name).catch((e) => console.warn('E-mail not queued for ' + u.email, e));
+        queueEmail(u.email.toLowerCase(), mail, currentUser.email || currentUser.name, purpose).catch((e) => console.warn('E-mail not queued for ' + u.email, e));
       }
     });
   };

@@ -31,6 +31,27 @@ function explain(err) {
   return msg.slice(0, 500);
 }
 
+/** The firm's group address for each kind of e-mail (Settings › Firm & Letterhead › Emails by purpose). */
+const PURPOSE_DEFAULTS = {
+  'General enquiries': 'office.shco@shcolaw.com',
+  'Billing & receipts': 'billing@shcolaw.com',
+  'Payroll & HR': 'account@shcolaw.com',
+  'Client portal': 'portal@shcolaw.com',
+  'New leads': 'consultation@shcolaw.com',
+};
+/**
+ * "Syafiqah Hamizad & Co <group@shcolaw.com>" for a purpose, or null (then the sending account
+ * is used). Gmail shows the group as From only when the sending account has it as a "Send mail
+ * as" address; Reply-To always goes to the group.
+ */
+async function fromFor(purpose) {
+  if (!purpose) return null;
+  const ps = await db.doc('firm/main/config/practiceSettings').get();
+  const set = ((ps.exists && (ps.get('value') || {}).purposeEmails) || []).find((x) => x && x.purpose === purpose);
+  const email = String((set && set.email) || PURPOSE_DEFAULTS[purpose] || '').trim().toLowerCase();
+  return FIRM_ADDRESS.test(email) ? { from: `Syafiqah Hamizad & Co <${email}>`, replyTo: email } : null;
+}
+
 /** SMTP transport + From address from Settings → Notification e-mails. */
 async function smtp() {
   const [cfgSnap, secretSnap] = await Promise.all([db.doc('privateConfig/mail').get(), db.doc('privateConfig/mailSecret').get()]);
@@ -63,10 +84,12 @@ exports.sendQueuedMail = onDocumentCreated(
       if (!FIRM_ADDRESS.test(to)) throw new Error('Only @shcolaw.com addresses receive portal e-mails.');
       const message = m.message || {};
 
-      const { transport, from, replyTo } = await smtp();
+      const base = await smtp();
+      const p = await fromFor(m.purpose ? String(m.purpose) : 'General enquiries');
+      const { transport } = base;
       const info = await transport.sendMail({
-        from,
-        replyTo,
+        from: p ? p.from : base.from,
+        replyTo: p ? p.replyTo : base.replyTo,
         to,
         subject: String(message.subject || '[SHCO Portal]').slice(0, 200),
         text: String(message.text || ''),
@@ -139,7 +162,11 @@ exports.sendAccountEmail = onDocumentCreated(
       const listed = access.exists ? (access.get('users') || {})[accessKey(email)] : null;
       const auth = getAuth();
       const actionSettings = { url: PORTAL };
-      const { transport, from, replyTo } = await smtp();
+      const base = await smtp();
+      const pp = await fromFor('Client portal');
+      const { transport } = base;
+      const from = pp ? pp.from : base.from;
+      const replyTo = pp ? pp.replyTo : base.replyTo;
 
       if (m.kind === 'invite') {
         const pwd = tempPassword();
@@ -180,6 +207,54 @@ exports.sendAccountEmail = onDocumentCreated(
     } catch (err) {
       console.error('Account e-mail not sent', ref.id, err);
       await done('ERROR', { 'delivery.error': explain(err) });
+    }
+  },
+);
+
+/* ------------------------------------------------------------------ billing e-mails to clients */
+
+/**
+ * `clientMail/{id}`: a quotation, proforma, invoice or payment reminder for ONE client address,
+ * queued from Billing by someone allowed to edit billing (checked by the rules, and again here
+ * against the access list). Sent from the portal mailbox; the result is written back as `delivery`.
+ */
+exports.sendClientMail = onDocumentCreated(
+  { document: 'clientMail/{id}', region: process.env.MAIL_REGION || 'asia-southeast1', retry: false, timeoutSeconds: 60, maxInstances: 3 },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const ref = snap.ref;
+    const claimed = await db.runTransaction(async (tx) => {
+      const cur = await tx.get(ref);
+      if (!cur.exists || cur.get('delivery.state')) return false;
+      tx.update(ref, { delivery: { state: 'PROCESSING', startTime: FieldValue.serverTimestamp() } });
+      return true;
+    });
+    if (!claimed) return;
+    try {
+      const m = snap.data() || {};
+      const to = String(m.to || '').trim();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) throw new Error('Not an e-mail address.');
+      const by = String(m.createdBy || '').trim().toLowerCase();
+      const access = await db.doc('practiceSystem/access').get();
+      const u = access.exists ? (access.get('users') || {})[accessKey(by)] : null;
+      const role = String((u && u.role) || '').toLowerCase();
+      const billing = String((u && u.billing) || '');
+      const allowed = by === 'syafiqahhamizad@shcolaw.com' || (u && u.active === true && (billing === 'edit' || (!billing && (role === 'partner' || role === 'accountant'))));
+      // File updates to clients may come from anyone on the firm's list; billing e-mails only from billing editors.
+      const fileUpdate = String(m.kind || '') === 'update' && u && u.active === true;
+      if (!allowed && !fileUpdate) throw new Error('Only people who may edit billing can e-mail clients.');
+      const { transport } = await smtp();
+      // Billing e-mails come from the firm's billing address (Settings › Firm & Letterhead ›
+      // Emails by purpose › Billing & receipts), default billing@shcolaw.com; replies go there too.
+      // The sending account must have that address as a Gmail "Send mail as" alias, else Gmail
+      // shows the sending account as From (Reply-To still goes to billing).
+      const p = (await fromFor(m.purpose ? String(m.purpose) : 'Billing & receipts')) || (await fromFor('Billing & receipts'));
+      const info = await transport.sendMail({ from: p ? p.from : undefined, replyTo: p ? p.replyTo : undefined, to, subject: String(m.subject || '').slice(0, 200), text: String(m.text || ''), html: m.html ? String(m.html) : undefined });
+      await ref.update({ 'delivery.state': 'SUCCESS', 'delivery.endTime': FieldValue.serverTimestamp(), 'delivery.info': { messageId: info.messageId || '' } });
+    } catch (err) {
+      console.error('Client mail not sent', ref.id, err);
+      await ref.update({ 'delivery.state': 'ERROR', 'delivery.error': explain(err), 'delivery.endTime': FieldValue.serverTimestamp() });
     }
   },
 );

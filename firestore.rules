@@ -257,7 +257,8 @@ service cloud.firestore {
     // message, and nobody can change or delete the queue from the app (the sender works with server access).
     match /mail/{mailId} {
       allow create: if isFirmUser() &&
-        request.resource.data.keys().hasOnly(['to', 'message', 'createdBy', 'createdAt']) &&
+        request.resource.data.keys().hasOnly(['to', 'message', 'createdBy', 'createdAt', 'purpose']) &&
+        request.resource.data.get('purpose', '') is string && request.resource.data.get('purpose', '').size() <= 40 &&
         request.resource.data.to is string &&
         request.resource.data.to.matches('^[a-z0-9._%+-]+@shcolaw[.]com$') &&
         request.resource.data.message is map &&
@@ -268,6 +269,27 @@ service cloud.firestore {
         request.resource.data.createdAt == request.time;
       // The owner may follow a test e-mail's delivery status (Settings → Notification e-mails).
       allow get: if isOwner();
+      allow list, update, delete: if false;
+    }
+
+    // E-mails to clients, sent by functions-mail sendClientMail to ONE outside address from the
+    // firm's group address for that purpose: billing (quotation, proforma, invoice, reminder) only by
+    // people who may edit billing; file updates (kind 'update') by firm staff. Each queues as
+    // themselves and may follow their own; nobody changes the queue.
+    match /clientMail/{id} {
+      allow create: if (booksWriter() || (isFirmUser() && request.resource.data.get('kind', '') == 'update')) &&
+        request.resource.data.keys().hasOnly(['to', 'subject', 'text', 'html', 'docId', 'kind', 'purpose', 'createdBy', 'createdAt']) &&
+        request.resource.data.get('purpose', '') is string && request.resource.data.get('purpose', '').size() <= 40 &&
+        request.resource.data.to is string && request.resource.data.to.size() <= 200 &&
+        request.resource.data.to.matches('^[^@ ]+@[^@ ]+[.][^@ ]+$') &&
+        request.resource.data.subject is string && request.resource.data.subject.size() <= 200 &&
+        request.resource.data.text is string && request.resource.data.text.size() <= 10000 &&
+        request.resource.data.html is string && request.resource.data.html.size() <= 300000 &&
+        request.resource.data.get('docId', '') is string && request.resource.data.get('docId', '').size() <= 60 &&
+        request.resource.data.get('kind', '') is string && request.resource.data.get('kind', '').size() <= 30 &&
+        request.resource.data.createdBy == request.auth.token.email &&
+        request.resource.data.createdAt == request.time;
+      allow get: if isFirmUser() && resource.data.createdBy == request.auth.token.email;
       allow list, update, delete: if false;
     }
 

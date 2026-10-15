@@ -303,3 +303,21 @@ describe('e-mail settings', () => {
     await assertFails(setDoc(doc(as(people.partner.email), 'privateConfig', 'mailSecret'), { smtpPass: 'x' }));
   });
 });
+
+describe('billing e-mails to clients', () => {
+  const m = (to: string, by: string) => ({ to, subject: 'Payment reminder', text: 't', html: '<p>t</p>', docId: 'INV-1', kind: 'reminder', createdBy: by, createdAt: serverTimestamp() });
+  it('billing editors may queue one, as themselves; others may not', async () => {
+    await assertSucceeds(setDoc(doc(as(people.partner.email), 'clientMail', 'c1'), m('client@gmail.com', people.partner.email)));
+    await assertFails(setDoc(doc(as(people.partner.email), 'clientMail', 'c2'), m('client@gmail.com', 'someone@shcolaw.com')));
+    await assertFails(setDoc(doc(as(people.lawyer.email), 'clientMail', 'c3'), m('client@gmail.com', people.lawyer.email)));
+    await assertFails(setDoc(doc(as(people.partner.email), 'clientMail', 'c4'), m('not an email', people.partner.email)));
+  });
+});
+
+describe('file updates to clients', () => {
+  it('firm staff may e-mail a file update; not billing', async () => {
+    const base = { to: 'client@gmail.com', subject: 'Update', text: 't', html: '<p>t</p>', docId: 'F-1', purpose: 'Client portal', createdBy: people.lawyer.email, createdAt: serverTimestamp() };
+    await assertSucceeds(setDoc(doc(as(people.lawyer.email), 'clientMail', 'u1'), { ...base, kind: 'update' }));
+    await assertFails(setDoc(doc(as(people.lawyer.email), 'clientMail', 'u2'), { ...base, kind: 'reminder' }));
+  });
+});

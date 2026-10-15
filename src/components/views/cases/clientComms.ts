@@ -3,10 +3,10 @@
  * Google Workspace services. Nothing is ever marked sent / synced unless Google confirmed it.
  */
 import type { MatterClientUpdate, Task } from '../../../types';
-import { sendEmail } from '../../../services/gmailService';
+import { queueClientEmail, watchClientEmail } from '../../../services/clientMailService';
 import { isCourtDiaryConfigured } from '../../../services/googleCalendarService';
 import { deleteGoogleTask, upsertGoogleTask } from '../../../services/googleTasksService';
-import { googleErrorMessage, hasValidGoogleToken } from '../../../services/googleWorkspaceAuth';
+import { googleErrorMessage } from '../../../services/googleWorkspaceAuth';
 import { WHATSAPP_OPENED_STATUS, whatsappLink } from '../../../lib/whatsapp';
 import { isDone, stamp } from './caseModel';
 import type { WF } from './wf';
@@ -19,19 +19,25 @@ export const updateStatus = (u: Pick<MatterClientUpdate, 'emailSentAt' | 'whatsa
 const patchUpdate = (w: WF, id: string, p: Partial<MatterClientUpdate>, what: string) =>
   w.saveWith((c) => ({ clientUpdates: (c.clientUpdates || []).map((u) => { if (u.id !== id) return u; const n = { ...u, ...p }; return { ...n, deliveryStatus: updateStatus(n) }; }) }), what, 'Status Update');
 
-/** Sends the update by Gmail (from the signed-in user). Records "Sent by e-mail" only on success. */
+/** Sends the update to the client from the firm's Client portal address (portal@). Records "Sent by e-mail" only when it has gone. */
 export async function emailUpdate(w: WF, u: MatterClientUpdate, to: string): Promise<boolean> {
   if (!to) { w.toast('No e-mail address for the client. Add it in Parties.'); return false; }
+  const fail = (msg: string) => { patchUpdate(w, u.id, { emailError: msg }, ''); w.toast('E-mail not sent: ' + msg); return false; };
   try {
-    const r = await sendEmail({ to, subject: 'Update on your matter ' + w.c.ref + ': ' + u.title, text: u.message });
-    patchUpdate(w, u.id, { emailTo: to, emailSentAt: stamp(), emailMessageId: r.messageId, emailError: undefined }, 'Client update sent by e-mail to ' + to + ': ' + u.title);
+    const subject = 'Update on your matter ' + w.c.ref + ': ' + u.title;
+    const html = '<div style="font-family:Arial,sans-serif;font-size:14px;color:#16223A;white-space:pre-wrap">' + u.message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
+    const id = await queueClientEmail({ to, subject, text: u.message, html, docId: w.c.ref || w.c.id, kind: 'update', purpose: 'Client portal', createdBy: '' });
+    w.toast('Sending to ' + to + '…');
+    const res = await new Promise<{ ok: boolean; err?: string }>((resolve) => {
+      const stop = watchClientEmail(id, (st, err) => { if (st === 'SUCCESS') { stop(); resolve({ ok: true }); } if (st === 'ERROR') { stop(); resolve({ ok: false, err }); } });
+      setTimeout(() => { stop(); resolve({ ok: false, err: 'no answer from the e-mail sender yet; check Settings › Notification e-mails' }); }, 90000);
+    });
+    if (!res.ok) return fail(res.err || 'unknown error');
+    patchUpdate(w, u.id, { emailTo: to, emailSentAt: stamp(), emailError: undefined }, 'Client update sent by e-mail to ' + to + ': ' + u.title);
     w.toast('Sent by e-mail to ' + to);
     return true;
   } catch (e) {
-    const msg = googleErrorMessage(e);
-    patchUpdate(w, u.id, { emailError: msg }, '');
-    w.toast('E-mail not sent: ' + msg);
-    return false;
+    return fail(e instanceof Error ? e.message : String(e));
   }
 }
 
@@ -44,10 +50,10 @@ export function whatsappUpdate(w: WF, u: MatterClientUpdate, phone?: string): vo
   w.toast('WhatsApp opened with the message. Press Send there; the portal cannot see if it was delivered.');
 }
 
-/** Auto-send rule: if a Gmail token is already valid (no popup needed) e-mail it now; otherwise
- * the update stays prepared and the Client updates card shows Send now / Open WhatsApp. */
+/** Auto-send rule: when e-mail is one of the update's channels and the client has an address,
+ * send it now from the Client portal address; otherwise it stays prepared (Send now / Open WhatsApp). */
 export async function autoSend(w: WF, u: MatterClientUpdate, to?: string): Promise<void> {
-  if (!to || !u.channels.includes('email') || !hasValidGoogleToken('gmail')) return;
+  if (!to || !u.channels.includes('email')) return;
   await emailUpdate(w, u, to);
 }
 

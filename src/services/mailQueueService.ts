@@ -6,8 +6,9 @@ import { firestoreDb } from './firestoreSyncService';
  * and sends it through Google Workspace SMTP. Rules only allow firm staff to queue mail to
  * @shcolaw.com addresses. Until e-mail is set up the documents simply wait (nothing breaks).
  */
-export async function queueEmail(to: string, message: { subject: string; text: string; html: string }, createdBy: string): Promise<string> {
-  const ref = await addDoc(collection(firestoreDb, 'mail'), { to, message, createdBy, createdAt: serverTimestamp() });
+export async function queueEmail(to: string, message: { subject: string; text: string; html: string }, createdBy: string, purpose?: string): Promise<string> {
+  // purpose = which firm group address it is sent from (Settings › Emails by purpose).
+  const ref = await addDoc(collection(firestoreDb, 'mail'), { to, message, createdBy, createdAt: serverTimestamp(), ...(purpose ? { purpose: purpose.slice(0, 40) } : {}) });
   return ref.id;
 }
 

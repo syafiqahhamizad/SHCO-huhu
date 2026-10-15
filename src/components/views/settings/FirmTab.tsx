@@ -1,5 +1,5 @@
 import React from 'react';
-import { DEFAULT_BRANCHES, DEFAULT_PURPOSE_EMAILS, type FirmBranch, type PracticeSettings } from '../../../services/templateService';
+import { DEFAULT_BRANCHES, DEFAULT_PURPOSE_EMAILS, PURPOSE_BUILTIN, type FirmBranch, type PracticeSettings } from '../../../services/templateService';
 import { css, S, SideMenu, Txt, type SettingsCtx } from './settingsShared';
 import { useRemembered } from '../../../lib/navHistory';
 import { useApp } from '../../../context/AppContext';
@@ -44,7 +44,8 @@ export const FirmTab = ({ C }: { C: SettingsCtx }) => {
     ['Phone on documents', s.phone || '', (v) => ({ phone: v })],
   ];
   const branches: FirmBranch[] = s.branches && s.branches.length ? s.branches : DEFAULT_BRANCHES;
-  const emails = s.purposeEmails && s.purposeEmails.length ? s.purposeEmails : DEFAULT_PURPOSE_EMAILS.map((e) => (e.purpose === 'Billing & receipts' ? { ...e, email: s.email || '' } : e));
+  // Saved list with any blank e-mail filled from the firm's group addresses (nothing to type one by one).
+  const emails = s.purposeEmails && s.purposeEmails.length ? s.purposeEmails.map((e) => (e.email ? e : { ...e, email: DEFAULT_PURPOSE_EMAILS.find((d) => d.purpose === e.purpose)?.email || '' })) : DEFAULT_PURPOSE_EMAILS;
   const partners: LetterheadPartner[] = s.letterheadPartners && s.letterheadPartners.length ? s.letterheadPartners : DEFAULT_LETTERHEAD_PARTNERS;
   const savePartners = (next: LetterheadPartner[], what: string) => { C.save({ letterheadPartners: next }, 'Letterhead Partners Changed', what); C.msg('Partners on letterhead saved'); };
   const PH: Record<string, string> = { 'General enquiries': 'info@shcolaw.com', 'Billing & receipts': 'billing@shcolaw.com', 'Payroll & HR': 'hr@shcolaw.com', 'Client portal': 'noreply@shcolaw.com', 'New leads': 'enquiry@shcolaw.com' };
@@ -115,7 +116,7 @@ export const FirmTab = ({ C }: { C: SettingsCtx }) => {
         <div style={css('padding:10px 14px;border-bottom:1px solid #EEF1F5')}><strong style={css(S.h)}>Emails by purpose</strong><span style={css('margin-left:8px;font-size:10.5px;color:#5B6478')}>the firm’s e-mail addresses and what each one is for · add your own with “+ Add email”</span></div>
         <div style={css('display:grid;grid-template-columns:180px 240px minmax(0,1fr) 64px;gap:10px;padding:7px 14px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;background:#F6F8FA;border-bottom:1px solid #EEF1F5')}><span>Purpose</span><span>Email</span><span>Used for</span><span></span></div>
         {emails.map((e, i) => {
-          const builtIn = DEFAULT_PURPOSE_EMAILS.some((d) => d.purpose === e.purpose);
+          const builtIn = PURPOSE_BUILTIN.includes(e.purpose);
           const IN = 'border:1px solid #DDE3EB;border-radius:6px;padding:5px 7px;font-size:11px;color:#16223A';
           const setRow = (patch: Partial<typeof e>, what: string) => { C.save({ purposeEmails: emails.map((x, j) => (j === i ? { ...x, ...patch } : x)) }, 'Purpose Email Changed', what); C.msg((patch.purpose || e.purpose || 'Email') + ' saved'); };
           return (
@@ -129,7 +130,7 @@ export const FirmTab = ({ C }: { C: SettingsCtx }) => {
         })}
         <div style={css('display:flex;align-items:center;gap:12px;padding:8px 14px')}>
           <button type="button" onClick={() => C.save({ purposeEmails: [...emails, { purpose: '', email: '', usedFor: '' }] }, 'Purpose Email Added', 'New email row')} style={css(S.addLink)}>+ Add email</button>
-          <span style={css('font-size:10.5px;color:#5B6478')}>The five standard ones stay (the portal uses them); your own can be renamed or removed.</span>
+          <span style={css('font-size:10.5px;color:#5B6478')}>The five the portal sends from stay (you can change their e-mail); your own can be renamed or removed.</span>
         </div>
       </div>}
     </SideMenu>
