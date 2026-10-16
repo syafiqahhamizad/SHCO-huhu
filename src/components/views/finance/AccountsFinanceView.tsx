@@ -54,6 +54,7 @@ export const AccountsFinanceView = ({ initialTab = 'overview' }: { initialTab?: 
   const outOpts: [string, string, () => void, string?][] = [
     ['Office cost', 'rent, utilities, Bar subscription, stationery, EPF / SOCSO, SST, partner drawings', () => F.openForm('expense', {}), 'Firm money'],
     ['Paid for a client file', 'stamp duty, court or search fees, despatch: billed back to the client', () => F.openForm('disb', {})],
+    ['Move to Disbursement account', 'the disbursement part of payments received into Office' + (F.disbInOffice > 0.005 ? ' · RM ' + F.disbInOffice.toFixed(2) + ' still in Office' : ''), () => F.openForm('toDisb', { amount: F.disbInOffice > 0.005 ? F.disbInOffice.toFixed(2) : '' })],
     ['Staff claim or salary', 'staff claim in My Claims; salaries in Payroll', () => (F.TABS.some((t) => t[0] === 'payroll') ? F.go('payroll') : F.toastMsg('Payroll is not available for your role.'))],
     ['Pay out of client money', 'balance purchase price, refund, payment to a third party (two signatories)', () => F.openForm('payOut', {}), 'Client money (Solicitors\' Account Rules)'],
     ['Transfer fees to office', 'move a client\'s money to office against an issued invoice', () => F.openForm('transfer', {})],

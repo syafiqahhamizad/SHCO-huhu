@@ -1051,6 +1051,8 @@ export interface Payment {
 
 export interface Receipt {
   id: string;
+  /** Part of this receipt banked straight into the Disbursement account (the rest is Office). */
+  disbPart?: number;
   /** A paper from before the portal, kept for reference only (see Invoice.recordOnly). */
   recordOnly?: boolean;
   pastNo?: string;
@@ -1086,10 +1088,13 @@ export interface Receipt {
 }
 
 export interface PaymentVoucher {
+  /** 'Bank Transfer': money moved between the firm's own accounts (e.g. Office → Disbursement). Not a cost. */
+  transferFrom?: 'Office' | 'Disbursement' | 'Petty cash' | 'Emergency';
+  transferTo?: 'Office' | 'Disbursement' | 'Petty cash' | 'Emergency';
   id: string;
   date: string;
   accountSet: 'OFFICE' | 'CLIENT';
-  voucherCategory: 'Office Account' | 'Client Account' | 'Disbursement' | 'Travelling' | 'Office Operating' | 'Client Disb' | 'Legal Fees Transfer' | 'Statutory (EPF/SOCSO/EIS/PCB)' | 'SST to Customs' | 'Partner drawings';
+  voucherCategory: 'Office Account' | 'Client Account' | 'Disbursement' | 'Travelling' | 'Office Operating' | 'Client Disb' | 'Legal Fees Transfer' | 'Statutory (EPF/SOCSO/EIS/PCB)' | 'SST to Customs' | 'Partner drawings' | 'Bank Transfer';
   payee?: string;
   paymentMethod?: string;
   description: string;

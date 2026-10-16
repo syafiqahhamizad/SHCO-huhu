@@ -1,5 +1,5 @@
 import React from 'react';
-import { EXTRA_COST, type FinanceCtrl, type EditorState } from './useFinanceController';
+import { DISB_ACC, EXTRA_COST, disbToOf, type FinanceCtrl, type EditorState } from './useFinanceController';
 import { num0 } from './financeModel';
 import { OTHER_COST } from '../../../lib/quotedDisb';
 import { css, DRIVE_REQUIRED_MSG, filesToProofs, proofMissingMsg, proofUploadBlocked, rm2 } from './financeModel';
@@ -217,6 +217,10 @@ export const DocEditModal = ({ F }: { F: FinanceCtrl }) => {
 
 /* ------------------------------ Small forms ------------------------------ */
 type FieldDef = [string, string, (string | string[] | 'file')?];
+/** Record payment: the disbursement part stays in Office (moved later) unless you pick the Disbursement account. */
+const OFFICE_FIRST = 'Office account (move it later)';
+/** Paused: the firm banks every payment into Office and moves the disbursement part itself (Money out → Move to Disbursement account). Set true to offer the choice again. */
+const SHOW_DISB_CHOICE = false;
 /** Money boxes: typed as numbers, shown as 0.00 when you leave the box. */
 const MONEY_KEYS = ['amount', 'fees', 'reimb', 'disb', 'sst', 'target', 'saved', 'monthly'];
 export const FormModal = ({ F }: { F: FinanceCtrl }) => {
@@ -235,11 +239,14 @@ export const FormModal = ({ F }: { F: FinanceCtrl }) => {
   const inQuote = !!quoted && quoted.rows.length > 0 && f.vals.quoteLine !== EXTRA_COST;
   const potLeft = quoted ? Math.max(0, quoted.left) : 0;
   const pickQuoted = (v: string) => { const r = quoted?.rows.find((x) => x.desc === v && x.quoted > 0); F.setForm({ ...f, vals: { ...f.vals, quoteLine: v, ...(r ? { what: r.desc === 'Disbursements (as quoted)' ? f.vals.what || '' : r.desc, amount: Math.min(r.left > 0 ? r.left : r.quoted, potLeft || r.quoted).toFixed(2) } : {}) } }); };
+  // Record payment: the bill's disbursement share, and where that part was banked.
+  const payShare = f.kind === 'pay' ? F.disbShareOf(String(f.vals.docKind || ''), String(f.vals.docId || '')) : 0;
   const DEF: Record<string, [string, FieldDef[], string?]> = {
     moneyIn: ['Record money in', [['kind', 'This money is', ['Payment of an invoice', 'Deposit / money held for client']], ['client', 'Received from'],
       ...(f.vals.kind !== 'Deposit / money held for client' && openBillsOf(f.vals.client).length ? [['forNo', 'Which bill', openBillsOf(f.vals.client)]] as FieldDef[] : [['forNo', f.vals.kind === 'Deposit / money held for client' ? 'Purpose' : 'Invoice no. or purpose', f.vals.kind === 'Deposit / money held for client' ? 'e.g. 10% deposit, stamp duty' : 'e.g. INV-26-0314']] as FieldDef[]),
       ['amount', 'Amount (RM)', 'e.g. 5000'], ['date', 'Date received', 'dd.mm.yyyy'], ['method', 'Method', ['Online transfer', 'Cheque', 'Cash']], ['proofs', 'Proof of payment (bank-in slip, screenshot, cheque copy, WhatsApp)', 'file']]],
-    pay: ['Record payment for ' + (f.vals.title || ''), [['amount', 'Amount received (RM)'], ['date', 'Date received', 'dd.mm.yyyy'], ['method', 'Method', ['Online transfer', 'Cheque', 'Cash']], ['proofs', 'Proof of payment (bank-in slip, screenshot, cheque copy, WhatsApp)', 'file']]],
+    pay: ['Record payment for ' + (f.vals.title || ''), [['amount', 'Amount received (RM)'], ['date', 'Date received', 'dd.mm.yyyy'], ['method', 'Method', ['Online transfer', 'Cheque', 'Cash']], ...(payShare > 0 && SHOW_DISB_CHOICE ? [['disbTo', 'Disbursement part' + (num0(f.vals.amount) > 0 ? ' (RM ' + (num0(f.vals.amount) * payShare).toFixed(2) + ')' : '') + ' was paid into', [OFFICE_FIRST, DISB_ACC]]] as FieldDef[] : []), ['proofs', 'Proof of payment (bank-in slip, screenshot, cheque copy, WhatsApp)', 'file']]],
+    toDisb: ['Move money to the Disbursement account', [['amount', 'Amount moved (RM)'], ['date', 'Date moved', 'dd.mm.yyyy'], ['matter', 'For which file (optional)', 'SHC/…'], ['what', 'Note (optional)', 'e.g. disbursement part of IV-260013'], ['proofs', 'Transfer slip', 'file']], 'RM ' + F.disbInOffice.toFixed(2) + ' of disbursement money received into Office has not been moved yet.'],
     journal: ['Manual journal (goes to Approvals)', [['date', 'Date', 'dd.mm.yyyy'], ['account', 'Account', ['Office', 'Client account', 'Disbursement', 'Petty cash']], ['dir', 'Direction', ['Money out', 'Money in']], ...(f.vals.account === 'Client account' ? [['client', 'Client ledger (required for the client account)'], ['matter', 'Matter (file ref.)', 'SHC/…']] as FieldDef[] : []), ['details', 'Details', 'e.g. bank charges Sep'], ['amount', 'Amount (RM)'], ['reason', 'Reason for adjustment']], f.vals.account === 'Client account' ? 'Client-account journals adjust one client ledger (client + matter), so the ledgers, cash book and bank stay equal. A ledger can never go below zero.' : undefined],
     payOut: ['Pay out of client money', [['client', 'From client ledger'], ['matter', 'Matter (file ref.) · paid from this matter’s ledger', 'SHC/…'], ['payee', 'Pay to', 'e.g. vendor\'s solicitors'], ['amount', 'Amount (RM)'], ['date', 'Date', 'dd.mm.yyyy'], ['purpose', 'Purpose', 'e.g. balance purchase price'], ['proofs', 'Supporting document (letter, redemption statement, invoice)', 'file']]],
     disb: ['Paid for a client file', [['matter', 'File', 'SHC/…'], ['client', 'Client (filled in from the file)'], ...(quoted && quoted.rows.length ? [['quoteLine', 'Part of the quoted disbursements (RM ' + quoted.quoted.toFixed(2) + ')?']] as FieldDef[] : []), ['payee', 'Paid to', 'e.g. Pejabat Tanah, LHDN, Mahkamah'], ['what', 'Details', 'e.g. land search, stamp duty, filing fee'], ['amount', 'Amount (RM)'], ['date', 'Date paid', 'dd.mm.yyyy'], ['from', 'Paid from', F.paidFromOptions], ['proofs', 'Receipt', 'file']], quoted && quoted.rows.length ? 'The quoted disbursements are one total: any cost counts against it, even one not listed. Only what goes above the total is billed to the client.' : 'Billed back to the client on the file\'s next invoice.'],
@@ -318,7 +325,7 @@ export const FormModal = ({ F }: { F: FinanceCtrl }) => {
                 : <input list={listFor(k)} value={f.vals[k] || ''} onChange={(ev) => set(k, ev.target.value)} placeholder={typeof x === 'string' ? x : ''} style={css(INPUT)} />)}
               {isFile && <div onDragOver={(ev) => ev.preventDefault()} onDrop={(ev) => { ev.preventDefault(); addProofs(k, ev.dataTransfer.files); }} style={css('display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1.5px dashed #C9D3E0;border-radius:8px;padding:8px 10px;background:#FAFBFC')}><span style={css('font-size:10.5px;font-weight:700;color:#16223A')}>Drop files here or</span><label style={css('border:1px solid #DDE3EB;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit;white-space:nowrap')}>Choose files<input type="file" multiple accept="image/*,.pdf" onChange={(ev) => { addProofs(k, ev.target.files); ev.target.value = ''; }} style={css('display:none')} /></label><span style={css(`font-size:10.5px;color:${fl.length ? '#2F6F4E' : '#B23A2E'}`)}>{fl.length ? fl.map((q) => q.name).join(', ') : 'Nothing attached yet'}</span><span style={css(`margin-left:auto;font-size:10px;color:${proofUploadBlocked() ? '#B23A2E' : '#5B6478'};white-space:nowrap`)}>{storageLabel()}</span></div>}
               {/* Up to 4 choices: buttons. More (e.g. expense categories): one drop-down. */}
-              {isOpts && (x as string[]).length <= 4 && <div style={css('display:flex;flex-wrap:wrap;gap:4px')}>{seg(x as string[], f.vals[k] || (x as string[])[0], (v) => set(k, v))}</div>}
+              {isOpts && (x as string[]).length <= 4 && <div style={css('display:flex;flex-wrap:wrap;gap:4px')}>{seg(x as string[], f.vals[k] || (k === 'disbTo' && disbToOf({}) === DISB_ACC ? DISB_ACC : (x as string[])[0]), (v) => set(k, v))}</div>}
               {isOpts && (x as string[]).length > 4 && <select value={f.vals[k] || (x as string[])[0]} onChange={(ev) => set(k, ev.target.value)} style={css(INPUT + ';cursor:pointer')}>{(x as string[]).map((o) => <option key={o} value={o}>{o}</option>)}</select>}
             </div>
           ); })}

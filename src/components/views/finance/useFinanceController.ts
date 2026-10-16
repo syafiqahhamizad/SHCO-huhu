@@ -79,6 +79,10 @@ import type { QuotationPaymentPlan } from '../../../types';
 import { OTHER_COST, quotedDisbursements } from '../../../lib/quotedDisb';
 import { nextDocNo, validFormat } from '../../../lib/docNumbers';
 /** "Not in the quotation" on Paid for a client file. */
+/** Record payment: put the disbursement part straight into the Disbursement account. */
+export const DISB_ACC = 'Disbursement account';
+/** Where the disbursement part goes: the form's choice, else the last one used on this computer, else Office. */
+export const disbToOf = (vals: Record<string, unknown>) => String(vals.disbTo || '');
 export const EXTRA_COST = '__extra';
 
 export type DocKind = 'quotation' | 'invoice' | 'receipt';
@@ -1120,13 +1124,21 @@ export function useFinanceController(initialTab: FinTab) {
     receipts.filter((r) => receiptAccount(r) === acc || (acc === 'Office' && r.accountSet !== 'CLIENT' && receiptAccount(r) === 'Office')).forEach((r) => {
       if (receiptAccount(r) !== acc) return;
       if (r.invoiceId) payments.filter((p) => p.invoiceId === r.invoiceId && Math.abs(Number(p.amount) - Number(r.amount)) < 0.01 && !matchedPay.has(p.id)).slice(0, 1).forEach((p) => matchedPay.add(p.id));
-      R.push({ key: 'r:' + r.id, t: parseDate(r.date), who: r.receivedFrom || '—', what: 'Receipt · ' + (r.forNo || r.description || '') + (r.paymentMethod ? ' · ' + r.paymentMethod : ''), no: r.id, inn: Number(r.amount || 0), out: 0, src: r.historical ? 'Historical' : 'Auto', proofs: receiptProofList(r), owner: r.id, open: () => setView({ kind: 'receipt', id: r.id }), attach: attachTo('receipt', r.id) });
+      R.push({ key: 'r:' + r.id, t: parseDate(r.date), who: r.receivedFrom || '—', what: 'Receipt · ' + (r.forNo || r.description || '') + (r.paymentMethod ? ' · ' + r.paymentMethod : '') + (r.disbPart ? ' · RM ' + rm2(r.disbPart) + ' disbursement part to the Disbursement account' : ''), no: r.id, inn: round2(Number(r.amount || 0) - Number(r.disbPart || 0)), out: 0, src: r.historical ? 'Historical' : 'Auto', proofs: receiptProofList(r), owner: r.id, open: () => setView({ kind: 'receipt', id: r.id }), attach: attachTo('receipt', r.id) });
     });
     if (acc === 'Office') payments.filter((p) => !matchedPay.has(p.id) && !receipts.some((r) => r.bankRef === p.id || (r.invoiceId === p.invoiceId && Math.abs(Number(r.amount) - Number(p.amount)) < 0.01 && r.date === p.date))).forEach((p) => { const inv = invoices.find((i) => i.id === p.invoiceId); if (inv?.status === 'Voided') return; R.push({ key: 'p:' + p.id, t: parseDate(p.date), who: inv?.partyName || clientName(inv?.clientId) || '—', what: `Payment for ${p.invoiceId}${p.method ? ' · ' + p.method : ''}`, no: p.id, inn: Number(p.amount || 0), out: 0, src: 'Auto', proofs: [], owner: 'payment:' + p.id }); });
+    // The disbursement part of a receipt banked straight into the Disbursement account.
+    if (acc === 'Disbursement') receipts.filter((r) => Number(r.disbPart || 0) > 0).forEach((r) => R.push({ key: 'rd:' + r.id, t: parseDate(r.date), who: r.receivedFrom || '—', what: 'Disbursement part of receipt · ' + (r.forNo || r.description || ''), no: r.id, inn: Number(r.disbPart || 0), out: 0, src: 'Auto', proofs: receiptProofList(r), owner: r.id, attach: attachTo('receipt', r.id) }));
     const expAcc = (e: Expense): CashAcc | null => (e.billable && !e.claimant && (!e.paidFrom || /disb/i.test(e.paidFrom)) ? 'Disbursement' : /petty/i.test(e.paidFrom || '') ? 'Petty cash' : /disb/i.test(e.paidFrom || '') ? 'Disbursement' : e.claimant ? (e.paidAt ? 'Office' : null) : 'Office');
     expenses.filter((e) => e.approvalStatus !== 'Rejected' && e.approvalStatus !== 'Pending Approval' && expAcc(e) === acc && (!e.claimant || e.paidAt)).forEach((e) => R.push({ key: 'e:' + e.id, t: parseDate(e.paidAt && e.claimant ? e.paidAt : e.date), who: e.payee || e.claimant || '—', what: `${e.category}${e.description ? ' · ' + e.description : ''}`, no: e.id, inn: 0, out: Number(e.amount || 0), src: 'Auto', proofs: e.paidProof ? [e.paidProof] : (e.documents || []).map((d) => ({ name: d.name, uploadedAt: d.uploadedAt || '' })), owner: 'expense:' + e.id, attach: attachTo('expense', e.id) }));
     paymentVouchers.filter((v) => (v.paidAt || v.historical || v.approvalStatus === 'Posted to GL') && v.approvalStatus !== 'Rejected').forEach((v) => {
       const from: CashAcc = pvIsClient(v) ? 'Client account' : v.voucherCategory === 'Disbursement' || v.voucherCategory === 'Client Disb' ? 'Disbursement' : /petty/i.test(v.bankAccountName || '') ? 'Petty cash' : 'Office';
+      if (v.voucherCategory === 'Bank Transfer') {
+        // Between the firm's own accounts: out of one, into the other.
+        if (v.transferFrom === acc) R.push({ key: 'v:' + v.id, t: parseDate(v.paidAt || v.date), who: 'Transfer to ' + (v.transferTo || '') + ' account', what: v.description, no: v.id, inn: 0, out: Number(v.amount || 0), src: 'Auto', proofs: [...(v.paidProof ? [v.paidProof] : []), ...(v.proofs || [])], owner: 'pv:' + v.id, attach: attachTo('pv', v.id) });
+        if (v.transferTo === acc) R.push({ key: 'vi:' + v.id, t: parseDate(v.paidAt || v.date), who: 'Transfer from ' + (v.transferFrom || '') + ' account', what: v.description, no: v.id, inn: Number(v.amount || 0), out: 0, src: 'Auto', proofs: [...(v.paidProof ? [v.paidProof] : []), ...(v.proofs || [])], owner: 'pv:' + v.id, attach: attachTo('pv', v.id) });
+        return;
+      }
       if (from === acc) R.push({ key: 'v:' + v.id, t: parseDate(v.paidAt || v.date), who: v.voucherCategory === 'Legal Fees Transfer' ? 'Transfer to office account' : v.payee || clientName(v.clientId) || '—', what: `${pvIsClient(v) ? 'Paid for client · ' : ''}${v.description}`, no: v.id, inn: 0, out: Number(v.amount || 0), src: v.historical ? 'Historical' : 'Auto', proofs: [...(v.paidProof ? [v.paidProof] : []), ...(v.proofs || [])], owner: 'pv:' + v.id, attach: attachTo('pv', v.id) });
     });
     if (acc === 'Office') travelClaims.filter((t) => t.paidAt).forEach((t) => R.push({ key: 't:' + t.id, t: parseDate(t.paidAt), who: t.claimant, what: `Staff claim · ${t.purpose || t.type}`, no: t.id, inn: 0, out: Number(t.total || 0), src: 'Auto', proofs: t.paidProof ? [t.paidProof] : [], owner: 'travel:' + t.id, attach: attachTo('travel', t.id) }));
@@ -1517,6 +1529,17 @@ export function useFinanceController(initialTab: FinTab) {
     movePastInvoices(todo, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [app.pastInvoices, canPrepare]);
+  /** Share of a bill that is disbursement (invoice, or proforma lines): its part of any payment. */
+  const disbShareOf = (docKind: string, docId: string) => {
+    if (docKind === 'invoice') { const inv = invoices.find((i) => i.id === docId); const t = Number(inv?.total || 0); return inv && t > 0 ? Math.min(1, invoiceComposition(inv).disb / t) : 0; }
+    const q = quotations.find((x) => x.id === docId); const t = Number(q?.total || 0);
+    const d = (q?.lineItems || []).filter((i) => i.category === 'Disbursement').reduce((a, i) => a + Number(i.amount ?? Number(i.quantity || 1) * Number(i.unitPrice || 0)), 0);
+    return q && t > 0 ? Math.min(1, d / t) : 0;
+  };
+  /** Disbursement money received into the Office account and not yet moved to the Disbursement account. */
+  const disbInOffice = round2(
+    receipts.filter((r) => r.accountSet !== 'CLIENT' && !r.historical && !Number(r.disbPart || 0) && (r.invoiceId || r.quotationId)).reduce((a, r) => a + Number(r.amount || 0) * disbShareOf(r.invoiceId ? 'invoice' : 'proforma', String(r.invoiceId || r.quotationId)), 0)
+    - paymentVouchers.filter((v) => v.voucherCategory === 'Bank Transfer' && v.transferFrom === 'Office' && v.transferTo === 'Disbursement').reduce((a, v) => a + Number(v.amount || 0), 0));
   /** Quoted disbursement items on a file (by its ref), with what is already paid for each. */
   const quotedForRef = (ref?: string) => { const k = ref ? caseForRef(ref) : undefined; return k ? quotedDisbursements(k, quotations, invoices, expenses) : null; };
   const openPastFile = (pf?: { driveFileId?: string; webViewLink?: string }) => {
@@ -1682,22 +1705,42 @@ export function useFinanceController(initialTab: FinTab) {
       if (!canPrepare) { toastMsg('Payments are recorded by Accounts.'); return; }
       if (amt <= 0) { toastMsg('Enter the amount received.'); return; }
       const id = app.getNextSequenceId('receipt', dateIso); rememberProofUrls('form', id, proofs);
+      try { localStorage.setItem('shco.disbTo', String(vals.disbTo || '')); } catch { /* remembered only when the browser allows */ }
       if (vals.docKind === 'invoice') {
         const inv = invoices.find((i) => i.id === vals.docId); if (!inv) return;
         if (amt > invBal(inv) + 0.01) { toastMsg('Payment cannot exceed the invoice balance (' + rm2(invBal(inv)) + ').'); return; }
         app.addPayment({ id: 'PAY-' + id, invoiceId: inv.id, amount: amt, date: dateIso, method: vals.method || 'Online transfer' });
-        app.addReceipt({ id, date: dateIso, accountSet: 'OFFICE', receivedFrom: inv.partyName || clientName(inv.clientId) || '—', description: `Payment for ${inv.id}`, amount: amt, debit: GLA.office, credit: GLA.ar, clientId: inv.clientId, fileRef: inv.fileRef || '', bankRef: 'PAY-' + id, receivedBy: me, paymentMethod: vals.method || 'Online transfer', forNo: inv.id, invoiceId: inv.id, caseId: invCase(inv)?.id, proofs });
-        postGL([{ date: dateIso, docType: 'OR', docNo: id, accountSet: 'OFFICE', debit: GLA.office, credit: GLA.ar, amount: amt, clientId: inv.clientId, fileRef: inv.fileRef || '', description: `Receipt ${id} for ${inv.id}` }]);
+        // The disbursement part can go straight into the Disbursement account (your choice on the form).
+        const dPart = disbToOf(vals) === DISB_ACC ? round2(amt * disbShareOf('invoice', inv.id)) : 0;
+        app.addReceipt({ id, date: dateIso, accountSet: 'OFFICE', receivedFrom: inv.partyName || clientName(inv.clientId) || '—', description: `Payment for ${inv.id}`, amount: amt, debit: GLA.office, credit: GLA.ar, clientId: inv.clientId, fileRef: inv.fileRef || '', bankRef: 'PAY-' + id, receivedBy: me, paymentMethod: vals.method || 'Online transfer', forNo: inv.id, invoiceId: inv.id, caseId: invCase(inv)?.id, proofs, ...(dPart > 0 ? { disbPart: dPart } : {}) });
+        postGL([
+          { date: dateIso, docType: 'OR', docNo: id, accountSet: 'OFFICE', debit: GLA.office, credit: GLA.ar, amount: round2(amt - dPart), clientId: inv.clientId, fileRef: inv.fileRef || '', description: `Receipt ${id} for ${inv.id}` },
+          ...(dPart > 0 ? [{ date: dateIso, docType: 'OR' as const, docNo: id, accountSet: 'OFFICE' as const, debit: GLA.disb, credit: GLA.ar, amount: dPart, clientId: inv.clientId, fileRef: inv.fileRef || '', description: `Receipt ${id} for ${inv.id} · disbursement part to the Disbursement account` }] : []),
+        ]);
       } else {
         const q = quotations.find((i) => i.id === vals.docId); if (!q) return;
         const acc = q.payInto || 'Office'; const kase = qCase(q); const cid = q.partyId || kase?.clientId?.split(',')[0].trim() || '';
         if (acc === 'Client account' && !cid) { toastMsg('Link this proforma to a registered client before taking client money.'); return; }
-        app.addReceipt({ id, date: dateIso, accountSet: acc === 'Client account' ? 'CLIENT' : 'OFFICE', receivedFrom: q.clientName, description: `Payment for ${q.id}`, amount: amt, debit: cashAccountGL(acc), credit: acc === 'Client account' ? GLA.clientFunds : GLA.feesAdvance, clientId: cid, fileRef: q.fileRef || '', bankRef: '', receivedBy: me, paymentMethod: vals.method || 'Online transfer', forNo: q.id, quotationId: q.id, caseId: kase?.id, proofs });
+        const dPartQ = acc !== 'Client account' && disbToOf(vals) === DISB_ACC ? round2(amt * disbShareOf('proforma', q.id)) : 0;
+        app.addReceipt({ id, date: dateIso, accountSet: acc === 'Client account' ? 'CLIENT' : 'OFFICE', receivedFrom: q.clientName, description: `Payment for ${q.id}`, amount: amt, debit: cashAccountGL(acc), credit: acc === 'Client account' ? GLA.clientFunds : GLA.feesAdvance, clientId: cid, fileRef: q.fileRef || '', bankRef: '', receivedBy: me, paymentMethod: vals.method || 'Online transfer', forNo: q.id, quotationId: q.id, caseId: kase?.id, proofs, ...(dPartQ > 0 ? { disbPart: dPartQ } : {}) });
         if (acc === 'Client account') app.addRetainer({ id: 'RET-' + id, clientId: cid, caseId: kase?.id || '', type: 'Deposit', amount: amt, date: dateIso, remarks: `Deposit for ${q.id}`, voucherNo: id });
-        postGL([{ date: dateIso, docType: 'OR', docNo: id, accountSet: acc === 'Client account' ? 'CLIENT' : 'OFFICE', debit: cashAccountGL(acc), credit: acc === 'Client account' ? GLA.clientFunds : GLA.feesAdvance, amount: amt, clientId: cid, fileRef: q.fileRef || '', description: `Receipt ${id} for ${q.id}` }]);
+        postGL([
+          { date: dateIso, docType: 'OR', docNo: id, accountSet: acc === 'Client account' ? 'CLIENT' : 'OFFICE', debit: cashAccountGL(acc), credit: acc === 'Client account' ? GLA.clientFunds : GLA.feesAdvance, amount: round2(amt - dPartQ), clientId: cid, fileRef: q.fileRef || '', description: `Receipt ${id} for ${q.id}` },
+          ...(dPartQ > 0 ? [{ date: dateIso, docType: 'OR' as const, docNo: id, accountSet: 'OFFICE' as const, debit: GLA.disb, credit: GLA.feesAdvance, amount: dPartQ, clientId: cid, fileRef: q.fileRef || '', description: `Receipt ${id} for ${q.id} · disbursement part to the Disbursement account` }] : []),
+        ]);
       }
       setForm(null); setView({ kind: 'receipt', id });
       toastMsg('Receipt ' + id + ' issued' + (proofs.length ? ' with proof' : ' · no proof attached yet'));
+    } else if (kind === 'toDisb') {
+      // Office → Disbursement account: the disbursement part of fees received into Office.
+      if (!canPrepare) { toastMsg('Transfers are recorded by Accounts.'); return; }
+      if (amt <= 0) { toastMsg('Enter the amount moved.'); return; }
+      const kase = vals.matter ? caseForRef(String(vals.matter)) : undefined;
+      const id = app.getNextSequenceId('voucher', dateIso);
+      const what = 'Disbursement money moved to the Disbursement account' + (kase ? ' · ' + kase.ref : '') + (vals.what ? ' · ' + vals.what : '');
+      app.addPaymentVoucher({ id, date: dateIso, accountSet: 'OFFICE', voucherCategory: 'Bank Transfer', transferFrom: 'Office', transferTo: 'Disbursement', payee: 'Disbursement account', paymentMethod: 'Bank transfer', description: what, amount: amt, debit: GLA.disb, credit: GLA.office, clientId: kase?.clientId?.split(',')[0].trim() || '', fileRef: kase?.ref || '', caseId: kase?.id, preparedBy: me, approvalStatus: 'Posted to GL', approved: true, postedToGl: true, paidAt: dateIso, proofs } as PaymentVoucher);
+      postGL([{ date: dateIso, docType: 'PV', docNo: id, accountSet: 'OFFICE', debit: GLA.disb, credit: GLA.office, amount: amt, clientId: '', fileRef: kase?.ref || '', description: what }]);
+      setForm(null); toastMsg(id + ' · RM ' + rm2(amt) + ' moved from Office to the Disbursement account');
     } else if (kind === 'journal') {
       if (!canPrepare) { toastMsg('Journals are prepared by Accounts.'); return; }
       if (amt <= 0 || !String(vals.details || '').trim()) { toastMsg('Enter the details and amount.'); return; }
@@ -1941,7 +1984,7 @@ export function useFinanceController(initialTab: FinTab) {
     lk, ownCase, clientName, staffUser,
     invBal, invPaid, invDeposit, invCredit, invStatus, invIssued, invCase, scopedInvoices, openInvoices, owedTotal, aging, ageDays,
     pnl, moneyReceived, openingAsAt, firmBanksOf, statementFor, setStatement, reconFor,
-    qStatus, qCase, proformaPaid, scopedQuotations, scopedReceipts, actionsFor, movePastInvoices, quotedForRef, canDeleteQuote, canDeleteBills, entryOf, editEntry, deleteEntry, deleteQuote, deleteInvoice, deleteReceipt, editReceipt, editApItem, deleteApItem, isAdminUser, act, buildDoc, recordOf, receiptProofList,
+    qStatus, qCase, proformaPaid, scopedQuotations, scopedReceipts, actionsFor, movePastInvoices, quotedForRef, disbShareOf, disbInOffice, canDeleteQuote, canDeleteBills, entryOf, editEntry, deleteEntry, deleteQuote, deleteInvoice, deleteReceipt, editReceipt, editApItem, deleteApItem, isAdminUser, act, buildDoc, recordOf, receiptProofList,
     ledgers, trustTotal, ledgerTotalAt, clientLedgerBalance, threeWayRec,
     unbilled, wipTotal, billMatter, billed: billed as Record<string, { inv: string; u: any }>,
     activeBanks, bankKind, banksOf, paidFromOptions, bankBal, lastRecon, officeCash,
