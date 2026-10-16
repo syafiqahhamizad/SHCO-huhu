@@ -528,7 +528,7 @@ export function useFinanceController(initialTab: FinTab) {
     if (!window.confirm('Delete receipt ' + r.id + ' (' + rm2(Number(r.amount || 0)) + ')? The payment it recorded and its postings are reversed. It stays in the Recycle Bin.')) return;
     if (r.accountSet === 'CLIENT' && r.clientId && clientLedgerBalance(r.clientId, r.caseId || '') - Number(r.amount || 0) < -0.005) { toastMsg(r.id + ' was already used (paid out or transferred). Deleting it would take the client ledger below zero: correct it with a journal on the Client Account page.'); return; }
     reverseDoc(r.id, 'deleted');
-    app.removeFinanceRecords({ receipts: [r.id], payments: payments.filter((p) => p.id === 'PAY-' + r.id).map((p) => p.id), retainers: retainers.filter((x) => x.id === 'RET-' + r.id).map((x) => x.id) }, 'Receipt deleted by ' + me);
+    app.removeFinanceRecords({ receipts: [r.id], payments: payments.filter((p) => p.id === 'PAY-' + r.id).map((p) => p.id), retainers: retainers.filter((x) => x.id === 'RET-' + r.id || x.voucherNo === r.id).map((x) => x.id) }, 'Receipt deleted by ' + me);
     setView(null); toastMsg(r.id + ' deleted · postings reversed');
   };
   const editReceipt = async (r: Receipt) => {

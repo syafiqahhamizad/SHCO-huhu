@@ -76,6 +76,8 @@ export const ClientAccountTrustTab = ({ F }: { F: FinanceCtrl }) => {
   const P: Record<typeof per, [string, number, number]> = { all: ['All time', 0, 0], year: ['This year', new Date(y, 0, 1).getTime(), new Date(y, 11, 31, 23, 59).getTime()], month: ['This month', new Date(y, F.now.getMonth(), 1).getTime(), monthEnd(F.now).getTime() + 86399999], last: ['Last month', F.prevDate.getTime(), monthEnd(F.prevDate).getTime() + 86399999], custom: ['Custom', dmy(from), dmy(to) ? dmy(to) + 86399999 : 0] };
   const [, pF, pT] = P[per];
   const perLabel = per === 'all' ? 'All time · from first entry to ' + fd(Date.now()) : fd(pF) + ' to ' + (pT ? fd(pT) : fd(Date.now()));
+  // A ledger line whose receipt / voucher no longer exists (deleted): shown so it can be removed.
+  const orphan = (v: string) => !!v && v !== '—' && !F.app.receipts.some((x) => x.id === v) && !F.app.paymentVouchers.some((x) => x.id === v) && !F.app.manualJournals.some((x) => x.id === v);
   const ledgerRows = (l: Ledger, fromT = 0, toT = 0) => {
     let bal = 0, open: number | null = null;
     const rows: { id: string; date: string; desc: string; v: string; out: string; inn: string; bal: string; outN: number; innN: number }[] = [];
@@ -168,7 +170,7 @@ export const ClientAccountTrustTab = ({ F }: { F: FinanceCtrl }) => {
               {!selR.rows.length && <div style={css('padding:20px;text-align:center;font-size:11px;color:#5B6478')}>No entries in this period.</div>}
               {selR.rows.map((r) => (
                 <div key={r.id} style={css('display:grid;grid-template-columns:90px minmax(0,1.6fr) 110px 100px 100px 110px;gap:10px;align-items:center;padding:7px 14px;border-bottom:1px solid #F0F2F5')}>
-                  <span style={css('font-size:11px;color:#5B6478')}>{r.date}</span><span style={css('font-size:11.5px;color:#16223A')}>{r.desc}</span><span style={css('font-size:10.5px;color:#3D6B9C;font-weight:600')}>{r.v}</span><span style={css('text-align:right;font-size:11.5px;color:#B23A2E')}>{r.out}</span><span style={css('text-align:right;font-size:11.5px;color:#2F6F4E')}>{r.inn}</span><span style={css('text-align:right;font-size:12px;font-weight:700;color:#16223A')}>{r.bal}</span>
+                  <span style={css('font-size:11px;color:#5B6478')}>{r.date}</span><span style={css('font-size:11.5px;color:#16223A')}>{r.desc}</span><span style={css('font-size:10.5px;color:#3D6B9C;font-weight:600;display:flex;flex-direction:column;gap:2px')}>{r.v}{orphan(r.v) && <span style={css('font-size:9.5px;font-weight:700;color:#B23A2E')}>its receipt was deleted{F.canDeleteBills && <button type="button" onClick={() => { if (window.confirm('Remove this left-over ledger line (' + r.v + ', ' + (r.inn || r.out) + ')? Its receipt is already deleted.')) F.app.removeFinanceRecords({ retainers: [r.id] }, 'Left-over ledger line removed (receipt ' + r.v + ' was deleted)'); }} style={css('margin-left:4px;border:0;background:none;padding:0;font-size:9.5px;font-weight:700;color:#B23A2E;text-decoration:underline;cursor:pointer;font-family:inherit')}>Remove</button>}</span>}</span><span style={css('text-align:right;font-size:11.5px;color:#B23A2E')}>{r.out}</span><span style={css('text-align:right;font-size:11.5px;color:#2F6F4E')}>{r.inn}</span><span style={css('text-align:right;font-size:12px;font-weight:700;color:#16223A')}>{r.bal}</span>
                 </div>
               ))}
             </div>
