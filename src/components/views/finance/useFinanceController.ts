@@ -76,6 +76,10 @@ import {
 
 import { defaultPlanFor, planRows, type PlanRow } from '../../../lib/engagementLetter';
 import type { QuotationPaymentPlan } from '../../../types';
+import { OTHER_COST, quotedDisbursements } from '../../../lib/quotedDisb';
+import { nextDocNo, validFormat } from '../../../lib/docNumbers';
+/** "Not in the quotation" on Paid for a client file. */
+export const EXTRA_COST = '__extra';
 
 export type DocKind = 'quotation' | 'invoice' | 'receipt';
 interface DocRef { kind: DocKind; id: string }
@@ -1513,6 +1517,8 @@ export function useFinanceController(initialTab: FinTab) {
     movePastInvoices(todo, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [app.pastInvoices, canPrepare]);
+  /** Quoted disbursement items on a file (by its ref), with what is already paid for each. */
+  const quotedForRef = (ref?: string) => { const k = ref ? caseForRef(ref) : undefined; return k ? quotedDisbursements(k, quotations, invoices, expenses) : null; };
   const openPastFile = (pf?: { driveFileId?: string; webViewLink?: string }) => {
     if (pf?.webViewLink || pf?.driveFileId) window.open(pf.webViewLink || 'https://drive.google.com/file/d/' + pf.driveFileId + '/view', '_blank', 'noopener');
     else toastMsg('No PDF attached yet.');
@@ -1523,12 +1529,14 @@ export function useFinanceController(initialTab: FinTab) {
     const { kind, vals } = form;
     // Past papers are keyed in by part (fees, reimbursements, disbursements, SST) so each file shows them by category.
     const isPast = ['pastQuote', 'pastProforma', 'pastInvoice'].includes(kind);
-    const pFees = num0(vals.fees), pReimb = num0(vals.reimb), pDisb = num0(vals.disb), pSst = num0(vals.sst);
+    // Optional "Disbursement items" on past papers: one per line, "Bankruptcy search 10" → item + amount.
+    const pItems = String(vals.disbItems || '').split(/\n+/).map((l) => l.trim()).filter(Boolean).map((l) => { const m = l.match(/^(.*?)[\s:–-]*(?:RM\s*)?([\d,]+(?:\.\d+)?)\s*$/i); return m ? { d: m[1].trim() || 'Disbursement', a: num0(m[2]) } : { d: l, a: 0 }; }).filter((x) => x.a > 0);
+    const pFees = num0(vals.fees), pReimb = num0(vals.reimb), pDisb = pItems.length ? round2(pItems.reduce((t, x) => t + x.a, 0)) : num0(vals.disb), pSst = num0(vals.sst);
     const amt = isPast ? round2(pFees + pReimb + pDisb + pSst) : num0(vals.amount);
     const pastLines = (feeDesc: string): Quotation['lineItems'] => [
       ...(pFees > 0 ? [{ description: feeDesc, category: 'Fee - Fixed', amount: pFees, quantity: 1, unitPrice: pFees, chargeType: 'Fixed' }] : []),
       ...(pReimb > 0 ? [{ description: 'Reimbursements', category: 'Reimbursement', amount: pReimb, quantity: 1, unitPrice: pReimb, chargeType: 'Fixed' }] : []),
-      ...(pDisb > 0 ? [{ description: 'Disbursements', category: 'Disbursement', amount: pDisb, quantity: 1, unitPrice: pDisb, chargeType: 'Fixed' }] : []),
+      ...(pItems.length ? pItems.map((x) => ({ description: x.d, category: 'Disbursement', amount: x.a, quantity: 1, unitPrice: x.a, chargeType: 'Fixed' })) : pDisb > 0 ? [{ description: 'Disbursements', category: 'Disbursement', amount: pDisb, quantity: 1, unitPrice: pDisb, chargeType: 'Fixed' }] : []),
     ] as Quotation['lineItems'];
     const dateIso = isoOf(parseDate(vals.date)) || todayIso();
     const proofs: FinanceProof[] = vals.proofs || [];
@@ -1745,10 +1753,31 @@ export function useFinanceController(initialTab: FinTab) {
       const kase = vals.matter ? caseForRef(String(vals.matter)) : cases.find((k) => c && k.clientId.split(',').map((x) => x.trim()).includes(c.id) && k.status !== 'Closed');
       const id = app.getNextSequenceId('disbursement', dateIso);
       const fromBank = String(vals.from || paidFromOptions[0] || 'Disbursement');
-      app.addExpense({ id, caseId: kase?.id || '', clientId: c?.id || undefined, fileRef: kase?.ref, date: dateIso, category: 'Disbursement', amount: amt, billable: true, description: vals.what || 'Disbursement', payee: vals.payee || '', accountSet: 'OFFICE', paidFrom: fromBank, approvalStatus: 'Posted to GL', postedToGl: true, paidProof: proofs[0], documents: proofs.map((p, i) => ({ id: `DOC-${id}-${i}`, name: p.name, url: '', type: p.type, size: p.size, uploadedAt: p.uploadedAt, category: 'Receipt Photo' as const })) });
+      // Quoted disbursements are one pot: a cost counts against it (whichever item, or one not listed);
+      // only the part above what is left in the pot is billed to the client (Work not billed).
+      const pot = kase && vals.quoteLine !== EXTRA_COST ? quotedDisbursements(kase, quotations, invoices, expenses) : null;
+      const inPot = pot && pot.rows.length ? Math.min(amt, Math.max(0, pot.left)) : 0;
+      const above = round2(amt - inPot);
+      const line = String(vals.quoteLine || OTHER_COST);
+      const credit = /disb/i.test(fromBank) ? GLA.disb : /petty/i.test(fromBank) ? GLA.petty : GLA.office;
+      const base = { caseId: kase?.id || '', clientId: c?.id || undefined, fileRef: kase?.ref, date: dateIso, category: 'Disbursement', billable: true, payee: vals.payee || '', accountSet: 'OFFICE' as const, paidFrom: fromBank, approvalStatus: 'Posted to GL' as const, postedToGl: true };
+      const glOf = (docNo: string, amount: number, note: string) => ({ date: dateIso, docType: 'PV' as const, docNo, accountSet: 'OFFICE' as const, debit: GLA.unbilledDisb, credit, amount, clientId: c?.id || '', fileRef: kase?.ref || '', description: `Disbursement for ${vals.client}: ${vals.what || ''}${note} · paid to ${vals.payee || '—'}` });
+      const docs = proofs.map((p, i) => ({ id: `DOC-${id}-${i}`, name: p.name, url: '', type: p.type, size: p.size, uploadedAt: p.uploadedAt, category: 'Receipt Photo' as const }));
+      // The part inside the quote (already charged to the client), or the whole cost when nothing is quoted.
+      const firstAmt = inPot > 0 ? inPot : amt;
+      app.addExpense({ ...base, id, amount: firstAmt, ...(inPot > 0 ? { quoteLine: line, coveredBy: pot!.source.join(', '), billed: true } : {}), description: vals.what || 'Disbursement', paidProof: proofs[0], documents: docs } as Expense);
       rememberProofUrls('form', 'expense:' + id, proofs);
-      postGL([{ date: dateIso, docType: 'PV', docNo: id, accountSet: 'OFFICE', debit: GLA.unbilledDisb, credit: /disb/i.test(fromBank) ? GLA.disb : /petty/i.test(fromBank) ? GLA.petty : GLA.office, amount: amt, clientId: c?.id || '', fileRef: kase?.ref || '', description: `Disbursement for ${vals.client}: ${vals.what || ''} · paid to ${vals.payee || '—'}` }]);
-      setForm(null); toastMsg(`${id} recorded · billed back to ${vals.client} on the next invoice${kase ? '' : ' (link it to a file to bill it)'}`);
+      postGL([glOf(id, firstAmt, '')]);
+      let id2 = '';
+      if (inPot > 0 && above > 0.005) {
+        // Above the quote: its own entry, waiting in Work not billed.
+        const f = settings.docNumbering?.disbursement;
+        id2 = nextDocNo('disbursement', f && validFormat(f) ? f : undefined, [...expenses.map((x) => x.id), id], Number(dateIso.slice(0, 4)) || new Date().getFullYear());
+        app.addExpense({ ...base, id: id2, amount: above, description: (vals.what || 'Disbursement') + ' (above the quoted disbursements · receipt on ' + id + ')' } as Expense);
+        postGL([glOf(id2, above, ' (above quote)')]);
+      }
+      setForm(null);
+      toastMsg(inPot > 0 ? (above > 0.005 ? `${id} RM ${inPot.toFixed(2)} inside the quote · ${id2} RM ${above.toFixed(2)} above it, to bill ${vals.client}` : `${id} recorded · inside the quoted disbursements (RM ${Math.max(0, pot!.left - inPot).toFixed(2)} left)`) : `${id} recorded · billed back to ${vals.client} on the next invoice${kase ? '' : ' (link it to a file to bill it)'}`);
     } else if (kind === 'expense') {
       if (!canPrepare) { toastMsg('Office expenses are recorded by Accounts.'); return; }
       if (amt <= 0) { toastMsg('Enter the amount.'); return; }
@@ -1912,7 +1941,7 @@ export function useFinanceController(initialTab: FinTab) {
     lk, ownCase, clientName, staffUser,
     invBal, invPaid, invDeposit, invCredit, invStatus, invIssued, invCase, scopedInvoices, openInvoices, owedTotal, aging, ageDays,
     pnl, moneyReceived, openingAsAt, firmBanksOf, statementFor, setStatement, reconFor,
-    qStatus, qCase, proformaPaid, scopedQuotations, scopedReceipts, actionsFor, movePastInvoices, canDeleteQuote, canDeleteBills, entryOf, editEntry, deleteEntry, deleteQuote, deleteInvoice, deleteReceipt, editReceipt, editApItem, deleteApItem, isAdminUser, act, buildDoc, recordOf, receiptProofList,
+    qStatus, qCase, proformaPaid, scopedQuotations, scopedReceipts, actionsFor, movePastInvoices, quotedForRef, canDeleteQuote, canDeleteBills, entryOf, editEntry, deleteEntry, deleteQuote, deleteInvoice, deleteReceipt, editReceipt, editApItem, deleteApItem, isAdminUser, act, buildDoc, recordOf, receiptProofList,
     ledgers, trustTotal, ledgerTotalAt, clientLedgerBalance, threeWayRec,
     unbilled, wipTotal, billMatter, billed: billed as Record<string, { inv: string; u: any }>,
     activeBanks, bankKind, banksOf, paidFromOptions, bankBal, lastRecon, officeCash,

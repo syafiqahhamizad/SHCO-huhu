@@ -4,13 +4,16 @@ import { canSeeFinanceView, finRoleKey } from '../../../../lib/financeAccess';
 import { css, S, Card, Seg } from '../caseUi';
 import { P, fmt, num2, rm, short } from '../caseModel';
 import type { WF } from '../wf';
+import { quotedDisbursements } from '../../../../lib/quotedDisb';
 
 /** Money for this file — read-only, from real invoices / payments / retainers / quotations
  * using the finance module's rules. Actions open Accounts & Finance; nothing is created here. */
 export const MoneyTab: React.FC<{ w: WF }> = ({ w }) => {
-  const { setCurrentView, currentRole, currentUser, isAdmin } = useApp();
+  const { setCurrentView, currentRole, currentUser, isAdmin, quotations = [], invoices = [], expenses = [] } = useApp();
   const { c, money } = w;
   const [led, setLed] = useState<'client' | 'office' | 'disb'>('client');
+  // Quoted disbursements vs what was actually paid for each.
+  const qd = quotedDisbursements(c, quotations, invoices, expenses);
   const rk = finRoleKey(currentRole, currentUser, isAdmin);
   const go = (view: string, what: string) => {
     if (!canSeeFinanceView(view, rk)) { w.toast(what + ' is done by Accounts / a partner in Accounts & Finance'); return; }
@@ -29,6 +32,7 @@ export const MoneyTab: React.FC<{ w: WF }> = ({ w }) => {
   const rows = led === 'client' ? money.clientLedger : led === 'disb' ? money.disbLedger : money.officeLedger;
   const bc = 'display:grid;grid-template-columns:110px 90px 100px 90px 90px 80px 110px 100px 100px 90px;min-width:1050px;';
   const pc = 'display:grid;grid-template-columns:120px 90px minmax(0,1fr) 110px 100px 100px 90px;gap:12px;min-width:720px;';
+  const dq = 'display:grid;grid-template-columns:minmax(0,1.6fr) 100px 100px 140px;gap:12px;min-width:640px;';
   const lc = 'display:grid;grid-template-columns:90px 120px minmax(0,1fr) 100px 100px 110px;min-width:720px;';
   return (
     <>
@@ -53,6 +57,15 @@ export const MoneyTab: React.FC<{ w: WF }> = ({ w }) => {
         })}
         {!money.bills.length && <div style={css(S.empty)}>No bills on this file yet.</div>}
       </Card>
+      {(qd.rows.length > 0 || qd.extras.length > 0) && <Card style="overflow-x:auto">
+        <div style={css(S.head + ';min-width:640px')}><strong style={css('font-family:Georgia, serif;font-size:15px;color:#16223A')}>Disbursements: quoted vs paid</strong><span style={css(S.sub)}>{qd.source.length ? 'from ' + qd.source.join(', ') : 'nothing quoted'} · the total is what counts: items are a guide; anything above the total is billed</span></div>
+        <div style={css(dq + S.th)}><span>Item</span><span>Quoted</span><span>Paid</span><span>Status</span></div>
+        {qd.rows.map((r) => { const st = r.quoted <= 0 ? ['Within the total', P.b] : r.paid <= 0.005 ? ['Not used yet', P.n] : r.left < -0.005 ? ['RM ' + num2(-r.left) + ' more than listed', P.a] : r.left > 0.005 ? ['RM ' + num2(r.left) + ' not used', P.a] : ['Used', P.g]; const pill = st[1] as { bg: string; fg: string }; return (
+          <div key={r.desc} style={css(dq + 'align-items:center;' + S.row + ';color:#16223A')}><span>{r.desc}</span><span>{num2(r.quoted)}</span><span>{num2(r.paid) || '—'}</span><span style={css(`justify-self:start;padding:2px 9px;border-radius:10px;font-size:11.5px;font-weight:700;background:${pill.bg};color:${pill.fg}`)}>{st[0] as string}</span></div>
+        ); })}
+        {qd.extras.map((e) => <div key={e.id} style={css(dq + 'align-items:center;' + S.row + ';color:#16223A')}><span>{e.description || e.category}{!/above the quoted/.test(e.description || '') && <span style={css('color:#4A5468;font-size:11.5px')}> · not part of the quote</span>}</span><span>—</span><span>{num2(Number(e.amount || 0))}</span><span style={css(`justify-self:start;padding:2px 9px;border-radius:10px;font-size:11.5px;font-weight:700;background:${P.b.bg};color:${P.b.fg}`)}>{e.billed ? 'Billed' : 'To bill'}</span></div>)}
+        {qd.rows.length > 0 && <div style={css(dq + 'align-items:center;padding:9px 16px;border-top:1px solid #DDE3EB;font-size:12.5px;font-weight:700;color:#16223A')}><span>Total disbursements quoted</span><span>{num2(qd.quoted)}</span><span>{num2(qd.paid) || '—'}</span><span style={css('color:' + (qd.left >= -0.005 ? '#1F5A3B' : '#8E2A20'))}>{qd.left >= -0.005 ? 'Within the quote · RM ' + (num2(qd.left) || '0.00') + ' left' : 'RM ' + num2(-qd.left) + ' above the quote'}</span></div>}
+      </Card>}
       {money.proformas.length > 0 && <Card style="overflow-x:auto">
         <div style={css(S.head + ';min-width:720px')}><strong style={css('font-family:Georgia, serif;font-size:15px;color:#16223A')}>Proformas</strong><span style={css(S.sub)}>requests to pay first · money paid here is held in advance until the invoice uses it</span></div>
         <div style={css(pc + S.th)}><span>Proforma no.</span><span>Date</span><span>For</span><span>Pay into</span><span>Amount</span><span>Paid</span><span>Status</span></div>
