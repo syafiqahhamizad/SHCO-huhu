@@ -16,7 +16,7 @@ import type {
   Case, Expense, FinanceProof, FinanceSignatory, GeneralLedgerEntry, Invoice, Payslip,
   PaymentVoucher, Quotation, Receipt, Retainer, TravelClaim, User,
 } from '../../../types';
-import { getPracticeSettings, savePracticeSettings, twoSignatoryThreshold, type SinkingFund } from '../../../services/templateService';
+import { DEFAULT_EXPENSE_CATEGORIES, getPracticeSettings, savePracticeSettings, twoSignatoryThreshold, type SinkingFund } from '../../../services/templateService';
 import { isApprovedForBilling } from '../../../lib/billingEngine';
 import { claimFormTotal, invoiceComposition, isNonExpensePv, isReimbursementCategory, isStatutoryCategory, needsTwoSignatories, PV_DRAWINGS, PV_SST, PV_STATUTORY, round2, splitReceipt } from '../../../lib/financeCalc';
 import { identityTokens, isMine } from '../../../lib/identity';
@@ -81,6 +81,9 @@ import { nextDocNo, validFormat } from '../../../lib/docNumbers';
 /** "Not in the quotation" on Paid for a client file. */
 /** Record payment: put the disbursement part straight into the Disbursement account. */
 export const DISB_ACC = 'Disbursement account';
+/** Paid for a client file: paid to others (search, stamp duty) or our own cost re-charged (photocopy, courier, travel). */
+export const DISB_TYPE = 'Disbursement (paid to others)';
+export const REIMB_TYPE = 'Reimbursement (our own cost: photocopy, courier, travel)';
 /** Where the disbursement part goes: the form's choice, else the last one used on this computer, else Office. */
 export const disbToOf = (vals: Record<string, unknown>) => String(vals.disbTo || '');
 export const EXTRA_COST = '__extra';
@@ -561,6 +564,22 @@ export function useFinanceController(initialTab: FinTab) {
     if (isClientMoney(kind, id) && !clientPv) { toastMsg('This line belongs to a client-account payment: edit that payment instead.'); return; }
     const rec = kind === 'expense' ? expenses.find((x) => x.id === id) : kind === 'pv' ? paymentVouchers.find((x) => x.id === id) : travelClaims.find((x) => x.id === id);
     if (!rec) return;
+    // A cost keyed on our own forms opens that same form, so everything can be changed (number stays).
+    if (kind === 'expense' && !(rec as Expense).claimant && !(rec as Expense).formNo) {
+      const e = rec as Expense; const dmy = fd(parseDate(e.date) || Date.now());
+      const twin = expenses.find((x) => x.id !== id && (x.description || '').includes('receipt on ' + id + ')'));
+      const amount = (Number(e.amount || 0) + Number(twin?.amount || 0)).toFixed(2);
+      if (e.billable && (e.caseId || e.fileRef)) {
+        const k = findCase(lk, e.caseId, e.fileRef);
+        setForm({ kind: 'disb', vals: { editId: id, matter: k?.ref || e.fileRef || '', client: clientName(e.clientId || k?.clientId?.split(',')[0].trim() || ''), costType: e.category === 'Reimbursement' || isReimbursementCategory(e.category, e.description) ? REIMB_TYPE : DISB_TYPE, quoteLine: e.quoteLine || e.quoteLines?.length ? '' : EXTRA_COST, qItems: Object.fromEntries((e.quoteLines?.length ? e.quoteLines : e.quoteLine ? [{ desc: e.quoteLine, amount: Number(e.amount || 0) }] : []).map((p) => [p.desc, Number(p.amount).toFixed(2)])), payee: e.payee || '', what: e.description || '', amount, date: dmy, from: e.paidFrom || '' } });
+        return;
+      }
+      if (!e.billable) {
+        const cats0 = (settings.expenseCategories || []).map((x) => x.trim()).filter(Boolean); const cats = cats0.length ? cats0 : DEFAULT_EXPENSE_CATEGORIES; const known = cats.includes(e.category);
+        setForm({ kind: 'expense', vals: { editId: id, kind: 'Office expense', cat: known ? e.category : 'Other', catOther: known ? '' : String(e.category || '').replace(/^Other:\s*/, ''), payee: e.payee || '', what: e.description || '', amount, date: dmy, from: e.paidFrom || '' } });
+        return;
+      }
+    }
     const t = kind === 'travel' ? (rec as TravelClaim) : null, e = kind === 'expense' ? (rec as Expense) : null, v = kind === 'pv' ? (rec as PaymentVoucher) : null;
     const v0 = { date: isoOf(parseDate(rec.date) || Date.now()), who: t ? t.claimant : (e?.payee || v?.payee || ''), what: t ? t.purpose : (e?.description || v?.description || '') };
     const f = await askForm('Edit ' + id, [
@@ -1554,6 +1573,17 @@ export function useFinanceController(initialTab: FinTab) {
     else toastMsg('No PDF attached yet.');
   };
   const openForm = (kind: string, vals: Record<string, any> = {}) => setForm({ kind, vals });
+  /** Editing a cost: the old entry (and its "above the quote" twin) is taken out and its book
+   * entries reversed, then it is saved again under the SAME number with the new details. */
+  const costEditPrep = (editId: string) => {
+    if (!editId) return { ok: true, drop: [] as string[], old: undefined as Expense | undefined };
+    const old = expenses.find((x) => x.id === editId);
+    const onBill = invoices.find((i) => [...(i.sourceItems?.expenses || [])].includes(editId) && invStatus(i) !== 'Voided');
+    if (onBill) { toastMsg(editId + ' is on bill ' + onBill.id + ': delete or void that bill first.'); return { ok: false, drop: [], old }; }
+    const drop = [editId, ...expenses.filter((x) => x.id !== editId && (x.description || '').includes('receipt on ' + editId + ')')).map((x) => x.id)];
+    return { ok: true, drop, old };
+  };
+  const costEditApply = (drop: string[]) => { if (!drop.length) return; drop.forEach((d) => reverseDoc(d, 'edited')); app.removeFinanceRecords({ expenses: drop }, 'Edited by ' + me); };
   const saveForm = () => {
     if (!form) return;
     const { kind, vals } = form;
@@ -1819,22 +1849,30 @@ export function useFinanceController(initialTab: FinTab) {
       if (!String(vals.client || '').trim()) { toastMsg('Name the client. This is billed back to them.'); return; }
       if (amt <= 0) { toastMsg('Enter the amount.'); return; }
       const kase = vals.matter ? caseForRef(String(vals.matter)) : cases.find((k) => c && k.clientId.split(',').map((x) => x.trim()).includes(c.id) && k.status !== 'Closed');
-      const id = app.getNextSequenceId('disbursement', dateIso);
+      const ed = costEditPrep(String(vals.editId || '')); if (!ed.ok) return;
+      const exList = expenses.filter((x) => !ed.drop.includes(x.id));
+      const id = ed.old ? ed.old.id : app.getNextSequenceId('disbursement', dateIso);
       const fromBank = String(vals.from || paidFromOptions[0] || 'Disbursement');
       // Quoted disbursements are one pot: a cost counts against it (whichever item, or one not listed);
       // only the part above what is left in the pot is billed to the client (Work not billed).
       const costKind: CostKind = String(vals.costType || '').startsWith('Reimbursement') ? 'Reimbursement' : 'Disbursement';
-      const pot = kase && vals.quoteLine !== EXTRA_COST ? quotedCosts(kase, quotations, invoices, expenses, costKind, travelClaims) : null;
+      const pot = kase && vals.quoteLine !== EXTRA_COST ? quotedCosts(kase, quotations, invoices, exList, costKind, travelClaims) : null;
       const inPot = pot && pot.rows.length ? Math.min(amt, Math.max(0, pot.left)) : 0;
       const above = round2(amt - inPot);
       const line = String(vals.quoteLine || OTHER_COST);
+      // Several quoted items paid under one receipt: each with its own amount (scaled to the part inside the quote).
+      const picked = Object.entries((vals.qItems || {}) as Record<string, string>).map(([desc, a]) => ({ desc, amount: num0(a) })).filter((x) => x.amount > 0);
+      const pickedSum = picked.reduce((t, x) => t + x.amount, 0);
       const credit = /disb/i.test(fromBank) ? GLA.disb : /petty/i.test(fromBank) ? GLA.petty : GLA.office;
       const base = { caseId: kase?.id || '', clientId: c?.id || undefined, fileRef: kase?.ref, date: dateIso, category: costKind, billable: true, payee: vals.payee || '', accountSet: 'OFFICE' as const, paidFrom: fromBank, approvalStatus: 'Posted to GL' as const, postedToGl: true };
       const glOf = (docNo: string, amount: number, note: string) => ({ date: dateIso, docType: 'PV' as const, docNo, accountSet: 'OFFICE' as const, debit: GLA.unbilledDisb, credit, amount, clientId: c?.id || '', fileRef: kase?.ref || '', description: `Disbursement for ${vals.client}: ${vals.what || ''}${note} · paid to ${vals.payee || '—'}` });
-      const docs = proofs.map((p, i) => ({ id: `DOC-${id}-${i}`, name: p.name, url: '', type: p.type, size: p.size, uploadedAt: p.uploadedAt, category: 'Receipt Photo' as const }));
+      const docs = proofs.length ? proofs.map((p, i) => ({ id: `DOC-${id}-${i}`, name: p.name, url: '', type: p.type, size: p.size, uploadedAt: p.uploadedAt, category: 'Receipt Photo' as const })) : ed.old?.documents;
+      const keepProof = proofs.length ? { paidProof: proofs[0] } : ed.old ? { paidProof: ed.old.paidProof, driveFiling: ed.old.driveFiling } : {};
+      costEditApply(ed.drop);
       // The part inside the quote (already charged to the client), or the whole cost when nothing is quoted.
       const firstAmt = inPot > 0 ? inPot : amt;
-      app.addExpense({ ...base, id, amount: firstAmt, ...(inPot > 0 ? { quoteLine: line, coveredBy: pot!.source.join(', '), billed: true } : {}), description: vals.what || 'Disbursement', paidProof: proofs[0], documents: docs } as Expense);
+      const scale = pickedSum > 0 ? firstAmt / pickedSum : 1;
+      app.addExpense({ ...base, id, amount: firstAmt, ...(inPot > 0 ? { quoteLine: picked.length ? picked[0].desc : line, ...(picked.length ? { quoteLines: picked.map((x) => ({ desc: x.desc, amount: round2(x.amount * scale) })) } : {}), coveredBy: pot!.source.join(', '), billed: true } : {}), description: vals.what || picked.map((x) => x.desc).join(', ') || costKind, ...keepProof, documents: docs } as Expense);
       rememberProofUrls('form', 'expense:' + id, proofs);
       postGL([glOf(id, firstAmt, '')]);
       let id2 = '';
@@ -1862,9 +1900,11 @@ export function useFinanceController(initialTab: FinTab) {
         setForm(null); toastMsg(`${id} recorded (${kindOf}) · not an office expense`); return;
       }
       if (vals.cat === 'Other' && !String(vals.catOther || '').trim()) { toastMsg('Category is Other: say what it is.'); return; }
-      const id = app.getNextSequenceId('expense', dateIso); const from = vals.from || paidFromOptions[0]; const cat = vals.cat === 'Other' ? 'Other: ' + String(vals.catOther).trim() : vals.cat || 'Utilities';
+      const ed = costEditPrep(String(vals.editId || '')); if (!ed.ok) return;
+      const id = ed.old ? ed.old.id : app.getNextSequenceId('expense', dateIso); const from = vals.from || paidFromOptions[0]; const cat = vals.cat === 'Other' ? 'Other: ' + String(vals.catOther).trim() : vals.cat || 'Utilities';
       if (isStatutoryCategory(cat)) { toastMsg('EPF / SOCSO / EIS / PCB payments: choose "' + PV_STATUTORY + '" as the type (they settle payroll amounts already booked).'); return; }
-      app.addExpense({ id, caseId: '', date: dateIso, category: cat, amount: amt, billable: false, description: vals.what || '', payee: vals.payee || '', accountSet: 'OFFICE', paidFrom: from, approvalStatus: 'Posted to GL', postedToGl: true, paidProof: proofs[0], documents: proofs.map((p, i) => ({ id: `DOC-${id}-${i}`, name: p.name, url: '', type: p.type, size: p.size, uploadedAt: p.uploadedAt, category: 'Receipt Photo' as const })) });
+      costEditApply(ed.drop);
+      app.addExpense({ id, caseId: '', date: dateIso, category: cat, amount: amt, billable: false, description: vals.what || '', payee: vals.payee || '', accountSet: 'OFFICE', paidFrom: from, approvalStatus: 'Posted to GL', postedToGl: true, ...(proofs.length ? { paidProof: proofs[0], documents: proofs.map((p, i) => ({ id: `DOC-${id}-${i}`, name: p.name, url: '', type: p.type, size: p.size, uploadedAt: p.uploadedAt, category: 'Receipt Photo' as const })) } : ed.old ? { paidProof: ed.old.paidProof, documents: ed.old.documents, driveFiling: ed.old.driveFiling } : {}) });
       rememberProofUrls('form', 'expense:' + id, proofs);
       postGL([{ date: dateIso, docType: 'PV', docNo: id, accountSet: 'OFFICE', debit: expenseGL(cat), credit: /petty/i.test(from) ? GLA.petty : GLA.office, amount: amt, clientId: '', fileRef: '', description: `${vals.payee || ''} · ${vals.what || cat}` }]);
       setForm(null); toastMsg(proofs.length ? 'Expense recorded with receipt.' : 'Expense recorded. Attach the receipt to complete it.');

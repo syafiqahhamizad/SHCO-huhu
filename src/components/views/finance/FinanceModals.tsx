@@ -1,5 +1,5 @@
 import React from 'react';
-import { DISB_ACC, EXTRA_COST, disbToOf, type FinanceCtrl, type EditorState } from './useFinanceController';
+import { DISB_ACC, DISB_TYPE, EXTRA_COST, REIMB_TYPE, disbToOf, type FinanceCtrl, type EditorState } from './useFinanceController';
 import { num0 } from './financeModel';
 import { OTHER_COST } from '../../../lib/quotedDisb';
 import { css, DRIVE_REQUIRED_MSG, filesToProofs, proofMissingMsg, proofUploadBlocked, rm2 } from './financeModel';
@@ -219,9 +219,8 @@ export const DocEditModal = ({ F }: { F: FinanceCtrl }) => {
 type FieldDef = [string, string, (string | string[] | 'file')?];
 /** Record payment: the disbursement part stays in Office (moved later) unless you pick the Disbursement account. */
 const OFFICE_FIRST = 'Office account (move it later)';
-/** Paid for a client file: paid to others (search, stamp duty) or our own cost re-charged (photocopy, courier, travel). */
-const DISB_TYPE = 'Disbursement (paid to others)';
-const REIMB_TYPE = 'Reimbursement (our own cost: photocopy, courier, travel)';
+const IN_QUOTE = 'Part of the quote';
+const EXTRA_LABEL = 'Not part of the quote (bill the client separately)';
 /** Paused: the firm banks every payment into Office and moves the disbursement part itself (Money out → Move to Disbursement account). Set true to offer the choice again. */
 const SHOW_DISB_CHOICE = false;
 /** Money boxes: typed as numbers, shown as 0.00 when you leave the box. */
@@ -243,7 +242,15 @@ export const FormModal = ({ F }: { F: FinanceCtrl }) => {
   const quoted = f.kind === 'disb' ? F.quotedForRef(f.vals.matter, costKind) : null;
   const inQuote = !!quoted && quoted.rows.length > 0 && f.vals.quoteLine !== EXTRA_COST;
   const potLeft = quoted ? Math.max(0, quoted.left) : 0;
-  const pickQuoted = (v: string) => { const r = quoted?.rows.find((x) => x.desc === v && x.quoted > 0); F.setForm({ ...f, vals: { ...f.vals, quoteLine: v, ...(r ? { what: r.desc === 'Disbursements (as quoted)' ? f.vals.what || '' : r.desc, amount: Math.min(r.left > 0 ? r.left : r.quoted, potLeft || r.quoted).toFixed(2) } : {}) } }); };
+  // Ticked quoted items (several under one receipt): the amount and details follow the ticks.
+  const pickItem = (desc: string, amount: string | null) => {
+    const qi = { ...((f.vals.qItems || {}) as Record<string, string>) };
+    if (amount === null) delete qi[desc]; else qi[desc] = amount;
+    const sum = Object.values(qi).reduce((t, a) => t + num0(a), 0);
+    const names = Object.keys(qi).filter((d) => d !== OTHER_COST && d !== 'Disbursements (as quoted)' && d !== 'Reimbursements (as quoted)').join(', ');
+    const autoWhat = !f.vals.what || f.vals.whatAuto;
+    F.setForm({ ...f, vals: { ...f.vals, qItems: qi, quoteLine: '', ...(Object.keys(qi).length ? { amount: sum.toFixed(2) } : {}), ...(autoWhat ? { what: names, whatAuto: true } : {}) } });
+  };
   // Record payment: the bill's disbursement share, and where that part was banked.
   const payShare = f.kind === 'pay' ? F.disbShareOf(String(f.vals.docKind || ''), String(f.vals.docId || '')) : 0;
   const DEF: Record<string, [string, FieldDef[], string?]> = {
@@ -312,15 +319,28 @@ export const FormModal = ({ F }: { F: FinanceCtrl }) => {
     <div style={css('position:fixed;inset:0;z-index:60;background:rgba(22,34,58,.6);display:flex;align-items:flex-start;justify-content:center;padding-top:80px;padding-bottom:40px;overflow:auto')}>
       <ClientList F={F} />
       <div style={css('width:480px;max-width:calc(100vw - 32px);border-radius:12px;background:#fff;overflow:hidden')}>
-        <div style={css('padding:12px 16px;background:#16223A')}><strong style={css('font-size:13.5px;color:#fff')}>{def[0]}</strong></div>
+        <div style={css('padding:12px 16px;background:#16223A')}><strong style={css('font-size:13.5px;color:#fff')}>{f.vals.editId ? 'Edit ' + f.vals.editId + ' · ' + def[0] : def[0]}</strong></div>
         <div style={css('padding:14px 16px;display:flex;flex-direction:column;gap:10px')}>
           {def[2] && <p style={css('margin:0;font-size:10.5px;line-height:1.5;color:#8A6534;font-weight:600')}>{def[2]}</p>}
           {def[1].map(([k, label, x]) => { const isOpts = Array.isArray(x), isFile = x === 'file'; const fl: FinanceProof[] = f.vals[k] || []; return (
             <div key={k} style={css('display:flex;flex-direction:column;gap:4px')}><span style={css(LBL)}>{label}</span>
               {k === 'date' && <input type="date" value={toIso(f.vals.date || todayDmy)} onChange={(ev) => set('date', fromIso(ev.target.value))} style={css(INPUT + ';width:170px')} />}
               {k === 'client' && <SearchSelect aria-label={label} value={f.vals.client || ''} onChange={pickClient} placeholder="Search a client…" empty="No client by that name. Add them in Clients first." options={clientChoices} />}
-              {k === 'what' && detailsList && <SearchSelect aria-label={label} value={f.vals.what || ''} onChange={(v) => set('what', v)} onCreate={addDetail} clearable placeholder="Choose what it was for… (type a new one to add it)" options={detailOpts} />}
-              {k === 'quoteLine' && quoted && <><select value={f.vals.quoteLine || OTHER_COST} onChange={(ev) => pickQuoted(ev.target.value)} style={css(INPUT + ';cursor:pointer')}>{quoted.rows.filter((r) => r.quoted > 0).map((r) => <option key={r.desc} value={r.desc}>{r.desc} · quoted RM {r.quoted.toFixed(2)}</option>)}<option value={OTHER_COST}>Other cost, not listed (still counts against the quote)</option><option value={EXTRA_COST}>Not part of the quote (bill the client separately)</option></select><span style={css('font-size:10.5px;color:#5B6478')}>RM {potLeft.toFixed(2)} of RM {quoted.quoted.toFixed(2)} still left in the quoted {costWord}.</span></>}
+              {k === 'what' && detailsList && <SearchSelect aria-label={label} value={f.vals.what || ''} onChange={(v) => F.setForm({ ...f, vals: { ...f.vals, what: v, whatAuto: false } })} onCreate={addDetail} clearable placeholder="Choose what it was for… (type a new one to add it)" options={detailOpts} />}
+              {k === 'quoteLine' && quoted && <>
+                <div style={css('display:flex;flex-wrap:wrap;gap:4px')}>{seg([IN_QUOTE, EXTRA_LABEL], f.vals.quoteLine === EXTRA_COST ? EXTRA_LABEL : IN_QUOTE, (v) => F.setForm({ ...f, vals: { ...f.vals, quoteLine: v === EXTRA_LABEL ? EXTRA_COST : '', qItems: v === EXTRA_LABEL ? {} : f.vals.qItems } }))}</div>
+                {f.vals.quoteLine !== EXTRA_COST && <div style={css('display:flex;flex-direction:column;border:1px solid #DDE3EB;border-radius:8px;overflow:hidden')}>
+                  <span style={css('padding:6px 10px;font-size:10.5px;color:#5B6478;background:#F6F8FA')}>Tick every item this receipt paid for (one or many) and its amount. Not on the list? Use the last line.</span>
+                  {[...quoted.rows.filter((r) => r.quoted > 0), { desc: OTHER_COST, quoted: 0, paid: 0, left: 0 }].map((r) => { const qi = (f.vals.qItems || {}) as Record<string, string>; const on = r.desc in qi; return (
+                    <div key={r.desc} style={css('display:grid;grid-template-columns:22px minmax(0,1fr) 110px;gap:8px;align-items:center;padding:5px 10px;border-top:1px solid #F0F2F5')}>
+                      <input type="checkbox" checked={on} onChange={() => pickItem(r.desc, on ? null : (r.quoted > 0 ? Math.max(0, Math.min(r.left > 0 ? r.left : r.quoted, r.quoted)) : 0).toFixed(2))} />
+                      <span style={css('font-size:11.5px;color:#16223A')}>{r.desc === OTHER_COST ? 'Other cost, not listed (still counts against the quote)' : r.desc}{r.quoted > 0 && <span style={css('color:#5B6478')}> · quoted RM {r.quoted.toFixed(2)}{r.paid ? ' · used RM ' + r.paid.toFixed(2) : ''}</span>}</span>
+                      {on ? <MoneyInput value={qi[r.desc]} onChange={(v) => pickItem(r.desc, v)} style={css(INPUT + ';padding:5px 8px')} /> : <span></span>}
+                    </div>
+                  ); })}
+                </div>}
+                <span style={css('font-size:10.5px;color:#5B6478')}>RM {potLeft.toFixed(2)} of RM {quoted.quoted.toFixed(2)} still left in the quoted {costWord}.</span>
+              </>}
               {k === 'reimbItems' && <textarea rows={3} value={f.vals.reimbItems || ''} onChange={(ev) => set('reimbItems', ev.target.value)} placeholder={'Photocopy & printing 50\nCourier 30\nTravel 200'} style={css(INPUT + ';resize:vertical;font-family:inherit')} />}
               {k === 'disbItems' && <textarea rows={3} value={f.vals.disbItems || ''} onChange={(ev) => set('disbItems', ev.target.value)} placeholder={'Bankruptcy search 10\nSSM search 30\nStamp duty 460'} style={css(INPUT + ';resize:vertical;font-family:inherit')} />}
               {k === 'amount' && inQuote && num0(f.vals.amount) > potLeft + 0.005 && <span style={css('font-size:10.5px;font-weight:700;color:#B23A2E')}>{potLeft > 0 ? 'Only RM ' + potLeft.toFixed(2) + ' left in the quote. RM ' + (num0(f.vals.amount) - potLeft).toFixed(2) + ' will be billed to the client (Work not billed).' : 'The quoted disbursements are used up. This will be billed to the client (Work not billed).'}</span>}

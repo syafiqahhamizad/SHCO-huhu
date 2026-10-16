@@ -43,4 +43,10 @@ describe('quotedDisbursements', () => {
     expect(quotedDisbursements(c, [q2], [], [photocopy]).paid).toBe(0);
     expect(quotedFees(c, [q2], [])).toBe(5000);
   });
+  it('several quoted items under one receipt', () => {
+    const e = { id: 'DISB-5', caseId: 'K1', category: 'Disbursement', amount: 40, quoteLine: 'Bankruptcy search', quoteLines: [{ desc: 'Bankruptcy search', amount: 10 }, { desc: 'SSM search', amount: 30 }] } as unknown as Expense;
+    const q = quotedDisbursements(c, [quote], [], [e]);
+    expect(q.rows.map((r) => r.paid)).toEqual([10, 30]);
+    expect(q.left).toBe(0);
+  });
 });

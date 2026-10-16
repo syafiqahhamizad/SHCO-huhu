@@ -43,16 +43,18 @@ export const quotedCosts = (c: Pick<Case, 'id' | 'ref'>, quotations: Quotation[]
   const byDesc = new Map<string, number>();
   docs.forEach((d) => (d.lineItems || []).filter((i) => i.category === kind).forEach((i) => { const k = quotedLabel(String(i.description || kind + 's')); byDesc.set(k, r2((byDesc.get(k) || 0) + lineAmt(i))); }));
   const costs = expenses.filter((e) => onFile(c, e.caseId, e.fileRef) && !e.writtenOff && (kind === 'Disbursement' ? e.category === 'Disbursement' && !isReimbCost(e) : isReimbCost(e) && (e.billable || e.category === 'Reimbursement')));
+  // Each cost's parts: several items under one receipt, or one item for the whole amount.
+  const parts = costs.flatMap((e) => (e.quoteLines?.length ? e.quoteLines.map((p) => ({ desc: quotedLabel(p.desc), amount: Number(p.amount || 0) })) : e.quoteLine ? [{ desc: quotedLabel(e.quoteLine), amount: Number(e.amount || 0) }] : []));
   const rows = [...byDesc.entries()].map(([desc, quoted]) => {
-    const paid = r2(costs.filter((e) => e.quoteLine && quotedLabel(e.quoteLine) === desc).reduce((s, e) => s + Number(e.amount || 0), 0));
+    const paid = r2(parts.filter((p) => p.desc === desc).reduce((s, p) => s + p.amount, 0));
     return { desc, quoted, paid, left: r2(quoted - paid) };
   });
-  const other = r2(costs.filter((e) => e.quoteLine && !byDesc.has(quotedLabel(e.quoteLine))).reduce((s, e) => s + Number(e.amount || 0), 0));
+  const other = r2(parts.filter((p) => !byDesc.has(p.desc)).reduce((s, p) => s + p.amount, 0));
   if (other > 0) rows.push({ desc: OTHER_COST, quoted: 0, paid: other, left: -other });
   // Reimbursements: staff travel for this file (what the firm paid out) counts as our cost too.
   const trav = kind === 'Reimbursement' ? r2(travel.filter((t) => t.purposeType === 'Client Matter' && t.fileRef === c.ref && t.approvalStatus !== 'Rejected' && t.approvalStatus !== 'Draft').reduce((s, t) => s + Number(t.total || 0), 0)) : 0;
   if (trav > 0) rows.push({ desc: TRAVEL, quoted: 0, paid: trav, left: -trav });
-  const extras = costs.filter((e) => !e.quoteLine);
+  const extras = costs.filter((e) => !e.quoteLine && !e.quoteLines?.length);
   const quoted = r2(rows.reduce((s, x) => s + x.quoted, 0)), paid = r2(rows.reduce((s, x) => s + x.paid, 0));
   return { kind, source: docs.map((d) => d.id), rows: byDesc.size ? rows : [], extras, quoted, paid, left: r2(quoted - paid) };
 };

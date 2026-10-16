@@ -941,6 +941,8 @@ export interface Expense {
   clientId?: string;
   /** The quoted disbursement this cost is for (e.g. "SSM search"): the client already paid it, so it is not billed again. */
   quoteLine?: string;
+  /** Several quoted items paid under one receipt, each with its part of the amount. */
+  quoteLines?: { desc: string; amount: number }[];
   /** The quotation / proforma / invoice that already charged the client for it. */
   coveredBy?: string;
   fileRef?: string;
