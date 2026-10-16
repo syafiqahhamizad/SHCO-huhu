@@ -8,6 +8,7 @@ export const DEFAULT_DOC_FORMATS: Record<string, string> = {
   proforma: 'PF-{YYYY}-{0000}',
   invoice: 'INV-{YYYY}-{0000}',
   receipt: 'HQ-OR-{0000}',
+  receiptClient: 'ORCA-{YY}{0000}',
   voucher: 'HQ-PV-{0000}',
   journal: 'JV-{YYYY}-{0000}',
   disbursement: 'DISB-{0000}',

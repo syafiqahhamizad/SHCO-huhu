@@ -1700,7 +1700,8 @@ export function useFinanceController(initialTab: FinTab) {
       const kase = vals.caseId ? findCase(lk, vals.caseId) : inv ? invCase(inv) : pf ? qCase(pf) : caseForRef(forNo);
       if (acc === 'Office' && inv) { if (inv.status === 'Voided') { toastMsg(inv.id + ' is voided.'); return; } if (amt > invBal(inv) + 0.01) { toastMsg('Payment cannot exceed the invoice balance (' + rm2(invBal(inv)) + ').'); return; } }
       if (acc === 'Client account' && !c) { toastMsg('Client money must be linked to a registered client (client ledger).'); return; }
-      const id = app.getNextSequenceId('receipt', dateIso);
+      // Client-account receipts have their own numbers (ORCA-…), office receipts OR-….
+      const id = app.getNextSequenceId(acc === 'Client account' ? 'receiptClient' : 'receipt', dateIso);
       rememberProofUrls('form', id, proofs);
       app.addReceipt({ id, date: dateIso, accountSet: acc === 'Client account' ? 'CLIENT' : 'OFFICE', receivedFrom: vals.client || c?.name || '—', description: forNo || 'Payment received', amount: amt, debit: cashAccountGL(acc), credit: acc === 'Client account' ? GLA.clientFunds : inv ? GLA.ar : pf ? GLA.feesAdvance : GLA.fees, clientId: c?.id || inv?.clientId || '', fileRef: kase?.ref || inv?.fileRef || '', bankRef: '', receivedBy: me, paymentMethod: vals.method || 'Online transfer', forNo, invoiceId: inv?.id, quotationId: pf?.id, caseId: kase?.id, proofs });
       if (acc === 'Office' && inv) app.addPayment({ id: 'PAY-' + id, invoiceId: inv.id, amount: amt, date: dateIso, method: vals.method || 'Online transfer' });
@@ -1711,8 +1712,24 @@ export function useFinanceController(initialTab: FinTab) {
     } else if (kind === 'pay') {
       if (!canPrepare) { toastMsg('Payments are recorded by Accounts.'); return; }
       if (amt <= 0) { toastMsg('Enter the amount received.'); return; }
-      const id = app.getNextSequenceId('receipt', dateIso); rememberProofUrls('form', id, proofs);
+      const payAcc = vals.docKind === 'invoice' ? (vals.payInto === 'Client account' ? 'Client account' : 'Office') : quotations.find((x) => x.id === vals.docId)?.payInto || 'Office';
+      const id = app.getNextSequenceId(payAcc === 'Client account' ? 'receiptClient' : 'receipt', dateIso); rememberProofUrls('form', id, proofs);
       try { localStorage.setItem('shco.disbTo', String(vals.disbTo || '')); } catch { /* remembered only when the browser allows */ }
+      if (vals.docKind === 'invoice' && payAcc === 'Client account') {
+        // Client paid an invoice into the CLIENT account: hold it in their ledger first (SAR 1990),
+        // then move it to office against the invoice (Transfer fees to office, 2 signatories).
+        const inv = invoices.find((i) => i.id === vals.docId); if (!inv) return;
+        const cl = lk.clientById.get(inv.clientId) || clientByName(inv.partyName || '');
+        if (!cl) { toastMsg('Link this invoice to a registered client first: client money is kept per client ledger.'); return; }
+        const kase = invCase(inv);
+        app.addReceipt({ id, date: dateIso, accountSet: 'CLIENT', receivedFrom: inv.partyName || cl.name, description: `Paid into client account for ${inv.id}`, amount: amt, debit: cashAccountGL('Client account'), credit: GLA.clientFunds, clientId: cl.id, fileRef: inv.fileRef || kase?.ref || '', bankRef: '', receivedBy: me, paymentMethod: vals.method || 'Online transfer', forNo: inv.id, caseId: kase?.id, proofs });
+        app.addRetainer({ id: 'RET-' + id, clientId: cl.id, caseId: kase?.id || '', type: 'Deposit', amount: amt, date: dateIso, remarks: `Paid for ${inv.id}`, voucherNo: id });
+        postGL([{ date: dateIso, docType: 'OR', docNo: id, accountSet: 'CLIENT', debit: cashAccountGL('Client account'), credit: GLA.clientFunds, amount: amt, clientId: cl.id, fileRef: inv.fileRef || kase?.ref || '', description: `Receipt ${id} into client account for ${inv.id}` }]);
+        // Next step offered (never forced): move it to office for this invoice.
+        setForm({ kind: 'transfer', vals: { client: cl.name, matter: kase?.ref || '', forNo: inv.id, amount: Math.min(amt, invBal(inv)).toFixed(2), date: fd(parseDate(dateIso) || Date.now()) } });
+        toastMsg(id + ' saved in the client account. Next: move it to office for ' + inv.id + ' (2 signatories), or Cancel to keep holding it.');
+        return;
+      }
       if (vals.docKind === 'invoice') {
         const inv = invoices.find((i) => i.id === vals.docId); if (!inv) return;
         if (amt > invBal(inv) + 0.01) { toastMsg('Payment cannot exceed the invoice balance (' + rm2(invBal(inv)) + ').'); return; }

@@ -50,6 +50,7 @@ export const BanksTab = ({ C }: { C: SettingsCtx }) => {
     proforma: quotations.filter((q) => q.documentType === 'Proforma').map((q) => q.id),
     invoice: invoices.map((x) => x.id),
     receipt: receipts.map((x) => x.id),
+    receiptClient: receipts.map((x) => x.id),
     voucher: paymentVouchers.map((x) => x.id),
     journal: manualJournals.map((x) => x.id),
     disbursement: expenses.map((x) => x.id),
@@ -57,7 +58,7 @@ export const BanksTab = ({ C }: { C: SettingsCtx }) => {
   };
   // Clients and leads run one number firm-wide (the year is the client's first file / the lead's year).
   const nextOf = (k: string, fmt: string) => (k === 'client' ? nextClientNo(clients.map((c) => c.clientNo), year, fmt) : k === 'lead' ? formatDocNo(fmt, year, maxNumAnyYear(leads.map((l) => l.id), fmt) + 1) : nextDocNo(k, fmt, idsOf[k] || [], year));
-  const BUKKU: Record<string, string> = { client: 'CL{YY}{000}', lead: 'LD{YY}{000}', quotation: 'QT-{YY}{0000}', proforma: 'PF-{YY}{0000}', invoice: 'IV-{YY}{0000}', receipt: 'OR-{YY}{0000}', voucher: 'PV-{YY}{0000}', journal: 'JV-{YY}{0000}', disbursement: 'DISB-{YY}{0000}', expense: 'EX-{YY}{0000}' };
+  const BUKKU: Record<string, string> = { client: 'CL{YY}{000}', lead: 'LD{YY}{000}', quotation: 'QT-{YY}{0000}', proforma: 'PF-{YY}{0000}', invoice: 'IV-{YY}{0000}', receipt: 'OR-{YY}{0000}', receiptClient: 'ORCA-{YY}{0000}', voucher: 'PV-{YY}{0000}', journal: 'JV-{YY}{0000}', disbursement: 'DISB-{YY}{0000}', expense: 'EX-{YY}{0000}' };
   const useBukku = () => {
     if (!window.confirm('Use Bukku-style numbers for NEW documents (e.g. IV-' + String(year).slice(-2) + '0013)? Old numbers stay as they are; the count carries on.')) return;
     C.save({ docNumbering: { ...(s.docNumbering || {}), ...BUKKU } }, 'Numbering Format Changed', 'Bukku style for all documents');

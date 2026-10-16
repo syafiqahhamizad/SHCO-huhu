@@ -377,6 +377,7 @@ export const DOC_NUMBERING: [string, string, string][] = [
   ['proforma', 'Proforma invoice', 'PF-{YYYY}-{0000}'],
   ['invoice', 'Invoice', 'INV-{YYYY}-{0000}'],
   ['receipt', 'Official receipt', 'HQ-OR-{0000}'],
+  ['receiptClient', 'Official receipt · client account', 'ORCA-{YY}{0000}'],
   ['voucher', 'Payment voucher', 'HQ-PV-{0000}'],
   ['journal', 'Journal', 'JV-{YYYY}-{0000}'],
   ['disbursement', 'Cost paid for a client file', 'DISB-{0000}'],
