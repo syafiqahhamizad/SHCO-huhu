@@ -347,7 +347,7 @@ export function useFinanceController(initialTab: FinTab) {
         // Your own label on the document (if any) wins over the automatic one.
         const own = (q?.label || inv?.label || rc?.label || '').trim();
         const label = (own || what) ? ' · ' + (own || what).replace(/[\\/:*?"<>|]/g, '-').slice(0, 80) : '';
-        const pdfFile = new File([blob], d.no + label + '.pdf', { type: 'application/pdf' });
+        const pdfFile = new File([blob], (d.date ? String(d.date).replace(/\./g, '') + ' ' : '') + d.no + label + '.pdf', { type: 'application/pdf' });
         const prev = (q || inv || rc)?.driveCopy;
         let up: { name: string; driveFileId?: string; webViewLink?: string };
         try { up = prev?.driveFileId ? await replaceStoredFile(prev.driveFileId, pdfFile) : await storeEngagementFile(k ? { ref: k.ref, title: k.title } : { ref: '', title: 'No file' }, pdfFile, me, part); }
@@ -1484,7 +1484,14 @@ export function useFinanceController(initialTab: FinTab) {
 
   /* ------------------------------ forms ------------------------------ */
   /** Attach the PDF to a past invoice / receipt keyed in without one (e.g. from a bulk import). */
-  const attachPastFile = (kind: 'invoice' | 'receipt' | 'quotation', rec: { id: string; caseId?: string; pastNo?: string }, file: File) => {
+  /** Past papers in Drive: "29052025 Quotation QT-0012.pdf" (date first, like the firm's own files). */
+  const datedFile = (file: File, dateIso: string | undefined, type: string, no: string) => {
+    const ext = (file.name.match(/\.[a-z0-9]+$/i) || ['.pdf'])[0];
+    const dmy = dateIso ? fd(parseDate(dateIso)).replace(/\./g, '') : '';
+    return new File([file], ((dmy ? dmy + ' ' : '') + type + ' ' + no).replace(/[\\/:*?"<>|]/g, '-').trim() + ext, { type: file.type });
+  };
+  const attachPastFile = (kind: 'invoice' | 'receipt' | 'quotation', rec: { id: string; caseId?: string; pastNo?: string; date?: string; documentType?: string }, file0: File) => {
+    const file = datedFile(file0, rec.date, kind === 'invoice' ? 'Invoice' : kind === 'receipt' ? 'Receipt' : rec.documentType === 'Proforma' ? 'Proforma' : 'Quotation', rec.pastNo || rec.id.replace(/^PAST\s*/i, ''));
     const kase = rec.caseId ? lk.caseById.get(rec.caseId) : undefined;
     void (async () => {
       try {
@@ -1585,7 +1592,7 @@ export function useFinanceController(initialTab: FinTab) {
         void (async () => {
           try {
             await prepareStorage();
-            const up = await storeEngagementFile(kase ? { ref: kase.ref, title: kase.title } : { ref: '', title: 'Past proformas' }, pdf, me, 'Proforma');
+            const up = await storeEngagementFile(kase ? { ref: kase.ref, title: kase.title } : { ref: '', title: 'Past proformas' }, datedFile(pdf, dateIso, 'Proforma', no), me, 'Proforma');
             app.updateQuotation(no, { pastFile: { name: up.name, driveFileId: up.driveFileId, webViewLink: up.webViewLink } });
           } catch (e) { toastMsg(no + ' saved, but its PDF was not uploaded: ' + (e instanceof Error ? e.message : String(e))); }
         })();
@@ -1613,7 +1620,7 @@ export function useFinanceController(initialTab: FinTab) {
         void (async () => {
           try {
             await prepareStorage();
-            const up = await storeEngagementFile(kase ? { ref: kase.ref, title: kase.title } : { ref: '', title: 'Past quotations' }, pdf, me, 'Quotation');
+            const up = await storeEngagementFile(kase ? { ref: kase.ref, title: kase.title } : { ref: '', title: 'Past quotations' }, datedFile(pdf, dateIso, 'Quotation', no), me, 'Quotation');
             app.updateQuotation(no, { pastFile: { name: up.name, driveFileId: up.driveFileId, webViewLink: up.webViewLink } });
           } catch (e) { toastMsg(no + ' saved, but its PDF was not uploaded: ' + (e instanceof Error ? e.message : String(e))); }
         })();
@@ -1645,7 +1652,7 @@ export function useFinanceController(initialTab: FinTab) {
       if (pdf) {
         toastMsg(no + ' · saving its PDF to Google Drive…');
         void (async () => {
-          try { await prepareStorage(); const up = await storeEngagementFile(kase ? { ref: kase.ref, title: kase.title } : { ref: '', title: 'No file' }, pdf, me, 'Invoices'); make({ name: up.name, driveFileId: up.driveFileId, webViewLink: up.webViewLink }); toastMsg(no + ' added to Invoices' + (st !== 'Not paid' ? ' · now record the payment' : '')); }
+          try { await prepareStorage(); const up = await storeEngagementFile(kase ? { ref: kase.ref, title: kase.title } : { ref: '', title: 'No file' }, datedFile(pdf, dateIso, 'Invoice', no), me, 'Invoices'); make({ name: up.name, driveFileId: up.driveFileId, webViewLink: up.webViewLink }); toastMsg(no + ' added to Invoices' + (st !== 'Not paid' ? ' · now record the payment' : '')); }
           catch (e) { make(); toastMsg(no + ' added, but its PDF was not uploaded: ' + (e instanceof Error ? e.message : String(e))); }
         })();
       } else { make(); toastMsg(no + ' added to Invoices' + (st !== 'Not paid' ? ' · now record the payment' : '')); }
@@ -1674,7 +1681,7 @@ export function useFinanceController(initialTab: FinTab) {
         void (async () => {
           try {
             await prepareStorage();
-            const up = await storeEngagementFile(kase ? { ref: kase.ref, title: kase.title } : { ref: '', title: inv ? 'Past invoices' : 'Past receipts' }, pdf, me, inv ? 'Invoices' : 'Receipts');
+            const up = await storeEngagementFile(kase ? { ref: kase.ref, title: kase.title } : { ref: '', title: inv ? 'Past invoices' : 'Past receipts' }, datedFile(pdf, dateIso, inv ? 'Invoice' : 'Receipt', no), me, inv ? 'Invoices' : 'Receipts');
             save({ name: up.name, driveFileId: up.driveFileId, webViewLink: up.webViewLink });
           } catch (e) { save(); toastMsg(no + ' saved, but its PDF was not uploaded: ' + (e instanceof Error ? e.message : String(e))); }
         })();
