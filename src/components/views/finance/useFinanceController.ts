@@ -1728,7 +1728,9 @@ export function useFinanceController(initialTab: FinTab) {
       const c = clientByName(vals.client || ''); const forNo = String(vals.forNo || '').trim();
       if (acc === 'Client account' && /^(INV|IV)-/i.test(forNo)) { toastMsg('Payment for an issued invoice goes to the office account. Choose "Payment of an invoice", or give the purpose for a deposit.'); return; }
       const inv = invoices.find((i) => i.id === forNo); const pf = quotations.find((q) => q.id === forNo);
-      const kase = vals.caseId ? findCase(lk, vals.caseId) : inv ? invCase(inv) : pf ? qCase(pf) : caseForRef(forNo);
+      // The file picked on the form wins; else the bill's file; else a file ref typed as the purpose.
+      const kase = vals.matter ? caseForRef(String(vals.matter)) : vals.caseId ? findCase(lk, vals.caseId) : inv ? invCase(inv) : pf ? qCase(pf) : caseForRef(forNo);
+      if (vals.matter && !kase) { toastMsg('File ' + vals.matter + ' not found: pick it from the list.'); return; }
       if (acc === 'Office' && inv) { if (inv.status === 'Voided') { toastMsg(inv.id + ' is voided.'); return; } if (amt > invBal(inv) + 0.01) { toastMsg('Payment cannot exceed the invoice balance (' + rm2(invBal(inv)) + ').'); return; } }
       if (acc === 'Client account' && !c) { toastMsg('Client money must be linked to a registered client (client ledger).'); return; }
       // Client-account receipts have their own numbers (ORCA-…), office receipts OR-….
