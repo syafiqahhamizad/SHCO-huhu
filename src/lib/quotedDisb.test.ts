@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { quotedDisbursements } from './quotedDisb';
-import type { Expense, Invoice, Quotation } from '../types';
+import { quotedCosts, quotedDisbursements, quotedFees } from './quotedDisb';
+import type { Expense, Invoice, Quotation, TravelClaim } from '../types';
 
 const c = { id: 'K1', ref: 'SHC/CORP/SZ/002/04-25' };
 const quote = { id: 'QT-1', documentType: 'Quotation', status: 'Accepted', caseId: 'K1', lineItems: [
@@ -30,5 +30,17 @@ describe('quotedDisbursements', () => {
     const inv = { id: 'IV-250001', status: 'Unpaid', caseId: 'K1', lineItems: [{ description: 'Disbursements', category: 'Disbursement', amount: 500 }] } as unknown as Invoice;
     const q = quotedDisbursements(c, [], [inv], [cost('DISB-1', 120, 'Disbursements (as quoted)')]);
     expect(q.rows).toEqual([{ desc: 'Disbursements (as quoted)', quoted: 500, paid: 120, left: 380 }]);
+  });
+  it('reimbursements: what is left is profit; staff travel counts as our cost', () => {
+    const q2 = { ...quote, lineItems: [...(quote.lineItems as object[]), { description: 'Photocopy', category: 'Reimbursement', amount: 100 }, { description: 'Courier', category: 'Reimbursement', amount: 50 }] } as unknown as Quotation;
+    const photocopy = { id: 'DISB-9', caseId: 'K1', category: 'Reimbursement', amount: 40, quoteLine: 'Photocopy', billable: true } as unknown as Expense;
+    const trip = { id: 'TC-1', fileRef: c.ref, purposeType: 'Client Matter', total: 30, approvalStatus: 'Approved' } as unknown as TravelClaim;
+    const r = quotedCosts(c, [q2], [], [photocopy], 'Reimbursement', [trip]);
+    expect(r.quoted).toBe(150);
+    expect(r.paid).toBe(70);
+    expect(r.left).toBe(80);
+    // the photocopy is not a disbursement
+    expect(quotedDisbursements(c, [q2], [], [photocopy]).paid).toBe(0);
+    expect(quotedFees(c, [q2], [])).toBe(5000);
   });
 });

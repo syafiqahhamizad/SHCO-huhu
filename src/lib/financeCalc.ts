@@ -76,7 +76,7 @@ export const splitReceipt = (amount: number, c: Composition) => {
 
 /* ------------------------------ expenses / vouchers ------------------------------ */
 /** Our own costs re-charged to the client (SST-able "reimbursements"), as opposed to disbursements paid to third parties. */
-export const isReimbursementCategory = (cat?: string, desc?: string) => /photocop|print|courier|despatch|dispatch|postage|mileage|travel|toll|parking|telephone|\bfax\b|runner/i.test(`${cat || ''} ${desc || ''}`) && !/filing|stamp|search|court fee|registration/i.test(String(cat || ''));
+export const isReimbursementCategory = (cat?: string, desc?: string) => /reimburs|photocop|print|courier|despatch|dispatch|postage|mileage|travel|toll|parking|telephone|\bfax\b|runner/i.test(`${cat || ''} ${desc || ''}`) && !/filing|stamp|search|court fee|registration/i.test(String(cat || ''));
 /** Office-expense categories that are really remittances of amounts already owed (not new costs). */
 export const isStatutoryCategory = (cat?: string) => /\bepf\b|kwsp|socso|perkeso|\beis\b|\bpcb\b|lhdn|zakat|statutory/i.test(String(cat || ''));
 export const PV_STATUTORY = 'Statutory (EPF/SOCSO/EIS/PCB)';
