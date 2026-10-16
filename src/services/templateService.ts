@@ -379,6 +379,8 @@ export const DOC_NUMBERING: [string, string, string][] = [
   ['receipt', 'Official receipt', 'HQ-OR-{0000}'],
   ['voucher', 'Payment voucher', 'HQ-PV-{0000}'],
   ['journal', 'Journal', 'JV-{YYYY}-{0000}'],
+  ['disbursement', 'Cost paid for a client file', 'DISB-{0000}'],
+  ['expense', 'Office cost', 'EX-{0000}'],
   ['client', 'Client number', 'CL{YY}{000}'],
   ['lead', 'Lead', 'LD{YY}{000}'],
 ];

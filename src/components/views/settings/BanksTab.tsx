@@ -21,7 +21,7 @@ const kindOf = (b: FirmBankAccount) => {
 const fmtAmt = (n?: number) => (n == null ? '0' : Number(n).toLocaleString('en-MY', { maximumFractionDigits: 2 }));
 
 export const BanksTab = ({ C }: { C: SettingsCtx }) => {
-  const { quotations = [], invoices = [], receipts = [], paymentVouchers = [], manualJournals = [], clients = [], leads = [] } = useApp();
+  const { quotations = [], invoices = [], receipts = [], paymentVouchers = [], manualJournals = [], expenses = [], clients = [], leads = [] } = useApp();
   const s = C.settings;
   const [sec, setSec] = useRemembered('settings.bank', 'Bank accounts');
   const banks: FirmBankAccount[] = (s.bankAccounts && s.bankAccounts.length ? s.bankAccounts : DEFAULT_PRACTICE_SETTINGS.bankAccounts || []);
@@ -52,10 +52,12 @@ export const BanksTab = ({ C }: { C: SettingsCtx }) => {
     receipt: receipts.map((x) => x.id),
     voucher: paymentVouchers.map((x) => x.id),
     journal: manualJournals.map((x) => x.id),
+    disbursement: expenses.map((x) => x.id),
+    expense: expenses.map((x) => x.id),
   };
   // Clients and leads run one number firm-wide (the year is the client's first file / the lead's year).
   const nextOf = (k: string, fmt: string) => (k === 'client' ? nextClientNo(clients.map((c) => c.clientNo), year, fmt) : k === 'lead' ? formatDocNo(fmt, year, maxNumAnyYear(leads.map((l) => l.id), fmt) + 1) : nextDocNo(k, fmt, idsOf[k] || [], year));
-  const BUKKU: Record<string, string> = { client: 'CL{YY}{000}', lead: 'LD{YY}{000}', quotation: 'QT-{YY}{0000}', proforma: 'PF-{YY}{0000}', invoice: 'IV-{YY}{0000}', receipt: 'OR-{YY}{0000}', voucher: 'PV-{YY}{0000}', journal: 'JV-{YY}{0000}' };
+  const BUKKU: Record<string, string> = { client: 'CL{YY}{000}', lead: 'LD{YY}{000}', quotation: 'QT-{YY}{0000}', proforma: 'PF-{YY}{0000}', invoice: 'IV-{YY}{0000}', receipt: 'OR-{YY}{0000}', voucher: 'PV-{YY}{0000}', journal: 'JV-{YY}{0000}', disbursement: 'DISB-{YY}{0000}', expense: 'EX-{YY}{0000}' };
   const useBukku = () => {
     if (!window.confirm('Use Bukku-style numbers for NEW documents (e.g. IV-' + String(year).slice(-2) + '0013)? Old numbers stay as they are; the count carries on.')) return;
     C.save({ docNumbering: { ...(s.docNumbering || {}), ...BUKKU } }, 'Numbering Format Changed', 'Bukku style for all documents');

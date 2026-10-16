@@ -10,6 +10,8 @@ export const DEFAULT_DOC_FORMATS: Record<string, string> = {
   receipt: 'HQ-OR-{0000}',
   voucher: 'HQ-PV-{0000}',
   journal: 'JV-{YYYY}-{0000}',
+  disbursement: 'DISB-{0000}',
+  expense: 'EX-{0000}',
   client: 'CL{YY}{000}',
   lead: 'LD{YY}{000}',
 };

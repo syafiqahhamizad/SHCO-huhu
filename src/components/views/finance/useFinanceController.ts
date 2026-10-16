@@ -1743,7 +1743,7 @@ export function useFinanceController(initialTab: FinTab) {
       if (!String(vals.client || '').trim()) { toastMsg('Name the client. This is billed back to them.'); return; }
       if (amt <= 0) { toastMsg('Enter the amount.'); return; }
       const kase = vals.matter ? caseForRef(String(vals.matter)) : cases.find((k) => c && k.clientId.split(',').map((x) => x.trim()).includes(c.id) && k.status !== 'Closed');
-      const id = app.getNextSequenceId('expense');
+      const id = app.getNextSequenceId('disbursement', dateIso);
       const fromBank = String(vals.from || paidFromOptions[0] || 'Disbursement');
       app.addExpense({ id, caseId: kase?.id || '', clientId: c?.id || undefined, fileRef: kase?.ref, date: dateIso, category: 'Disbursement', amount: amt, billable: true, description: vals.what || 'Disbursement', payee: vals.payee || '', accountSet: 'OFFICE', paidFrom: fromBank, approvalStatus: 'Posted to GL', postedToGl: true, paidProof: proofs[0], documents: proofs.map((p, i) => ({ id: `DOC-${id}-${i}`, name: p.name, url: '', type: p.type, size: p.size, uploadedAt: p.uploadedAt, category: 'Receipt Photo' as const })) });
       rememberProofUrls('form', 'expense:' + id, proofs);
@@ -1764,7 +1764,7 @@ export function useFinanceController(initialTab: FinTab) {
         setForm(null); toastMsg(`${id} recorded (${kindOf}) · not an office expense`); return;
       }
       if (vals.cat === 'Other' && !String(vals.catOther || '').trim()) { toastMsg('Category is Other: say what it is.'); return; }
-      const id = app.getNextSequenceId('expense'); const from = vals.from || paidFromOptions[0]; const cat = vals.cat === 'Other' ? 'Other: ' + String(vals.catOther).trim() : vals.cat || 'Utilities';
+      const id = app.getNextSequenceId('expense', dateIso); const from = vals.from || paidFromOptions[0]; const cat = vals.cat === 'Other' ? 'Other: ' + String(vals.catOther).trim() : vals.cat || 'Utilities';
       if (isStatutoryCategory(cat)) { toastMsg('EPF / SOCSO / EIS / PCB payments: choose "' + PV_STATUTORY + '" as the type (they settle payroll amounts already booked).'); return; }
       app.addExpense({ id, caseId: '', date: dateIso, category: cat, amount: amt, billable: false, description: vals.what || '', payee: vals.payee || '', accountSet: 'OFFICE', paidFrom: from, approvalStatus: 'Posted to GL', postedToGl: true, paidProof: proofs[0], documents: proofs.map((p, i) => ({ id: `DOC-${id}-${i}`, name: p.name, url: '', type: p.type, size: p.size, uploadedAt: p.uploadedAt, category: 'Receipt Photo' as const })) });
       rememberProofUrls('form', 'expense:' + id, proofs);

@@ -377,7 +377,7 @@ interface AppContextType {
   sequenceCounters: SequenceCounters;
   /** `date` (any date string) picks the year for year-numbered documents (invoice, quotation,
    * journal): the running number restarts at 0001 each year per prefix. Defaults to today. */
-  getNextSequenceId: (type: 'invoice' | 'quotation' | 'proforma' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense' | 'journal', date?: string) => string;
+  getNextSequenceId: (type: 'invoice' | 'quotation' | 'proforma' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense' | 'disbursement' | 'journal', date?: string) => string;
   incrementSequenceCounter: (type: 'invoice' | 'quotation' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense') => void;
 }
 
@@ -1751,7 +1751,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   /** The year a document is dated (for numbers like IV-25xxxx when keying in past months). */
   const yearOfDate = (date?: string) => { const m = String(date || '').match(/(\d{4})-\d{1,2}-\d{1,2}/) || String(date || '').match(/\d{1,2}[./-]\d{1,2}[./-](\d{4})/); return m ? Number(m[1]) : new Date().getFullYear(); };
   const getNextSequenceId = (
-    type: 'invoice' | 'quotation' | 'proforma' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense' | 'journal',
+    type: 'invoice' | 'quotation' | 'proforma' | 'case' | 'receipt' | 'voucher' | 'claim' | 'client' | 'lead' | 'expense' | 'disbursement' | 'journal',
     date?: string
   ): string => {
     if (type === 'invoice' || type === 'quotation' || type === 'proforma' || type === 'journal') return nextYearSequenceId(type, date);
@@ -1776,6 +1776,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Leads: LD<YY><NNN> (e.g. LD26004), carrying on from the older LD-004 style.
         case 'lead': return leads.reduce((mx, l) => { const v = String(l.id); const a2 = v.match(/^LD-(\d+)$/); const b2 = v.match(/^LD\d{2}(\d{3,})$/); const n = a2 ? Number(a2[1]) : b2 ? Number(b2[1]) : 0; return n > mx ? n : mx; }, 0);
         case 'expense': return highestNumericSuffix(expenses.map((e) => e.id), 'EX-');
+        case 'disbursement': return highestNumericSuffix(expenses.map((e) => e.id), 'DISB-');
         default: return 0;
       }
     })();
@@ -1805,8 +1806,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return `HQ-C${String(nextNum).padStart(3, '0')}`;
       case 'lead':
         { const f = getPracticeSettings().docNumbering?.lead; const lf = f && validFormat(f) ? f : 'LD{YY}{000}'; return formatDocNo(lf, new Date().getFullYear(), Math.max(nextNum, maxNumAnyYear(leads.map((l) => l.id), lf) + 1)); }
+      // Costs: office costs (EX-) and costs paid for a client file (DISB-), formats in Settings › Numbering.
       case 'expense':
-        return `EX-${String(nextNum).padStart(4, '0')}`;
+      case 'disbursement': {
+        const f = getPracticeSettings().docNumbering?.[type];
+        return nextDocNo(type, f && validFormat(f) ? f : undefined, expenses.map((e) => e.id), yearOfDate(date), nextNum - 1);
+      }
       default:
         return String(nextNum);
     }
