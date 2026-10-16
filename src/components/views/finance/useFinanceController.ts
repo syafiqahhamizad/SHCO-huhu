@@ -514,6 +514,8 @@ export function useFinanceController(initialTab: FinTab) {
   const deleteInvoice = (inv: Invoice) => {
     if (!canDeleteBills) { toastMsg('Only an admin or Accounts can delete.'); return; }
     if (invPaid(inv) > 0.005) { toastMsg(inv.id + ' has money received: delete those receipts first.'); return; }
+    const rcpt = receipts.find((r) => r.invoiceId === inv.id || r.forNo === inv.id);
+    if (rcpt) { toastMsg(inv.id + ' has receipt ' + rcpt.id + ' pointing to it: delete that receipt first, so no receipt is left without its invoice.'); return; }
     if (!window.confirm('Delete ' + inv.id + '? Its postings are reversed and its work goes back to "Work not billed yet". It stays in the Recycle Bin.')) return;
     reverseDoc(inv.id, 'deleted');
     const si = inv.sourceItems || {};
@@ -624,7 +626,10 @@ export function useFinanceController(initialTab: FinTab) {
       // Void: issued invoices with no money received (refund / reallocate money first).
       const canVoid = S !== 'Draft' && S !== 'Voided' && invPaid(inv) < 0.005 && !(inv.writtenOff || 0);
       const base = S === 'Draft' ? ['Issue', 'Record paid'] : S === 'Paid' ? ['View receipt'] : S === 'Voided' || S === 'Written off' ? ['View'] : S === 'Overdue' ? ['Remind', 'Record paid'] : ['Record paid', 'Remind'];
-      return canVoid ? [...base, 'Void'] : base;
+      const cl = lk.clientById.get(inv.clientId); const k = invCase(inv);
+      const held = cl ? clientLedgerBalance(cl.id, k?.id || '') : 0;
+      const withMove = S !== 'Draft' && S !== 'Voided' && invBal(inv) > 0.005 && held > 0.005 ? [...base, 'Transfer to office'] : base;
+      return canVoid ? [...withMove, 'Void'] : withMove;
     }
     const q = rec as Quotation, S = qStatus(q);
     if (q.documentType === 'Proforma') {
@@ -1278,6 +1283,12 @@ export function useFinanceController(initialTab: FinTab) {
       return;
     }
     if (a === 'Record paid' && kind === 'invoice' && invStatus(rec as Invoice) === 'Draft') act(kind, rec, 'Issue', todayIso()); // paying a draft issues it today
+    if (a === 'Transfer to office' && kind === 'invoice') {
+      const inv = rec as Invoice; const cl = lk.clientById.get(inv.clientId); const k = invCase(inv);
+      const held = cl ? clientLedgerBalance(cl.id, k?.id || '') : 0;
+      setForm({ kind: 'transfer', vals: { client: cl?.name || inv.partyName || '', matter: k?.ref || '', forNo: inv.id, amount: Math.min(held, invBal(inv)).toFixed(2), date: fd(Date.now()) } });
+      return;
+    }
     if (a === 'Record payment' || a === 'Record paid') { const bal = kind === 'invoice' ? invBal(rec as Invoice) : Number((rec as Quotation).total || 0) - proformaPaid(rec as Quotation); setForm({ kind: 'pay', vals: { docKind: kind, docId: rec.id, title: docNo, amount: String(Math.round(bal * 100) / 100), date: fd(Date.now()) } }); return; }
     if (a === 'View receipt') { const r = receipts.find((x) => x.invoiceId === rec.id || x.quotationId === rec.id || x.forNo === rec.id); if (r) setView({ kind: 'receipt', id: r.id }); else toastMsg('No receipt yet'); return; }
     if (a === 'Issue') {
@@ -1728,6 +1739,8 @@ export function useFinanceController(initialTab: FinTab) {
       const c = clientByName(vals.client || ''); const forNo = String(vals.forNo || '').trim();
       if (acc === 'Client account' && /^(INV|IV)-/i.test(forNo)) { toastMsg('Payment for an issued invoice goes to the office account. Choose "Payment of an invoice", or give the purpose for a deposit.'); return; }
       const inv = invoices.find((i) => i.id === forNo); const pf = quotations.find((q) => q.id === forNo);
+      // "Payment of an invoice" must point at a bill that is in the portal (no receipt for a bill that does not exist).
+      if (acc === 'Office' && vals.kind !== 'Deposit / money held for client' && !inv && !pf) { toastMsg((forNo ? forNo + ' is not in Invoices or Proformas. ' : 'Pick which bill this pays. ') + 'Key the bill first (+ Past invoice / + Past proforma), then record the payment on it.'); return; }
       // The file picked on the form wins; else the bill's file; else a file ref typed as the purpose.
       const kase = vals.matter ? caseForRef(String(vals.matter)) : vals.caseId ? findCase(lk, vals.caseId) : inv ? invCase(inv) : pf ? qCase(pf) : caseForRef(forNo);
       if (vals.matter && !kase) { toastMsg('File ' + vals.matter + ' not found: pick it from the list.'); return; }
@@ -1758,9 +1771,9 @@ export function useFinanceController(initialTab: FinTab) {
         app.addReceipt({ id, date: dateIso, accountSet: 'CLIENT', receivedFrom: inv.partyName || cl.name, description: `Paid into client account for ${inv.id}`, amount: amt, debit: cashAccountGL('Client account'), credit: GLA.clientFunds, clientId: cl.id, fileRef: inv.fileRef || kase?.ref || '', bankRef: '', receivedBy: me, paymentMethod: vals.method || 'Online transfer', forNo: inv.id, caseId: kase?.id, proofs });
         app.addRetainer({ id: 'RET-' + id, clientId: cl.id, caseId: kase?.id || '', type: 'Deposit', amount: amt, date: dateIso, remarks: `Paid for ${inv.id}`, voucherNo: id });
         postGL([{ date: dateIso, docType: 'OR', docNo: id, accountSet: 'CLIENT', debit: cashAccountGL('Client account'), credit: GLA.clientFunds, amount: amt, clientId: cl.id, fileRef: inv.fileRef || kase?.ref || '', description: `Receipt ${id} into client account for ${inv.id}` }]);
-        // Next step offered (never forced): move it to office for this invoice.
-        setForm({ kind: 'transfer', vals: { client: cl.name, matter: kase?.ref || '', forNo: inv.id, amount: Math.min(amt, invBal(inv)).toFixed(2), date: fd(parseDate(dateIso) || Date.now()) } });
-        toastMsg(id + ' saved in the client account. Next: move it to office for ' + inv.id + ' (2 signatories), or Cancel to keep holding it.');
+        // Held until you move it: "Transfer to office" on the invoice's menu, whenever it is done.
+        setForm(null);
+        toastMsg(id + ' saved in the client account. When you move it, use "Transfer to office" on ' + inv.id + '.');
         return;
       }
       if (vals.docKind === 'invoice') {
