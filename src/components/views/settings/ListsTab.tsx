@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DEFAULT_CLAIM_TYPES, DEFAULT_COST_DETAILS, DEFAULT_EXPENSE_CATEGORIES, DEFAULT_PAYEES, DEFAULT_LEAD_SOCIAL_PLATFORMS, DEFAULT_LEAD_SOURCES, WHICH_KINDS, whichOf, type LeadSourceDef, type WhichKind } from '../../../services/templateService';
+import { DEFAULT_CLAIM_TYPES, DEFAULT_CLIENT_PAY_PURPOSES, DEFAULT_COST_DETAILS, DEFAULT_EXPENSE_CATEGORIES, DEFAULT_PAYEES, DEFAULT_LEAD_SOCIAL_PLATFORMS, DEFAULT_LEAD_SOURCES, WHICH_KINDS, whichOf, type LeadSourceDef, type WhichKind } from '../../../services/templateService';
 import { DEFAULT_PUBLIC_HOLIDAYS, getLeaveTypes } from '../staff/staffPortalShared';
 import { css, S, Txt, type SettingsCtx } from './settingsShared';
 import { CLIENT_FILES_PARTS } from '../../../lib/driveLayout';
@@ -24,10 +24,11 @@ export const ListsTab = ({ C }: { C: SettingsCtx }) => {
   const exp = s.expenseCategories && s.expenseCategories.length ? s.expenseCategories : DEFAULT_EXPENSE_CATEGORIES;
   const payees = s.payees && s.payees.length ? s.payees : DEFAULT_PAYEES;
   const costDetails = s.costDetails && s.costDetails.length ? s.costDetails : DEFAULT_COST_DETAILS;
+  const payPurposes = s.clientPayPurposes && s.clientPayPurposes.length ? s.clientPayPurposes : DEFAULT_CLIENT_PAY_PURPOSES;
   const claims = s.claimTypes && s.claimTypes.length ? s.claimTypes : DEFAULT_CLAIM_TYPES;
   const plats = s.leadSocialPlatforms && s.leadSocialPlatforms.length ? s.leadSocialPlatforms : DEFAULT_LEAD_SOCIAL_PLATFORMS;
 
-  const strList = (title: string, note: string, items: string[], field: 'expenseCategories' | 'claimTypes' | 'payees' | 'costDetails'): ListDef => ({
+  const strList = (title: string, note: string, items: string[], field: 'expenseCategories' | 'claimTypes' | 'payees' | 'costDetails' | 'clientPayPurposes'): ListDef => ({
     title, note, items,
     rename: (i, v) => C.save({ [field]: items.map((x, k) => (k === i ? v.trim() : x)) }, title + ' Changed', (items[i] || '—') + ' → ' + (v.trim() || '—')),
     remove: (i) => { C.save({ [field]: items.filter((_, k) => k !== i) }, title + ' Changed', 'Removed ' + (items[i] || '(blank)')); C.msg('Removed ' + (items[i] || 'item')); },
@@ -54,6 +55,7 @@ export const ListsTab = ({ C }: { C: SettingsCtx }) => {
     strList('Claim types', 'My Claims', claims, 'claimTypes'),
     strList('Paid to', 'who the firm usually pays · picked on money-out forms (new names typed there are added here)', payees, 'payees'),
     strList('Cost details', 'what a cost paid for a client file is · picked on Paid for a client file (new ones typed there are added here)', costDetails, 'costDetails'),
+    strList('Client money paid out for', 'Purpose on Pay out of client money (stakeholder release, refund…) · new ones typed there are added here', payPurposes, 'clientPayPurposes'),
   ];
 
   const holidays = s.publicHolidays ?? DEFAULT_PUBLIC_HOLIDAYS;

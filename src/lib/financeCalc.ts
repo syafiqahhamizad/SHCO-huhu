@@ -83,7 +83,7 @@ export const PV_STATUTORY = 'Statutory (EPF/SOCSO/EIS/PCB)';
 export const PV_SST = 'SST to Customs';
 export const PV_DRAWINGS = 'Partner drawings';
 /** Voucher categories that settle a liability / equity, never a P&L expense. */
-export const isNonExpensePv = (cat?: string) => cat === PV_STATUTORY || cat === PV_SST || cat === PV_DRAWINGS || cat === 'Disbursement' || cat === 'Client Disb' || cat === 'Legal Fees Transfer' || cat === 'Bank Transfer';
+export const isNonExpensePv = (cat?: string) => cat === PV_STATUTORY || cat === PV_SST || cat === PV_DRAWINGS || cat === 'Disbursement' || cat === 'Client Disb' || cat === 'Legal Fees Transfer' || cat === 'Bank Transfer' || cat === 'Client Refund';
 
 /* ------------------------------ approvals ------------------------------ */
 /** Sum of every live item on the same claim / PV form (an approval limit applies per FORM, not per item). */

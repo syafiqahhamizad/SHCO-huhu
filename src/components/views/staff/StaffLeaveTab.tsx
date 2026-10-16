@@ -254,7 +254,7 @@ export const StaffLeaveTab: React.FC<Props> = ({ myLeaves, used, me }) => {
               >
                 <span style={{ display: 'flex', flexDirection: 'column' }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: '#16223A' }}>{mcLabel}: drop here</span>
-                  <span style={{ fontSize: 10.5, color: lv.mc ? '#2F6F4E' : '#5B6478' }}>{lv.mc || 'photo or PDF, up to 10 MB'}</span>
+                  <span style={{ fontSize: 10.5, color: lv.mc ? '#2F6F4E' : '#5B6478' }}>{lv.mc || 'photo or PDF, up to 10 MB'}{lv.mc && <button type="button" title="Remove this file" onClick={() => { setMcFile(null); setL({ mc: '' }); }} style={{ marginLeft: 6, border: 0, background: 'none', padding: '0 3px', fontSize: 12, color: '#B23A2E', cursor: 'pointer' }}>× remove</button>}</span>
                   <span style={{ fontSize: 10, color: storage.startsWith('Uploads blocked') ? '#B23A2E' : '#5B6478' }}>{storage}</span>
                 </span>
                 <label style={{ marginLeft: 'auto', border: '1px solid #DDE3EB', borderRadius: 6, padding: '5px 10px', fontSize: 10.5, fontWeight: 700, background: '#fff', color: '#16223A', cursor: 'pointer', whiteSpace: 'nowrap' }}>

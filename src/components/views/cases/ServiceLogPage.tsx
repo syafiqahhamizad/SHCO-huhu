@@ -161,7 +161,7 @@ export const ServiceLogPage: React.FC = () => {
                 <label style={css('display:flex;align-items:center;gap:10px;border:1px dashed #9AA6B8;border-radius:8px;padding:8px 10px;background:#fff;cursor:pointer;min-width:0')}>
                   <input type="file" accept="image/*,.pdf" onChange={(e) => { setPicked(e.target.files?.[0] || null); e.target.value = ''; }} style={css('display:none')} />
                   <span style={css('flex-shrink:0;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700;background:#EEF1F5;color:#16223A')}>Choose file</span>
-                  <span style={css(`font-size:12.5px;color:${picked ? '#16223A' : '#4A5468'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap`)}>{picked ? picked.name : 'Image or PDF. You can also upload it later.'}</span>
+                  <span style={css(`font-size:12.5px;color:${picked ? '#16223A' : '#4A5468'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap`)}>{picked ? picked.name : 'Image or PDF. You can also upload it later.'}</span>{picked && <button type="button" title="Remove this file" onClick={() => setPicked(null)} style={css('border:0;background:none;padding:0 4px;font-size:12px;color:#B23A2E;cursor:pointer;font-family:inherit;white-space:nowrap')}>× remove</button>}
                 </label>
                 {selFile && <span style={css('font-size:11px;color:#4A5468')}>{storage.replace('Saved to', 'Goes to')}{storage.includes('Drive') ? ' › ' + matterDriveLabel(selFile) + ' › Court Papers' : ''}</span>}
               </div>

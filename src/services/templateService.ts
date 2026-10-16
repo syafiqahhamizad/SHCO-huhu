@@ -271,6 +271,8 @@ export interface PracticeSettings {
   payees?: string[];
   /** Lists & sources: what a cost for a client file usually is ("Details" on Paid for a client file). */
   costDetails?: string[];
+  /** Lists & sources: what client money is paid out for ("Purpose" on Pay out of client money). */
+  clientPayPurposes?: string[];
   /** Google Drive storage (Google, e-mail & backup tab). When a root folder and an OAuth client ID
    * are set, new uploads (claim receipts, HR documents, staff photos, finance proofs, backups)
    * go to this Shared Drive folder instead of Firebase Storage. */
@@ -420,6 +422,9 @@ export const DEFAULT_COST_DETAILS = [
   // Oaths, notices, others
   'Fi Pesuruhjaya Sumpah (affirmation)', 'Fi notari (notarisation)', 'Fi penilaian (valuation)', 'Iklan akhbar (advertisement)', 'Warta (gazette)', 'Fi terjemahan (translation)', 'Fi pendaftaran syarikat (SSM)', 'Fi pentadbiran pusaka (estate)', 'Penghantaran / kurier (despatch)',
 ];
+export const DEFAULT_CLIENT_PAY_PURPOSES = ['Release of stakeholder sum', 'Refund of stakeholder sum', 'Refund to client (balance held)', 'Balance purchase price', 'Redemption sum to bank', 'Payment to third party'];
+/** "Purpose" choices for paying out client money: Settings › Lists & sources, or the built-in list. */
+export const getClientPayPurposes = () => { const l = getPracticeSettings().clientPayPurposes; return l && l.length ? l.filter(Boolean) : DEFAULT_CLIENT_PAY_PURPOSES; };
 /** "Details" choices for a cost paid for a client file: Settings › Lists & sources, or the built-in list. */
 export const getCostDetails = () => { const l = getPracticeSettings().costDetails; return l && l.length ? l.filter(Boolean) : DEFAULT_COST_DETAILS; };
 /** "Paid to" choices: Settings › Lists & sources, or the built-in list. */

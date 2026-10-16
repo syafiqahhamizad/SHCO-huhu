@@ -1096,7 +1096,7 @@ export interface PaymentVoucher {
   id: string;
   date: string;
   accountSet: 'OFFICE' | 'CLIENT';
-  voucherCategory: 'Office Account' | 'Client Account' | 'Disbursement' | 'Travelling' | 'Office Operating' | 'Client Disb' | 'Legal Fees Transfer' | 'Statutory (EPF/SOCSO/EIS/PCB)' | 'SST to Customs' | 'Partner drawings' | 'Bank Transfer';
+  voucherCategory: 'Office Account' | 'Client Account' | 'Disbursement' | 'Travelling' | 'Office Operating' | 'Client Disb' | 'Legal Fees Transfer' | 'Statutory (EPF/SOCSO/EIS/PCB)' | 'SST to Customs' | 'Partner drawings' | 'Bank Transfer' | 'Client Refund';
   payee?: string;
   paymentMethod?: string;
   description: string;

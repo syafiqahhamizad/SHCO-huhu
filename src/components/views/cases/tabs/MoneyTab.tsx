@@ -9,13 +9,14 @@ import { quotedCosts, quotedFees, type QuotedDisb } from '../../../../lib/quoted
 /** Money for this file — read-only, from real invoices / payments / retainers / quotations
  * using the finance module's rules. Actions open Accounts & Finance; nothing is created here. */
 export const MoneyTab: React.FC<{ w: WF }> = ({ w }) => {
-  const { setCurrentView, currentRole, currentUser, isAdmin, quotations = [], invoices = [], expenses = [], travelClaims = [] } = useApp();
+  const { setCurrentView, currentRole, currentUser, isAdmin, quotations = [], invoices = [], expenses = [], travelClaims = [], paymentVouchers = [] } = useApp();
   const { c, money } = w;
   const [led, setLed] = useState<'client' | 'office' | 'disb'>('client');
   // Quoted disbursements vs what was actually paid for each.
   const qd = quotedCosts(c, quotations, invoices, expenses, 'Disbursement');
   const qr = quotedCosts(c, quotations, invoices, expenses, 'Reimbursement', travelClaims);
   const feesQ = quotedFees(c, quotations, invoices);
+  const refunded = paymentVouchers.filter((v) => v.voucherCategory === 'Client Refund' && (v.caseId === c.id || v.fileRef === c.ref)).reduce((t, v) => t + Number(v.amount || 0), 0);
   const rk = finRoleKey(currentRole, currentUser, isAdmin);
   const go = (view: string, what: string) => {
     if (!canSeeFinanceView(view, rk)) { w.toast(what + ' is done by Accounts / a partner in Accounts & Finance'); return; }
@@ -78,6 +79,7 @@ export const MoneyTab: React.FC<{ w: WF }> = ({ w }) => {
         <div style={css(dq + S.row + ';color:#16223A')}><span>Reimbursement profit <span style={css('color:#4A5468;font-size:11.5px')}>(charged {num2(qr.quoted) || '0.00'} − our cost {num2(qr.paid) || '0.00'})</span></span><span></span><span></span><strong style={css('color:' + (qr.left < -0.005 ? '#8E2A20' : '#1F5A3B'))}>{qr.left < -0.005 ? '−' + num2(-qr.left) : num2(qr.left) || '0.00'}</strong></div>
         <div style={css(dq + 'padding:9px 16px;border-top:1px solid #DDE3EB;font-size:13px;font-weight:700;color:#16223A')}><span>File profit (fees + reimbursement profit)</span><span></span><span></span><span>RM {num2(feesQ + qr.left) || '0.00'}</span></div>
         <div style={css(dq + S.row + ';color:#16223A')}><span>Received so far <span style={css('color:#4A5468;font-size:11.5px')}>(all payments on this file, fees + reimbursements + disbursements)</span></span><span></span><span></span><strong style={css('color:#1F5A3B')}>{num2(money.received) || '0.00'}</strong></div>
+        {refunded > 0 && <div style={css(dq + S.row + ';color:#16223A')}><span>Refunded to client</span><span></span><span></span><strong style={css('color:#8E2A20')}>−{num2(refunded)}</strong></div>}
         {qd.quoted > 0 && <div style={css('padding:8px 16px;font-size:11.5px;color:#4A5468')}>Disbursements are not profit: RM {num2(Math.max(0, qd.left)) || '0.00'} of the RM {num2(qd.quoted)} quoted is not used yet.</div>}
       </Card>}
       {money.proformas.length > 0 && <Card style="overflow-x:auto">

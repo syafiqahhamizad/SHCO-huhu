@@ -1151,7 +1151,7 @@ export function useFinanceController(initialTab: FinTab) {
     const expAcc = (e: Expense): CashAcc | null => (e.billable && !e.claimant && (!e.paidFrom || /disb/i.test(e.paidFrom)) ? 'Disbursement' : /petty/i.test(e.paidFrom || '') ? 'Petty cash' : /disb/i.test(e.paidFrom || '') ? 'Disbursement' : e.claimant ? (e.paidAt ? 'Office' : null) : 'Office');
     expenses.filter((e) => e.approvalStatus !== 'Rejected' && e.approvalStatus !== 'Pending Approval' && expAcc(e) === acc && (!e.claimant || e.paidAt)).forEach((e) => R.push({ key: 'e:' + e.id, t: parseDate(e.paidAt && e.claimant ? e.paidAt : e.date), who: e.payee || e.claimant || '—', what: `${e.category}${e.description ? ' · ' + e.description : ''}`, no: e.id, inn: 0, out: Number(e.amount || 0), src: 'Auto', proofs: e.paidProof ? [e.paidProof] : (e.documents || []).map((d) => ({ name: d.name, uploadedAt: d.uploadedAt || '' })), owner: 'expense:' + e.id, attach: attachTo('expense', e.id) }));
     paymentVouchers.filter((v) => (v.paidAt || v.historical || v.approvalStatus === 'Posted to GL') && v.approvalStatus !== 'Rejected').forEach((v) => {
-      const from: CashAcc = pvIsClient(v) ? 'Client account' : v.voucherCategory === 'Disbursement' || v.voucherCategory === 'Client Disb' ? 'Disbursement' : /petty/i.test(v.bankAccountName || '') ? 'Petty cash' : 'Office';
+      const from: CashAcc = pvIsClient(v) ? 'Client account' : v.voucherCategory === 'Client Refund' && /disb/i.test(v.bankAccountName || '') ? 'Disbursement' : v.voucherCategory === 'Disbursement' || v.voucherCategory === 'Client Disb' ? 'Disbursement' : /petty/i.test(v.bankAccountName || '') ? 'Petty cash' : 'Office';
       if (v.voucherCategory === 'Bank Transfer') {
         // Between the firm's own accounts: out of one, into the other.
         if (v.transferFrom === acc) R.push({ key: 'v:' + v.id, t: parseDate(v.paidAt || v.date), who: 'Transfer to ' + (v.transferTo || '') + ' account', what: v.description, no: v.id, inn: 0, out: Number(v.amount || 0), src: 'Auto', proofs: [...(v.paidProof ? [v.paidProof] : []), ...(v.proofs || [])], owner: 'pv:' + v.id, attach: attachTo('pv', v.id) });
@@ -1786,6 +1786,22 @@ export function useFinanceController(initialTab: FinTab) {
       }
       setForm(null); setView({ kind: 'receipt', id });
       toastMsg('Receipt ' + id + ' issued' + (proofs.length ? ' with proof' : ' · no proof attached yet'));
+    } else if (kind === 'refund') {
+      // Money paid back to a client from the firm's own account (unused disbursement, overpayment).
+      if (!canPrepare) { toastMsg('Refunds are recorded by Accounts.'); return; }
+      const c = clientByName(vals.client || '');
+      if (!c) { toastMsg('Pick the client the money is paid back to.'); return; }
+      if (amt <= 0) { toastMsg('Enter the amount refunded.'); return; }
+      const kase = vals.matter ? caseForRef(String(vals.matter)) : undefined;
+      const forNo = String(vals.forNo || '').trim(); const inv = invoices.find((i) => i.id === forNo);
+      const from = String(vals.from || paidFromOptions[0] || 'Office');
+      const id = app.getNextSequenceId('voucher', dateIso);
+      const what = 'Refund to ' + c.name + (forNo ? ' for ' + forNo : '') + (vals.what ? ' · ' + vals.what : '');
+      // Against an invoice it clears what the client overpaid; otherwise it comes out of money received in advance.
+      const debit = inv ? GLA.ar : GLA.feesAdvance; const credit = /disb/i.test(from) ? GLA.disb : /petty/i.test(from) ? GLA.petty : GLA.office;
+      app.addPaymentVoucher({ id, date: dateIso, accountSet: 'OFFICE', voucherCategory: 'Client Refund', payee: c.name, paymentMethod: vals.method || 'Bank transfer', description: what, amount: amt, debit, credit, clientId: c.id, fileRef: kase?.ref || inv?.fileRef || '', caseId: kase?.id || inv?.caseId, invoiceId: inv?.id, bankAccountName: from, preparedBy: me, approvalStatus: 'Posted to GL', approved: true, postedToGl: true, paidAt: dateIso, proofs } as PaymentVoucher);
+      postGL([{ date: dateIso, docType: 'PV', docNo: id, accountSet: 'OFFICE', debit, credit, amount: amt, clientId: c.id, fileRef: kase?.ref || inv?.fileRef || '', description: what }]);
+      setForm(null); toastMsg(id + ' · RM ' + rm2(amt) + ' refunded to ' + c.name);
     } else if (kind === 'toDisb') {
       // Office → Disbursement account: the disbursement part of fees received into Office.
       if (!canPrepare) { toastMsg('Transfers are recorded by Accounts.'); return; }
