@@ -7,6 +7,7 @@ import { useApp } from '../../../context/AppContext';
 import { useListFilter } from '../../ui/ListFilters';
 import { DEFAULT_DOC_FORMATS } from '../../../lib/docNumbers';
 import { FEES_FILTERS, billedPct, feesFilter, isOpenFile, moneyForFile, sumMoney, type FeesFilter } from '../../../lib/moneyByFile';
+import { billPart } from '../../../lib/quotedDisb';
 
 type DocKind = 'quotation' | 'invoice' | 'receipt';
 type MenuState = { kind: DocKind; id: string; top: number; left: number } | null;
@@ -245,7 +246,7 @@ export const BillingTab = ({ F }: { F: FinanceCtrl }) => {
                   <span style={css('color:#5B6478')}>{F.dShort(e.date)}</span>
                   <span style={css('overflow:hidden;text-overflow:ellipsis;white-space:nowrap')} title={e.description}>{e.description || e.category}</span>
                   <span style={css('overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#5B6478')}>{e.payee || '—'}</span>
-                  <span style={css('text-align:right;font-weight:700')}>{rm(Number(e.amount || 0))}</span>
+                  <span style={css('text-align:right;font-weight:700')} title={e.quoteCovered ? 'Claim ' + rm(Number(e.amount || 0)) + ' · ' + rm(e.quoteCovered) + ' inside the quote' : undefined}>{rm(billPart(e))}</span>
                   <span>{receipt(e)}</span>
                   <span style={css('display:flex;gap:10px;justify-content:flex-end')}>{F.canPrepare && <button type="button" onClick={() => F.editEntry('expense', e.id)} style={css(lnk + 'color:#3D6B9C')}>Edit</button>}{F.canDeleteBills && <button type="button" onClick={() => F.deleteEntry('expense', e.id)} style={css(lnk + 'color:#B23A2E')}>Delete</button>}</span>
                 </div>

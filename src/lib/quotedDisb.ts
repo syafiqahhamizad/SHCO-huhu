@@ -28,6 +28,9 @@ export const quotedLabel = (d: string) => (/^disbursements?$/i.test(d.trim()) ? 
 /** Our own cost re-charged (photocopy, courier, travel…) vs a disbursement paid to others. */
 export const isReimbCost = (e: Pick<Expense, 'category' | 'description'>) => e.category === 'Reimbursement' || isReimbursementCategory(e.category, e.description);
 
+/** What is still to bill for a cost: all of it, or (a staff claim checked at approval) only the part above the quote. */
+export const billPart = (e: Pick<Expense, 'amount' | 'quoteCovered'>) => (e.quoteCovered != null ? r2(Math.max(0, Number(e.amount || 0) - e.quoteCovered)) : Number(e.amount || 0));
+
 type Line = { category?: string; description?: string; amount?: number; quantity?: number; unitPrice?: number };
 type Doc = { id: string; lineItems?: Line[] };
 const docsWith = (c: Pick<Case, 'id' | 'ref'>, kind: CostKind | 'Fee', quotations: Quotation[], invoices: Invoice[]): Doc[] => {
@@ -44,7 +47,7 @@ export const quotedCosts = (c: Pick<Case, 'id' | 'ref'>, quotations: Quotation[]
   docs.forEach((d) => (d.lineItems || []).filter((i) => i.category === kind).forEach((i) => { const k = quotedLabel(String(i.description || kind + 's')); byDesc.set(k, r2((byDesc.get(k) || 0) + lineAmt(i))); }));
   const costs = expenses.filter((e) => onFile(c, e.caseId, e.fileRef) && !e.writtenOff && (kind === 'Disbursement' ? e.category === 'Disbursement' && !isReimbCost(e) : isReimbCost(e) && (e.billable || e.category === 'Reimbursement')));
   // Each cost's parts: several items under one receipt, or one item for the whole amount.
-  const parts = costs.flatMap((e) => (e.quoteLines?.length ? e.quoteLines.map((p) => ({ desc: quotedLabel(p.desc), amount: Number(p.amount || 0) })) : e.quoteLine ? [{ desc: quotedLabel(e.quoteLine), amount: Number(e.amount || 0) }] : []));
+  const parts = costs.flatMap((e) => (e.quoteLines?.length ? e.quoteLines.map((p) => ({ desc: quotedLabel(p.desc), amount: Number(p.amount || 0) })) : e.quoteLine ? [{ desc: quotedLabel(e.quoteLine), amount: Number(e.quoteCovered ?? e.amount ?? 0) }] : []));
   const rows = [...byDesc.entries()].map(([desc, quoted]) => {
     const paid = r2(parts.filter((p) => p.desc === desc).reduce((s, p) => s + p.amount, 0));
     return { desc, quoted, paid, left: r2(quoted - paid) };
@@ -54,7 +57,8 @@ export const quotedCosts = (c: Pick<Case, 'id' | 'ref'>, quotations: Quotation[]
   // Reimbursements: staff travel for this file (what the firm paid out) counts as our cost too.
   const trav = kind === 'Reimbursement' ? r2(travel.filter((t) => t.purposeType === 'Client Matter' && t.fileRef === c.ref && t.approvalStatus !== 'Rejected' && t.approvalStatus !== 'Draft').reduce((s, t) => s + Number(t.total || 0), 0)) : 0;
   if (trav > 0) rows.push({ desc: TRAVEL, quoted: 0, paid: trav, left: -trav });
-  const extras = costs.filter((e) => !e.quoteLine && !e.quoteLines?.length);
+  // Not part of the quote, or the part of a staff claim above it.
+  const extras = costs.filter((e) => (!e.quoteLine && !e.quoteLines?.length) || (e.quoteCovered != null && billPart(e) > 0.005));
   const quoted = r2(rows.reduce((s, x) => s + x.quoted, 0)), paid = r2(rows.reduce((s, x) => s + x.paid, 0));
   return { kind, source: docs.map((d) => d.id), rows: byDesc.size ? rows : [], extras, quoted, paid, left: r2(quoted - paid) };
 };

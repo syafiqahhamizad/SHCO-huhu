@@ -28,6 +28,18 @@ export const ApprovalsTab = ({ F }: { F: FinanceCtrl }) => {
   const years = yearOptions<{ date?: string }>([...all.map((a) => a.item), ...payAll.map((x) => x.p)], (x) => x.date);
   const P: Record<string, [string, string]> = { 'Partner drawings': ['#E7EEF6', '#2F5680'], Payslip: ['#E6EFE9', '#2F6F4E'], Voucher: ['#F1EBF6', '#6B3D8C'] };
 
+  /** Staff claim for a quoted file: how it tallies with the quote. */
+  const quoteNote = (a: (typeof all)[number]['item']) => {
+    const q = F.claimQuote(a);
+    if (!q) return null;
+    const e = q.e;
+    const txt = e.quoteCovered != null
+      ? (e.quoteCovered > 0 ? `Inside the quote (${e.quoteLine}) RM ${e.quoteCovered.toFixed(2)}` + (q.amt - e.quoteCovered > 0.005 ? ` · RM ${(q.amt - e.quoteCovered).toFixed(2)} above the quote, to bill` : '') : 'Not part of the quote · billed to the client in full')
+      : `Quote ${q.pot.source.join(', ')}: RM ${Math.max(0, q.pot.left).toFixed(2)} left of RM ${q.pot.quoted.toFixed(2)}` + (q.above > 0.005 ? ` · this claim is RM ${q.above.toFixed(2)} above the quote` : ' · fits inside the quote');
+    const red = e.quoteCovered != null ? q.amt - e.quoteCovered > 0.005 : q.above > 0.005;
+    return <span style={css(`display:block;font-size:10px;font-weight:700;color:${red ? '#B23A2E' : '#2F6F4E'}`)}>{txt}</span>;
+  };
+
   return (
     <div style={css('display:flex;flex-direction:column;gap:16px')}>
       <div style={css('display:flex;align-items:center;gap:4px;flex-wrap:wrap')}>{([['w', 'Waiting for approval', F.pendingAp], ['p', 'Approved · to pay', F.toPay.length], ['r', 'Referral fees', F.referral.rows.length]] as ['w' | 'p' | 'r', string, number][]).map(([k, label, n]) => { const on = F.apSub === k; return <button key={k} type="button" onClick={() => F.setApSub(k)} style={css(`display:flex;align-items:center;gap:6px;border-radius:16px;padding:6px 14px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;border:1px solid ${on ? '#16223A' : '#DDE3EB'};background:${on ? '#16223A' : '#fff'};color:${on ? '#fff' : '#16223A'}`)}>{label}{!!n && <span style={css(`font-size:10px;padding:0 6px;border-radius:9px;background:${on ? '#fff' : '#EEF1F5'};color:${on ? '#16223A' : '#5B6478'}`)}>{n}</span>}</button>; })}
@@ -43,7 +55,7 @@ export const ApprovalsTab = ({ F }: { F: FinanceCtrl }) => {
         {rows.map(({ item: a, d }) => { const mine = F.canSignItem(a); const pending = !d && mine; const done = !!d || !mine; return (
           <div key={a.key} style={css(`display:grid;grid-template-columns:120px minmax(0,1.5fr) 100px 90px minmax(230px,auto);gap:12px;align-items:center;padding:9px 14px;border-bottom:1px solid #F0F2F5;opacity:${d ? 0.55 : 1}`)}>
             <span style={css(`justify-self:start;font-size:10px;font-weight:700;padding:2px 9px;border-radius:10px;background:${T[a.type][0]};color:${T[a.type][1]}`)}>{a.type}</span>
-            <span style={css('min-width:0')}><span style={css('display:block;font-size:11.5px;font-weight:700;color:#16223A')}>{a.title}</span><span style={css('display:block;font-size:10px;color:#5B6478')}>{a.sub}</span><span style={css('display:block;font-size:10px;color:#8A6534')}>{F.apRule(a)}</span>{driveLink(a.folderId)}</span>
+            <span style={css('min-width:0')}><span style={css('display:block;font-size:11.5px;font-weight:700;color:#16223A')}>{a.title}</span><span style={css('display:block;font-size:10px;color:#5B6478')}>{a.sub}</span><span style={css('display:block;font-size:10px;color:#8A6534')}>{F.apRule(a)}</span>{quoteNote(a)}{driveLink(a.folderId)}</span>
             <span style={css('text-align:right;font-size:12.5px;font-weight:700;color:#16223A')}>{rm(a.amount)}</span>
             <span style={css('display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:#5B6478')}>by {a.by}{!d && (a.kind === 'travel' || a.kind === 'expense' || a.kind === 'pv') && <span style={css('display:flex;gap:8px')}><button type="button" onClick={() => F.editApItem(a.kind as 'travel', a.id)} style={css('border:0;background:none;padding:0;font-size:10.5px;font-weight:700;cursor:pointer;font-family:inherit;color:#2F4F7A')}>Edit</button>{F.isAdminUser && <button type="button" onClick={() => F.deleteApItem(a.kind as 'travel', a.id, a.title)} style={css('border:0;background:none;padding:0;font-size:10.5px;font-weight:700;cursor:pointer;font-family:inherit;color:#B23A2E')}>Delete</button>}</span>}</span>
             {pending && <div style={css('display:flex;gap:6px;justify-content:flex-end')}><button type="button" title={F.me} onClick={() => F.approve(a, true)} style={css('border:1px solid #B9D7C5;border-radius:6px;padding:5px 9px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit;white-space:nowrap')}>Approve</button><button type="button" onClick={() => F.approve(a, false)} style={css('border:1px solid #DDE3EB;border-radius:6px;padding:5px 12px;font-size:10.5px;font-weight:700;background:#fff;color:#16223A;cursor:pointer;font-family:inherit')}>Reject</button></div>}

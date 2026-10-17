@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { quotedCosts, quotedDisbursements, quotedFees } from './quotedDisb';
+import { billPart, quotedCosts, quotedDisbursements, quotedFees } from './quotedDisb';
 import type { Expense, Invoice, Quotation, TravelClaim } from '../types';
 
 const c = { id: 'K1', ref: 'SHC/CORP/SZ/002/04-25' };
@@ -20,6 +20,15 @@ describe('quotedDisbursements', () => {
     expect(q.extras.map((e) => e.id)).toEqual(['DISB-3']);
     expect(q.quoted).toBe(40);
     expect(q.left).toBe(-5);
+  });
+  it('a staff claim checked at approval: only the part inside the quote uses it up, only the rest is billed', () => {
+    const claim = { ...cost('EX-0002', 50, 'SSM search'), claimant: 'Zulaikha', quoteCovered: 40 } as Expense;
+    const q = quotedDisbursements(c, [quote], [], [claim]);
+    expect(q.rows.find((r) => r.desc === 'SSM search')?.paid).toBe(40);
+    expect(q.extras.map((e) => e.id)).toEqual(['EX-0002']);
+    expect(billPart(claim)).toBe(10);
+    expect(billPart({ ...claim, quoteCovered: 0 })).toBe(50);
+    expect(billPart(cost('DISB-9', 12))).toBe(12);
   });
   it('a cost not listed still counts against the quoted total', () => {
     const q = quotedDisbursements(c, [quote], [], [cost('DISB-1', 25, 'Other cost (not listed)')]);

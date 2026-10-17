@@ -945,6 +945,8 @@ export interface Expense {
   quoteLines?: { desc: string; amount: number }[];
   /** The quotation / proforma / invoice that already charged the client for it. */
   coveredBy?: string;
+  /** Staff claim checked against the quote at approval: the part inside the quote (0 = none). Only the rest is billed. */
+  quoteCovered?: number;
   fileRef?: string;
   date: string;
   category: string;

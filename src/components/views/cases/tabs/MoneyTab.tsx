@@ -4,7 +4,7 @@ import { canSeeFinanceView, finRoleKey } from '../../../../lib/financeAccess';
 import { css, S, Card, Seg } from '../caseUi';
 import { P, fmt, num2, rm, short } from '../caseModel';
 import type { WF } from '../wf';
-import { quotedCosts, quotedFees, type QuotedDisb } from '../../../../lib/quotedDisb';
+import { billPart, quotedCosts, quotedFees, type QuotedDisb } from '../../../../lib/quotedDisb';
 
 /** Money for this file — read-only, from real invoices / payments / retainers / quotations
  * using the finance module's rules. Actions open Accounts & Finance; nothing is created here. */
@@ -44,7 +44,7 @@ export const MoneyTab: React.FC<{ w: WF }> = ({ w }) => {
       {q.rows.map((r) => { const st = r.quoted <= 0 ? ['Within the total', P.b] : r.paid <= 0.005 ? ['Not used yet', P.n] : r.left < -0.005 ? ['RM ' + num2(-r.left) + ' more than listed', P.a] : r.left > 0.005 ? ['RM ' + num2(r.left) + (R ? ' profit' : ' not used'), R ? P.g : P.a] : ['Used', P.g]; const pill = st[1] as { bg: string; fg: string }; return (
         <div key={r.desc} style={css(dq + 'align-items:center;' + S.row + ';color:#16223A')}><span>{r.desc}</span><span>{num2(r.quoted)}</span><span>{num2(r.paid) || '—'}</span><span style={css(`justify-self:start;padding:2px 9px;border-radius:10px;font-size:11.5px;font-weight:700;background:${pill.bg};color:${pill.fg}`)}>{st[0] as string}</span></div>
       ); })}
-      {q.extras.map((e) => <div key={e.id} style={css(dq + 'align-items:center;' + S.row + ';color:#16223A')}><span>{e.description || e.category}{!/above the quoted/.test(e.description || '') && <span style={css('color:#4A5468;font-size:11.5px')}> · not part of the quote</span>}</span><span>—</span><span>{num2(Number(e.amount || 0))}</span><span style={css(`justify-self:start;padding:2px 9px;border-radius:10px;font-size:11.5px;font-weight:700;background:${P.b.bg};color:${P.b.fg}`)}>{e.billed ? 'Billed' : 'To bill'}</span></div>)}
+      {q.extras.map((e) => <div key={e.id} style={css(dq + 'align-items:center;' + S.row + ';color:#16223A')}><span>{e.description || e.category}{e.quoteCovered != null && e.quoteLine ? <span style={css('color:#8E2A20;font-size:11.5px')}> · staff claim {e.id}: part above the quote</span> : !/above the quoted/.test(e.description || '') && <span style={css('color:#4A5468;font-size:11.5px')}> · not part of the quote</span>}</span><span>—</span><span>{num2(billPart(e))}</span><span style={css(`justify-self:start;padding:2px 9px;border-radius:10px;font-size:11.5px;font-weight:700;background:${P.b.bg};color:${P.b.fg}`)}>{e.billed ? 'Billed' : 'To bill'}</span></div>)}
       {q.rows.length > 0 && <div style={css(dq + 'align-items:center;padding:9px 16px;border-top:1px solid #DDE3EB;font-size:12.5px;font-weight:700;color:#16223A')}><span>Total {R ? 'reimbursements charged' : 'disbursements quoted'}</span><span>{num2(q.quoted)}</span><span>{num2(q.paid) || '—'}</span><span style={css('color:' + (q.left >= -0.005 ? '#1F5A3B' : '#8E2A20'))}>{R ? (q.left >= -0.005 ? 'Profit RM ' + (num2(q.left) || '0.00') : 'Loss RM ' + num2(-q.left)) : q.left >= -0.005 ? 'Within the quote · RM ' + (num2(q.left) || '0.00') + ' left' : 'RM ' + num2(-q.left) + ' above the quote'}</span></div>}
     </Card>
   ); };

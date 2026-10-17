@@ -76,7 +76,7 @@ import {
 
 import { defaultPlanFor, planRows, type PlanRow } from '../../../lib/engagementLetter';
 import type { QuotationPaymentPlan } from '../../../types';
-import { OTHER_COST, quotedCosts, type CostKind } from '../../../lib/quotedDisb';
+import { OTHER_COST, billPart, isReimbCost, quotedCosts, type CostKind } from '../../../lib/quotedDisb';
 import { nextDocNo, validFormat } from '../../../lib/docNumbers';
 /** "Not in the quotation" on Paid for a client file. */
 /** Record payment: put the disbursement part straight into the Disbursement account. */
@@ -743,7 +743,7 @@ export function useFinanceController(initialTab: FinTab) {
     const get = (caseId: string, forClient?: string) => { const k = findCase(lk, caseId, caseId); const ids = k ? k.clientId.split(',').map((x) => x.trim()).filter(Boolean) : []; const cid = forClient && (!ids.length || ids.includes(forClient)) ? forClient : ids[0] || ''; const key = (k?.id || caseId || '—') + '|' + cid; let u = m.get(key); if (!u) { u = { key, caseId: k?.id || caseId || '—', kase: k, clientId: cid, client: (cid && clientName(cid)) || k?.clientName || '—', ref: k?.ref || caseId || '—', title: k?.title || '', pic: k ? ((k.partners || [])[0] || initials(k.lawyerInCharge)) : '—', time: 0, disb: 0, oldest: 0, te: [], ex: [], tc: [] }; m.set(key, u); } return u; };
     // Same rule as billingEngine: billable, not billed / written off, approved (not rejected / pending).
     timeEntries.filter((t) => t.billable && !t.billed && !t.writtenOff && isApprovedForBilling(t.approvalStatus) && !onDraft.has(t.id)).forEach((t) => { const u = get(t.caseId); u.time += Number(t.hours || 0) * Number(t.rate || 0); u.te.push(t); u.oldest = Math.max(u.oldest, daysSince(t.date)); });
-    expenses.filter((e) => e.billable && !e.billed && !e.writtenOff && isApprovedForBilling(e.approvalStatus) && !onDraft.has(e.id)).forEach((e) => { const u = get(e.caseId || e.fileRef || '', e.clientId); u.disb += Number(e.amount || 0); u.ex.push(e); u.oldest = Math.max(u.oldest, daysSince(e.date)); });
+    expenses.filter((e) => e.billable && !e.billed && !e.writtenOff && billPart(e) > 0.005 && isApprovedForBilling(e.approvalStatus) && !onDraft.has(e.id)).forEach((e) => { const u = get(e.caseId || e.fileRef || '', e.clientId); u.disb += billPart(e); u.ex.push(e); u.oldest = Math.max(u.oldest, daysSince(e.date)); });
     // Billable travel (mileage at the client rate + toll + parking) from approved staff claims.
     travelClaims.filter((t) => travelBillable(t) > 0 && t.billed !== 'Y' && !!t.fileRef && t.fileRef !== 'FIRM_OPERATIONS' && isApprovedForBilling(t.approvalStatus) && !onDraft.has(t.id)).forEach((t) => { const u = get(t.fileRef); u.disb += travelBillable(t); u.tc.push(t); u.oldest = Math.max(u.oldest, daysSince(t.date)); });
     return [...m.values()].filter((u) => u.time + u.disb > 0 && (rk !== 'P' || ownCase(u.kase))).sort((a, b) => b.oldest - a.oldest);
@@ -863,7 +863,37 @@ export function useFinanceController(initialTab: FinTab) {
   };
   /** Can the signed-in person sign this item now? */
   const canSignItem = (item: ApItem) => { const r = ruleFor(apId(item)); return r.configured ? r.canSign(currentUser) : item.kind === 'writeoff' || item.kind === 'referral' ? isMP : canApprove; };
-  const approve = (item: ApItem, ok: boolean) => {
+  /** A staff claim for a client file, against what was quoted for that file (null = no quote, or not such a claim). */
+  const claimQuote = (item: Pick<ApItem, 'kind' | 'id'>) => {
+    if (item.kind !== 'expense') return null;
+    const e = expenses.find((x) => x.id === item.id);
+    if (!e || !e.claimant || !e.isClaimantAdvance || !e.billable) return null;
+    const k = findCase(lk, e.caseId, e.fileRef);
+    if (!k) return null;
+    const pot = quotedCosts(k, quotations, invoices, expenses.filter((x) => x.id !== e.id), isReimbCost(e) ? 'Reimbursement' : 'Disbursement', travelClaims);
+    if (!pot.rows.length) return null;
+    const amt = Number(e.amount || 0), inPot = round2(Math.min(amt, Math.max(0, pot.left)));
+    return { e, pot, amt, inPot, above: round2(amt - inPot) };
+  };
+  /** Approving a staff claim for a quoted file: say once whether it is inside the quote (not billed again) or not. */
+  const tagClaimQuote = async (item: ApItem): Promise<boolean> => {
+    const q = claimQuote(item);
+    if (!q || q.e.quoteCovered != null) return true;
+    const NOT = 'Not part of the quote: bill the client in full';
+    const opt = (r: { desc: string; left: number }) => r.desc + ' · RM ' + Math.max(0, r.left).toFixed(2) + ' left';
+    const rows = q.pot.rows.filter((r) => r.quoted > 0);
+    const v = await askForm('Check ' + q.e.id + ' against the quote', [{ key: 'line', label: 'This claim is for', type: 'select', options: [...rows.map(opt), NOT] }], {
+      note: `${q.e.description || q.e.category} · RM ${q.amt.toFixed(2)}. Quoted ${q.pot.kind.toLowerCase()}s on ${q.pot.source.join(', ')}: RM ${q.pot.quoted.toFixed(2)}, RM ${Math.max(0, q.pot.left).toFixed(2)} left. ` +
+        (q.above > 0.005 ? `If it is inside the quote, RM ${q.inPot.toFixed(2)} is covered and RM ${q.above.toFixed(2)} is ABOVE THE QUOTE (billed to the client).` : 'If it is inside the quote, it is fully covered and not billed again.'),
+      ok: 'Approve',
+    });
+    if (!v) return false;
+    const r = rows.find((x) => opt(x) === v.line);
+    if (!r || q.inPot <= 0.005) { app.updateExpense(q.e.id, { quoteCovered: 0 }); return true; }
+    app.updateExpense(q.e.id, { quoteLine: r.desc, quoteCovered: q.inPot, coveredBy: q.pot.source.join(', '), ...(q.above <= 0.005 ? { billed: true } : {}) });
+    return true;
+  };
+  const approve = async (item: ApItem, ok: boolean) => {
     const rule = ruleFor(apId(item));
     if (rule.configured ? !rule.canSign(currentUser) : !canApprove) { toastMsg(rule.configured ? 'This ' + rule.rule + ' (Firm & Practice Settings › Who approves).' : 'Only partners approve. Accounts prepare.'); return; }
     const at = new Date().toISOString();
@@ -883,6 +913,7 @@ export function useFinanceController(initialTab: FinTab) {
     if (item.kind === 'writeoff' && !(isMP || (rule.configured && isAdmin))) { toastMsg('Write-offs need an admin partner.'); return; }
     if (!rule.configured && item.kind === 'referral' && !isMP) { toastMsg('Referral fees are approved by an admin.'); return; }
     if (item.signatories.some((s) => (s.userId ? s.userId === currentUser?.id : norm(s.name) === norm(me)))) { toastMsg('You have already signed this. It needs another signatory.'); return; }
+    if (!(await tagClaimQuote(item))) return;
     const sigs = [...item.signatories, { name: me, at, isManagingPartner: isMP, ...(currentUser?.id ? { userId: currentUser.id } : {}) }];
     let complete: boolean;
     if (rule.configured) {
@@ -969,7 +1000,12 @@ export function useFinanceController(initialTab: FinTab) {
   const applyApEdit = (kind: 'travel' | 'expense' | 'pv', id: string, what: string, amt: number, amt0: number) => { if (!(amt > 0)) { toastMsg('Enter an amount above 0'); return; }
     const again = Math.abs(amt - amt0) > 0.004 ? { approvalStatus: 'Pending Approval' as const } : {};
     if (kind === 'travel') app.updateTravelClaim(id, { purpose: what.trim(), total: amt, ...again });
-    else if (kind === 'expense') app.updateExpense(id, { description: what.trim(), amount: amt, ...again });
+    else if (kind === 'expense') {
+      // A claim already checked against the quote: the covered part can't be more than the new amount.
+      const e = expenses.find((x) => x.id === id);
+      const qc = e?.quoteCovered != null && again.approvalStatus ? { quoteCovered: Math.min(e.quoteCovered, amt), billed: !!e.quoteLine && e.quoteCovered >= amt - 0.005 } : {};
+      app.updateExpense(id, { description: what.trim(), amount: amt, ...again, ...qc });
+    }
     else app.updatePaymentVoucher(id, { description: what.trim(), amount: amt, ...(again.approvalStatus ? { ...again, approved: false } : {}) });
     toastMsg(again.approvalStatus ? 'Saved · the new amount goes back for approval' : 'Saved');
   };
@@ -1502,7 +1538,7 @@ export function useFinanceController(initialTab: FinTab) {
     const area = SD.areaFromName(k?.practiceArea || k?.type, k?.ref);
     // Disbursements (paid to third parties, no SST) vs reimbursements (our own costs re-charged:
     // photocopy, courier, mileage / travel…, SST-able) by expense category.
-    const exLine = (x: Expense) => [x.description || x.category, Number(x.amount || 0)] as SD.DocLine;
+    const exLine = (x: Expense) => [(x.description || x.category) + (x.quoteCovered ? ' (above the quote)' : ''), billPart(x)] as SD.DocLine;
     const lines: SD.DocLines = {
       prof: u.te.map((t) => [`${t.description || 'Professional services'} (${fd(t.date)}, ${t.hours}h)`, round2(Number(t.hours || 0) * Number(t.rate || 0))] as SD.DocLine),
       disb: u.ex.filter((x) => expenseIsDisb(x)).map(exLine),
@@ -2105,7 +2141,7 @@ export function useFinanceController(initialTab: FinTab) {
     lk, ownCase, clientName, staffUser,
     invBal, invPaid, invDeposit, invCredit, invStatus, invIssued, invCase, scopedInvoices, openInvoices, owedTotal, aging, ageDays,
     pnl, moneyReceived, openingAsAt, firmBanksOf, statementFor, setStatement, reconFor,
-    qStatus, qCase, proformaPaid, scopedQuotations, scopedReceipts, actionsFor, movePastInvoices, quotedForRef, disbShareOf, disbInOffice, canDeleteQuote, canDeleteBills, entryOf, editEntry, deleteEntry, deleteQuote, deleteInvoice, deleteReceipt, editReceipt, editApItem, deleteApItem, isAdminUser, act, buildDoc, recordOf, receiptProofList,
+    qStatus, qCase, proformaPaid, scopedQuotations, scopedReceipts, actionsFor, movePastInvoices, quotedForRef, claimQuote, disbShareOf, disbInOffice, canDeleteQuote, canDeleteBills, entryOf, editEntry, deleteEntry, deleteQuote, deleteInvoice, deleteReceipt, editReceipt, editApItem, deleteApItem, isAdminUser, act, buildDoc, recordOf, receiptProofList,
     ledgers, trustTotal, ledgerTotalAt, clientLedgerBalance, threeWayRec,
     unbilled, wipTotal, billMatter, billed: billed as Record<string, { inv: string; u: any }>,
     activeBanks, bankKind, banksOf, paidFromOptions, bankBal, lastRecon, officeCash,

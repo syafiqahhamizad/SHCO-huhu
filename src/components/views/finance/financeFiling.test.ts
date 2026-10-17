@@ -25,6 +25,11 @@ describe('finance filing', () => {
     expect(j.folderId).toBe('F9');
     expect(filingFor('travel', claim({ approvalStatus: 'Rejected' }), ctx)!.path).toEqual(['Books', 'Rejected', 'Office Account']);
   });
+  it('a staff claim for a client file (marked CLIENT, billable) is filed in the Office Account like any claim', () => {
+    const ex = { id: 'EX-0002', date: '2026-10-14', caseId: 'K1', fileRef: REF, accountSet: 'CLIENT', category: 'Disbursement', amount: 50, billable: true, description: 'Land office search', claimant: 'Zulaikha Afendi', isClaimantAdvance: true, approvalStatus: 'Pending Approval', formNo: 'CF-26-0001', attachments: [{ name: 'hlb.pdf', driveFileId: 'e1' }] } as Expense;
+    expect(filingFor('expense', ex, ctx)!.path).toEqual(['Books', 'Waiting approval', 'Office Account']);
+    expect(filingFor('expense', { ...ex, isClaimantAdvance: false }, ctx)).toBeNull();
+  });
   it('already filed there → nothing to do; before April 2025 or nothing on Drive → left alone', () => {
     const j = filingFor('travel', claim(), ctx)!;
     expect(filingFor('travel', claim({ driveFiling: { key: j.key, folderId: 'F1' } }), ctx)).toBeNull();
