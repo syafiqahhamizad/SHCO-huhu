@@ -8,7 +8,7 @@ import { extractMatterRunningNumber } from '../services/matterService';
  *    Clients KYC/<Client no.> - <Client name>/KYC
  *  SHCO Finance (partners / Accounts) — or "Finance/" inside SHCO Portal until it is set
  *    Books/<YYYY>/
- *        Bank Statements/<Office Account|Disbursement Account|Client Account|…>/<YYYY-MM Month>/
+ *        Bank Statements/<Office Account|Disbursement Account|Client Account|…>/   (all the year's statements together)
  *        Money In/<account>/<YYYY-MM Month>/<entry>/
  *        Money Out/<account>/<YYYY-MM Month>/<entry>/
  *        Payroll/<YYYY-MM Month>/{Payslips, Statutory, Partner Drawings}/
@@ -166,7 +166,7 @@ export const monthFolderName = (iso: string) => { const x = ymd(iso); return x ?
 const yearOf = (iso: string) => ymd(iso)?.y || 'Undated';
 /** Books/<YYYY>/<Money In | Money Out | Bank Statements>/<account>/<YYYY-MM Month> (year first; each bank
  * account kept apart). The kind of payment shows in each entry's own name (EX-, DISB-, PV-, TC-…). */
-export const booksMonthPath = (acc: FinAccount, iso: string, flow: BookFlow, _type?: OutType) => [FIN.books, yearOf(iso), flow === 'Bank Statement' ? 'Bank Statements' : flow, accountFolderName(acc), monthFolderName(iso)];
+export const booksMonthPath = (acc: FinAccount, iso: string, flow: BookFlow, _type?: OutType) => (flow === 'Bank Statement' ? [FIN.books, yearOf(iso), 'Bank Statements', accountFolderName(acc)] : [FIN.books, yearOf(iso), flow, accountFolderName(acc), monthFolderName(iso)]);
 /** Books/Waiting approval/<account> (submitted / approved, not paid yet) or Books/Rejected/<account>. */
 export const booksStatusPath = (acc: FinAccount, status: 'Pending' | 'Rejected', _type?: OutType) => [FIN.books, status === 'Pending' ? 'Waiting approval' : 'Rejected', accountFolderName(acc)];
 /** Money Out (and Pending / Rejected) is split by what was paid. Money In stays one folder: it is all official receipts. */
@@ -221,7 +221,8 @@ export const financeSkeleton = (from: string, to: string, accounts: FinAccount[]
     (['Payslips', 'Statutory', 'Partner Drawings'] as PayrollPart[]).forEach((p) => out.push(payrollMonthPath(iso, p)));
     if (m === 12) { y += 1; m = 1; } else m += 1;
   }
-  return out;
+  const seen = new Set<string>();
+  return out.filter((p) => { const k = p.join('/'); if (seen.has(k)) return false; seen.add(k); return true; });
 };
 
 /**

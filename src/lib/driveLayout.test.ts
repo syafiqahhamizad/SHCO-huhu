@@ -114,6 +114,7 @@ describe('year / type filters', () => {
 describe('finance books', () => {
   it('books by account, year and month', () => {
     expect(booksMonthPath('Office', '2026-10-14', 'Money Out')).toEqual(['Books', '2026', 'Money Out', 'Office Account', '2026-10 October']);
+    expect(booksMonthPath('Client account', '2025-06-30', 'Bank Statement')).toEqual(['Books', '2025', 'Bank Statements', 'Client Account']);
     expect(booksStatusPath('Disbursement', 'Pending')).toEqual(['Books', 'Waiting approval', 'Disbursement Account']);
     expect(payrollMonthPath('2025-04-30', 'Statutory')).toEqual(['Books', '2025', 'Payroll', '2025-04 April', 'Statutory']);
   });
