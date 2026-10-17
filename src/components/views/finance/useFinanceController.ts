@@ -106,7 +106,7 @@ export interface EditorState {
 }
 interface FormState { kind: string; vals: Record<string, any> }
 interface PaperState { title: string; sub: string; html: string; wide?: boolean; pdf?: () => void; xls?: () => void; toggles?: { label: string; on: boolean; go: () => void }[]; extra?: React.ReactNode }
-interface ImportState { src: 'Template' | 'Bank' | 'Software'; acc: 'Office' | 'Client account' | 'Petty cash'; raw: string[][] | null; fileName: string; /** 'reference' (default) = kept to look back at, never counted; 'books' = posted to the cash book and ledgers. */ mode?: 'reference' | 'books' }
+interface ImportState { src: 'Template' | 'Bank' | 'Software'; acc: 'Office' | 'Client account' | 'Petty cash' | 'Disbursement'; /** The registered bank account (Settings › Banks) the rows belong to. */ bank?: string; raw: string[][] | null; fileName: string; /** 'reference' (default) = kept to look back at, never counted; 'books' = posted to the cash book and ledgers. */ mode?: 'reference' | 'books' }
 
 export interface ApItem {
   key: string; kind: 'travel' | 'expense' | 'pv' | 'journal' | 'writeoff' | 'referral'; id: string;
@@ -764,6 +764,8 @@ export function useFinanceController(initialTab: FinTab) {
   })();
   /** Firm & Practice Settings → Banks: the bank accounts whose opening balances are kept there. */
   const firmBankKind = (b: { accountType: string; typeLabel?: string }): CashAcc | null => (/petty/i.test(b.typeLabel || '') ? 'Petty cash' : b.accountType === 'Client Trust' ? 'Client account' : b.accountType === 'Disbursement' ? 'Disbursement' : b.accountType === 'Office Operating' ? 'Office' : null);
+  /** Import: the bank accounts registered in Settings › Banks, each with the book it belongs to. */
+  const importBanks = (settings.bankAccounts || []).filter((b) => b.isActive !== false).map((b) => ({ label: `${b.bankName}${b.typeLabel || b.accountType ? ' · ' + (b.typeLabel || b.accountType) : ''}${b.accountNo ? ' (…' + String(b.accountNo).replace(/\s+/g, '').slice(-4) + ')' : ''}`, acc: firmBankKind(b) })).filter((x): x is { label: string; acc: CashAcc } => !!x.acc);
   const firmBanksOf = (k: CashAcc) => (settings.bankAccounts || []).filter((b) => b.isActive !== false && firmBankKind(b) === k);
   /** Cash-book entries on or before this date are already inside the opening balance. */
   const openingAsAt = settings.bankOpeningBalancesAsAt ? parseDate(settings.bankOpeningBalancesAsAt) : 0;
@@ -2082,13 +2084,13 @@ export function useFinanceController(initialTab: FinTab) {
     const h0 = Math.max(0, I0.raw.slice(0, 30).findIndex((r) => r.some((x) => /^\s*(transaction |posting |value )?(date|tarikh)/i.test(String(x)))));
     const hdr = I0.raw[h0].map((x) => String(x).toLowerCase()); const col = (...k: string[]) => hdr.findIndex((x) => k.some((y) => x.includes(y)));
     const c = { date: col('date', 'tarikh'), type: col('type'), acc: col('account'), client: col('client', 'name', 'payer'), ref: col('our ref'), no: col('document', 'doc', 'receipt no', 'invoice no'), desc: col('desc', 'particular', 'details', 'narration'), amt: col('amount'), method: col('method'), proof: col('proof'), cr: col('credit', 'deposit'), dr: col('debit', 'withdraw'), pst: col('payment status', 'paid') };
-    const g = (r: string[], i: number) => (i >= 0 ? String(r[i] == null ? '' : r[i]).trim() : ''); const nm = (v: string) => Number(String(v || '').replace(/[^0-9.-]/g, '')) || 0;
+    const g = (r: string[], i: number) => (i >= 0 ? String(r[i] == null ? '' : r[i]).trim().replace(/^="(.*)"$/s, '$1').replace(/^=/, '').trim() : ''); const nm = (v: string) => Number(String(v || '').replace(/[^0-9.-]/g, '')) || 0;
     const seen = new Set<string>();
-    return I0.raw.slice(h0 + 1).filter((r) => r.some((x) => String(x ?? '').trim())).map((r) => {
+    return I0.raw.slice(h0 + 1).filter((r) => r.some((x) => g([String(x ?? '')], 0)) && !(!parseDate(g(r, c.date)) && /balance|baki/i.test(r.map((x) => g([String(x ?? '')], 0)).join(' ')))).map((r) => {
       let amt = nm(g(r, c.amt)), tp = g(r, c.type);
       if (c.cr >= 0 || c.dr >= 0) { const cr = nm(g(r, c.cr)), dr = nm(g(r, c.dr)); if (cr || dr) { amt = Math.abs(cr || dr); tp = cr ? 'Receipt' : 'Payment'; } }
       const type = /inv/i.test(tp) ? 'Invoice' : /rec|in\b|credit/i.test(tp) ? 'Receipt' : /pay|out|debit|pv/i.test(tp) ? 'Payment' : '';
-      const av = g(r, c.acc); const acc2 = av ? (/client/i.test(av) ? 'Client account' : /petty/i.test(av) ? 'Petty cash' : 'Office') : I0.acc;
+      const av = g(r, c.acc); const acc2 = av ? (/client/i.test(av) ? 'Client account' : /petty/i.test(av) ? 'Petty cash' : /disb/i.test(av) ? 'Disbursement' : 'Office') : I0.acc;
       const t = parseDate(g(r, c.date)); const client = g(r, c.client); const no = g(r, c.no);
       const ref0 = I0.mode !== 'books';
       const dup = !!no && (seen.has(no) || invoices.some((x) => x.id === no) || receipts.some((x) => x.id === no) || paymentVouchers.some((x) => x.id === no) || [...(app.pastInvoices || []), ...(app.pastReceipts || [])].some((x) => String(x.pastNo || '').toLowerCase() === no.toLowerCase())); if (no) seen.add(no);
@@ -2100,6 +2102,7 @@ export function useFinanceController(initialTab: FinTab) {
   const postImport = (list: ImpRow[]) => {
     if (!canPrepare) { toastMsg('Imports are posted by Accounts.'); return; }
     const ok = list.filter((r) => r.ok); if (!ok.length) return;
+    if (importBanks.length && !imp?.bank) { toastMsg('Choose the bank account this statement is for.'); return; }
     if (imp?.mode !== 'books') {
       // For reference only: kept with their old numbers, never counted (same as + Past invoice / + Past receipt).
       ok.forEach((r) => {
@@ -2119,7 +2122,7 @@ export function useFinanceController(initialTab: FinTab) {
       const proofs: FinanceProof[] = r.proof ? [{ name: r.proof, uploadedAt: new Date().toISOString() }] : [];
       if (r.type === 'Receipt') {
         const id = r.no || rIds.shift()!;
-        app.addReceipt({ id, date: dateIso, accountSet: client ? 'CLIENT' : 'OFFICE', receivedFrom: r.client || '—', description: r.desc || 'Historical receipt', amount: r.amt, debit: cashAccountGL(r.acc), credit: client ? GLA.clientFunds : GLA.ar, clientId: c?.id || '', fileRef: r.ref, bankRef: '', receivedBy: me, paymentMethod: r.method || '—', forNo: r.desc, caseId: kase?.id, proofs, historical: true });
+        app.addReceipt({ id, date: dateIso, accountSet: client ? 'CLIENT' : 'OFFICE', receivedFrom: r.client || '—', description: r.desc || 'Historical receipt', amount: r.amt, ...(imp?.bank && r.acc === imp.acc ? { bankAccountName: imp.bank } : {}), debit: cashAccountGL(r.acc), credit: client ? GLA.clientFunds : GLA.ar, clientId: c?.id || '', fileRef: r.ref, bankRef: '', receivedBy: me, paymentMethod: r.method || '—', forNo: r.desc, caseId: kase?.id, proofs, historical: true });
         if (client && c) app.addRetainer({ id: 'RET-' + id, clientId: c.id, caseId: kase?.id || '', type: 'Deposit', amount: r.amt, date: dateIso, remarks: r.desc || 'Historical receipt', voucherNo: id });
         gl.push({ date: dateIso, docType: 'OR', docNo: id, accountSet: client ? 'CLIENT' : 'OFFICE', debit: cashAccountGL(r.acc), credit: client ? GLA.clientFunds : GLA.ar, amount: r.amt, clientId: c?.id || '', fileRef: r.ref, description: 'Historical receipt · ' + (r.desc || '') });
       } else if (r.type === 'Invoice') {
@@ -2128,9 +2131,9 @@ export function useFinanceController(initialTab: FinTab) {
         gl.push({ date: dateIso, docType: 'INV', docNo: id, accountSet: 'OFFICE', debit: GLA.ar, credit: GLA.fees, amount: r.amt, clientId: c?.id || '', fileRef: r.ref, description: 'Historical invoice · ' + (r.desc || '') });
       } else {
         const id = r.no || pIds.shift()!;
-        app.addPaymentVoucher({ id, date: dateIso, accountSet: client ? 'CLIENT' : 'OFFICE', voucherCategory: client ? 'Client Disb' : 'Office Operating', payee: r.client || '', paymentMethod: r.method || '', description: r.desc || 'Historical payment', amount: r.amt, debit: client ? GLA.clientFunds : GLA.other, credit: cashAccountGL(r.acc), clientId: c?.id || '', fileRef: r.ref, caseId: kase?.id, bankAccountName: r.acc === 'Petty cash' ? 'Petty cash' : undefined, preparedBy: me, approvalStatus: 'Approved', approved: true, historical: true, paidAt: dateIso, proofs });
+        app.addPaymentVoucher({ id, date: dateIso, accountSet: client ? 'CLIENT' : 'OFFICE', voucherCategory: client ? 'Client Disb' : r.acc === 'Disbursement' ? 'Disbursement' : 'Office Operating', payee: r.client || '', paymentMethod: r.method || '', description: r.desc || 'Historical payment', amount: r.amt, debit: client ? GLA.clientFunds : r.acc === 'Disbursement' ? GLA.unbilledDisb : GLA.other, credit: cashAccountGL(r.acc), clientId: c?.id || '', fileRef: r.ref, caseId: kase?.id, bankAccountName: r.acc === 'Petty cash' ? 'Petty cash' : imp?.bank && r.acc === imp.acc ? imp.bank : undefined, preparedBy: me, approvalStatus: 'Approved', approved: true, historical: true, paidAt: dateIso, proofs });
         if (client && c) app.addRetainer({ id: 'RET-' + id, clientId: c.id, caseId: kase?.id || '', type: 'Apply', amount: r.amt, date: dateIso, remarks: r.desc || 'Historical payment', voucherNo: id });
-        gl.push({ date: dateIso, docType: 'PV', docNo: id, accountSet: client ? 'CLIENT' : 'OFFICE', debit: client ? GLA.clientFunds : GLA.other, credit: cashAccountGL(r.acc), amount: r.amt, clientId: c?.id || '', fileRef: r.ref, description: 'Historical payment · ' + (r.desc || '') });
+        gl.push({ date: dateIso, docType: 'PV', docNo: id, accountSet: client ? 'CLIENT' : 'OFFICE', debit: client ? GLA.clientFunds : r.acc === 'Disbursement' ? GLA.unbilledDisb : GLA.other, credit: cashAccountGL(r.acc), amount: r.amt, clientId: c?.id || '', fileRef: r.ref, description: 'Historical payment · ' + (r.desc || '') });
       }
     });
     postGL(gl);
@@ -2153,7 +2156,7 @@ export function useFinanceController(initialTab: FinTab) {
     lk, ownCase, clientName, staffUser,
     invBal, invPaid, invDeposit, invCredit, invStatus, invIssued, invCase, scopedInvoices, openInvoices, owedTotal, aging, ageDays,
     pnl, moneyReceived, openingAsAt, firmBanksOf, statementFor, setStatement, reconFor,
-    qStatus, qCase, proformaPaid, scopedQuotations, scopedReceipts, actionsFor, movePastInvoices, quotedForRef, claimQuote, disbShareOf, disbInOffice, canDeleteQuote, canDeleteBills, entryOf, editEntry, deleteEntry, deleteQuote, deleteInvoice, deleteReceipt, editReceipt, editApItem, deleteApItem, isAdminUser, act, buildDoc, recordOf, receiptProofList,
+    qStatus, qCase, proformaPaid, scopedQuotations, scopedReceipts, actionsFor, movePastInvoices, quotedForRef, claimQuote, importBanks, disbShareOf, disbInOffice, canDeleteQuote, canDeleteBills, entryOf, editEntry, deleteEntry, deleteQuote, deleteInvoice, deleteReceipt, editReceipt, editApItem, deleteApItem, isAdminUser, act, buildDoc, recordOf, receiptProofList,
     ledgers, trustTotal, ledgerTotalAt, clientLedgerBalance, threeWayRec,
     unbilled, wipTotal, billMatter, billed: billed as Record<string, { inv: string; u: any }>,
     activeBanks, bankKind, banksOf, paidFromOptions, bankBal, lastRecon, officeCash,
