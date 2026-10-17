@@ -1054,6 +1054,8 @@ export interface Payment {
 }
 
 export interface Receipt {
+  /** A bank-statement line imported into the books, not yet completed (what it was, client / file, receipt). */
+  toComplete?: boolean;
   id: string;
   /** Part of this receipt banked straight into the Disbursement account (the rest is Office). */
   disbPart?: number;
@@ -1092,6 +1094,8 @@ export interface Receipt {
 }
 
 export interface PaymentVoucher {
+  /** A bank-statement line imported into the books, not yet completed (what it was, client / file, receipt). */
+  toComplete?: boolean;
   /** 'Bank Transfer': money moved between the firm's own accounts (e.g. Office → Disbursement). Not a cost. */
   transferFrom?: 'Office' | 'Disbursement' | 'Petty cash' | 'Emergency';
   transferTo?: 'Office' | 'Disbursement' | 'Petty cash' | 'Emergency';

@@ -121,6 +121,8 @@ export interface PayItem {
   date?: string; folderId?: string;
 }
 interface CbRow {
+  /** Imported bank line still to complete: opens the Complete steps. */
+  complete?: () => void;
   key: string; t: number; who: string; what: string; no: string; inn: number; out: number; src: 'Auto' | 'Historical' | 'Manual';
   proofs: FinanceProof[]; owner: string; open?: () => void; attach?: (files: FileList | null) => void;
 }
@@ -223,6 +225,7 @@ export function useFinanceController(initialTab: FinTab) {
   const [paper, setPaper] = useState<PaperState | null>(null);
   const [ed, setEd] = useState<EditorState | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
+  const setFormOuter = setForm;
   const [imp, setImp] = useState<ImportState | null>(null);
   const [billed, setBilled] = useState<Record<string, { inv: string; u: any }>>({});
   const [decided, setDecided] = useState<Record<string, { d: 'ok' | 'no'; item: ApItem }>>({});
@@ -1207,7 +1210,7 @@ export function useFinanceController(initialTab: FinTab) {
     receipts.filter((r) => receiptAccount(r) === acc || (acc === 'Office' && r.accountSet !== 'CLIENT' && receiptAccount(r) === 'Office')).forEach((r) => {
       if (receiptAccount(r) !== acc) return;
       if (r.invoiceId) payments.filter((p) => p.invoiceId === r.invoiceId && Math.abs(Number(p.amount) - Number(r.amount)) < 0.01 && !matchedPay.has(p.id)).slice(0, 1).forEach((p) => matchedPay.add(p.id));
-      R.push({ key: 'r:' + r.id, t: parseDate(r.date), who: r.receivedFrom || '—', what: 'Receipt · ' + (r.forNo || r.description || '') + (r.paymentMethod ? ' · ' + r.paymentMethod : '') + (r.disbPart ? ' · RM ' + rm2(r.disbPart) + ' disbursement part to the Disbursement account' : ''), no: r.id, inn: round2(Number(r.amount || 0) - Number(r.disbPart || 0)), out: 0, src: r.historical ? 'Historical' : 'Auto', proofs: receiptProofList(r), owner: r.id, open: () => setView({ kind: 'receipt', id: r.id }), attach: attachTo('receipt', r.id) });
+      R.push({ key: 'r:' + r.id, t: parseDate(r.date), who: r.receivedFrom || '—', what: 'Receipt · ' + (r.forNo || r.description || '') + (r.paymentMethod ? ' · ' + r.paymentMethod : '') + (r.disbPart ? ' · RM ' + rm2(r.disbPart) + ' disbursement part to the Disbursement account' : ''), no: r.id, inn: round2(Number(r.amount || 0) - Number(r.disbPart || 0)), out: 0, src: r.historical ? 'Historical' : 'Auto', proofs: receiptProofList(r), owner: r.id, open: () => setView({ kind: 'receipt', id: r.id }), attach: attachTo('receipt', r.id), ...(r.toComplete ? { complete: () => void completeImported('r:' + r.id) } : {}) });
     });
     if (acc === 'Office') payments.filter((p) => !matchedPay.has(p.id) && !receipts.some((r) => r.bankRef === p.id || (r.invoiceId === p.invoiceId && Math.abs(Number(r.amount) - Number(p.amount)) < 0.01 && r.date === p.date))).forEach((p) => { const inv = invoices.find((i) => i.id === p.invoiceId); if (inv?.status === 'Voided') return; R.push({ key: 'p:' + p.id, t: parseDate(p.date), who: inv?.partyName || clientName(inv?.clientId) || '—', what: `Payment for ${p.invoiceId}${p.method ? ' · ' + p.method : ''}`, no: p.id, inn: Number(p.amount || 0), out: 0, src: 'Auto', proofs: [], owner: 'payment:' + p.id }); });
     // The disbursement part of a receipt banked straight into the Disbursement account.
@@ -1222,7 +1225,7 @@ export function useFinanceController(initialTab: FinTab) {
         if (v.transferTo === acc) R.push({ key: 'vi:' + v.id, t: parseDate(v.paidAt || v.date), who: 'Transfer from ' + (v.transferFrom || '') + ' account', what: v.description, no: v.id, inn: Number(v.amount || 0), out: 0, src: 'Auto', proofs: [...(v.paidProof ? [v.paidProof] : []), ...(v.proofs || [])], owner: 'pv:' + v.id, attach: attachTo('pv', v.id) });
         return;
       }
-      if (from === acc) R.push({ key: 'v:' + v.id, t: parseDate(v.paidAt || v.date), who: v.voucherCategory === 'Legal Fees Transfer' ? 'Transfer to office account' : v.payee || clientName(v.clientId) || '—', what: `${pvIsClient(v) ? 'Paid for client · ' : ''}${v.description}`, no: v.id, inn: 0, out: Number(v.amount || 0), src: v.historical ? 'Historical' : 'Auto', proofs: [...(v.paidProof ? [v.paidProof] : []), ...(v.proofs || [])], owner: 'pv:' + v.id, attach: attachTo('pv', v.id) });
+      if (from === acc) R.push({ key: 'v:' + v.id, t: parseDate(v.paidAt || v.date), who: v.voucherCategory === 'Legal Fees Transfer' ? 'Transfer to office account' : v.payee || clientName(v.clientId) || '—', what: `${pvIsClient(v) ? 'Paid for client · ' : ''}${v.description}`, no: v.id, inn: 0, out: Number(v.amount || 0), src: v.historical ? 'Historical' : 'Auto', proofs: [...(v.paidProof ? [v.paidProof] : []), ...(v.proofs || [])], owner: 'pv:' + v.id, attach: attachTo('pv', v.id), ...(v.toComplete ? { complete: () => void completeImported('v:' + v.id) } : {}) });
     });
     if (acc === 'Office') travelClaims.filter((t) => t.paidAt).forEach((t) => R.push({ key: 't:' + t.id, t: parseDate(t.paidAt), who: t.claimant, what: `Staff claim · ${t.purpose || t.type}`, no: t.id, inn: 0, out: Number(t.total || 0), src: 'Auto', proofs: t.paidProof ? [t.paidProof] : [], owner: 'travel:' + t.id, attach: attachTo('travel', t.id) }));
     if (acc === 'Office') {
@@ -1654,9 +1657,43 @@ export function useFinanceController(initialTab: FinTab) {
     return { ok: true, drop, old };
   };
   const costEditApply = (drop: string[]) => { if (!drop.length) return; drop.forEach((d) => reverseDoc(d, 'edited')); app.removeFinanceRecords({ expenses: drop }, 'Edited by ' + me); };
+  /** Removes an imported bank line once its proper entry is recorded (postings reversed, kept in the Recycle Bin). */
+  const dropImported = (key: string) => {
+    const en = entryOf(key); if (!en) return;
+    reverseDoc(en.id, 'replaced by the completed entry');
+    if (en.kind === 'receipt') app.removeFinanceRecords({ receipts: [en.id], payments: payments.filter((p) => p.id === 'PAY-' + en.id).map((p) => p.id), retainers: retainers.filter((x) => x.id === 'RET-' + en.id || x.voucherNo === en.id).map((x) => x.id) }, 'Imported line completed by ' + me);
+    else app.removeFinanceRecords({ paymentVouchers: [en.id] }, 'Imported line completed by ' + me);
+  };
+  /** Complete an imported bank line: say what it was, then the usual form opens filled in (date, amount, bank). */
+  const completeImported = async (key: string) => {
+    if (!canPrepare) { toastMsg('Imported lines are completed by Accounts.'); return; }
+    const en = entryOf(key); if (!en) return;
+    const OTHER = 'Something else: keep it, just add the details';
+    if (en.kind === 'receipt') {
+      const r = receipts.find((x) => x.id === en.id); if (!r) return;
+      const INV = 'Payment of an invoice or proforma';
+      const v = await askForm('Complete ' + r.id, [{ key: 'what', label: 'This money in was', type: 'select', options: [INV, OTHER] }], { note: `${fd(r.date)} · ${rm2(Number(r.amount || 0))} · ${r.description || r.forNo || ''}`, ok: 'Next' });
+      if (!v) return;
+      if (v.what === INV) { openForm('moneyIn', { kind: 'Payment of an invoice', amount: Number(r.amount || 0).toFixed(2), date: fd(parseDate(r.date)), proofs: r.proofs || [], replaces: key }); return; }
+      await editReceipt(r); app.updateReceipt(r.id, { toComplete: false }); return;
+    }
+    if (en.kind !== 'pv') return;
+    const pv = paymentVouchers.find((x) => x.id === en.id); if (!pv) return;
+    const OFF = 'Office cost (rent, bills, salary, EPF / SOCSO, drawings…)', FILE = 'Paid for a client file (billed back to the client)', DISB = 'Moved to the Disbursement account';
+    const v = await askForm('Complete ' + pv.id, [{ key: 'what', label: 'This money out was', type: 'select', options: [OFF, FILE, DISB, OTHER] }], { note: `${fd(pv.date)} · ${rm2(Number(pv.amount || 0))} · ${pv.description || ''}`, ok: 'Next' });
+    if (!v) return;
+    const base = { amount: Number(pv.amount || 0).toFixed(2), date: fd(parseDate(pv.date)), what: pv.description && pv.description !== 'Historical payment' ? pv.description : '', proofs: [...(pv.proofs || []), ...(pv.paidProof ? [pv.paidProof] : [])], replaces: key, ...(pv.bankAccountName ? { from: pv.bankAccountName } : {}) };
+    if (v.what === OFF) openForm('expense', base);
+    else if (v.what === FILE) openForm('disb', base);
+    else if (v.what === DISB) openForm('toDisb', base);
+    else { await editEntry('pv', pv.id); app.updatePaymentVoucher(pv.id, { toComplete: false }); }
+  };
   const saveForm = () => {
     if (!form) return;
     const { kind, vals } = form;
+    // Completing an imported bank line: once the proper entry is saved, the imported line goes (its postings reversed).
+    const replaces = String(vals.replaces || '');
+    const setForm = (x: FormState | null) => { if (x === null && replaces) dropImported(replaces); setFormOuter(x); };
     // Past papers are keyed in by part (fees, reimbursements, disbursements, SST) so each file shows them by category.
     const isPast = ['pastQuote', 'pastProforma', 'pastInvoice'].includes(kind);
     // Optional "Disbursement items" on past papers: one per line, "Bankruptcy search 10" → item + amount.
@@ -1956,6 +1993,7 @@ export function useFinanceController(initialTab: FinTab) {
       const c = clientByName(vals.client || '');
       if (!String(vals.client || '').trim()) { toastMsg('Name the client. This is billed back to them.'); return; }
       if (amt <= 0) { toastMsg('Enter the amount.'); return; }
+      if (!proofs.length && !vals.editId) { toastMsg('Attach the receipt or bill: every cost needs one.'); return; }
       const kase = vals.matter ? caseForRef(String(vals.matter)) : cases.find((k) => c && k.clientId.split(',').map((x) => x.trim()).includes(c.id) && k.status !== 'Closed');
       const ed = costEditPrep(String(vals.editId || '')); if (!ed.ok) return;
       const exList = expenses.filter((x) => !ed.drop.includes(x.id));
@@ -1996,6 +2034,7 @@ export function useFinanceController(initialTab: FinTab) {
     } else if (kind === 'expense') {
       if (!canPrepare) { toastMsg('Office expenses are recorded by Accounts.'); return; }
       if (amt <= 0) { toastMsg('Enter the amount.'); return; }
+      if (!proofs.length && !vals.editId) { toastMsg('Attach the receipt or bill: every cost needs one.'); return; }
       const kindOf = String(vals.kind || 'Office expense');
       if (kindOf === PV_STATUTORY || kindOf === PV_SST || kindOf === PV_DRAWINGS) {
         // Remittances / drawings settle what is already owed (2300 statutory, 2200 SST) or are
@@ -2140,7 +2179,7 @@ export function useFinanceController(initialTab: FinTab) {
       const proofs: FinanceProof[] = r.proof ? [{ name: r.proof, uploadedAt: new Date().toISOString() }] : [];
       if (r.type === 'Receipt') {
         const id = r.no || rIds.shift()!;
-        app.addReceipt({ id, date: dateIso, accountSet: client ? 'CLIENT' : 'OFFICE', receivedFrom: r.client || '—', description: r.desc || 'Historical receipt', amount: r.amt, ...(imp?.bank && r.acc === imp.acc ? { bankAccountName: imp.bank } : {}), debit: cashAccountGL(r.acc), credit: client ? GLA.clientFunds : GLA.ar, clientId: c?.id || '', fileRef: r.ref, bankRef: '', receivedBy: me, paymentMethod: r.method || '—', forNo: r.desc, caseId: kase?.id, proofs, historical: true });
+        app.addReceipt({ id, date: dateIso, accountSet: client ? 'CLIENT' : 'OFFICE', receivedFrom: r.client || '—', description: r.desc || 'Historical receipt', amount: r.amt, ...(imp?.bank && r.acc === imp.acc ? { bankAccountName: imp.bank } : {}), debit: cashAccountGL(r.acc), credit: client ? GLA.clientFunds : GLA.ar, clientId: c?.id || '', fileRef: r.ref, bankRef: '', receivedBy: me, paymentMethod: r.method || '—', forNo: r.desc, caseId: kase?.id, proofs, historical: true, ...(imp?.src === 'Bank' ? { toComplete: true } : {}) });
         if (client && c) app.addRetainer({ id: 'RET-' + id, clientId: c.id, caseId: kase?.id || '', type: 'Deposit', amount: r.amt, date: dateIso, remarks: r.desc || 'Historical receipt', voucherNo: id });
         gl.push({ date: dateIso, docType: 'OR', docNo: id, accountSet: client ? 'CLIENT' : 'OFFICE', debit: cashAccountGL(r.acc), credit: client ? GLA.clientFunds : GLA.ar, amount: r.amt, clientId: c?.id || '', fileRef: r.ref, description: 'Historical receipt · ' + (r.desc || '') });
       } else if (r.type === 'Invoice') {
@@ -2149,7 +2188,7 @@ export function useFinanceController(initialTab: FinTab) {
         gl.push({ date: dateIso, docType: 'INV', docNo: id, accountSet: 'OFFICE', debit: GLA.ar, credit: GLA.fees, amount: r.amt, clientId: c?.id || '', fileRef: r.ref, description: 'Historical invoice · ' + (r.desc || '') });
       } else {
         const id = r.no || pIds.shift()!;
-        app.addPaymentVoucher({ id, date: dateIso, accountSet: client ? 'CLIENT' : 'OFFICE', voucherCategory: client ? 'Client Disb' : r.acc === 'Disbursement' ? 'Disbursement' : 'Office Operating', payee: r.client || '', paymentMethod: r.method || '', description: r.desc || 'Historical payment', amount: r.amt, debit: client ? GLA.clientFunds : r.acc === 'Disbursement' ? GLA.unbilledDisb : GLA.other, credit: cashAccountGL(r.acc), clientId: c?.id || '', fileRef: r.ref, caseId: kase?.id, bankAccountName: r.acc === 'Petty cash' ? 'Petty cash' : imp?.bank && r.acc === imp.acc ? imp.bank : undefined, preparedBy: me, approvalStatus: 'Approved', approved: true, historical: true, paidAt: dateIso, proofs });
+        app.addPaymentVoucher({ id, date: dateIso, accountSet: client ? 'CLIENT' : 'OFFICE', voucherCategory: client ? 'Client Disb' : r.acc === 'Disbursement' ? 'Disbursement' : 'Office Operating', payee: r.client || '', paymentMethod: r.method || '', description: r.desc || 'Historical payment', amount: r.amt, debit: client ? GLA.clientFunds : r.acc === 'Disbursement' ? GLA.unbilledDisb : GLA.other, credit: cashAccountGL(r.acc), clientId: c?.id || '', fileRef: r.ref, caseId: kase?.id, bankAccountName: r.acc === 'Petty cash' ? 'Petty cash' : imp?.bank && r.acc === imp.acc ? imp.bank : undefined, preparedBy: me, approvalStatus: 'Approved', approved: true, historical: true, paidAt: dateIso, proofs, ...(imp?.src === 'Bank' ? { toComplete: true } : {}) });
         if (client && c) app.addRetainer({ id: 'RET-' + id, clientId: c.id, caseId: kase?.id || '', type: 'Apply', amount: r.amt, date: dateIso, remarks: r.desc || 'Historical payment', voucherNo: id });
         gl.push({ date: dateIso, docType: 'PV', docNo: id, accountSet: client ? 'CLIENT' : 'OFFICE', debit: client ? GLA.clientFunds : r.acc === 'Disbursement' ? GLA.unbilledDisb : GLA.other, credit: cashAccountGL(r.acc), amount: r.amt, clientId: c?.id || '', fileRef: r.ref, description: 'Historical payment · ' + (r.desc || '') });
       }
@@ -2174,7 +2213,7 @@ export function useFinanceController(initialTab: FinTab) {
     lk, ownCase, clientName, staffUser,
     invBal, invPaid, invDeposit, invCredit, invStatus, invIssued, invCase, scopedInvoices, openInvoices, owedTotal, aging, ageDays,
     pnl, moneyReceived, openingAsAt, firmBanksOf, statementFor, setStatement, reconFor,
-    qStatus, qCase, proformaPaid, scopedQuotations, scopedReceipts, actionsFor, movePastInvoices, quotedForRef, claimQuote, importBanks, disbShareOf, disbInOffice, canDeleteQuote, canDeleteBills, entryOf, editEntry, deleteEntry, deleteQuote, deleteInvoice, deleteReceipt, editReceipt, editApItem, deleteApItem, isAdminUser, act, buildDoc, recordOf, receiptProofList,
+    qStatus, qCase, proformaPaid, scopedQuotations, scopedReceipts, actionsFor, movePastInvoices, quotedForRef, claimQuote, importBanks, completeImported, disbShareOf, disbInOffice, canDeleteQuote, canDeleteBills, entryOf, editEntry, deleteEntry, deleteQuote, deleteInvoice, deleteReceipt, editReceipt, editApItem, deleteApItem, isAdminUser, act, buildDoc, recordOf, receiptProofList,
     ledgers, trustTotal, ledgerTotalAt, clientLedgerBalance, threeWayRec,
     unbilled, wipTotal, billMatter, billed: billed as Record<string, { inv: string; u: any }>,
     activeBanks, bankKind, banksOf, paidFromOptions, bankBal, lastRecon, officeCash,
