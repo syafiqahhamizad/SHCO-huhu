@@ -52,7 +52,7 @@ export const ImportModal = ({ F }: { F: FinanceCtrl }) => {
           <p style={css('margin:0;font-size:10.5px;line-height:1.5;color:#5B6478')}>{TIP[I0.src]}</p>
           {list.length > 0 && (
             <div style={css('border:1px solid #DDE3EB;border-radius:8px;overflow:hidden')}>
-              <div style={css('display:flex;gap:10px;padding:8px 12px;background:#F6F8FA;font-size:11px;color:#16223A')}><strong>3 · Check</strong><span>{list.length + ' rows read · ' + okN + ' ready to post · ' + (list.length - okN) + ' need fixing in the file'}</span></div>
+              <div style={css('display:flex;gap:10px;padding:8px 12px;background:#F6F8FA;font-size:11px;color:#16223A')}><strong>3 · Check</strong><span>{list.length + ' rows read · ' + (list.some((r) => r.inPortal) ? list.filter((r) => r.inPortal).length + ' already in the portal (skipped) · ' : '') + okN + ' not in the portal yet · ' + list.filter((r) => !r.ok && !r.inPortal).length + ' need fixing in the file'}</span></div>
               <div style={css('display:grid;grid-template-columns:80px 76px 90px minmax(0,1fr) 96px minmax(0,1.2fr) 90px 110px 120px;gap:8px;padding:6px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5B6478;border-bottom:1px solid #EEF1F5')}><span>Date</span><span>Type</span><span>Account</span><span>Client</span><span>Doc no.</span><span>Description</span><span style={css('text-align:right')}>Amount</span><span>Proof</span><span>Status</span></div>
               <div style={css('max-height:340px;overflow:auto')}>
                 {list.slice(0, 200).map((r, i) => (

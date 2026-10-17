@@ -2082,7 +2082,7 @@ export function useFinanceController(initialTab: FinTab) {
 
   /* ------------------------------ import past transactions ------------------------------ */
   const importFile = async (file: File) => { try { const rows = await SD.readSheet(file); setImp((s) => (s ? { ...s, fileName: file.name, raw: rows } : s)); } catch { toastMsg('Could not read ' + file.name); } };
-  interface ImpRow { date: string; t: number; type: string; acc: string; client: string; ref: string; no: string; desc: string; amt: number; method: string; proof: string; ok: boolean; status: string; sbg: string; sfg: string; /** Past invoice paid status from the file (Paid / Part paid / Not paid). */ pst: string }
+  interface ImpRow { inPortal?: string; date: string; t: number; type: string; acc: string; client: string; ref: string; no: string; desc: string; amt: number; method: string; proof: string; ok: boolean; status: string; sbg: string; sfg: string; /** Past invoice paid status from the file (Paid / Part paid / Not paid). */ pst: string }
   const importRows = (I0: ImportState): ImpRow[] => {
     if (!I0.raw || I0.raw.length < 2) return [];
     // Bank exports start with account details: the headings are the first row with a Date column.
@@ -2091,6 +2091,17 @@ export function useFinanceController(initialTab: FinTab) {
     const c = { date: col('date', 'tarikh'), type: col('type'), acc: col('account'), client: col('client', 'name', 'payer'), ref: col('our ref'), no: col('document', 'doc', 'receipt no', 'invoice no'), desc: col('desc', 'particular', 'details', 'narration'), amt: col('amount'), method: col('method'), proof: col('proof'), cr: col('credit', 'deposit'), dr: col('debit', 'withdraw'), pst: col('payment status', 'paid') };
     const g = (r: string[], i: number) => (i >= 0 ? String(r[i] == null ? '' : r[i]).trim().replace(/^="(.*)"$/s, '$1').replace(/^=/, '').trim() : ''); const nm = (v: string) => Number(String(v || '').replace(/[^0-9.-]/g, '')) || 0;
     const seen = new Set<string>();
+    // Bank lines already in the portal (keyed in by file): same book, same amount, money in/out, within 3 days. One bank line ↔ one entry.
+    const books = new Map<string, CbRow[]>(); const used = new Set<string>();
+    const inPortal = (acc: string, type: string, amt: number, t: number) => {
+      if (I0.src !== 'Bank' || !t || !amt || (type !== 'Receipt' && type !== 'Payment')) return '';
+      if (!books.has(acc)) books.set(acc, (CASH_ACCS as readonly string[]).includes(acc) ? cashBook(acc as CashAcc) : []);
+      const DAY = 86400000;
+      const hit = books.get(acc)!.filter((x) => !used.has(x.key) && Math.abs((type === 'Receipt' ? x.inn : x.out) - amt) < 0.005 && Math.abs(x.t - t) <= 3 * DAY).sort((a, b) => Math.abs(a.t - t) - Math.abs(b.t - t))[0];
+      if (!hit) return '';
+      used.add(hit.key);
+      return hit.no || hit.who || 'entry';
+    };
     return I0.raw.slice(h0 + 1).filter((r) => r.some((x) => g([String(x ?? '')], 0)) && !(!parseDate(g(r, c.date)) && /balance|baki/i.test(r.map((x) => g([String(x ?? '')], 0)).join(' ')))).map((r) => {
       let amt = nm(g(r, c.amt)), tp = g(r, c.type);
       if (c.cr >= 0 || c.dr >= 0) { const cr = nm(g(r, c.cr)), dr = nm(g(r, c.dr)); if (cr || dr) { amt = Math.abs(cr || dr); tp = cr ? 'Receipt' : 'Payment'; } }
@@ -2100,6 +2111,8 @@ export function useFinanceController(initialTab: FinTab) {
       const ref0 = I0.mode !== 'books';
       const dup = !!no && (seen.has(no) || invoices.some((x) => x.id === no) || receipts.some((x) => x.id === no) || paymentVouchers.some((x) => x.id === no) || [...(app.pastInvoices || []), ...(app.pastReceipts || [])].some((x) => String(x.pastNo || '').toLowerCase() === no.toLowerCase())); if (no) seen.add(no);
       const issue = !t ? 'No date' : !amt ? 'No amount' : !type ? 'Type?' : dup ? 'Doc no. exists' : ref0 && type === 'Payment' ? 'Payments: use Into the books' : ref0 && !no ? 'No doc no.' : type === 'Receipt' && acc2 === 'Client account' && !clientByName(client) ? 'Client not found' : '';
+      const inP = issue ? '' : inPortal(acc2, type, amt, t);
+      if (inP) return { inPortal: inP, pst: '', date: fd(t), t, type, acc: acc2, client, ref: g(r, c.ref), no, desc: g(r, c.desc), amt, method: '', proof: '', ok: false, status: 'Already in portal · ' + inP, sbg: '#EEF1F5', sfg: '#5B6478' };
       const warn = !issue && !client ? 'Match client later' : !issue && !g(r, c.proof) ? 'No proof ref' : '';
       return { pst: g(r, c.pst), date: fd(t), t, type: type || '?', acc: acc2, client, ref: g(r, c.ref), no, desc: g(r, c.desc), amt, method: g(r, c.method), proof: g(r, c.proof), ok: !issue, status: issue || warn || 'Ready', sbg: issue ? '#FBEDE9' : warn ? '#FBF2E9' : '#E6EFE9', sfg: issue ? '#B23A2E' : warn ? '#8A6534' : '#2F6F4E' };
     });
