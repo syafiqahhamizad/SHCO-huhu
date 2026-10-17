@@ -32,11 +32,11 @@ export const ApprovalsTab = ({ F }: { F: FinanceCtrl }) => {
   const quoteNote = (a: (typeof all)[number]['item']) => {
     const q = F.claimQuote(a);
     if (!q) return null;
-    const e = q.e;
-    const txt = e.quoteCovered != null
-      ? (e.quoteCovered > 0 ? `Inside the quote (${e.quoteLine}) RM ${e.quoteCovered.toFixed(2)}` + (q.amt - e.quoteCovered > 0.005 ? ` · RM ${(q.amt - e.quoteCovered).toFixed(2)} above the quote, to bill` : '') : 'Not part of the quote · billed to the client in full')
+    const cov = q.quoteCovered;
+    const txt = cov != null
+      ? (cov > 0 ? `Inside the quote (${q.quoteLine}) RM ${cov.toFixed(2)}` + (q.amt - cov > 0.005 ? ` · RM ${(q.amt - cov).toFixed(2)} above the quote, to bill` : '') : 'Not part of the quote · billed to the client in full')
       : `Quote ${q.pot.source.join(', ')}: RM ${Math.max(0, q.pot.left).toFixed(2)} left of RM ${q.pot.quoted.toFixed(2)}` + (q.above > 0.005 ? ` · this claim is RM ${q.above.toFixed(2)} above the quote` : ' · fits inside the quote');
-    const red = e.quoteCovered != null ? q.amt - e.quoteCovered > 0.005 : q.above > 0.005;
+    const red = cov != null ? q.amt - cov > 0.005 : q.above > 0.005;
     return <span style={css(`display:block;font-size:10px;font-weight:700;color:${red ? '#B23A2E' : '#2F6F4E'}`)}>{txt}</span>;
   };
 

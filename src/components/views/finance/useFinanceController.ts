@@ -737,7 +737,7 @@ export function useFinanceController(initialTab: FinTab) {
     invoices.filter((i) => i.status === 'Draft' || i.status === 'Pending Review').forEach((i) => { const si = i.sourceItems || {}; [...(si.time || []), ...(si.expenses || []), ...(si.travel || [])].forEach((x) => ids.add(x)); });
     return ids;
   }, [invoices]);
-  const travelBillable = (t: TravelClaim) => Math.max(0, Number(t.billableClientTotal || 0));
+  const travelBillable = (t: TravelClaim) => Math.max(0, round2(Number(t.billableClientTotal || 0) - Number(t.quoteCovered || 0)));
   const unbilled: Unbilled[] = useMemo(() => {
     const m = new Map<string, Unbilled>();
     const get = (caseId: string, forClient?: string) => { const k = findCase(lk, caseId, caseId); const ids = k ? k.clientId.split(',').map((x) => x.trim()).filter(Boolean) : []; const cid = forClient && (!ids.length || ids.includes(forClient)) ? forClient : ids[0] || ''; const key = (k?.id || caseId || '—') + '|' + cid; let u = m.get(key); if (!u) { u = { key, caseId: k?.id || caseId || '—', kase: k, clientId: cid, client: (cid && clientName(cid)) || k?.clientName || '—', ref: k?.ref || caseId || '—', title: k?.title || '', pic: k ? ((k.partners || [])[0] || initials(k.lawyerInCharge)) : '—', time: 0, disb: 0, oldest: 0, te: [], ex: [], tc: [] }; m.set(key, u); } return u; };
@@ -863,34 +863,44 @@ export function useFinanceController(initialTab: FinTab) {
   };
   /** Can the signed-in person sign this item now? */
   const canSignItem = (item: ApItem) => { const r = ruleFor(apId(item)); return r.configured ? r.canSign(currentUser) : item.kind === 'writeoff' || item.kind === 'referral' ? isMP : canApprove; };
-  /** A staff claim for a client file, against what was quoted for that file (null = no quote, or not such a claim). */
+  /** A staff claim for a client file, against what was quoted for that file (null = no quote, or not such a claim).
+   * Receipt claims count against the quoted disbursements (or reimbursements); mileage against the quoted reimbursements. */
   const claimQuote = (item: Pick<ApItem, 'kind' | 'id'>) => {
-    if (item.kind !== 'expense') return null;
-    const e = expenses.find((x) => x.id === item.id);
-    if (!e || !e.claimant || !e.isClaimantAdvance || !e.billable) return null;
-    const k = findCase(lk, e.caseId, e.fileRef);
+    let src: { id: string; desc: string; amt: number; caseId?: string; fileRef?: string; quoteLine?: string; quoteCovered?: number; kind: CostKind; travel: boolean } | null = null;
+    if (item.kind === 'expense') {
+      const e = expenses.find((x) => x.id === item.id);
+      if (e && e.claimant && e.isClaimantAdvance && e.billable) src = { id: e.id, desc: e.description || e.category, amt: Number(e.amount || 0), caseId: e.caseId, fileRef: e.fileRef, quoteLine: e.quoteLine, quoteCovered: e.quoteCovered, kind: isReimbCost(e) ? 'Reimbursement' : 'Disbursement', travel: false };
+    } else if (item.kind === 'travel') {
+      const t = travelClaims.find((x) => x.id === item.id);
+      const amt = Number(t?.billableClientTotal || 0);
+      if (t && amt > 0 && t.fileRef && t.fileRef !== 'FIRM_OPERATIONS') src = { id: t.id, desc: t.purpose || t.type, amt, fileRef: t.fileRef, quoteLine: t.quoteLine, quoteCovered: t.quoteCovered, kind: 'Reimbursement', travel: true };
+    }
+    if (!src) return null;
+    const k = findCase(lk, src.caseId, src.fileRef);
     if (!k) return null;
-    const pot = quotedCosts(k, quotations, invoices, expenses.filter((x) => x.id !== e.id), isReimbCost(e) ? 'Reimbursement' : 'Disbursement', travelClaims);
-    if (!pot.rows.length) return null;
-    const amt = Number(e.amount || 0), inPot = round2(Math.min(amt, Math.max(0, pot.left)));
-    return { e, pot, amt, inPot, above: round2(amt - inPot) };
+    const me0 = src.id;
+    const pot = quotedCosts(k, quotations, invoices, expenses.filter((x) => x.id !== me0), src.kind, travelClaims.filter((x) => x.id !== me0));
+    if (!pot.rows.some((r) => r.quoted > 0)) return null;
+    const inPot = round2(Math.min(src.amt, Math.max(0, pot.left)));
+    return { ...src, pot, inPot, above: round2(src.amt - inPot) };
   };
   /** Approving a staff claim for a quoted file: say once whether it is inside the quote (not billed again) or not. */
   const tagClaimQuote = async (item: ApItem): Promise<boolean> => {
     const q = claimQuote(item);
-    if (!q || q.e.quoteCovered != null) return true;
+    if (!q || q.quoteCovered != null) return true;
     const NOT = 'Not part of the quote: bill the client in full';
     const opt = (r: { desc: string; left: number }) => r.desc + ' · RM ' + Math.max(0, r.left).toFixed(2) + ' left';
     const rows = q.pot.rows.filter((r) => r.quoted > 0);
-    const v = await askForm('Check ' + q.e.id + ' against the quote', [{ key: 'line', label: 'This claim is for', type: 'select', options: [...rows.map(opt), NOT] }], {
-      note: `${q.e.description || q.e.category} · RM ${q.amt.toFixed(2)}. Quoted ${q.pot.kind.toLowerCase()}s on ${q.pot.source.join(', ')}: RM ${q.pot.quoted.toFixed(2)}, RM ${Math.max(0, q.pot.left).toFixed(2)} left. ` +
+    const v = await askForm('Check ' + q.id + ' against the quote', [{ key: 'line', label: 'This claim is for', type: 'select', options: [...rows.map(opt), NOT] }], {
+      note: `${q.desc} · RM ${q.amt.toFixed(2)}${q.travel ? ' to bill the client' : ''}. Quoted ${q.pot.kind.toLowerCase()}s on ${q.pot.source.join(', ')}: RM ${q.pot.quoted.toFixed(2)}, RM ${Math.max(0, q.pot.left).toFixed(2)} left. ` +
         (q.above > 0.005 ? `If it is inside the quote, RM ${q.inPot.toFixed(2)} is covered and RM ${q.above.toFixed(2)} is ABOVE THE QUOTE (billed to the client).` : 'If it is inside the quote, it is fully covered and not billed again.'),
       ok: 'Approve',
     });
     if (!v) return false;
     const r = rows.find((x) => opt(x) === v.line);
-    if (!r || q.inPot <= 0.005) { app.updateExpense(q.e.id, { quoteCovered: 0 }); return true; }
-    app.updateExpense(q.e.id, { quoteLine: r.desc, quoteCovered: q.inPot, coveredBy: q.pot.source.join(', '), ...(q.above <= 0.005 ? { billed: true } : {}) });
+    const tag = !r || q.inPot <= 0.005 ? { quoteCovered: 0 } : { quoteLine: r.desc, quoteCovered: q.inPot };
+    if (q.travel) app.updateTravelClaim(q.id, tag);
+    else app.updateExpense(q.id, { ...tag, ...('quoteLine' in tag ? { coveredBy: q.pot.source.join(', '), ...(q.above <= 0.005 ? { billed: true } : {}) } : {}) });
     return true;
   };
   const approve = async (item: ApItem, ok: boolean) => {
@@ -2068,11 +2078,13 @@ export function useFinanceController(initialTab: FinTab) {
   interface ImpRow { date: string; t: number; type: string; acc: string; client: string; ref: string; no: string; desc: string; amt: number; method: string; proof: string; ok: boolean; status: string; sbg: string; sfg: string; /** Past invoice paid status from the file (Paid / Part paid / Not paid). */ pst: string }
   const importRows = (I0: ImportState): ImpRow[] => {
     if (!I0.raw || I0.raw.length < 2) return [];
-    const hdr = I0.raw[0].map((x) => String(x).toLowerCase()); const col = (...k: string[]) => hdr.findIndex((x) => k.some((y) => x.includes(y)));
+    // Bank exports start with account details: the headings are the first row with a Date column.
+    const h0 = Math.max(0, I0.raw.slice(0, 30).findIndex((r) => r.some((x) => /^\s*(transaction |posting |value )?(date|tarikh)/i.test(String(x)))));
+    const hdr = I0.raw[h0].map((x) => String(x).toLowerCase()); const col = (...k: string[]) => hdr.findIndex((x) => k.some((y) => x.includes(y)));
     const c = { date: col('date', 'tarikh'), type: col('type'), acc: col('account'), client: col('client', 'name', 'payer'), ref: col('our ref'), no: col('document', 'doc', 'receipt no', 'invoice no'), desc: col('desc', 'particular', 'details', 'narration'), amt: col('amount'), method: col('method'), proof: col('proof'), cr: col('credit', 'deposit'), dr: col('debit', 'withdraw'), pst: col('payment status', 'paid') };
     const g = (r: string[], i: number) => (i >= 0 ? String(r[i] == null ? '' : r[i]).trim() : ''); const nm = (v: string) => Number(String(v || '').replace(/[^0-9.-]/g, '')) || 0;
     const seen = new Set<string>();
-    return I0.raw.slice(1).map((r) => {
+    return I0.raw.slice(h0 + 1).filter((r) => r.some((x) => String(x ?? '').trim())).map((r) => {
       let amt = nm(g(r, c.amt)), tp = g(r, c.type);
       if (c.cr >= 0 || c.dr >= 0) { const cr = nm(g(r, c.cr)), dr = nm(g(r, c.dr)); if (cr || dr) { amt = Math.abs(cr || dr); tp = cr ? 'Receipt' : 'Payment'; } }
       const type = /inv/i.test(tp) ? 'Invoice' : /rec|in\b|credit/i.test(tp) ? 'Receipt' : /pay|out|debit|pv/i.test(tp) ? 'Payment' : '';

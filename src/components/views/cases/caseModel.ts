@@ -309,7 +309,7 @@ export const matterMoney = (c: Case, m: MoneyInputs) => {
   const ubTime = te.filter((t) => t.billable && !t.billed && !t.writtenOff && isApprovedForBilling(t.approvalStatus));
   const ubHours = round2(ubTime.reduce((s, t) => s + Number(t.hours || 0), 0));
   const ubFees = round2(ubTime.reduce((s, t) => s + Number(t.hours || 0) * Number(t.rate || 0), 0));
-  const travelBill = (t: TravelClaim) => Math.max(0, Number(t.billableClientTotal || 0));
+  const travelBill = (t: TravelClaim) => Math.max(0, Number(t.billableClientTotal || 0) - Number(t.quoteCovered || 0));
   const ubDisb = round2(
     ex.filter((e) => e.billable && !e.billed && !e.writtenOff && isApprovedForBilling(e.approvalStatus)).reduce((s, e) => s + Number(e.amount || 0), 0) +
     tc.filter((t) => travelBill(t) > 0 && t.billed !== 'Y' && isApprovedForBilling(t.approvalStatus)).reduce((s, t) => s + travelBill(t), 0),

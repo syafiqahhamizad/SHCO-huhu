@@ -1160,6 +1160,9 @@ export interface TravelClaim {
   otherAmount: number;
   total: number;
   billableClientTotal?: number;
+  /** Checked against the quoted reimbursements at approval: the quoted item, and the part inside it (0 = none). Only the rest is billed. */
+  quoteLine?: string;
+  quoteCovered?: number;
   paidFrom: string;
   billed: 'Y' | 'N' | 'N/A' | 'BILLABLE_EXCEEDED';
   invoiceNo: string;
