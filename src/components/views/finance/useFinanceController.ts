@@ -763,15 +763,20 @@ export function useFinanceController(initialTab: FinTab) {
     return l.length ? l : ['Office account'];
   })();
   /** Firm & Practice Settings → Banks: the bank accounts whose opening balances are kept there. */
-  const firmBankKind = (b: { accountType: string; typeLabel?: string }): CashAcc | null => (/petty/i.test(b.typeLabel || '') ? 'Petty cash' : b.accountType === 'Client Trust' ? 'Client account' : b.accountType === 'Disbursement' ? 'Disbursement' : b.accountType === 'Office Operating' ? 'Office' : null);
+  /** Which book a registered bank (Settings › Banks) belongs to. Every registered account has one:
+   * client money (client, Syariah escrow, FD stakeholder) → Client account; the firm's own money
+   * (office, emergency, any other) → Office, unless it is the Disbursement or Petty cash account. */
+  const firmBankKind = (b: { accountType: string; typeLabel?: string }): CashAcc => (/petty/i.test(b.typeLabel || '') ? 'Petty cash' : ['Client Trust', 'Syariah Escrow', 'Fixed Deposit Stakeholder'].includes(b.accountType) ? 'Client account' : b.accountType === 'Disbursement' ? 'Disbursement' : 'Office');
   /** Import: the bank accounts registered in Settings › Banks, each with the book it belongs to. */
-  const importBanks = (settings.bankAccounts || []).filter((b) => b.isActive !== false).map((b) => ({ label: `${b.bankName}${b.typeLabel || b.accountType ? ' · ' + (b.typeLabel || b.accountType) : ''}${b.accountNo ? ' (…' + String(b.accountNo).replace(/\s+/g, '').slice(-4) + ')' : ''}`, acc: firmBankKind(b) })).filter((x): x is { label: string; acc: CashAcc } => !!x.acc);
+  const importBanks = (settings.bankAccounts || []).filter((b) => b.isActive !== false).map((b) => ({ label: `${b.bankName}${b.typeLabel || b.accountType ? ' · ' + (b.typeLabel || b.accountType) : ''}${b.accountNo ? ' (…' + String(b.accountNo).replace(/\s+/g, '').slice(-4) + ')' : ''}`, acc: firmBankKind(b) }));
   const firmBanksOf = (k: CashAcc) => (settings.bankAccounts || []).filter((b) => b.isActive !== false && firmBankKind(b) === k);
+  /** Every bank ever registered for a book, removed ones too: their money and history still count in the balance. */
+  const allFirmBanksOf = (k: CashAcc) => (settings.bankAccounts || []).filter((b) => firmBankKind(b) === k);
   /** Cash-book entries on or before this date are already inside the opening balance. */
   const openingAsAt = settings.bankOpeningBalancesAsAt ? parseDate(settings.bankOpeningBalancesAsAt) : 0;
   /** Book balance = opening balance (Firm Settings) + every cash-book movement to date. */
   const bankBal = (k: CashAcc): number | null => {
-    if (!banksOf(k).length && !firmBanksOf(k).length) return null;
+    if (!banksOf(k).length && !allFirmBanksOf(k).length) return null;
     return round2(openingBalance(k) + cashBook(k).filter((r) => r.t <= Date.now()).reduce((s2, r) => s2 + r.inn - r.out, 0));
   };
   const lastRecon = (bankId: string) => { const r = bankReconciliationEntries.filter((e) => e.bankAccountId === bankId && e.status === 'Reconciled' && e.reconciledDate).map((e) => e.reconciledDate as string).sort(); return r.length ? r[r.length - 1] : ''; };
@@ -1235,7 +1240,7 @@ export function useFinanceController(initialTab: FinTab) {
    * falls back to the legacy bank-account record value when Firm Settings has none. */
   const openingBalance = (acc: CashAcc) => {
     const ob = settings.bankOpeningBalances || {};
-    const firm = firmBanksOf(acc).filter((b) => ob[b.id] != null);
+    const firm = allFirmBanksOf(acc).filter((b) => ob[b.id] != null);
     if (firm.length) return round2(firm.reduce((s2, b) => s2 + Number(ob[b.id] || 0), 0));
     return banksOf(acc).reduce((s2, b) => s2 + Number(b.openingBalance || 0), 0);
   };

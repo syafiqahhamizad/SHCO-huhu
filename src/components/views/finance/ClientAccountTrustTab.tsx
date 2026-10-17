@@ -55,7 +55,7 @@ export const ClientAccountTrustTab = ({ F }: { F: FinanceCtrl }) => {
   const lastRec = recRows[1];
 
   /* ---- KPIs ---- */
-  const clientBank = F.firmBanksOf('Client account')[0];
+  const clientBank = F.firmBanksOf('Client account').find((b) => b.accountType === 'Client Trust') || F.firmBanksOf('Client account')[0];
   const trKpis: [string, string, string, string][] = [
     ['Client money held', rm(F.trustTotal), clientBank ? `${clientBank.bankName} ${clientBank.accountNo ? '· ' + String(clientBank.accountNo).replace(/^(\d{4})\d+(\d{4})$/, '$1 **** $2') : ''}` : `HLB Client A/C ${SD.BANK['Client account'][2]}`, '#16223A'],
     ['Client ledgers', String(F.ledgers.length), attn.length + ' need attention', '#16223A'],
