@@ -106,7 +106,7 @@ export interface EditorState {
 }
 interface FormState { kind: string; vals: Record<string, any> }
 interface PaperState { title: string; sub: string; html: string; wide?: boolean; pdf?: () => void; xls?: () => void; toggles?: { label: string; on: boolean; go: () => void }[]; extra?: React.ReactNode }
-interface ImportState { src: 'Template' | 'Bank' | 'Software'; acc: 'Office' | 'Client account' | 'Petty cash' | 'Disbursement'; /** The registered bank account (Settings › Banks) the rows belong to. */ bank?: string; raw: string[][] | null; fileName: string; /** 'reference' (default) = kept to look back at, never counted; 'books' = posted to the cash book and ledgers. */ mode?: 'reference' | 'books' }
+interface ImportState { src: 'Template' | 'Bank' | 'Software'; acc: 'Office' | 'Client account' | 'Petty cash' | 'Disbursement'; /** The registered bank account (Settings › Banks) the rows belong to. */ bank?: string; raw: string[][] | null; /** Several files at once (e.g. a year of monthly statements): each read with its own headings. */ raws?: string[][][]; fileName: string; /** 'reference' (default) = kept to look back at, never counted; 'books' = posted to the cash book and ledgers. */ mode?: 'reference' | 'books' }
 
 export interface ApItem {
   key: string; kind: 'travel' | 'expense' | 'pv' | 'journal' | 'writeoff' | 'referral'; id: string;
@@ -2120,14 +2120,15 @@ export function useFinanceController(initialTab: FinTab) {
   };
 
   /* ------------------------------ import past transactions ------------------------------ */
-  const importFile = async (file: File) => { try { const rows = await SD.readSheet(file); setImp((s) => (s ? { ...s, fileName: file.name, raw: rows } : s)); } catch { toastMsg('Could not read ' + file.name); } };
+  const importFile = async (files: File | FileList | File[]) => {
+    const list = files instanceof File ? [files] : Array.from(files);
+    const raws: string[][][] = []; const names: string[] = [];
+    for (const f of list) { try { raws.push(await SD.readSheet(f)); names.push(f.name); } catch { toastMsg('Could not read ' + f.name); } }
+    if (raws.length) setImp((s) => (s ? { ...s, fileName: names.length > 1 ? names.length + ' files: ' + names.join(', ') : names[0], raw: raws[0], raws } : s));
+  };
   interface ImpRow { inPortal?: string; date: string; t: number; type: string; acc: string; client: string; ref: string; no: string; desc: string; amt: number; method: string; proof: string; ok: boolean; status: string; sbg: string; sfg: string; /** Past invoice paid status from the file (Paid / Part paid / Not paid). */ pst: string }
   const importRows = (I0: ImportState): ImpRow[] => {
-    if (!I0.raw || I0.raw.length < 2) return [];
-    // Bank exports start with account details: the headings are the first row with a Date column.
-    const h0 = Math.max(0, I0.raw.slice(0, 30).findIndex((r) => r.some((x) => /^\s*(transaction |posting |value )?(date|tarikh)/i.test(String(x)))));
-    const hdr = I0.raw[h0].map((x) => String(x).toLowerCase()); const col = (...k: string[]) => hdr.findIndex((x) => k.some((y) => x.includes(y)));
-    const c = { date: col('date', 'tarikh'), type: col('type'), acc: col('account'), client: col('client', 'name', 'payer'), ref: col('our ref'), no: col('document', 'doc', 'receipt no', 'invoice no'), desc: col('desc', 'particular', 'details', 'narration'), amt: col('amount'), method: col('method'), proof: col('proof'), cr: col('credit', 'deposit'), dr: col('debit', 'withdraw'), pst: col('payment status', 'paid') };
+    const sheets = I0.raws?.length ? I0.raws : I0.raw ? [I0.raw] : [];
     const g = (r: string[], i: number) => (i >= 0 ? String(r[i] == null ? '' : r[i]).trim().replace(/^="(.*)"$/s, '$1').replace(/^=/, '').trim() : ''); const nm = (v: string) => Number(String(v || '').replace(/[^0-9.-]/g, '')) || 0;
     const seen = new Set<string>();
     // Bank lines already in the portal (keyed in by file): same book, same amount, money in/out, within 3 days. One bank line ↔ one entry.
@@ -2141,7 +2142,16 @@ export function useFinanceController(initialTab: FinTab) {
       used.add(hit.key);
       return hit.no || hit.who || 'entry';
     };
-    return I0.raw.slice(h0 + 1).filter((r) => r.some((x) => g([String(x ?? '')], 0)) && !(!parseDate(g(r, c.date)) && /balance|baki/i.test(r.map((x) => g([String(x ?? '')], 0)).join(' ')))).map((r) => {
+    // The same bank line in two files (overlapping statements) is posted once. Identical lines inside one file
+    // (two RM 100 transfers on one day) are all kept: the n-th copy only repeats the n-th copy of an earlier file.
+    const lineSeen = new Map<string, Map<number, number>>();
+    return sheets.flatMap((raw, si) => {
+      if (raw.length < 2) return [];
+      // Bank exports start with account details: the headings are the first row with a Date column.
+      const h0 = Math.max(0, I0.raw.slice(0, 30).findIndex((r) => r.some((x) => /^\s*(transaction |posting |value )?(date|tarikh)/i.test(String(x)))));
+      const hdr = I0.raw[h0].map((x) => String(x).toLowerCase()); const col = (...k: string[]) => hdr.findIndex((x) => k.some((y) => x.includes(y)));
+      const c = { date: col('date', 'tarikh'), type: col('type'), acc: col('account'), client: col('client', 'name', 'payer'), ref: col('our ref'), no: col('document', 'doc', 'receipt no', 'invoice no'), desc: col('desc', 'particular', 'details', 'narration'), amt: col('amount'), method: col('method'), proof: col('proof'), cr: col('credit', 'deposit'), dr: col('debit', 'withdraw'), pst: col('payment status', 'paid') };
+      return raw.slice(h0 + 1).filter((r) => r.some((x) => g([String(x ?? '')], 0)) && !(!parseDate(g(r, c.date)) && /balance|baki/i.test(r.map((x) => g([String(x ?? '')], 0)).join(' ')))).map((r) => {
       let amt = nm(g(r, c.amt)), tp = g(r, c.type);
       if (c.cr >= 0 || c.dr >= 0) { const cr = nm(g(r, c.cr)), dr = nm(g(r, c.dr)); if (cr || dr) { amt = Math.abs(cr || dr); tp = cr ? 'Receipt' : 'Payment'; } }
       const type = /inv/i.test(tp) ? 'Invoice' : /rec|in\b|credit/i.test(tp) ? 'Receipt' : /pay|out|debit|pv/i.test(tp) ? 'Payment' : '';
@@ -2150,10 +2160,15 @@ export function useFinanceController(initialTab: FinTab) {
       const ref0 = I0.mode !== 'books';
       const dup = !!no && (seen.has(no) || invoices.some((x) => x.id === no) || receipts.some((x) => x.id === no) || paymentVouchers.some((x) => x.id === no) || [...(app.pastInvoices || []), ...(app.pastReceipts || [])].some((x) => String(x.pastNo || '').toLowerCase() === no.toLowerCase())); if (no) seen.add(no);
       const issue = !t ? 'No date' : !amt ? 'No amount' : !type ? 'Type?' : dup ? 'Doc no. exists' : ref0 && type === 'Payment' ? 'Payments: use Into the books' : ref0 && !no ? 'No doc no.' : type === 'Receipt' && acc2 === 'Client account' && !clientByName(client) ? 'Client not found' : '';
+      const lineKey = I0.src === 'Bank' && !issue ? [t, type, amt.toFixed(2), g(r, c.desc)].join('|') : '';
+      const per = lineKey ? lineSeen.get(lineKey) || new Map<number, number>() : null; const nth = per ? (per.get(si) || 0) + 1 : 0;
+      if (per) { per.set(si, nth); lineSeen.set(lineKey, per); }
+      if (per && [...per.entries()].some(([k, n]) => k !== si && n >= nth)) return { pst: '', date: fd(t), t, type, acc: acc2, client, ref: '', no, desc: g(r, c.desc), amt, method: '', proof: '', ok: false, status: 'Same line in another file', sbg: '#EEF1F5', sfg: '#5B6478' };
       const inP = issue ? '' : inPortal(acc2, type, amt, t);
       if (inP) return { inPortal: inP, pst: '', date: fd(t), t, type, acc: acc2, client, ref: g(r, c.ref), no, desc: g(r, c.desc), amt, method: '', proof: '', ok: false, status: 'Already in portal · ' + inP, sbg: '#EEF1F5', sfg: '#5B6478' };
       const warn = !issue && !client ? 'Match client later' : !issue && !g(r, c.proof) ? 'No proof ref' : '';
       return { pst: g(r, c.pst), date: fd(t), t, type: type || '?', acc: acc2, client, ref: g(r, c.ref), no, desc: g(r, c.desc), amt, method: g(r, c.method), proof: g(r, c.proof), ok: !issue, status: issue || warn || 'Ready', sbg: issue ? '#FBEDE9' : warn ? '#FBF2E9' : '#E6EFE9', sfg: issue ? '#B23A2E' : warn ? '#8A6534' : '#2F6F4E' };
+    });
     });
   };
   const postImport = (list: ImpRow[]) => {
