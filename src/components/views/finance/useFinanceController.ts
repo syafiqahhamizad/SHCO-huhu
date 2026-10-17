@@ -1601,17 +1601,24 @@ export function useFinanceController(initialTab: FinTab) {
     // Past papers are keyed in by part (fees, reimbursements, disbursements, SST) so each file shows them by category.
     const isPast = ['pastQuote', 'pastProforma', 'pastInvoice'].includes(kind);
     // Optional "Disbursement items" on past papers: one per line, "Bankruptcy search 10" → item + amount.
-    const pItems = String(vals.disbItems || '').split(/\n+/).map((l) => l.trim()).filter(Boolean).map((l) => { const m = l.match(/^(.*?)[\s:–-]*(?:RM\s*)?([\d,]+(?:\.\d+)?)\s*$/i); return m ? { d: m[1].trim() || 'Disbursement', a: num0(m[2]) } : { d: l, a: 0 }; }).filter((x) => x.a > 0);
-    const rItems = String(vals.reimbItems || '').split(/\n+/).map((l) => l.trim()).filter(Boolean).map((l) => { const m = l.match(/^(.*?)[\s:–-]*(?:RM\s*)?([\d,]+(?:\.\d+)?)\s*$/i); return m ? { d: m[1].trim() || 'Reimbursement', a: num0(m[2]) } : { d: l, a: 0 }; }).filter((x) => x.a > 0);
+    const rowsOf = (v: unknown) => (Array.isArray(v) ? (v as { d: string; a: string }[]).map((r) => ({ d: String(r.d || '').trim(), a: num0(r.a) })).filter((x) => x.a > 0) : null);
+    const pItems = rowsOf(vals.disbRows) || String(vals.disbItems || '').split(/\n+/).map((l) => l.trim()).filter(Boolean).map((l) => { const m = l.match(/^(.*?)[\s:–-]*(?:RM\s*)?([\d,]+(?:\.\d+)?)\s*$/i); return m ? { d: m[1].trim() || 'Disbursement', a: num0(m[2]) } : { d: l, a: 0 }; }).filter((x) => x.a > 0);
+    const rItems = rowsOf(vals.reimbRows) || String(vals.reimbItems || '').split(/\n+/).map((l) => l.trim()).filter(Boolean).map((l) => { const m = l.match(/^(.*?)[\s:–-]*(?:RM\s*)?([\d,]+(?:\.\d+)?)\s*$/i); return m ? { d: m[1].trim() || 'Reimbursement', a: num0(m[2]) } : { d: l, a: 0 }; }).filter((x) => x.a > 0);
     const pFees = num0(vals.fees), pReimb = rItems.length ? round2(rItems.reduce((t, x) => t + x.a, 0)) : num0(vals.reimb), pDisb = pItems.length ? round2(pItems.reduce((t, x) => t + x.a, 0)) : num0(vals.disb), pSst = num0(vals.sst);
     const amt = isPast ? round2(pFees + pReimb + pDisb + pSst) : num0(vals.amount);
     const pastLines = (feeDesc: string): Quotation['lineItems'] => [
       ...(pFees > 0 ? [{ description: feeDesc, category: 'Fee - Fixed', amount: pFees, quantity: 1, unitPrice: pFees, chargeType: 'Fixed' }] : []),
-      ...(rItems.length ? rItems.map((x) => ({ description: x.d, category: 'Reimbursement', amount: x.a, quantity: 1, unitPrice: x.a, chargeType: 'Fixed' })) : pReimb > 0 ? [{ description: 'Reimbursements', category: 'Reimbursement', amount: pReimb, quantity: 1, unitPrice: pReimb, chargeType: 'Fixed' }] : []),
-      ...(pItems.length ? pItems.map((x) => ({ description: x.d, category: 'Disbursement', amount: x.a, quantity: 1, unitPrice: x.a, chargeType: 'Fixed' })) : pDisb > 0 ? [{ description: 'Disbursements', category: 'Disbursement', amount: pDisb, quantity: 1, unitPrice: pDisb, chargeType: 'Fixed' }] : []),
+      ...(rItems.length ? rItems.map((x) => ({ description: x.d || 'Reimbursement', category: 'Reimbursement', amount: x.a, quantity: 1, unitPrice: x.a, chargeType: 'Fixed' })) : pReimb > 0 ? [{ description: 'Reimbursements', category: 'Reimbursement', amount: pReimb, quantity: 1, unitPrice: pReimb, chargeType: 'Fixed' }] : []),
+      ...(pItems.length ? pItems.map((x) => ({ description: x.d || 'Disbursement', category: 'Disbursement', amount: x.a, quantity: 1, unitPrice: x.a, chargeType: 'Fixed' })) : pDisb > 0 ? [{ description: 'Disbursements', category: 'Disbursement', amount: pDisb, quantity: 1, unitPrice: pDisb, chargeType: 'Fixed' }] : []),
     ] as Quotation['lineItems'];
     const dateIso = isoOf(parseDate(vals.date)) || todayIso();
     const proofs: FinanceProof[] = vals.proofs || [];
+    // Past papers: how the client pays (in full, monthly instalments, or by stages).
+    const instOn = vals.plan === 'Monthly instalments';
+    const instMonths = Math.max(1, Math.round(num0(vals.instMonths)) || 1);
+    const pastFee = instOn ? { feeArrangement: { on: true, months: instMonths, upfront: num0(vals.instUpfront), terms: SD.ARR_TERMS } } : {};
+    const pastStages = (rowsOf(vals.stageRows) || []).map((x) => ({ label: x.d || 'Stage', amount: x.a }));
+    const pastPlan = instOn ? { paymentPlan: { kind: 'Instalments' as const, months: instMonths, upfront: num0(vals.instUpfront) }, ...pastFee } : vals.plan === 'By stages' && pastStages.length ? { paymentPlan: { kind: 'Stages' as const, stages: pastStages } } : {};
     if (rk === 'R' || rk === 'S') { toastMsg('Read-only access.'); return; }
     if (kind === 'pastProforma') {
       // A proforma made before the portal: kept with its PDF for reference, never counted as unpaid.
@@ -1655,7 +1662,7 @@ export function useFinanceController(initialTab: FinTab) {
         id: no, historical: true, documentType: 'Quotation', partyType: 'Client', partyId: c?.id, date: dateIso, createdAt: new Date().toISOString(),
         practiceArea: kase?.practiceArea || kase?.type || '', fileRef: kase?.ref || '', caseId: kase?.id, matter: kase?.title, leadId: '', clientName: c?.name || String(vals.client).trim(),
         status, total: amt, billedSoFar: 0, remaining: amt, courtLevel: '', stage: '', feeMethod: 'Fixed', subtype: '',
-        approvalStatus: 'Approved', approvedBy: me, approvedDate: dateIso, lineItems: pastLines('Professional fees as per quotation ' + no),
+        approvalStatus: 'Approved', approvedBy: me, approvedDate: dateIso, ...pastPlan, lineItems: pastLines('Professional fees as per quotation ' + no),
       });
       const pdf = ((vals.pdf || []) as (FinanceProof & { file?: File })[]).find((p) => p.file)?.file;
       if (pdf) {
@@ -1684,7 +1691,7 @@ export function useFinanceController(initialTab: FinTab) {
       const desc = String(vals.what || '').trim(); const st = String(vals.status || 'Not paid');
       const terms = Number(settings.paymentTermDays) || 30;
       const make = (pastFile?: { name: string; driveFileId?: string; webViewLink?: string }) => {
-        const rec = { id: no, historical: true, pastNo: no, pastFile, clientId: c?.id || '', caseId: kase?.id || '', fileRef: kase?.ref || '', partyType: 'Client', partyName: c?.name || String(vals.client).trim(), amount: round2(amt - pSst), discount: 0, tax: pSst, total: amt, date: dateIso, issuedAt: dateIso, dueDate: isoOf((parseDate(dateIso) || Date.now()) + terms * 86400000), status: 'Unpaid', matter: desc || kase?.title, subject: desc || undefined, lineItems: pastLines(desc || 'Professional fees') } as Invoice;
+        const rec = { id: no, historical: true, pastNo: no, pastFile, ...pastFee, clientId: c?.id || '', caseId: kase?.id || '', fileRef: kase?.ref || '', partyType: 'Client', partyName: c?.name || String(vals.client).trim(), amount: round2(amt - pSst), discount: 0, tax: pSst, total: amt, date: dateIso, issuedAt: dateIso, dueDate: isoOf((parseDate(dateIso) || Date.now()) + terms * 86400000), status: 'Unpaid', matter: desc || kase?.title, subject: desc || undefined, lineItems: pastLines(desc || 'Professional fees') } as Invoice;
         app.addInvoice(rec);
         postGL(issueGL(rec, dateIso));
         if (st !== 'Not paid') setForm({ kind: 'pay', vals: { docKind: 'invoice', docId: no, title: no, amount: st === 'Paid' ? String(amt) : '', date: fd(parseDate(dateIso) || Date.now()) } });
