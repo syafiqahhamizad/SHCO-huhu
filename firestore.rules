@@ -198,12 +198,14 @@ service cloud.firestore {
       // still waiting (never its approval status — approvers do that).
       allow create: if isClaims(col) && splitDone() && isFirmUser() && ownDoc(request.resource.data) &&
         request.resource.data.get('approvalStatus', 'Pending Approval') in ['Pending Approval', 'Pending PIC Approval', 'Draft', 'Pending', ''];
+      // A rejected one may be corrected and sent again (back to Pending Approval) or withdrawn.
       allow update: if isClaims(col) && splitDone() && isFirmUser() &&
-        ownDoc(resource.data) && ownDoc(request.resource.data) &&
-        request.resource.data.get('approvalStatus', '') == resource.data.get('approvalStatus', '') &&
-        resource.data.get('approvalStatus', 'Pending Approval') in ['Pending Approval', 'Pending PIC Approval', 'Draft', 'Pending', ''];
+        ownDoc(resource.data) && ownDoc(request.resource.data) && (
+          (request.resource.data.get('approvalStatus', '') == resource.data.get('approvalStatus', '') &&
+           resource.data.get('approvalStatus', 'Pending Approval') in ['Pending Approval', 'Pending PIC Approval', 'Draft', 'Pending', '']) ||
+          (resource.data.get('approvalStatus', '') == 'Rejected' && request.resource.data.get('approvalStatus', '') == 'Pending Approval'));
       allow delete: if isClaims(col) && splitDone() && isFirmUser() && ownDoc(resource.data) &&
-        resource.data.get('approvalStatus', 'Pending Approval') in ['Pending Approval', 'Pending PIC Approval', 'Draft', 'Pending', ''];
+        resource.data.get('approvalStatus', 'Pending Approval') in ['Pending Approval', 'Pending PIC Approval', 'Draft', 'Pending', '', 'Rejected'];
 
       // Private to-dos: only the person they belong to — no partner, Accounts or admin access.
       allow create, update: if col == 'privateTodos' && splitDone() && isFirmUser() &&
@@ -299,6 +301,20 @@ service cloud.firestore {
     // an admin asks for a welcome e-mail with the sign-in details; anyone may ask for a password
     // reset from the sign-in page (the function only answers people on the access list, at most
     // every 10 minutes). Nobody reads them back except admins following delivery.
+    // Claim papers to move to the Drive bin (withdrawn / deleted claims, receipts taken off a claim).
+    // Anyone on the firm's list may queue file ids; Accounts empty the queue from the finance pages
+    // (the app only bins receipts and empty claim folders the portal made).
+    match /driveBin/{id} {
+      allow create: if isFirmUser() &&
+        request.resource.data.keys().hasOnly(['ids', 'reason', 'by', 'at']) &&
+        request.resource.data.ids is list && request.resource.data.ids.size() > 0 && request.resource.data.ids.size() <= 50 &&
+        request.resource.data.reason is string && request.resource.data.reason.size() <= 200 &&
+        request.resource.data.by is string && request.resource.data.by.size() <= 200 &&
+        request.resource.data.at == request.time;
+      allow get, list, delete: if booksWriter();
+      allow update: if false;
+    }
+
     match /accountEmails/{id} {
       allow create: if (
           request.resource.data.get('kind', '') == 'invite' && isAdminOrOwner() &&

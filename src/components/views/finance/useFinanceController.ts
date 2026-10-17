@@ -9,6 +9,7 @@ import { applyFiled, nextFilingJob } from './financeFiling';
 import { fileFinanceEntry, hasFinanceDrive, prepareStorage, replaceStoredFile, storeEngagementFile, storePayslipPdf } from '../../../services/fileStorageService';
 import { payslipHtml } from './payslipHtml';
 import { grantReader } from '../../../services/googleDriveService';
+import { processDriveBin, queueDriveBin } from '../../../services/driveBinService';
 import { askForm } from '../../ui/askForm';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../../../context/AppContext';
@@ -277,6 +278,13 @@ export function useFinanceController(initialTab: FinTab) {
   const filingOff = !settings.financeFiling ? 'Finance folders are not set up yet (Settings → Google, e-mail & backup → Set up finance folders).'
     : !canPrepare ? 'Papers are filed when Accounts or the Super Admin opens the finance pages.'
     : !hasFinanceDrive() ? 'The SHCO Finance drive is not linked (Settings → Google, e-mail & backup).' : '';
+  // Claim papers queued for the Drive bin (withdrawn / deleted claims, receipts taken off): binned once per visit by Accounts.
+  const binRan = useRef(false);
+  useEffect(() => {
+    if (binRan.current || !canPrepare || !settings.financeFiling || !hasFinanceDrive()) return;
+    binRan.current = true;
+    void processDriveBin().then((n) => { if (n) toastMsg(n + ' withdrawn claim paper' + (n > 1 ? 's' : '') + ' moved to the Drive bin'); }).catch(() => undefined);
+  }, [canPrepare, settings.financeFiling]);
   const retryFiling = () => { filingSkip.current.clear(); filingStopped.current = false; setFilingLog((x) => ({ ...x, problem: undefined })); setFilingTick((x) => x + 1); };
   useEffect(() => {
     const ff = settings.financeFiling;
@@ -614,6 +622,9 @@ export function useFinanceController(initialTab: FinTab) {
     if (onBill) { toastMsg(id + ' is on bill ' + onBill.id + ': delete or void that bill first.'); return; }
     if (!window.confirm('Delete ' + id + '? Its book entries are reversed and it goes to the Recycle Bin.')) return;
     reverseDoc(id, 'deleted');
+    // A staff claim / payment request: its receipts (and its claim folder, once empty) go to the Drive bin.
+    const cr = (kind === 'travel' ? travelClaims.find((x) => x.id === id) : kind === 'expense' ? expenses.find((x) => x.id === id && x.claimant) : kind === 'pv' ? paymentVouchers.find((x) => x.id === id && x.formNo) : undefined) as { attachments?: { driveFileId?: string }[]; paidProof?: { driveFileId?: string }; driveFiling?: { folderId?: string } } | undefined;
+    if (cr) void queueDriveBin([...(cr.attachments || []).map((a) => a.driveFileId), cr.paidProof?.driveFileId, cr.driveFiling?.folderId], 'Deleted ' + id + ' by ' + me, me).catch(() => undefined);
     if (kind === 'pv') {
       const v = paymentVouchers.find((x) => x.id === id);
       // The billing line made with a payment request (same form, amount and description) goes too.

@@ -15,6 +15,7 @@ import { folderUrl } from '../../../lib/driveLayout';
 import { DEFAULT_CLAIM_TYPES, getCostDetails, getPayees } from '../../../services/templateService';
 import { SearchSelect } from '../../ui/SearchSelect';
 import { MoneyInput } from '../../ui/MoneyInput';
+import { queueDriveBin } from '../../../services/driveBinService';
 
 const SEL: React.CSSProperties = { border: '1px solid #C9D3E0', borderRadius: 6, padding: '4px 6px', fontSize: 11, color: '#16223A', background: '#fff', fontFamily: 'inherit' };
 
@@ -137,7 +138,8 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
     currentUser, users, cases, clients, travelClaims, expenses, paymentVouchers, addTravelClaim, addExpense, addPaymentVoucher,
     addNotification, addActivityLog, getNextSequenceId, showToast, withdrawClaimRecord, updateTravelClaim, updateExpense, updatePaymentVoucher,
   } = useApp();
-  const [edit, setEdit] = useState<{ key: string; date: string; what: string; amt: string } | null>(null);
+  /** Editing a waiting / rejected item: everything on it, including its receipts (keep / take off / add). */
+  const [edit, setEdit] = useState<{ key: string; date: string; what: string; amt: string; kind: ClaimKind; caseRef: string | null; fq: string; fOpen: boolean; km: string; parking: string; toll: string; keep: ClaimAttachment[]; add: FormDoc[] } | null>(null);
   const [f, setForm] = useState<Form>(blankForm);
   const setF = (p: Partial<Form>) => setForm((s) => ({ ...s, ...p }));
   const [drag, setDrag] = useState(false);
@@ -205,18 +207,61 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
     }
   };
 
-  /** Saves a quick edit of a waiting / rejected item; a rejected one goes back for approval. */
-  const saveEdit = (c: ClaimRow) => {
-    if (!edit) return;
+  /** Opens the edit of one of my waiting / rejected items, filled in from the record. */
+  const openEdit = (c: ClaimRow) => {
     const id = c.key.slice(3);
+    const t = c.source === 'travel' ? travelClaims.find((x) => x.id === id) : undefined;
+    const ref = c.caseRef || null; const h = FILES.find((x) => x.ref === ref);
+    setEdit({ key: c.key, date: c.iso.slice(0, 10), what: c.what, amt: String(c.amt), kind: c.kind, caseRef: ref, fq: h ? lab(h) : c.file, fOpen: false,
+      km: String(t?.km ?? t?.mileageAmount ?? ''), parking: String(t?.parkingAmount ?? ''), toll: String(t?.tollAmount ?? ''), keep: [...c.attachments], add: [] });
+  };
+  /** Saves the edit; a rejected item goes back for approval. Receipts taken off go to the Drive bin. */
+  const saveEdit = async (c: ClaimRow) => {
+    if (!edit || busy) return;
+    const id = c.key.slice(3);
+    const isT = c.source === 'travel';
     const again = c.status === 'Rejected' ? { approvalStatus: 'Pending Approval' as const } : {};
-    const amount = num(edit.amt);
-    if (c.source !== 'travel' && !amount) return showToast('Enter the amount');
-    if (c.source === 'travel') updateTravelClaim(id, { date: edit.date, purpose: edit.what.trim(), ...again });
-    else if (c.source === 'expense') updateExpense(id, { date: edit.date, description: edit.what.trim(), amount, ...again });
-    else updatePaymentVoucher(id, { date: edit.date, description: edit.what.trim(), amount, ...again });
-    addActivityLog('Claim Edited', c.form + ' · ' + edit.what.trim());
+    const ekm = num(edit.km), epk = num(edit.parking), etl = num(edit.toll);
+    const amount = isT ? Math.round((ekm + epk + etl) * 100) / 100 : num(edit.amt);
+    if (!edit.what.trim()) return showToast('Fill in the description');
+    if (!amount) return showToast(isT ? 'Enter the km, parking or toll' : 'Enter the amount');
+    if (!edit.keep.length && !edit.add.length && !(isT && !epk && !etl)) return showToast('Attach the receipt for this item');
+    const kase = edit.caseRef ? dir.caseOf(edit.caseRef) : undefined;
+    setBusy(true);
+    let added: ClaimAttachment[] = [];
+    try {
+      if (edit.add.length) { await prepareStorage(); added = await Promise.all(edit.add.map((d) => storeClaimReceipt({ userId: currentUser.id, recordId: id, formNo: c.form, file: d.file, uploadedBy: currentUser.name, kind: c.source === 'pv' ? 'pv' : 'claim' }))); }
+    } catch (err) { setBusy(false); return showToast('Not saved: a receipt could not be uploaded. ' + (err instanceof Error ? err.message : String(err))); }
+    const atts = [...edit.keep, ...added];
+    const removed = c.attachments.filter((a) => !edit.keep.some((k) => storedFileKey(k) === storedFileKey(a)));
+    const files = { attachments: atts.length ? atts : undefined, attachmentName: atts[0]?.name } as const;
+    if (isT) {
+      const bill = edit.caseRef ? Math.round((ekm * 1.5 + epk + etl) * 100) / 100 : 0;
+      updateTravelClaim(id, { date: edit.date, purpose: edit.what.trim(), fileRef: edit.caseRef || 'FIRM_OVERHEAD', purposeType: edit.caseRef ? 'Client Matter' : 'Firm/Internal', billed: edit.caseRef ? 'N' : 'N/A',
+        km: ekm, mileageAmount: ekm, parkingAmount: epk, tollAmount: etl, total: amount, billableClientTotal: bill, ...files, ...again });
+    } else if (c.source === 'expense') {
+      const billed = !!kase && !NOT_BILLED.has(edit.kind);
+      updateExpense(id, { date: edit.date, description: edit.what.trim(), amount, claimKind: edit.kind, caseId: kase?.id || 'FIRM_OPERATIONS', fileRef: kase?.ref || 'FIRM_OVERHEAD', accountSet: billed ? 'CLIENT' : 'OFFICE',
+        category: billed ? 'Disbursement' : edit.kind === 'Office' ? '[Firm] Office purchase' : '[Firm] ' + edit.kind, billable: billed, ...files, ...again });
+    } else {
+      updatePaymentVoucher(id, { date: edit.date, description: edit.what.trim(), amount, fileRef: kase?.ref || 'FIRM_OPERATIONS', clientId: kase?.clientId?.split(',')[0].trim() || '', ...files, ...again });
+    }
+    if (removed.length) void queueDriveBin(removed.map((a) => a.driveFileId), 'Receipt taken off ' + id + ' by ' + currentUser.name, currentUser.email || currentUser.name).catch(() => undefined);
+    addActivityLog('Claim Edited', c.form + ' · ' + edit.what.trim() + (removed.length ? ' · ' + removed.length + ' receipt(s) taken off' : '') + (added.length ? ' · ' + added.length + ' added' : ''));
+    setBusy(false);
     setEdit(null);
+    showToast(c.status === 'Rejected' ? 'Saved and sent for approval again' : 'Saved');
+  };
+  const editFiles = (list: FileList | null) => {
+    if (!edit || !list || !list.length) return;
+    if (!isUploadReady()) { showToast(DRIVE_REQUIRED_MSG); return; }
+    const added: FormDoc[] = [];
+    for (const file of Array.from(list)) {
+      const problem = validateClaimFile(file);
+      if (problem) { showToast(problem); continue; }
+      added.push({ id: 'DOC-' + Date.now() + '-' + Math.floor(Math.random() * 10000), name: file.name, size: file.size, type: file.type, category: claimsStorageService.detectDocumentCategory(file.name, file.type), file });
+    }
+    if (added.length) setEdit({ ...edit, add: [...edit.add, ...added] });
   };
 
   /* ---------------- claim / PV form ---------------- */
@@ -514,21 +559,50 @@ export const StaffClaimsTab: React.FC<Props> = ({ rows, dir }) => {
                   <span style={{ fontSize: 9.5, color: '#5B6478' }}>{c.withTxt}</span>
                   {(c.status === 'Waiting' || c.status === 'Rejected') && (
                     <span style={{ display: 'flex', gap: 8 }}>
-                      <button type="button" onClick={() => setEdit({ key: c.key, date: c.iso.slice(0, 10), what: c.what, amt: String(c.amt) })} style={{ border: 0, background: 'none', padding: 0, fontSize: 10, fontWeight: 700, color: '#3D6B9C', cursor: 'pointer', fontFamily: 'inherit' }}>Edit</button>
+                      <button type="button" onClick={() => openEdit(c)} style={{ border: 0, background: 'none', padding: 0, fontSize: 10, fontWeight: 700, color: '#3D6B9C', cursor: 'pointer', fontFamily: 'inherit' }}>Edit</button>
                       <button type="button" onClick={() => { if (window.confirm('Withdraw “' + c.what + '” (' + rm(c.amt) + ')? It is removed from ' + c.form + '.')) withdrawClaimRecord(c.source, c.key.slice(3)); }} style={{ border: 0, background: 'none', padding: 0, fontSize: 10, fontWeight: 700, color: '#B23A2E', cursor: 'pointer', fontFamily: 'inherit' }}>Withdraw</button>
                     </span>
                   )}
                 </span>
-                {edit?.key === c.key && (
-                  <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'flex-end', gap: 8, flexWrap: 'wrap', padding: '8px 10px', borderRadius: 8, background: '#F6F8FA' }}>
-                    <label style={labelWrap}><span style={LBL}>Date</span><input type="date" value={edit.date} onChange={(e) => setEdit({ ...edit, date: e.target.value })} style={{ ...INP, width: 140 }} /></label>
-                    <label style={{ ...labelWrap, flex: 1, minWidth: 200 }}><span style={LBL}>Description</span><input value={edit.what} onChange={(e) => setEdit({ ...edit, what: e.target.value })} style={INP} /></label>
-                    {c.source !== 'travel' && <label style={labelWrap}><span style={LBL}>Amount (RM)</span><MoneyInput value={edit.amt} onChange={(v) => setEdit({ ...edit, amt: v })} style={{ ...INP, width: 110 }} /></label>}
-                    <button type="button" onClick={() => setEdit(null)} style={{ border: '1px solid #C9D3E0', borderRadius: 4, padding: '7px 12px', fontSize: 11, fontWeight: 700, background: '#fff', color: '#16223A', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-                    <button type="button" onClick={() => saveEdit(c)} style={{ border: 0, borderRadius: 4, padding: '7px 12px', fontSize: 11, fontWeight: 700, background: '#16223A', color: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>Save{c.status === 'Rejected' ? ' & send again' : ''}</button>
-                    {c.source === 'travel' && <span style={{ flexBasis: '100%', fontSize: 10, color: '#5B6478' }}>To change the km, parking or toll, withdraw it and add it again.</span>}
+                {edit?.key === c.key && (() => {
+                  const isT = c.source === 'travel';
+                  const ew = edit.fq.toLowerCase().split(/\s+/).filter(Boolean);
+                  const eh = FILES.filter((x) => { const t = [x.no, x.client, x.matter, x.pic].join(' ').toLowerCase(); return ew.every((w) => t.includes(w)); }).slice(0, 40);
+                  const chip: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid #C9D3E0', borderRadius: 14, padding: '3px 6px 3px 10px', fontSize: 10.5, background: '#fff', color: '#16223A' };
+                  const x: React.CSSProperties = { border: 0, background: 'none', padding: '0 2px', fontSize: 13, lineHeight: 1, color: '#B23A2E', cursor: 'pointer', fontFamily: 'inherit' };
+                  return (
+                  <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 10, padding: '10px 12px', borderRadius: 8, background: '#F6F8FA' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
+                      <label style={labelWrap}><span style={LBL}>Date</span><input type="date" value={edit.date} onChange={(e) => setEdit({ ...edit, date: e.target.value })} style={{ ...INP, width: 140 }} /></label>
+                      {c.source === 'expense' && <label style={labelWrap}><span style={LBL}>Type</span><select value={edit.kind} onChange={(e) => setEdit({ ...edit, kind: e.target.value as ClaimKind })} style={{ ...INP, width: 170, cursor: 'pointer' }}>{claimTypes.filter((k) => k !== 'Travelling').map((k) => <option key={k} value={k}>{k}</option>)}</select></label>}
+                      <div style={{ ...labelWrap, position: 'relative', flex: 1, minWidth: 220 } as React.CSSProperties}>
+                        <span style={LBL}>File</span>
+                        <input value={edit.fq} onChange={(e) => setEdit({ ...edit, fq: e.target.value, fOpen: true })} onFocus={() => setEdit({ ...edit, fOpen: true })} onBlur={() => { window.clearTimeout(blurT.current); blurT.current = window.setTimeout(() => setEdit((s) => (s ? { ...s, fOpen: false } : s)), 150); }} placeholder="search by file no. or client" style={INP} />
+                        {edit.fOpen && <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 5, marginTop: 2, maxHeight: 200, overflow: 'auto', background: '#fff', border: '1px solid #C9D3E0', borderRadius: 6, boxShadow: '0 8px 20px rgba(22,34,58,.18)' }}>{eh.map((h) => <button key={h.no} type="button" onMouseDown={(e) => { e.preventDefault(); setEdit({ ...edit, caseRef: h.ref, fq: lab(h), fOpen: false }); }} style={{ display: 'block', width: '100%', textAlign: 'left', border: 0, borderBottom: '1px solid #F0F2F5', background: '#fff', padding: '6px 10px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 11.5, color: '#16223A' }}><strong>{h.no}</strong> · {h.client}</button>)}</div>}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
+                      <label style={{ ...labelWrap, flex: 1, minWidth: 220 }}><span style={LBL}>Description</span><input value={edit.what} onChange={(e) => setEdit({ ...edit, what: e.target.value })} style={INP} /></label>
+                      {isT ? <>
+                        <label style={labelWrap}><span style={LBL}>Km</span><input value={edit.km} inputMode="decimal" onChange={(e) => setEdit({ ...edit, km: e.target.value })} style={{ ...INP, width: 80 }} /></label>
+                        <label style={labelWrap}><span style={LBL}>Parking (RM)</span><MoneyInput value={edit.parking} onChange={(v) => setEdit({ ...edit, parking: v })} style={{ ...INP, width: 100 }} /></label>
+                        <label style={labelWrap}><span style={LBL}>Toll (RM)</span><MoneyInput value={edit.toll} onChange={(v) => setEdit({ ...edit, toll: v })} style={{ ...INP, width: 100 }} /></label>
+                      </> : <label style={labelWrap}><span style={LBL}>Amount (RM)</span><MoneyInput value={edit.amt} onChange={(v) => setEdit({ ...edit, amt: v })} style={{ ...INP, width: 110 }} /></label>}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <span style={LBL}>Receipts</span>
+                      {edit.keep.map((a) => <span key={storedFileKey(a)} style={chip}>{a.name}<button type="button" title="Take this file off (it goes to the Drive bin)" onClick={() => setEdit({ ...edit, keep: edit.keep.filter((k) => storedFileKey(k) !== storedFileKey(a)) })} style={x}>×</button></span>)}
+                      {edit.add.map((d) => <span key={d.id} style={{ ...chip, borderColor: '#B9D7C5', background: '#F1F8F4' }}>{d.name} <span style={{ color: '#2F6F4E' }}>new</span><button type="button" onClick={() => setEdit({ ...edit, add: edit.add.filter((y) => y.id !== d.id) })} style={x}>×</button></span>)}
+                      <label style={{ fontSize: 10.5, fontWeight: 700, color: '#3D6B9C', cursor: 'pointer' }}>+ Add file<input type="file" multiple accept="image/*,.pdf" onChange={(e) => { editFiles(e.target.files); e.target.value = ''; }} style={{ display: 'none' }} /></label>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                      {isT && <span style={{ marginRight: 'auto', fontSize: 10, color: '#5B6478' }}>Total to you: RM {(num(edit.km) + num(edit.parking) + num(edit.toll)).toFixed(2)}</span>}
+                      <button type="button" onClick={() => setEdit(null)} style={{ border: '1px solid #C9D3E0', borderRadius: 4, padding: '7px 12px', fontSize: 11, fontWeight: 700, background: '#fff', color: '#16223A', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                      <button type="button" disabled={busy} onClick={() => void saveEdit(c)} style={{ border: 0, borderRadius: 4, padding: '7px 12px', fontSize: 11, fontWeight: 700, background: '#16223A', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', opacity: busy ? 0.6 : 1 }}>{busy ? 'Saving…' : 'Save' + (c.status === 'Rejected' ? ' & send again' : '')}</button>
+                    </div>
                   </div>
-                )}
+                  );
+                })()}
               </div>
             );
           })}

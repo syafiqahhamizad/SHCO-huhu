@@ -1,4 +1,5 @@
 import { casesWithoutSalutations, clientsWithoutSalutations, recordsWithoutSalutations, withoutStarterTasks, withoutTaskCopies } from '../lib/legacyCleanup';
+import { queueDriveBin } from '../services/driveBinService';
 import { isForMe, isReadBy, notificationEmail, resolveRecipients } from '../lib/notify';
 import { queueEmail } from '../services/mailQueueService';
 import { canViewAs } from '../components/views/settings/permissionModel';
@@ -3292,6 +3293,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // The billing line made with it (same form, amount and description) goes too.
       setExpenses((prev) => prev.filter((x) => !(x.formNo && x.formNo === v.formNo && x.isClaimantAdvance === false && Number(x.amount) === Number(v.amount) && x.description === v.description && open(x.approvalStatus))));
     }
+    // Its receipts (and its claim folder, once empty) go to the Drive bin on the next Accounts visit.
+    const rec = (source === 'travel' ? travelClaims : source === 'expense' ? expenses : paymentVouchers).find((x) => x.id === id) as { attachments?: { driveFileId?: string }[]; paidProof?: { driveFileId?: string }; driveFiling?: { folderId?: string } } | undefined;
+    if (rec) void queueDriveBin([...(rec.attachments || []).map((a) => a.driveFileId), rec.paidProof?.driveFileId, rec.driveFiling?.folderId], (force ? 'Deleted ' : 'Withdrawn ') + id + ' by ' + (currentUser.name || ''), currentUser.email || currentUser.name || '').catch(() => undefined);
     addActivityLog('Claim Withdrawn', id);
     showToast('Withdrawn');
     return true;

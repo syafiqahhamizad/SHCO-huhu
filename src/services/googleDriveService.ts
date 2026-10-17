@@ -319,6 +319,29 @@ async function trashDriveFile(id: string): Promise<void> {
   });
 }
 
+/**
+ * Moves a withdrawn / removed claim paper to the Drive bin (restorable for 30 days). Only papers the portal
+ * made for a claim: a receipt it uploaded ("Receipt for …"), or a claim's entry folder once it is empty
+ * (with its links in Client Files). Anything else is left alone. Returns true when something was binned.
+ */
+export async function binClaimPaper(id: string): Promise<boolean> {
+  let f: DriveFile & { description?: string; trashed?: boolean };
+  try { f = await getDriveFile(id, 'id,name,mimeType,description,trashed'); } catch (e) { if (e instanceof DriveError && e.status === 404) return false; throw e; }
+  if (f.trashed) return false;
+  if (f.mimeType !== FOLDER_MIME) {
+    if (!/^Receipt for /.test(f.description || '')) return false;
+    await trashDriveFile(id);
+    return true;
+  }
+  if (!/^\d{8} (CF|EX|TC|PV|HQ-PV|DISB)-/i.test(f.name || '')) return false;
+  const kids = await driveFetch(API + '/files' + q({ q: "'" + esc(id) + "' in parents and trashed = false", fields: 'files(id)', includeItemsFromAllDrives: 'true', corpora: 'allDrives', pageSize: '1' }));
+  if (((await kids.json()) as { files?: DriveFile[] }).files?.length) return false;
+  const links = await driveFetch(API + '/files' + q({ q: "shortcutDetails.targetId = '" + esc(id) + "' and trashed = false", fields: 'files(id)', includeItemsFromAllDrives: 'true', corpora: 'allDrives', pageSize: '20' }));
+  for (const l of ((await links.json()) as { files?: DriveFile[] }).files || []) await trashDriveFile(l.id).catch(() => undefined);
+  await trashDriveFile(id);
+  return true;
+}
+
 /** Downloads a file's bytes with the user's token (used for staff photos). */
 /** Replaces a file's content (and name) in place: same file, same link, latest version. */
 export async function replaceDriveFile(id: string, file: Blob, name: string, contentType?: string): Promise<DriveFile> {

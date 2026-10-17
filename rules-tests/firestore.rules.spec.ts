@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, query, where, updateDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { addDoc, doc, getDoc, setDoc, deleteDoc, collection, getDocs, query, where, updateDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 
 const OWNER = 'syafiqahhamizad@shcolaw.com';
 const key = (e: string) => e.toLowerCase().replace(/\./g, ',');
@@ -184,6 +184,17 @@ describe('after the split', () => {
       }
     });
 
+    it('staff may correct and send again, or withdraw, their own rejected item — never approve it', async () => {
+      await seed(async (db) => { for (const col of CLAIMS) await setDoc(doc(db, 'firm', 'main', col, 'L-R'), { id: 'L-R', amount: 10, approvalStatus: 'Rejected', _ownerEmail: people.lawyer.email }); });
+      const db = as(people.lawyer.email);
+      for (const col of CLAIMS) {
+        await assertFails(updateDoc(doc(db, 'firm', 'main', col, 'L-R'), { approvalStatus: 'Approved' }));
+        await assertSucceeds(updateDoc(doc(db, 'firm', 'main', col, 'L-R'), { amount: 11, approvalStatus: 'Pending Approval' }));
+      }
+      await seed(async (db0) => { for (const col of CLAIMS) await setDoc(doc(db0, 'firm', 'main', col, 'L-R'), { id: 'L-R', amount: 10, approvalStatus: 'Rejected', _ownerEmail: people.lawyer.email }); });
+      for (const col of CLAIMS) await assertSucceeds(deleteDoc(doc(db, 'firm', 'main', col, 'L-R')));
+    });
+
     it('admins who are not finance see only their own too', async () => {
       for (const col of CLAIMS) await assertFails(getDocs(collection(as(people.assistantAdmin.email), 'firm', 'main', col)));
     });
@@ -198,6 +209,14 @@ describe('after the split', () => {
         await assertFails(updateDoc(doc(as(people.reviewer.email), 'firm', 'main', col, 'A-1'), { approvalStatus: 'Approved' }));
       }
     });
+  });
+
+  it('drive bin queue: anyone on the list queues; only Accounts read and empty it', async () => {
+    const item = () => ({ ids: ['1AbCdEfGhIjKlMnOp'], reason: 'Withdrawn EX-0001', by: people.lawyer.email, at: serverTimestamp() });
+    await assertSucceeds(addDoc(collection(as(people.lawyer.email), 'driveBin'), item()));
+    await assertFails(addDoc(collection(as(people.lawyer.email), 'driveBin'), { ...item(), extra: 1 }));
+    await assertFails(getDocs(collection(as(people.lawyer.email), 'driveBin')));
+    await assertSucceeds(getDocs(collection(as(people.accountant.email), 'driveBin')));
   });
 
   it('payslips: a lawyer sees only their own', async () => {
