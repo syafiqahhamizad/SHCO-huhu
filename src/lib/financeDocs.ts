@@ -13,7 +13,7 @@
 import { getPracticeSettings } from '../services/templateService';
 import { splitSst } from './billingEngine';
 import { escapeHtml } from './html';
-import { ARR_TERMS, DEFAULT_LETTERHEAD_PARTNERS, planRows, schedule, type LetterheadInfo } from './engagementLetter';
+import { ARR_TERMS, DEFAULT_LETTERHEAD_PARTNERS, planRows, schedule, setInstTerms, setLetterWording, type LetterheadInfo } from './engagementLetter';
 import type { QuotationPaymentPlan } from '../types';
 
 export { ARR_TERMS, schedule };
@@ -118,7 +118,22 @@ export const loadLogos = () => {
 };
 
 export const TERMS = ['The professional fees may vary depending on the actual scope of work performed and any additional requirements imposed by relevant parties;', 'The Firm reserves the right to issue further invoices for any additional fees and/or costs incurred which are not expressly included in this quotation;', 'The Firm shall have the right to invoice progressive professional fees from time to time depending on the stage and progress of work;'];
-const NOTE = 'Note: Please be informed that this document is merely a quotation prepared on the information available to date and is subject to be varied in accordance with further information, requirements and/or events are beyond our control';
+/** Fixed wording on quotations, proformas, invoices and receipts. The firm can change it in Firm & Practice
+ * Settings › Document wording (applied below); empty = this built-in wording. */
+export const WORD = {
+  quoteNote: 'Note: Please be informed that this document is merely a quotation prepared on the information available to date and is subject to be varied in accordance with further information, requirements and/or events are beyond our control',
+  quoteTermsLead: 'By agreeing to this quotation, it is hereby acknowledged and agreed by you that:-',
+  proformaNote: 'This proforma invoice is a request for payment in advance. A final invoice will be issued upon completion of the work.',
+  invoiceNote: '',
+  payLead: 'Payment to be made in transfer as the following:-',
+  docFooter: 'This is a computer-generated document. No signature is required.',
+  receiptFooter: 'This is a computer-generated receipt. No signature is required.',
+};
+export type DocWordKey = keyof typeof WORD;
+const BUILTIN_WORD = { ...WORD };
+const BUILTIN_TERMS = [...TERMS];
+/** The built-in wording, to show and edit in Settings. */
+export const builtInDocWording = () => ({ ...BUILTIN_WORD, quoteTerms: [...BUILTIN_TERMS] });
 
 interface AreaTemplate {
   code: string;
@@ -205,7 +220,7 @@ const receiptOrig = (d: FinanceDoc) => { const bk = BANK[d.account] || BANK.Offi
   return topHead('OFFICIAL RECEIPT', [['No.', d.no], ['Date', d.date], ['Account', d.account]])
     + '<table style="width:100%;font-size:12px;margin-bottom:14px;font-family:Arial,sans-serif;color:#16223A"><tr><td style="vertical-align:top;width:55%"><div style="font-size:10px;color:#5B6478;text-transform:uppercase;letter-spacing:1px">Received from</div><div style="font-weight:bold">' + esc(d.client) + '</div><div style="color:#5B6478">' + esc(d.addr || '') + '</div></td><td style="vertical-align:top"><div style="font-size:10px;color:#5B6478;text-transform:uppercase;letter-spacing:1px">Matter</div><div style="font-weight:bold">' + esc(d.matter || '-') + '</div><div style="color:#5B6478">' + esc([d.ref, d.area].filter(Boolean).join(' · ')) + '</div></td></tr></table>'
     + '<table style="width:100%;border-collapse:collapse;font-size:12px;font-family:Arial,sans-serif;color:#16223A">' + kv.map(([k, v]) => '<tr><td style="padding:8px;border:1px solid #DDE3EB;width:35%;color:#5B6478;background:#F6F8FA">' + k + '</td><td style="padding:8px;border:1px solid #DDE3EB;text-align:justify">' + v + '</td></tr>').join('') + '</table>'
-    + '<p style="font-size:10px;color:#5B6478;margin-top:30px;font-family:Arial,sans-serif">This is a computer-generated receipt. No signature is required.</p>'; };
+    + (WORD.receiptFooter ? '<p style="font-size:10px;color:#5B6478;margin-top:30px;font-family:Arial,sans-serif">' + esc(WORD.receiptFooter) + '</p>' : ''); };
 const head1a = (d: FinanceDoc) => { const t = totals(d); const title = d.type === 'Invoice' && t.sst ? 'TAX INVOICE' : TITLES[d.type];
   const box: [string, unknown][] = d.type === 'Quotation' ? [['Quot No.', d.no], ['Date', d.date], ['Valid', '30 days']] : d.type === 'Proforma' ? [['Proforma No.', d.no], ['Date', d.date], ['Due', d.due || '14 days']] : d.type === 'Invoice' ? ([['Invoice No.', d.no], ['Date', d.date], ['Due', d.due && d.due !== 'on receipt' ? d.due : 'On receipt']] as [string, unknown][]).concat(d.einv && d.einv !== '—' ? [['e-Invoice', d.einv]] : []) : [['Receipt No.', d.no], ['Date', d.date], ['Amount', 'RM ' + num(d.amount)], ['Account', d.account === 'Client account' ? 'Client A/C' : 'Office A/C']];
   const lab = 'padding:1px 6px 1px 0;font-weight:bold;white-space:nowrap;vertical-align:top;width:78px', col = 'padding:1px 4px 1px 0;vertical-align:top;width:8px', val = 'padding:1px 0;vertical-align:top';
@@ -229,11 +244,12 @@ export const docHtml = (d: FinanceDoc): string => {
   body += row3(rate ? `SST @ ${pct}% (on professional fees &amp; reimbursements):` : 'SST: Not applicable', '', rate ? num(t.sst) : '-', 'text-align:right');
   if (t.less) body += row3('LESS: DEPOSIT RECEIVED:', '(' + num(t.less) + ')', '', 'text-align:right');
   body += `<tr><td style="${B};text-align:right;font-weight:bold;background:#EFEFEF">TOTAL AMOUNT TO BE PAID:</td><td colspan="2" style="${B};text-align:right;font-weight:bold;background:#EFEFEF">${num(t.total)}</td></tr></table>`;
-  if (d.type === 'Quotation') body += `<p style="${F};margin:10px 0 6px;font-style:italic;text-align:justify">${NOTE}</p>`;
-  if (d.type === 'Proforma') body += `<p style="${F};margin:10px 0 6px;font-style:italic;text-align:justify">This proforma invoice is a request for payment in advance. A final invoice will be issued upon completion of the work.</p>`;
-  if (d.type === 'Quotation' && (d.terms || []).length) body += `<p style="${F};margin:6px 0 2px;text-align:justify">By agreeing to this quotation, it is hereby acknowledged and agreed by you that:-</p><ol style="${F};margin:0 0 8px;padding-left:22px;list-style-type:disc">${(d.terms || []).map((x) => `<li style="margin:1px 0;text-align:justify;display:list-item;list-style-type:disc">${esc(x)}</li>`).join('')}</ol>`;
+  if (d.type === 'Quotation' && WORD.quoteNote) body += `<p style="${F};margin:10px 0 6px;font-style:italic;text-align:justify">${esc(WORD.quoteNote)}</p>`;
+  if (d.type === 'Proforma' && WORD.proformaNote) body += `<p style="${F};margin:10px 0 6px;font-style:italic;text-align:justify">${esc(WORD.proformaNote)}</p>`;
+  if (d.type === 'Invoice' && WORD.invoiceNote) body += `<p style="${F};margin:10px 0 6px;text-align:justify;white-space:pre-wrap">${esc(WORD.invoiceNote)}</p>`;
+  if (d.type === 'Quotation' && (d.terms || []).length) body += `<p style="${F};margin:6px 0 2px;text-align:justify">${esc(WORD.quoteTermsLead)}</p><ol style="${F};margin:0 0 8px;padding-left:22px;list-style-type:disc">${(d.terms || []).map((x) => `<li style="margin:1px 0;text-align:justify;display:list-item;list-style-type:disc">${esc(x)}</li>`).join('')}</ol>`;
   const bk = BANK[d.account] || BANK.Office;
-  body += `<p style="${F};margin:8px 0 2px">Payment to be made in transfer as the following:-</p><table style="${F};margin-left:18px;border-collapse:collapse"><tr><td style="padding:1px 8px 1px 0">Name</td><td>: ${esc(bk[0])}</td></tr><tr><td style="padding:1px 8px 1px 0">Bank</td><td>: ${esc(bk[1])}</td></tr><tr><td style="padding:1px 8px 1px 0">Bank Account No.</td><td>: ${bk[2]}</td></tr></table>`;
+  body += `<p style="${F};margin:8px 0 2px">${esc(WORD.payLead)}</p><table style="${F};margin-left:18px;border-collapse:collapse"><tr><td style="padding:1px 8px 1px 0">Name</td><td>: ${esc(bk[0])}</td></tr><tr><td style="padding:1px 8px 1px 0">Bank</td><td>: ${esc(bk[1])}</td></tr><tr><td style="padding:1px 8px 1px 0">Bank Account No.</td><td>: ${bk[2]}</td></tr></table>`;
   if (d.inst && d.inst.on) { const sch = schedule(t.total, d.inst.months, d.inst.upfront), n = sch.length; const terms = String(d.inst.terms != null ? d.inst.terms : ARR_TERMS).split('\n').filter((x) => x.trim());
     body += `<div style="page-break-before:auto;margin-top:16px;${F}"><p style="margin:0 0 6px;font-weight:bold;text-decoration:underline">FEE ARRANGEMENT</p><p style="margin:0 0 8px;text-align:justify">You agree to pay the total professional fees in the sum of <b>RM${num(t.total)}</b> (inclusive of disbursements and reimbursements) as per quotation, by way of monthly instalments over ${WORDS[n] || n} (${n}) months, subject to the following terms:</p>
 <p style="margin:0 0 4px;font-weight:bold">1. Payment Schedule</p><table style="border-collapse:collapse;margin:0 0 8px 18px;${F}">${sch.map(([k, v]) => `<tr><td style="border:1px solid #000;padding:3px 10px;min-width:180px">${k}</td><td style="border:1px solid #000;padding:3px 10px;text-align:right;min-width:100px">RM${num(v)}</td></tr>`).join('')}<tr><td style="border:1px solid #000;padding:3px 10px;font-weight:bold">Total</td><td style="border:1px solid #000;padding:3px 10px;text-align:right;font-weight:bold">RM${num(t.total)}</td></tr></table>
@@ -241,7 +257,7 @@ ${terms.map((x, i) => { const m2 = x.match(/^([^:]{3,40}):\s*(.*)$/); return `<p
   else if (d.plan && d.plan.kind === 'Stages' && (d.plan.stages || []).length) { const rows = planRows(d.plan, t.total);
     body += `<div style="margin-top:16px;${F}"><p style="margin:0 0 6px;font-weight:bold;text-decoration:underline">PAYMENT BY STAGES</p><table style="border-collapse:collapse;margin:0 0 8px 18px;${F}">${rows.map((r, i) => `<tr><td style="border:1px solid #000;padding:3px 10px">${i + 1}. ${esc(r.label)}${r.due ? ' <span style="color:#444">(' + esc(r.due) + ')</span>' : ''}</td><td style="border:1px solid #000;padding:3px 10px;text-align:right">${r.pct != null ? r.pct + '%' : ''}</td><td style="border:1px solid #000;padding:3px 10px;text-align:right;min-width:100px">RM${num(r.amount)}</td></tr>`).join('')}<tr><td style="border:1px solid #000;padding:3px 10px;font-weight:bold" colspan="2">Total</td><td style="border:1px solid #000;padding:3px 10px;text-align:right;font-weight:bold">RM${num(rows.reduce((a, r) => a + r.amount, 0))}</td></tr></table></div>`; }
   else if (d.arrangement) body += `<p style="${F};margin:14px 0 2px;font-weight:bold;text-decoration:underline">FEE ARRANGEMENT</p><p style="${F};margin:0;white-space:pre-wrap;text-align:justify">${esc(d.arrangement)}</p>`;
-  return body + `<p style="${F};margin:24px 0 0;font-size:8.5pt">This is a computer-generated document. No signature is required.</p>`;
+  return body + (WORD.docFooter ? `<p style="${F};margin:24px 0 0;font-size:8.5pt">${esc(WORD.docFooter)}</p>` : '');
 };
 const wrap = (title: string, body: string) => `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>@page{size:A4;margin:14mm 16mm}body{margin:0}</style></head><body>${body}</body></html>`;
 const dl = (blob: Blob, name: string) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500); };
@@ -325,6 +341,13 @@ const applyPracticeSettingsToDocs = () => {
   BANK.Office = pick(accs.find((b) => b.isDefaultOffice) || accs.find((b) => b.accountType === 'Office Operating'), BUILTIN_BANK.Office);
   BANK['Client account'] = pick(accs.find((b) => b.isDefaultClient) || accs.find((b) => b.accountType === 'Client Trust'), BUILTIN_BANK['Client account']);
   BANK.Disbursement = pick(accs.find((b) => b.accountType === 'Disbursement'), BUILTIN_BANK.Disbursement);
+  // Document wording from Settings: each piece replaces the built-in one when filled in.
+  const W = s.docWording || {};
+  (Object.keys(BUILTIN_WORD) as DocWordKey[]).forEach((k) => { const v = W[k]; WORD[k] = typeof v === 'string' && v.trim() ? (v.trim() === '-' ? '' : v.trim()) : BUILTIN_WORD[k]; }); // "-" = leave it out
+  const qt = (W.quoteTerms || []).map((x) => String(x).trim()).filter(Boolean);
+  TERMS.splice(0, TERMS.length, ...(qt.length ? qt : BUILTIN_TERMS));
+  setInstTerms(W.instTerms);
+  setLetterWording(W.letter);
   const T = s.feeTemplates || {};
   const cl = (l?: { d: string; a: number }[]) => (l || []).filter((x) => String(x?.d || '').trim()).map((x) => [x.d, Number(x.a) || 0] as DocLine);
   Object.keys(AREAS).forEach((k) => { if (!BUILTIN_AREAS[k]) delete AREAS[k]; });

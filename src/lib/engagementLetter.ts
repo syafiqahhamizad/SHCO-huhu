@@ -42,7 +42,10 @@ export const schedule = (total: number, months: number, upfront: number): [strin
   return out;
 };
 
-export const ARR_TERMS = 'Early Settlement: In the event the matter is settled before the completion of the instalment period, all payments made shall be non-refundable, and the outstanding balance for the remaining unpaid months shall be charged at ten per cent (10%) of the settlement sum.\nDisbursements & Reimbursements: Charged in accordance with the agreed quotation. Any additional disbursements and/or reimbursements incurred shall be notified to and borne by the Client, and any unused portion of disbursements paid shall be refunded to the Client accordingly.\nWork shall not proceed if instalment payments are not settled, unless otherwise agreed in writing.';
+/** Built-in instalment terms; the firm's own (Settings › Document wording) replace them for new papers. */
+export const ARR_TERMS_BUILTIN = 'Early Settlement: In the event the matter is settled before the completion of the instalment period, all payments made shall be non-refundable, and the outstanding balance for the remaining unpaid months shall be charged at ten per cent (10%) of the settlement sum.\nDisbursements & Reimbursements: Charged in accordance with the agreed quotation. Any additional disbursements and/or reimbursements incurred shall be notified to and borne by the Client, and any unused portion of disbursements paid shall be refunded to the Client accordingly.\nWork shall not proceed if instalment payments are not settled, unless otherwise agreed in writing.';
+export let ARR_TERMS = ARR_TERMS_BUILTIN;
+export const setInstTerms = (x?: string) => { ARR_TERMS = x && x.trim() ? (x.trim() === '-' ? '' : x) : ARR_TERMS_BUILTIN; };
 
 /** Litigation stages (editable on the quotation). Equal shares until the firm changes them. */
 const DEFAULT_LIT_STAGES: QuotationPaymentStage[] = [
@@ -201,10 +204,36 @@ const pron = (type: EngagementInput['client']['type'], lang: DocLang): Pron => {
 };
 
 
+/** Wording of the Letter of Engagement that the firm can change in Firm & Practice Settings › Document wording
+ * (plain text; lists one item per line; clauses "Heading: text"). Empty = the built-in wording. */
+export interface LetterWording {
+  title?: string; dear?: string; thanks?: string; scope?: string; scopeLead?: string; scopeNone?: string; team?: string; teamGeneral?: string;
+  fees?: string; feesNone?: string; feeNotes?: string[]; auth?: string; authLead?: string; clauses?: [string, string][]; terms?: string; termList?: [string, string][]; close?: string; yf?: string;
+}
+export const LETTER_TEXT_KEYS = ['title', 'dear', 'thanks', 'scope', 'scopeLead', 'scopeNone', 'team', 'teamGeneral', 'fees', 'feesNone', 'auth', 'authLead', 'terms', 'close', 'yf'] as const;
+let LW: Partial<Record<DocLang, LetterWording>> = {};
+/** Called when the practice settings load or change. */
+export const setLetterWording = (w?: Partial<Record<DocLang, LetterWording>>) => { LW = w || {}; };
+const plainOf = (h: string) => h.replace(/<[^>]+>/g, '');
+const htmlOf = (x: string) => esc(x).replace(/\s*\n\s*/g, '<br>');
+const okText = (x?: string) => !!x && !!x.trim();
+const okList = <T,>(l?: T[]) => !!l && l.length > 0;
+/** The built-in wording as plain text, to show and edit. */
+export const builtInLetterWording = (lang: DocLang): Required<LetterWording> => {
+  const t = TX[lang];
+  const o = Object.fromEntries(LETTER_TEXT_KEYS.map((k) => [k, plainOf(String(t[k]))])) as Record<(typeof LETTER_TEXT_KEYS)[number], string>;
+  return { ...o, feeNotes: t.feeNotes.map(plainOf), clauses: builtInClauses(lang).map(([h, x]) => [h, plainOf(x)] as [string, string]), termList: t.termList.map(([h, x]) => [h, plainOf(x)] as [string, string]) };
+};
+
 /** The terms of engagement, written by the firm to the client ("you" / "we"): [heading, paragraph html].
  * Only the client's acceptance slip at the end of the letter is in the client's own voice. */
 export const authorityClauses = (i: { client?: Pick<EngagementInput['client'], 'type'>; firmName?: string; lang?: DocLang }): [string, string][] => {
-  if ((i.lang || 'EN') === 'BM') {
+  const own = LW[i.lang || 'EN']?.clauses;
+  if (okList(own)) return own!.map(([h, x]) => [esc(h), htmlOf(x)]);
+  return builtInClauses(i.lang || 'EN');
+};
+const builtInClauses = (lang: DocLang): [string, string][] => {
+  if (lang === 'BM') {
     return [
       ['Autoriti', 'Tuan/puan memberi kuasa dan melantik kami, termasuk mana-mana peguam kami yang mengendalikan perkara ini, untuk bertindak bagi pihak tuan/puan dalam perkara di atas, termasuk menyediakan dan menguruskan semua perkara berkaitan, rundingan dan perbincangan, serta berurusan dengan semua pihak ketiga yang berkaitan seperti agensi kerajaan, institusi kewangan dan pihak berkuasa lain.'],
       ['Fi guaman dan pengeluaran', 'Tuan/puan bertanggungjawab membayar semua fi guaman, kos dan perbelanjaan bagi perkara ini. Bayaran awal <em>(retainer)</em> tidak akan dikembalikan setelah kami dilantik. Selaras dengan Aturan 9.02 Kaedah Majlis Peguam, kami berhak menolak sebarang fi dan perbelanjaan yang belum dijelaskan daripada wang yang kami terima bagi pihak tuan/puan dalam perkara ini sehingga semua tunggakan dijelaskan. Kelewatan pembayaran boleh menyebabkan perkhidmatan kami tertangguh atau digantung.'],
@@ -294,7 +323,12 @@ export const feeTotals = (f: NonNullable<EngagementInput['fees']>) => {
 /** The Letter of Engagement as one HTML document (view, PDF / print and Word). */
 export function engagementLetterHtml(i: EngagementInput): string {
   const lang = i.lang || 'EN';
-  const t = TX[lang];
+  // The firm's own wording (Settings › Document wording) over the built-in one, field by field.
+  const w = LW[lang] || {};
+  const t = { ...TX[lang],
+    ...Object.fromEntries(LETTER_TEXT_KEYS.filter((k) => okText(w[k])).map((k) => { const v = String(w[k]).trim(); return [k, v === '-' ? '' : k === 'title' ? v : htmlOf(v)]; })),
+    ...(okList(w.feeNotes) ? { feeNotes: w.feeNotes!.map(htmlOf) } : {}),
+    ...(okList(w.termList) ? { termList: w.termList!.map(([h, x]) => [esc(h), htmlOf(x)] as [string, string]) } : {}) };
   const co = i.client.type === 'Corporate';
   const firmRaw = (i.firmName || 'Syafiqah Hamizad & Co').replace(/\.+$/, '');
   let n = 0;

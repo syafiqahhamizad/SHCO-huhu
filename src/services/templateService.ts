@@ -264,6 +264,11 @@ export interface PracticeSettings {
   /** Per-practice-area default quotation (Fee templates tab), keyed by practice-area tag (L, CONV,
    * EST, …). Overrides the built-in templates in lib/financeDocs AREAS. */
   feeTemplates?: Record<string, FeeTemplate>;
+  /** Firm & Practice Settings › Document wording: the firm's own wording on generated documents (empty = built-in; "-" = leave out). */
+  docWording?: {
+    quoteNote?: string; quoteTermsLead?: string; quoteTerms?: string[]; proformaNote?: string; invoiceNote?: string; payLead?: string; docFooter?: string; receiptFooter?: string; instTerms?: string;
+    letter?: Partial<Record<'EN' | 'BM', import('../lib/engagementLetter').LetterWording>>;
+  };
   /** Lists & sources: Office Account expense categories and My Claims claim types. */
   expenseCategories?: string[];
   claimTypes?: string[];

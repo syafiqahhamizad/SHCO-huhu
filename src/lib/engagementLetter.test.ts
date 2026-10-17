@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_LETTERHEAD_PARTNERS, authorityClauses, defaultPlanFor, engagementLetterHtml, feeTotals, longDate, planRows, planTotal, quotationForFile, schedule, type EngagementInput } from './engagementLetter';
+import { ARR_TERMS, DEFAULT_LETTERHEAD_PARTNERS, authorityClauses, builtInLetterWording, setInstTerms, setLetterWording, defaultPlanFor, engagementLetterHtml, feeTotals, longDate, planRows, planTotal, quotationForFile, schedule, type EngagementInput } from './engagementLetter';
 import type { Quotation } from '../types';
 
 const lh = { firmName: 'SYAFIQAH HAMIZAD & CO', tag1: 'Advocates & Solicitors', address: '8-23-03 Bangi Sentral', partners: DEFAULT_LETTERHEAD_PARTNERS };
@@ -161,5 +161,27 @@ describe('quotationForFile', () => {
     expect(quotationForFile([q('Q3', { status: 'Declined' })], file)).toBeUndefined();
     expect(quotationForFile([], file)).toBeUndefined();
     expect(quotationForFile(undefined, file)).toBeUndefined();
+  });
+});
+
+describe('the firm\'s own wording (Settings › Document wording)', () => {
+  it('replaces a paragraph, the terms and the fee notes; empty pieces keep the original; "-" leaves a piece out', () => {
+    setLetterWording({ EN: { thanks: 'Thank you <for> choosing us.', clauses: [['Fees', 'Pay within 7 days.']], feeNotes: ['Note A'], close: '-' } });
+    const h = engagementLetterHtml(base);
+    expect(h).toContain('Thank you &lt;for&gt; choosing us.');
+    expect(h).toContain('(a) Fees.</b> Pay within 7 days.');
+    expect(h).not.toContain('Anti-money laundering');
+    expect(h).toContain('Note A');
+    expect(h).toContain(builtInLetterWording('EN').teamGeneral);
+    expect(h).not.toContain(builtInLetterWording('EN').close);
+    expect(engagementLetterHtml({ ...base, lang: 'BM' })).toContain('Autoriti');
+    setLetterWording(undefined);
+    expect(authorityClauses({ lang: 'EN' })[0][0]).toBe('Authority');
+  });
+  it('instalment terms can be replaced and put back', () => {
+    setInstTerms('Late payment: 2% a month.');
+    expect(ARR_TERMS).toBe('Late payment: 2% a month.');
+    setInstTerms('');
+    expect(ARR_TERMS).toMatch(/^Early Settlement/);
   });
 });

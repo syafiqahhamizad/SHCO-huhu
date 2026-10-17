@@ -10,6 +10,7 @@ import { DriveStorageCard } from './DriveStorageCard';
 import { FirmTab } from './FirmTab';
 import { BanksTab } from './BanksTab';
 import { AreasTab } from './AreasTab';
+import { DocWordingTab } from './DocWordingTab';
 import { FeeTemplatesTab } from './FeeTemplatesTab';
 import { ListsTab } from './ListsTab';
 
@@ -19,7 +20,7 @@ import { ListsTab } from './ListsTab';
  * replaces the old Users & Permissions page (routes 'users' / 'roles' open it here). Every change
  * is written to the Activity Log. Managing Partner (admin / super admin) only.
  */
-const TABS: [string, string][] = [['users', 'Users & Roles'], ['perms', 'Permissions & limits'], ['apv', 'Who approves'], ['firm', 'Firm & Letterhead'], ['google', 'Google, e-mail & backup'], ['bank', 'Banks, Numbering & SST'], ['areas', 'Practice areas & codes'], ['tpl', 'Fee templates'], ['src', 'Lists & sources']];
+const TABS: [string, string][] = [['users', 'Users & Roles'], ['perms', 'Permissions & limits'], ['apv', 'Who approves'], ['firm', 'Firm & Letterhead'], ['google', 'Google, e-mail & backup'], ['bank', 'Banks, Numbering & SST'], ['areas', 'Practice areas & codes'], ['tpl', 'Fee templates'], ['words', 'Document wording'], ['src', 'Lists & sources']];
 const tabForView = (v: string) => (v === 'users' ? 'users' : v === 'roles' ? 'perms' : null);
 
 export const FirmSettingsView = () => {
@@ -69,6 +70,7 @@ export const FirmSettingsView = () => {
       {tab === 'bank' && <BanksTab C={C} />}
       {tab === 'areas' && <AreasTab C={C} />}
       {tab === 'tpl' && <FeeTemplatesTab C={C} />}
+      {tab === 'words' && <DocWordingTab C={C} />}
       {tab === 'src' && <ListsTab C={C} />}
       {!!toast && <div style={css('position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:80;border-radius:8px;padding:10px 16px;background:#16223A;color:#fff;font-size:12px;font-weight:600')}>{toast}</div>}
     </div>
