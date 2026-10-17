@@ -57,7 +57,7 @@ export const CashBookCard = ({ F, accs, sub }: { F: FinanceCtrl; accs: CashAcc[]
             <span style={css('font-size:11px;color:#5B6478')}>{fd(r.t)}</span>
             <span style={css('min-width:0')}><span style={css('display:block;font-size:11.5px;font-weight:600;color:#16223A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{r.who}</span><span style={css('display:block;font-size:10px;color:#5B6478;white-space:nowrap;overflow:hidden;text-overflow:ellipsis')}>{r.what}</span></span>
             <button type="button" onClick={r.open || undefined} style={css(`justify-self:start;border:0;background:none;padding:0;font-size:10.5px;font-weight:700;color:#3D6B9C;cursor:pointer;font-family:inherit;text-decoration:${r.open ? 'underline' : 'none'};overflow:hidden;text-overflow:ellipsis;max-width:110px`)}>{r.no}</button>
-            <span style={css(`justify-self:start;font-size:10px;font-weight:700;padding:1px 8px;border-radius:10px;background:${SRC[r.src][0]};color:${SRC[r.src][1]}`)}>{r.src}</span>
+            {r.src === 'Auto' ? <span /> : <span style={css(`justify-self:start;font-size:10px;font-weight:700;padding:1px 8px;border-radius:10px;background:${SRC[r.src][0]};color:${SRC[r.src][1]}`)}>{r.src}</span>}
             <span style={css('text-align:right;font-size:11.5px;color:#2F6F4E')}>{r.inn ? m(r.inn) : ''}</span>
             <span style={css('text-align:right;font-size:11.5px;color:#B23A2E')}>{r.out ? m(r.out) : ''}</span>
             <span style={css('text-align:right;font-size:12px;font-weight:700;color:#16223A')}>{m(r.bal)}</span>
