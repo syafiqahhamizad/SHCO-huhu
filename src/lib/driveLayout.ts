@@ -7,12 +7,15 @@ import { extractMatterRunningNumber } from '../services/matterService';
  *    Case files/<Practice area>/<NNN> - <Matter title>/{sub-folders by practice area, see matterSubfolders}
  *    Clients KYC/<Client no.> - <Client name>/KYC
  *  SHCO Finance (partners / Accounts) — or "Finance/" inside SHCO Portal until it is set
- *    Books/<Office Account|Disbursement Account|…>/
- *        Pending/<entry>/ · Rejected/<entry>/
- *        <YYYY>/<YYYY-MM Month>/{Money In, Money Out, Bank Statement}/<entry>/
+ *    Books/<YYYY>/
+ *        Bank Statements/<Office Account|Disbursement Account|Client Account|…>/<YYYY-MM Month>/
+ *        Money In/<account>/<YYYY-MM Month>/<entry>/
+ *        Money Out/<account>/<YYYY-MM Month>/<entry>/
+ *        Payroll/<YYYY-MM Month>/{Payslips, Statutory, Partner Drawings}/
+ *    Books/Waiting approval/<account>/<entry>/ · Books/Rejected/<account>/<entry>/
  *    Client Files/<NNN> - <Matter title>/   (quotations, invoices; links to the file's money entries)
- *    Payroll/<YYYY>/<YYYY-MM Month>/{Payslips, Statutory, Partner Drawings}/
- *    Accounts & Tax Reports/ · Firm Records/ · Backups/
+ *    Accounts & Tax Reports/Accounts & Tax <YYYY>/{Office Account/{Accounts, Tax}, Client Account/Accounts}
+ *    Firm Records/ · Backups/
  *    (an <entry> folder is named "DDMMYYYY <doc no.> <file code> <what> RM<amount>", see entryName)
  *    Before "Set up finance folders": <YYYY>/Claims|Payment Vouchers|Bank-in Proofs|Client Account/
  *  SHCO HR
@@ -161,14 +164,21 @@ const ymd = (iso: string) => { const m = String(iso || '').match(/^(\d{4})-(\d{2
 /** "2026-10-14" → "2026-10 October" (sorts in month order in Drive). */
 export const monthFolderName = (iso: string) => { const x = ymd(iso); return x ? `${x.y}-${x.m} ${MONTH_NAMES[Number(x.m) - 1]}` : 'Undated'; };
 const yearOf = (iso: string) => ymd(iso)?.y || 'Undated';
-/** Books/<account>/<YYYY>/<YYYY-MM Month>/<Money In | Money Out | Bank Statement>. */
-export const booksMonthPath = (acc: FinAccount, iso: string, flow: BookFlow, type?: OutType) => [FIN.books, accountFolderName(acc), yearOf(iso), monthFolderName(iso), flow, ...(type ? [type] : [])];
-/** Books/<account>/Pending (submitted / approved, not paid yet) or /Rejected, split by type. */
-export const booksStatusPath = (acc: FinAccount, status: 'Pending' | 'Rejected', type?: OutType) => [FIN.books, accountFolderName(acc), status, ...(type ? [type] : [])];
+/** Books/<YYYY>/<Money In | Money Out | Bank Statements>/<account>/<YYYY-MM Month> (year first; each bank
+ * account kept apart). The kind of payment shows in each entry's own name (EX-, DISB-, PV-, TC-…). */
+export const booksMonthPath = (acc: FinAccount, iso: string, flow: BookFlow, _type?: OutType) => [FIN.books, yearOf(iso), flow === 'Bank Statement' ? 'Bank Statements' : flow, accountFolderName(acc), monthFolderName(iso)];
+/** Books/Waiting approval/<account> (submitted / approved, not paid yet) or Books/Rejected/<account>. */
+export const booksStatusPath = (acc: FinAccount, status: 'Pending' | 'Rejected', _type?: OutType) => [FIN.books, status === 'Pending' ? 'Waiting approval' : 'Rejected', accountFolderName(acc)];
 /** Money Out (and Pending / Rejected) is split by what was paid. Money In stays one folder: it is all official receipts. */
 export type OutType = 'Claims' | 'Payment Vouchers' | 'Office Costs' | 'Disbursements';
-/** Payroll/<YYYY>/<YYYY-MM Month>/<Payslips | Statutory | Partner Drawings>. */
-export const payrollMonthPath = (iso: string, part: PayrollPart) => [FIN.payroll, yearOf(iso), monthFolderName(iso), part];
+/** Books/<YYYY>/Payroll/<YYYY-MM Month>/<Payslips | Statutory | Partner Drawings>. */
+export const payrollMonthPath = (iso: string, part: PayrollPart) => [FIN.books, yearOf(iso), 'Payroll', monthFolderName(iso), part];
+/** Accounts & Tax Reports/Accounts & Tax <YYYY>: the office account has accounts and tax; the client
+ * account only accounts (e.g. the accountant's report under the Solicitors' Account Rules). */
+export const reportsYearPaths = (year: string | number): string[][] => {
+  const y = [FIN.reports, 'Accounts & Tax ' + year];
+  return [[...y, 'Office Account', 'Accounts'], [...y, 'Office Account', 'Tax'], [...y, 'Client Account', 'Accounts']];
+};
 /** Client Files/<NNN - title>: a file's quotations / invoices, and links to its money entries. */
 export const clientFilesPath = (m: MatterLike, part?: string) => [FIN.clientFiles, matterFolderName(m.ref, m.title), ...(part ? [part] : [])];
 /** Inside each file's Client Files folder, papers are kept by type (so 10 instalments stay tidy). */
@@ -200,13 +210,14 @@ const outTypesFor = (a: FinAccount, pending = false): OutType[] =>
 
 /** Every folder "Set up finance folders" creates, from `from` to `to` ("YYYY-MM"), for these accounts. */
 export const financeSkeleton = (from: string, to: string, accounts: FinAccount[]): string[][] => {
-  const out: string[][] = [[FIN.clientFiles], [FIN.reports], [FIN.records]];
-  accounts.forEach((a) => { (['Pending', 'Rejected'] as const).forEach((st) => outTypesFor(a, true).forEach((t) => out.push(booksStatusPath(a, st, t)))); });
+  const out: string[][] = [[FIN.clientFiles], [FIN.records]];
+  for (let yy = Number(from.slice(0, 4)); yy <= Number(to.slice(0, 4)); yy += 1) out.push(...reportsYearPaths(yy));
+  accounts.forEach((a) => { (['Pending', 'Rejected'] as const).forEach((st) => out.push(booksStatusPath(a, st))); });
   let [y, m] = from.split('-').map(Number);
   const [ty, tm] = to.split('-').map(Number);
   while (y < ty || (y === ty && m <= tm)) {
     const iso = `${y}-${String(m).padStart(2, '0')}-01`;
-    accounts.forEach((a) => { out.push(booksMonthPath(a, iso, 'Money In'), booksMonthPath(a, iso, 'Bank Statement')); outTypesFor(a).forEach((t) => out.push(booksMonthPath(a, iso, 'Money Out', t))); });
+    accounts.forEach((a) => { out.push(booksMonthPath(a, iso, 'Money In'), booksMonthPath(a, iso, 'Bank Statement'), booksMonthPath(a, iso, 'Money Out')); });
     (['Payslips', 'Statutory', 'Partner Drawings'] as PayrollPart[]).forEach((p) => out.push(payrollMonthPath(iso, p)));
     if (m === 12) { y += 1; m = 1; } else m += 1;
   }

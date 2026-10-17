@@ -86,6 +86,8 @@ export const DISB_TYPE = 'Disbursement (paid to others)';
 export const REIMB_TYPE = 'Reimbursement (our own cost: photocopy, courier, travel)';
 /** Where the disbursement part goes: the form's choice, else the last one used on this computer, else Office. */
 export const disbToOf = (vals: Record<string, unknown>) => String(vals.disbTo || '');
+/** Pay out / Transfer: an old payment that already happened (no approval round). */
+export const ALREADY_DONE = 'Already done (old record: no approval)';
 export const EXTRA_COST = '__extra';
 
 export type DocKind = 'quotation' | 'invoice' | 'receipt';
@@ -977,6 +979,19 @@ export function useFinanceController(initialTab: FinTab) {
     app.withdrawClaimRecord(kind, id, true);
   };
 
+  /** Client money paid out (signed and paid): client ledger down, and for a fees transfer the invoice is paid. */
+  const clientPvPaid = (v: PaymentVoucher, date: string, slipProofs: FinanceProof[]) => {
+        app.addRetainer({ id: 'RET-' + v.id, clientId: v.clientId, caseId: v.caseId || '', type: 'Apply', amount: Number(v.amount || 0), date, remarks: v.voucherCategory === 'Legal Fees Transfer' ? `Transfer to office for ${v.invoiceId || ''}` : `${v.payee ? 'Paid ' + v.payee + ' · ' : ''}${v.description}`, voucherNo: v.id });
+        if (v.voucherCategory === 'Legal Fees Transfer' && v.invoiceId) {
+          const inv = invoices.find((i) => i.id === v.invoiceId);
+          app.addPayment({ id: 'PAY-' + v.id, invoiceId: v.invoiceId, amount: Number(v.amount || 0), date, method: 'Transfer from client account' });
+          app.addReceipt({ id: app.getNextSequenceId('receipt', date), date, accountSet: 'OFFICE', receivedFrom: inv?.partyName || clientName(v.clientId) || '—', description: `Transfer from client account for ${v.invoiceId}`, amount: Number(v.amount || 0), debit: GLA.office, credit: GLA.ar, clientId: v.clientId, fileRef: v.fileRef || '', bankRef: v.id, receivedBy: me, paymentMethod: 'Transfer from client account', forNo: v.invoiceId, invoiceId: v.invoiceId, caseId: v.caseId, proofs: slipProofs });
+          postGL([
+            { date, docType: 'PV', docNo: v.id, accountSet: 'CLIENT', debit: GLA.clientFunds, credit: GLA.clientBank, amount: v.amount, clientId: v.clientId, fileRef: v.fileRef || '', description: `Transfer to office for ${v.invoiceId}` },
+            { date, docType: 'OR', docNo: v.id, accountSet: 'OFFICE', debit: GLA.office, credit: GLA.ar, amount: v.amount, clientId: v.clientId, fileRef: v.fileRef || '', description: `Fees received from client account for ${v.invoiceId}` },
+          ]);
+      } else postGL([{ date, docType: 'PV', docNo: v.id, accountSet: 'CLIENT', debit: GLA.clientFunds, credit: GLA.clientBank, amount: v.amount, clientId: v.clientId, fileRef: v.fileRef || '', description: `Paid for client: ${v.payee || ''} ${v.description}` }]);
+  };
   const markPaid = (item: PayItem, file?: File | null, on?: string) => {
     if (!file) return;
     if (!canPrepare) { toastMsg('Payments are made and recorded by Accounts.'); return; }
@@ -995,16 +1010,7 @@ export function useFinanceController(initialTab: FinTab) {
         // Re-check at payment time: the invoice may have been paid since the transfer was prepared.
         const tInv = v.voucherCategory === 'Legal Fees Transfer' && v.invoiceId ? invoices.find((i) => i.id === v.invoiceId) : undefined;
         if (tInv && Number(v.amount || 0) > invBal(tInv) + 0.01) { toastMsg(`${tInv.id} balance is now ${rm2(invBal(tInv))}: this transfer would overpay it. Not paid.`); return; }
-        app.addRetainer({ id: 'RET-' + v.id, clientId: v.clientId, caseId: v.caseId || '', type: 'Apply', amount: Number(v.amount || 0), date, remarks: v.voucherCategory === 'Legal Fees Transfer' ? `Transfer to office for ${v.invoiceId || ''}` : `${v.payee ? 'Paid ' + v.payee + ' · ' : ''}${v.description}`, voucherNo: v.id });
-        if (v.voucherCategory === 'Legal Fees Transfer' && v.invoiceId) {
-          const inv = invoices.find((i) => i.id === v.invoiceId);
-          app.addPayment({ id: 'PAY-' + v.id, invoiceId: v.invoiceId, amount: Number(v.amount || 0), date, method: 'Transfer from client account' });
-          app.addReceipt({ id: app.getNextSequenceId('receipt', date), date, accountSet: 'OFFICE', receivedFrom: inv?.partyName || clientName(v.clientId) || '—', description: `Transfer from client account for ${v.invoiceId}`, amount: Number(v.amount || 0), debit: GLA.office, credit: GLA.ar, clientId: v.clientId, fileRef: v.fileRef || '', bankRef: v.id, receivedBy: me, paymentMethod: 'Transfer from client account', forNo: v.invoiceId, invoiceId: v.invoiceId, caseId: v.caseId, proofs: [proof] });
-          postGL([
-            { date, docType: 'PV', docNo: v.id, accountSet: 'CLIENT', debit: GLA.clientFunds, credit: GLA.clientBank, amount: v.amount, clientId: v.clientId, fileRef: v.fileRef || '', description: `Transfer to office for ${v.invoiceId}` },
-            { date, docType: 'OR', docNo: v.id, accountSet: 'OFFICE', debit: GLA.office, credit: GLA.ar, amount: v.amount, clientId: v.clientId, fileRef: v.fileRef || '', description: `Fees received from client account for ${v.invoiceId}` },
-          ]);
-        } else postGL([{ date, docType: 'PV', docNo: v.id, accountSet: 'CLIENT', debit: GLA.clientFunds, credit: GLA.clientBank, amount: v.amount, clientId: v.clientId, fileRef: v.fileRef || '', description: `Paid for client: ${v.payee || ''} ${v.description}` }]);
+        clientPvPaid(v, date, [proof]);
       } else postGL([{ date, docType: 'PV', docNo: v.id, accountSet: 'OFFICE', debit: pvDebitGL(v.voucherCategory), credit: v.voucherCategory === 'Disbursement' || v.voucherCategory === 'Client Disb' ? GLA.disb : GLA.office, amount: v.amount, clientId: v.clientId || '', fileRef: v.fileRef || '', description: `${v.payee || ''} ${v.description}`.trim() }]);
       app.updatePaymentVoucher(item.id, { paidAt: at, paidProof: proof, approvalStatus: 'Posted to GL', postedToGl: true });
     }
@@ -1877,6 +1883,17 @@ export function useFinanceController(initialTab: FinTab) {
         if (amt > invBal(inv) + 0.01) { toastMsg('Transfer cannot exceed the invoice balance (' + rm2(invBal(inv)) + ').'); return; }
       }
       const id = app.getNextSequenceId('voucher', dateIso);
+      if (vals.done === ALREADY_DONE) {
+        // An old payment that already happened (catching up the books): no approval round, posted as paid on its date.
+        const r = ruleFor('clientPay');
+        if (r.configured ? !r.canSign(currentUser) : !isMP) { toastMsg('Only someone who signs client money can record it as already done. Send it for approval instead.'); return; }
+        const at = dateIso + 'T12:00:00.000Z';
+        const v: PaymentVoucher = { id, date: dateIso, accountSet: 'CLIENT', voucherCategory: kind === 'transfer' ? 'Legal Fees Transfer' : 'Client Disb', payee: kind === 'transfer' ? 'Office account' : vals.payee || '', paymentMethod: vals.method || 'Bank transfer', description: kind === 'transfer' ? `Transfer to office for ${inv!.id}` : vals.purpose || 'payment', amount: amt, debit: GLA.clientFunds, credit: GLA.clientBank, clientId: c.id, fileRef: kase?.ref || '', caseId: kase?.id || caseId, invoiceId: inv?.id, preparedBy: me, approvalStatus: 'Posted to GL', approved: true, postedToGl: true, paidAt: at, signatories: [{ name: me, at: new Date().toISOString(), isManagingPartner: isMP, ...(currentUser?.id ? { userId: currentUser.id } : {}) }], ...(proofs.length ? { proofs, paidProof: proofs[0] } : {}) } as PaymentVoucher;
+        app.addPaymentVoucher(v);
+        clientPvPaid(v, dateIso, proofs);
+        setForm(null); toastMsg(id + ' recorded as already done on ' + fd(parseDate(dateIso)) + ' · client ledger and cash book updated');
+        return;
+      }
       app.addPaymentVoucher({ id, date: dateIso, accountSet: 'CLIENT', voucherCategory: kind === 'transfer' ? 'Legal Fees Transfer' : 'Client Disb', payee: kind === 'transfer' ? 'Office account' : vals.payee || '', paymentMethod: vals.method || 'Bank transfer', description: kind === 'transfer' ? `Transfer to office for ${inv!.id}` : vals.purpose || 'payment', amount: amt, debit: GLA.clientFunds, credit: GLA.clientBank, clientId: c.id, fileRef: kase?.ref || '', caseId: kase?.id || caseId, invoiceId: inv?.id, preparedBy: me, approvalStatus: 'Pending Approval', approved: false, ...(proofs.length ? { proofs } : {}) });
       setForm(null); toastMsg('Sent to Approvals (needs 2 signatories)');
     } else if (kind === 'disb') {

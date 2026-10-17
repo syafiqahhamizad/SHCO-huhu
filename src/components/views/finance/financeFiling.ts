@@ -1,11 +1,11 @@
 /**
  * Filing money entries in the finance books (Google Drive, SHCO Finance) — pure rules, no Drive calls.
  *
- *   Books/<account>/Pending/<entry>          claim / PV submitted or approved, not paid yet
- *   Books/<account>/Rejected/<entry>
- *   Books/<account>/<YYYY>/<YYYY-MM Month>/Money Out/<entry>   paid (month it was paid)
- *   Books/<account>/<YYYY>/<YYYY-MM Month>/Money In/<entry>    receipts
- *   Payroll/<YYYY>/<YYYY-MM Month>/Statutory | Partner Drawings/<entry>
+ *   Books/Waiting approval/<account>/<entry>     claim / PV submitted or approved, not paid yet
+ *   Books/Rejected/<account>/<entry>
+ *   Books/<YYYY>/Money Out/<account>/<YYYY-MM Month>/<entry>   paid (month it was paid)
+ *   Books/<YYYY>/Money In/<account>/<YYYY-MM Month>/<entry>    receipts
+ *   Books/<YYYY>/Payroll/<YYYY-MM Month>/Statutory | Partner Drawings/<entry>
  *
  * Same accounts as the cash book (Office, Client Account, Disbursement, Petty cash). The billing line a
  * client-account payment makes (an expense) is not filed twice. A file's entry also gets a link in Client Files/<file>.

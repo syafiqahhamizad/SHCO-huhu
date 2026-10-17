@@ -113,9 +113,9 @@ describe('year / type filters', () => {
 
 describe('finance books', () => {
   it('books by account, year and month', () => {
-    expect(booksMonthPath('Office', '2026-10-14', 'Money Out')).toEqual(['Books', 'Office Account', '2026', '2026-10 October', 'Money Out']);
-    expect(booksStatusPath('Disbursement', 'Pending')).toEqual(['Books', 'Disbursement Account', 'Pending']);
-    expect(payrollMonthPath('2025-04-30', 'Statutory')).toEqual(['Payroll', '2025', '2025-04 April', 'Statutory']);
+    expect(booksMonthPath('Office', '2026-10-14', 'Money Out')).toEqual(['Books', '2026', 'Money Out', 'Office Account', '2026-10 October']);
+    expect(booksStatusPath('Disbursement', 'Pending')).toEqual(['Books', 'Waiting approval', 'Disbursement Account']);
+    expect(payrollMonthPath('2025-04-30', 'Statutory')).toEqual(['Books', '2025', 'Payroll', '2025-04 April', 'Statutory']);
   });
   it('names entries DDMMYYYY doc file what amount', () => {
     expect(fileCodeOf('SHC/SH/CORP/SZ/002/04-25')).toBe('SZ-002');
@@ -127,11 +127,14 @@ describe('finance books', () => {
   });
   it('sets up April 2025 to December 2026', () => {
     const sk = financeSkeleton('2025-04', '2026-12', ['Office']);
-    const months = new Set(sk.filter((p) => p[0] === 'Books' && p.length === 5).map((p) => p[3]));
+    const months = new Set(sk.filter((p) => p[0] === 'Books' && p.length === 5 && p[2] === 'Money In').map((p) => p[4]));
     expect(months.size).toBe(21);
     expect([...months][0]).toBe('2025-04 April');
-    expect(sk).toContainEqual(['Books', 'Office Account', 'Pending', 'Claims']);
-    expect(sk).toContainEqual(['Books', 'Office Account', '2026', '2026-10 October', 'Money Out', 'Payment Vouchers']);
-    expect(sk).toContainEqual(['Payroll', '2026', '2026-12 December', 'Partner Drawings']);
+    expect(sk).toContainEqual(['Books', 'Waiting approval', 'Office Account']);
+    expect(sk).toContainEqual(['Accounts & Tax Reports', 'Accounts & Tax 2025', 'Office Account', 'Tax']);
+    expect(sk).toContainEqual(['Accounts & Tax Reports', 'Accounts & Tax 2026', 'Client Account', 'Accounts']);
+    expect(sk).not.toContainEqual(['Accounts & Tax Reports', 'Accounts & Tax 2026', 'Client Account', 'Tax']);
+    expect(sk).toContainEqual(['Books', '2026', 'Money Out', 'Office Account', '2026-10 October']);
+    expect(sk).toContainEqual(['Books', '2026', 'Payroll', '2026-12 December', 'Partner Drawings']);
   });
 });
