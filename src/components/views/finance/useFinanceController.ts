@@ -1834,6 +1834,8 @@ export function useFinanceController(initialTab: FinTab) {
       setForm(null); toastMsg(no + ' recorded (for reference, not counted)' + (pdf ? ' · PDF saving to Google Drive' : ''));
       return;
     }
+    // Every payment in and out needs its proof (bank-in slip, receipt, bill, transfer slip). Edits keep what is attached.
+    if (['moneyIn', 'pay', 'refund', 'toDisb', 'payOut', 'transfer', 'disb', 'expense'].includes(kind) && !proofs.length && !vals.editId) { toastMsg('Attach the proof first (receipt, bill, bank-in or transfer slip): every payment in and out needs one.'); return; }
     if (kind === 'moneyIn') {
       if (!canPrepare) { toastMsg('Receipts are recorded by Accounts.'); return; }
       if (amt <= 0) { toastMsg('Enter the amount received.'); return; }
@@ -1993,7 +1995,6 @@ export function useFinanceController(initialTab: FinTab) {
       const c = clientByName(vals.client || '');
       if (!String(vals.client || '').trim()) { toastMsg('Name the client. This is billed back to them.'); return; }
       if (amt <= 0) { toastMsg('Enter the amount.'); return; }
-      if (!proofs.length && !vals.editId) { toastMsg('Attach the receipt or bill: every cost needs one.'); return; }
       const kase = vals.matter ? caseForRef(String(vals.matter)) : cases.find((k) => c && k.clientId.split(',').map((x) => x.trim()).includes(c.id) && k.status !== 'Closed');
       const ed = costEditPrep(String(vals.editId || '')); if (!ed.ok) return;
       const exList = expenses.filter((x) => !ed.drop.includes(x.id));
@@ -2034,7 +2035,6 @@ export function useFinanceController(initialTab: FinTab) {
     } else if (kind === 'expense') {
       if (!canPrepare) { toastMsg('Office expenses are recorded by Accounts.'); return; }
       if (amt <= 0) { toastMsg('Enter the amount.'); return; }
-      if (!proofs.length && !vals.editId) { toastMsg('Attach the receipt or bill: every cost needs one.'); return; }
       const kindOf = String(vals.kind || 'Office expense');
       if (kindOf === PV_STATUTORY || kindOf === PV_SST || kindOf === PV_DRAWINGS) {
         // Remittances / drawings settle what is already owed (2300 statutory, 2200 SST) or are
